@@ -135,8 +135,16 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     /// The window title is the list's name, which AppKit draws in the unified
     /// toolbar — the native equivalent of SwiftUI's navigationTitle.
     private func updateTitle() {
-        window?.title = state.sidebarSelection.title
-        window?.subtitle = state.sidebarSelection.subtitle ?? ""
+        // One line rather than title plus subtitle: a second line makes the
+        // toolbar noticeably taller, and that height is reserved above every
+        // list for the sake of four words.
+        let selection = state.sidebarSelection
+        if let subtitle = selection.subtitle {
+            window?.title = "\(selection.title) — \(subtitle)"
+        } else {
+            window?.title = selection.title
+        }
+        window?.subtitle = ""
     }
 
     /// `@Observable` has no publisher, so the tracking closure re-arms itself.
