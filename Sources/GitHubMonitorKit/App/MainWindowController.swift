@@ -212,7 +212,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     private func syncInspector() {
         guard let split = splitViewController else { return }
 
-        guard let item = state.inspectedPullRequest else {
+        guard state.inspectedPullRequest != nil else {
             if let inspectorItem {
                 split.removeSplitViewItem(inspectorItem)
                 self.inspectorItem = nil
@@ -220,22 +220,15 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             return
         }
 
+        // Already open: InspectorColumn follows the selection on its own.
+        // Swapping the view controller here instead would tear down a hosting
+        // view that AppKit still holds tooltip tracking for, and the tooltip
+        // manager reads freed memory on the next pointer move.
+        guard inspectorItem == nil else { return }
+
         let hosting = NSHostingController(
-            rootView: PullRequestDetailView(
-                item: item,
-                detail: state.pullRequestDetails[item.id],
-                reload: { [weak self] in self?.controller.reloadDetail(for: item.id) },
-                close: { [weak self] in self?.controller.closeInspector() }
-            )
+            rootView: InspectorColumn(state: state, controller: controller)
         )
-
-        if let inspectorItem {
-            // Already open: swap the content rather than the column, so the
-            // pane does not animate away and back when moving between rows.
-            inspectorItem.viewController = hosting
-            return
-        }
-
         let newItem = NSSplitViewItem(inspectorWithViewController: hosting)
         newItem.minimumThickness = 280
         newItem.maximumThickness = 400

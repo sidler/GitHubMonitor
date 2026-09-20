@@ -388,3 +388,30 @@ private struct DraftToggleControl: View {
         .help("Drafts are counted in the menu bar only while shown")
     }
 }
+
+/// The detail column.
+///
+/// Follows the selection itself rather than being swapped out by the window
+/// controller. Replacing a split view item's view controller tears down a
+/// hosting view that AppKit still holds tooltip tracking for, and the tooltip
+/// manager then reads freed memory the next time the pointer moves — a crash
+/// in dynamicToolTipString, not in any of this code.
+struct InspectorColumn: View {
+    @Bindable var state: AppState
+    let controller: RefreshController
+
+    var body: some View {
+        if let item = state.inspectedPullRequest {
+            PullRequestDetailView(
+                item: item,
+                detail: state.pullRequestDetails[item.id],
+                reload: { controller.reloadDetail(for: item.id) },
+                close: { controller.closeInspector() }
+            )
+        } else {
+            // Kept in the hierarchy while the pane is closing, so nothing is
+            // deallocated mid-gesture.
+            Color.clear
+        }
+    }
+}
