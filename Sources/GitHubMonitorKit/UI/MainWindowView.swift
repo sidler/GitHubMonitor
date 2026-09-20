@@ -8,37 +8,44 @@ struct MainWindowView: View {
     var ensureRoomForInspector: () -> Void = {}
 
     var body: some View {
-        VStack(spacing: 0) {
-            NavigationSplitView {
-                sidebar
-                    .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 300)
-            } detail: {
-                Group {
-                    switch state.sidebarSelection {
-                    case .pullRequests: pullRequestList
-                    case .mentions: mentionList
-                    case .settings: SettingsView(state: state, controller: controller)
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .navigationTitle(state.sidebarSelection.title)
-                .navigationSubtitle(state.sidebarSelection.subtitle ?? "")
-                .toolbar { toolbarContent }
-                .inspector(isPresented: inspectorShown) {
-                    if let item = state.inspectedPullRequest {
-                        PullRequestDetailView(
-                            item: item,
-                            detail: state.pullRequestDetails[item.id],
-                            reload: { controller.reloadDetail(for: item.id) },
-                            close: { controller.closeInspector() }
-                        )
-                        .inspectorColumnWidth(min: 260, ideal: 300, max: 380)
-                    }
+        // The split view is the root on purpose. Wrapping it in a stack to
+        // put a status bar underneath stops AppKit from treating the first
+        // column as a real sidebar: the toolbar then splits itself a few
+        // points off the divider, and the status bar runs under both columns
+        // instead of under the content, as Finder has it.
+        NavigationSplitView {
+            sidebar
+                .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 300)
+        } detail: {
+            Group {
+                switch state.sidebarSelection {
+                case .pullRequests: pullRequestList
+                case .mentions: mentionList
+                case .settings: SettingsView(state: state, controller: controller)
                 }
             }
-
-            Divider()
-            statusBar
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // Attached to the content column, so it stops at the sidebar.
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                VStack(spacing: 0) {
+                    Divider()
+                    statusBar
+                }
+            }
+            .navigationTitle(state.sidebarSelection.title)
+            .navigationSubtitle(state.sidebarSelection.subtitle ?? "")
+            .toolbar { toolbarContent }
+            .inspector(isPresented: inspectorShown) {
+                if let item = state.inspectedPullRequest {
+                    PullRequestDetailView(
+                        item: item,
+                        detail: state.pullRequestDetails[item.id],
+                        reload: { controller.reloadDetail(for: item.id) },
+                        close: { controller.closeInspector() }
+                    )
+                    .inspectorColumnWidth(min: 260, ideal: 300, max: 380)
+                }
+            }
         }
         .frame(minWidth: 820, minHeight: 440)
         .onChange(of: state.inspectedPullRequestID) { _, id in

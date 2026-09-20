@@ -38,16 +38,14 @@ public final class MainWindowController: NSObject, NSWindowDelegate {
             window.center()
             window.isReleasedWhenClosed = false
             window.delegate = self
-            window.styleMask.insert(.fullSizeContentView)
             // A unified toolbar puts the title and the list's controls into
             // the title bar, which would otherwise sit empty above a row
             // doing the same job. It also gives the sidebar its full height.
+            // Content runs under the title bar so the sidebar reaches the
+            // top, as in Finder. The toolbar keeps its own material, so
+            // scrolling rows pass behind it rather than over the title.
+            window.styleMask.insert(.fullSizeContentView)
             window.toolbarStyle = .unified
-            // Transparent title bar: the split view's own backgrounds run all
-            // the way up, so the sidebar/content boundary is one straight
-            // line. With an opaque title bar the toolbar draws its own split
-            // a few points to the left of the divider, leaving a visible jog.
-            window.titlebarAppearsTransparent = true
             // A continuous line under the whole title bar. Left automatic,
             // macOS draws it only over the scrolling half, which leaves the
             // toolbar looking like a step against the sidebar.
@@ -62,6 +60,11 @@ public final class MainWindowController: NSObject, NSWindowDelegate {
                     ensureRoomForInspector: { [weak self] in self?.ensureRoomForInspector() }
                 )
             )
+            // After the hosting controller is attached: it reports its own
+            // preferred size, which shrinks the window to the SwiftUI
+            // minimum and ignores the rect above.
+            window.setContentSize(NSSize(width: 1060, height: 680))
+            window.center()
             self.window = window
         }
 
@@ -70,6 +73,16 @@ public final class MainWindowController: NSObject, NSWindowDelegate {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
+
+        // Development aid: report the window's screen rect so screenshots can
+        // be cropped to it exactly.
+        if ProcessInfo.processInfo.environment["GHM_TRACE_FRAME"] != nil, let window {
+            // The window number lets `screencapture -l` grab exactly this
+            // window, which is far less error-prone than computing a crop.
+            FileHandle.standardError.write(
+                "WINDOW \(window.windowNumber)\n".data(using: .utf8)!
+            )
+        }
     }
 
     /// Widens the window when the detail pane opens into one too narrow to
