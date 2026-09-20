@@ -290,17 +290,29 @@ private struct GroupedList<Item: Identifiable, Row: View>: View {
     }
 }
 
-/// Draft visibility. Also changes the menu bar count, which the label says.
+/// Draft visibility.
+///
+/// A button rather than a Toggle: a toolbar drops a toggle's label, leaving a
+/// bare switch that says nothing about what it switches. The button carries
+/// its state in its own wording.
 private struct DraftToggleControl: View {
     @Bindable var settings: Settings
     let draftCount: Int
 
     var body: some View {
-        Toggle(isOn: $settings.includeDrafts) {
-            Text("Show \(draftCount) draft\(draftCount == 1 ? "" : "s")")
+        Button {
+            settings.includeDrafts.toggle()
+        } label: {
+            Label(
+                settings.includeDrafts
+                    ? "Hide drafts"
+                    : "Show \(draftCount) draft\(draftCount == 1 ? "" : "s")",
+                systemImage: settings.includeDrafts ? "eye.slash" : "eye"
+            )
+            // Toolbars show icons only unless told otherwise, and "8 drafts
+            // hidden" is the part worth reading.
+            .labelStyle(.titleAndIcon)
         }
-        .toggleStyle(.switch)
-        .controlSize(.small)
         .help("Drafts are counted in the menu bar only while shown")
     }
 }
