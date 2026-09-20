@@ -50,7 +50,9 @@ public final class StatusItemController {
 
         let title = NSMutableAttributedString()
         let font = NSFont.menuBarFont(ofSize: 0)
-        let configuration = NSImage.SymbolConfiguration(pointSize: font.pointSize - 1, weight: .regular)
+        // Match the menu bar font size exactly: a symbol even one point
+        // smaller reads as visibly undersized next to the digits.
+        let configuration = NSImage.SymbolConfiguration(pointSize: font.pointSize, weight: .regular)
 
         for segment in segments {
             switch segment {
@@ -69,6 +71,11 @@ public final class StatusItemController {
                 image.isTemplate = true
                 let attachment = NSTextAttachment()
                 attachment.image = image
+                // Sit the glyph on the baseline. Centring it on the cap height
+                // looks like the more correct choice but pushes SF Symbols
+                // noticeably below the digits, because they are taller than
+                // the cap height by design.
+                attachment.bounds = CGRect(origin: .zero, size: image.size)
                 title.append(NSAttributedString(attachment: attachment))
             }
         }
@@ -104,10 +111,21 @@ public final class StatusItemController {
     @objc private func togglePopover() {
         if popover.isShown {
             closePopover()
-        } else if let button = statusItem.button {
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .maxY)
-            popover.contentViewController?.view.window?.makeKey()
+        } else {
+            showPopover()
         }
+    }
+
+    public func showPopover(activating: Bool = false) {
+        guard let button = statusItem.button, !popover.isShown else { return }
+        // A transient popover closes as soon as another app is frontmost, so
+        // opening it without a click on the status item needs the activation
+        // that the click would otherwise provide.
+        if activating {
+            NSApp.activate(ignoringOtherApps: true)
+        }
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .maxY)
+        popover.contentViewController?.view.window?.makeKey()
     }
 
     private func closePopover() {

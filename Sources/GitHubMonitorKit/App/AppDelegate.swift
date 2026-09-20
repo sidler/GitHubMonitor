@@ -20,5 +20,18 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             state: state,
             openMainWindow: { windowController.show() }
         )
+
+        // Development aid: lets the window and popover be opened without a
+        // mouse click, e.g. for screenshots during a build.
+        if let tab = ProcessInfo.processInfo.environment["GHM_OPEN"] {
+            // The status item has no window to anchor a popover to until the
+            // first pass through the run loop.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                switch tab {
+                case "popover": self?.statusItemController?.showPopover(activating: true)
+                default: windowController.show(selecting: MainWindowTab(rawValue: tab) ?? .pullRequests)
+                }
+            }
+        }
     }
 }

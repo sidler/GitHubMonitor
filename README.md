@@ -32,6 +32,18 @@ and launches it. Other targets:
 The app has no Dock icon; look for its icon in the menu bar. `make run` kills a
 previously running instance first.
 
+To open a specific surface straight away — useful for screenshots, since the
+app otherwise only reacts to a click on the status item — launch the binary
+directly with `GHM_OPEN` set to `popover`, `pullRequests`, `mentions` or
+`settings`:
+
+```bash
+GHM_OPEN=settings ./.build/GitHubMonitor.app/Contents/MacOS/GitHubMonitor
+```
+
+Note that `open` does not forward environment variables, so this needs the
+binary path rather than `open -a`.
+
 ### Why the app is signed
 
 The GitHub token is stored in the macOS Keychain, and Keychain access control is

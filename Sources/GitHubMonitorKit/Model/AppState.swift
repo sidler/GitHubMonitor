@@ -58,16 +58,10 @@ public final class AppState {
         switch loadState {
         case .idle: "Not refreshed yet"
         case .loading: "Refreshing…"
-        case .loaded(let date): "Updated \(Self.relativeFormatter.localizedString(for: date, relativeTo: .now))"
+        case .loaded(let date): "Updated \(RelativeTime.string(for: date))"
         case .failed(let message): message
         }
     }
-
-    static let relativeFormatter: RelativeDateTimeFormatter = {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .short
-        return formatter
-    }()
 
     /// Placeholder content for stage 1, so the menu bar rendering and the two
     /// UIs can be exercised before the API clients exist.

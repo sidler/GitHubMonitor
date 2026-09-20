@@ -22,7 +22,7 @@ struct PullRequestRow: View {
             HStack(spacing: 8) {
                 Text("\(item.repository) #\(item.number)")
                 Text("by \(item.author)")
-                Text(AppState.relativeFormatter.localizedString(for: item.updatedAt, relativeTo: .now))
+                Text(RelativeTime.string(for: item.updatedAt))
 
                 Label(item.reviewDecision.label, systemImage: item.reviewDecision.symbolName)
                     .labelStyle(.iconOnly)
@@ -72,7 +72,7 @@ struct NotificationRow: View {
             HStack(spacing: 8) {
                 Text(item.repository)
                 Text(item.reason.label)
-                Text(AppState.relativeFormatter.localizedString(for: item.updatedAt, relativeTo: .now))
+                Text(RelativeTime.string(for: item.updatedAt))
             }
             .font(.caption)
             .foregroundStyle(.secondary)
