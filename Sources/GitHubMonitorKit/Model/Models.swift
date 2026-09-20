@@ -149,6 +149,23 @@ public struct NotificationItem: Identifiable, Hashable, Sendable {
     /// API URL of the subject, used to resolve a browser URL on demand.
     public let subjectAPIURL: URL?
 
+    /// Icon for the kind of thing this notification is about.
+    ///
+    /// More useful than an avatar here: the notifications API carries no
+    /// commenter identity, so the only avatar available is the repository
+    /// owner's -- identical for every row within one organisation.
+    public var symbolName: String {
+        switch subjectType {
+        case "PullRequest": "arrow.triangle.pull"
+        case "Issue": "smallcircle.filled.circle"
+        case "Commit": "arrow.triangle.branch"
+        case "Release": "tag"
+        case "Discussion": "bubble.left.and.bubble.right"
+        case "CheckSuite": "checkmark.seal"
+        default: "bell"
+        }
+    }
+
     public init(
         id: String,
         title: String,

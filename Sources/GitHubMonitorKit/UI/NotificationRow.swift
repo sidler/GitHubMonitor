@@ -24,8 +24,12 @@ struct NotificationRow: View {
 
     private var summary: some View {
         HStack(alignment: .top, spacing: 8) {
-            AvatarView(url: item.avatarURL, size: compact ? 22 : 26)
+            Image(systemName: item.symbolName)
+                .font(compact ? .body : .title3)
+                .foregroundStyle(.secondary)
+                .frame(width: compact ? 22 : 26)
                 .padding(.top, 1)
+                .help(item.subjectType)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.title)

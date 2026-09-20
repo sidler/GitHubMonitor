@@ -6,24 +6,61 @@ struct MainWindowView: View {
     let controller: RefreshController
 
     var body: some View {
-        NavigationSplitView {
-            List(MainWindowTab.allCases, id: \.self, selection: $state.selectedTab) { tab in
-                Label(tab.label, systemImage: tab.symbolName)
-                    .badge(badge(for: tab))
-                    .tag(tab)
-            }
-            .navigationSplitViewColumnWidth(min: 170, ideal: 190, max: 240)
-        } detail: {
-            Group {
-                switch state.selectedTab {
-                case .pullRequests: pullRequestList
-                case .mentions: mentionList
-                case .settings: SettingsView(state: state, controller: controller)
+        VStack(spacing: 0) {
+            NavigationSplitView {
+                List(MainWindowTab.allCases, id: \.self, selection: $state.selectedTab) { tab in
+                    Label(tab.label, systemImage: tab.symbolName)
+                        .badge(badge(for: tab))
+                        .tag(tab)
                 }
+                .navigationSplitViewColumnWidth(min: 170, ideal: 190, max: 240)
+            } detail: {
+                Group {
+                    switch state.selectedTab {
+                    case .pullRequests: pullRequestList
+                    case .mentions: mentionList
+                    case .settings: SettingsView(state: state, controller: controller)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            Divider()
+            statusBar
         }
         .frame(minWidth: 680, minHeight: 440)
+    }
+
+    /// Finder-style status bar: the totals, plus when they were last checked.
+    private var statusBar: some View {
+        HStack(spacing: 12) {
+            Label("\(state.visiblePullRequests.count)", systemImage: StatusBarTitleBuilder.pullRequestSymbol)
+                .help("Reviews requested")
+            Label("\(state.visibleNotifications.count)", systemImage: StatusBarTitleBuilder.mentionSymbol)
+                .help("Unread mentions")
+
+            Spacer()
+
+            if state.loadState == .loading {
+                ProgressView().controlSize(.small)
+            }
+            Text(state.statusMessage)
+                .foregroundStyle(state.health == .failing ? .red : .secondary)
+
+            Button {
+                Task { await controller.refresh() }
+            } label: {
+                Image(systemName: "arrow.clockwise")
+            }
+            .buttonStyle(.accessoryBar)
+            .disabled(state.loadState == .loading)
+            .help("Refresh now")
+        }
+        .font(.caption)
+        .monospacedDigit()
+        .padding(.horizontal, 12)
+        .padding(.vertical, 5)
+        .background(.bar)
     }
 
     private func badge(for tab: MainWindowTab) -> Int {

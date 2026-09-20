@@ -28,6 +28,11 @@ public final class MainWindowController {
             window.title = "GitHub Monitor"
             window.center()
             window.isReleasedWhenClosed = false
+            // Let the content run under the title bar so the sidebar reaches
+            // the top of the window, as in Finder and Mail.
+            window.titlebarAppearsTransparent = true
+            window.styleMask.insert(.fullSizeContentView)
+            window.titleVisibility = .hidden
             window.contentView = NSHostingView(rootView: MainWindowView(state: state, controller: controller))
             self.window = window
         }
