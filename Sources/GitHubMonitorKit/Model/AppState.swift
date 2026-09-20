@@ -3,12 +3,14 @@ import Observation
 
 public enum MainWindowTab: String, Hashable, CaseIterable, Sendable {
     case pullRequests
+    case myPullRequests
     case mentions
     case settings
 
     public var label: String {
         switch self {
-        case .pullRequests: "Pull Requests"
+        case .pullRequests: "Reviews Requested"
+        case .myPullRequests: "My Pull Requests"
         case .mentions: "Mentions"
         case .settings: "Settings"
         }
@@ -17,6 +19,7 @@ public enum MainWindowTab: String, Hashable, CaseIterable, Sendable {
     public var symbolName: String {
         switch self {
         case .pullRequests: "arrow.triangle.pull"
+        case .myPullRequests: "person.crop.circle"
         case .mentions: "bell"
         case .settings: "gearshape"
         }
@@ -44,6 +47,8 @@ public final class AppState {
     public let settings: Settings
 
     public var pullRequests: [PullRequestItem] = []
+    /// Pull requests the user opened, still waiting on other people.
+    public var authoredPullRequests: [PullRequestItem] = []
     public var notifications: [NotificationItem] = []
     public var loadState: LoadState = .idle
     /// True once a token has been found in the Keychain.
@@ -87,6 +92,24 @@ public final class AppState {
         )
     }
 
+    /// The user's own pull requests, after the same filters.
+    public var visibleAuthoredPullRequests: [PullRequestItem] {
+        PullRequestFilter.apply(
+            authoredPullRequests,
+            includeDrafts: settings.includeDrafts,
+            repositoryFilters: settings.repositoryFilters
+        )
+    }
+
+    public var selectedAuthoredPullRequests: [PullRequestItem] {
+        narrow(visibleAuthoredPullRequests, to: sidebarSelection.repository, by: \.repository)
+    }
+
+    public var authoredRepositories: [SidebarRepository] {
+        RepositoryGrouping.group(visibleAuthoredPullRequests, by: \.repository)
+            .map { SidebarRepository(repository: $0.repository, count: $0.items.count) }
+    }
+
     /// Drafts within the repository filter, whether or not they are shown.
     /// Drives the wording of the draft toggle.
     public var draftCount: Int {
@@ -128,7 +151,7 @@ public final class AppState {
     /// list -- a refresh can drop it.
     public var inspectedPullRequest: PullRequestItem? {
         guard let id = inspectedPullRequestID else { return nil }
-        return pullRequests.first { $0.id == id }
+        return (pullRequests + authoredPullRequests).first { $0.id == id }
     }
 
     public var health: StatusBarHealth {

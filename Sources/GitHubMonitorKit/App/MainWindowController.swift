@@ -22,6 +22,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate {
     public func show(selecting tab: MainWindowTab? = nil) {
         switch tab {
         case .pullRequests: state.sidebarSelection = .pullRequests(repository: nil)
+        case .myPullRequests: state.sidebarSelection = .myPullRequests(repository: nil)
         case .mentions: state.sidebarSelection = .mentions(repository: nil)
         case .settings: state.sidebarSelection = .settings
         case nil: break

@@ -7,12 +7,15 @@ import Foundation
 /// under each heading select.
 public enum SidebarSelection: Hashable, Sendable {
     case pullRequests(repository: String?)
+    /// Pull requests the user opened, waiting on other people.
+    case myPullRequests(repository: String?)
     case mentions(repository: String?)
     case settings
 
     public var tab: MainWindowTab {
         switch self {
         case .pullRequests: .pullRequests
+        case .myPullRequests: .myPullRequests
         case .mentions: .mentions
         case .settings: .settings
         }
@@ -21,7 +24,9 @@ public enum SidebarSelection: Hashable, Sendable {
     /// The repository this selection narrows to, if any.
     public var repository: String? {
         switch self {
-        case .pullRequests(let repository), .mentions(let repository): repository
+        case .pullRequests(let repository),
+             .myPullRequests(let repository),
+             .mentions(let repository): repository
         case .settings: nil
         }
     }
@@ -30,7 +35,8 @@ public enum SidebarSelection: Hashable, Sendable {
     /// title: the repository when one is chosen, the section otherwise.
     public var title: String {
         switch self {
-        case .pullRequests(let repository): repository ?? "Pull Requests"
+        case .pullRequests(let repository): repository ?? "Reviews Requested"
+        case .myPullRequests(let repository): repository ?? "My Pull Requests"
         case .mentions(let repository): repository ?? "Mentions"
         case .settings: "Settings"
         }
@@ -40,7 +46,8 @@ public enum SidebarSelection: Hashable, Sendable {
     /// showing.
     public var subtitle: String? {
         switch self {
-        case .pullRequests(let repository): repository == nil ? nil : "Pull Requests"
+        case .pullRequests(let repository): repository == nil ? nil : "Reviews Requested"
+        case .myPullRequests(let repository): repository == nil ? nil : "My Pull Requests"
         case .mentions(let repository): repository == nil ? nil : "Mentions"
         case .settings: nil
         }

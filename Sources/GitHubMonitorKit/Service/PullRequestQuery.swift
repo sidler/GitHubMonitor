@@ -10,6 +10,12 @@ import Foundation
 public enum PullRequestQuery {
     public static let pageSize = 50
 
+    /// Pull requests the user opened that are still open — the ones they are
+    /// waiting on other people for.
+    public static func authoredQuery(login: String, repositoryFilters: [String]) -> String {
+        "is:pr is:open archived:false author:\(login)" + repositoryScope(repositoryFilters)
+    }
+
     /// One search string per audience whose review requests count as the
     /// user's own.
     public static func searchQueries(
@@ -50,15 +56,31 @@ public enum PullRequestQuery {
             .filter { $0.contains("/") && !$0.hasPrefix("/") && !$0.hasSuffix("/") }
     }
 
+    /// Prefix marking the aliases of a group of searches, so one document can
+    /// carry several lists and the parser can tell them apart.
+    public enum Group: String, CaseIterable, Sendable {
+        case reviewRequested = "r"
+        case authored = "a"
+    }
+
     /// A single GraphQL document running every search under its own alias.
-    public static func document(for queries: [String]) -> String {
-        let searches = queries.enumerated().map { index, query in
-            """
-                s\(index): search(query: \(jsonString(query)), type: ISSUE, first: \(pageSize)) {
-                  ...Results
+    ///
+    /// Both lists travel in one request: a second round trip would double the
+    /// latency of a refresh for no benefit, since they are always wanted
+    /// together.
+    public static func document(reviewRequested: [String], authored: [String]) -> String {
+        let searches = ([Group.reviewRequested: reviewRequested, .authored: authored])
+            .sorted { $0.key.rawValue < $1.key.rawValue }
+            .flatMap { group, queries in
+                queries.enumerated().map { index, query in
+                    """
+                        \(group.rawValue)\(index): search(query: \(jsonString(query)), type: ISSUE, first: \(pageSize)) {
+                          ...Results
+                        }
+                    """
                 }
-            """
-        }.joined(separator: "\n")
+            }
+            .joined(separator: "\n")
 
         return """
         query {

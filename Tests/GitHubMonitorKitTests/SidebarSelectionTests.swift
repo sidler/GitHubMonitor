@@ -6,7 +6,7 @@ import Testing
 struct SidebarSelectionTests {
     @Test("An 'All' selection is titled by its section")
     func sectionTitles() {
-        #expect(SidebarSelection.pullRequests(repository: nil).title == "Pull Requests")
+        #expect(SidebarSelection.pullRequests(repository: nil).title == "Reviews Requested")
         #expect(SidebarSelection.mentions(repository: nil).title == "Mentions")
         #expect(SidebarSelection.pullRequests(repository: nil).subtitle == nil)
     }
@@ -18,7 +18,19 @@ struct SidebarSelectionTests {
     func repositoryTitles() {
         let selection = SidebarSelection.pullRequests(repository: "octo/platform")
         #expect(selection.title == "octo/platform")
-        #expect(selection.subtitle == "Pull Requests")
+        #expect(selection.subtitle == "Reviews Requested")
+    }
+
+    /// The two pull request lists must be distinguishable at a glance;
+    /// naming both "Pull Requests" would make the header useless.
+    @Test("The two pull request lists have distinct titles")
+    func distinctPullRequestTitles() {
+        #expect(SidebarSelection.myPullRequests(repository: nil).title == "My Pull Requests")
+        #expect(
+            SidebarSelection.pullRequests(repository: nil).title
+                != SidebarSelection.myPullRequests(repository: nil).title
+        )
+        #expect(SidebarSelection.myPullRequests(repository: "a/b") != .pullRequests(repository: "a/b"))
     }
 
     @Test("Selections map onto the right list")

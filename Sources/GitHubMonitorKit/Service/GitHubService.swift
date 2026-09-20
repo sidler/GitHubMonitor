@@ -138,15 +138,28 @@ public struct GitHubService: Sendable {
         try await client.patch(url)
     }
 
+    /// Both pull request lists in one request: those waiting for the user's
+    /// review, and those the user opened and is waiting on others for.
     public func pullRequests(
         login: String,
         teamSlugs: [String],
         repositoryFilters: [String]
-    ) async throws -> [PullRequestItem] {
-        let queries = PullRequestQuery.searchQueries(
-            login: login, teamSlugs: teamSlugs, repositoryFilters: repositoryFilters
+    ) async throws -> (reviewRequested: [PullRequestItem], authored: [PullRequestItem]) {
+        let payload = try await client.graphQL(
+            PullRequestQuery.document(
+                reviewRequested: PullRequestQuery.searchQueries(
+                    login: login, teamSlugs: teamSlugs, repositoryFilters: repositoryFilters
+                ),
+                authored: [
+                    PullRequestQuery.authoredQuery(
+                        login: login, repositoryFilters: repositoryFilters
+                    ),
+                ]
+            )
         )
-        let payload = try await client.graphQL(PullRequestQuery.document(for: queries))
-        return PullRequestParser.pullRequests(from: payload)
+        return (
+            PullRequestParser.pullRequests(from: payload, group: .reviewRequested),
+            PullRequestParser.pullRequests(from: payload, group: .authored)
+        )
     }
 }

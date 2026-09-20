@@ -54,17 +54,31 @@ struct PullRequestQueryTests {
 
     @Test("Every search becomes its own alias in one document")
     func documentAliases() {
-        let document = PullRequestQuery.document(for: ["a", "b"])
-        #expect(document.contains("s0: search("))
-        #expect(document.contains("s1: search("))
+        let document = PullRequestQuery.document(reviewRequested: ["a", "b"], authored: ["c"])
+        #expect(document.contains("r0: search("))
+        #expect(document.contains("r1: search("))
+        #expect(document.contains("a0: search("))
         #expect(document.contains("fragment Results on SearchResultItemConnection"))
+    }
+
+    @Test("Authored pull requests are searched by author")
+    func authoredQuery() {
+        let query = PullRequestQuery.authoredQuery(login: "sidler", repositoryFilters: [])
+        #expect(query == "is:pr is:open archived:false author:sidler")
+        #expect(!query.contains("review-requested"))
+    }
+
+    @Test("The repository scope applies to the authored search too")
+    func authoredScope() {
+        let query = PullRequestQuery.authoredQuery(login: "sidler", repositoryFilters: ["octo"])
+        #expect(query.contains("org:octo"))
     }
 
     /// A quote or backslash in a filter would otherwise break out of the
     /// GraphQL string and make the whole document invalid.
     @Test("Quotes in a query are escaped")
     func escaping() {
-        let document = PullRequestQuery.document(for: ["repo:a/b \"quoted\""])
+        let document = PullRequestQuery.document(reviewRequested: ["repo:a/b \"quoted\""], authored: [])
         #expect(document.contains("\\\"quoted\\\""))
         #expect(!document.contains("search(query: \"repo:a/b \"quoted\""))
     }

@@ -30,7 +30,7 @@ struct PullRequestParserTests {
 
     @Test("Fields are mapped across")
     func mapping() throws {
-        let items = PullRequestParser.pullRequests(from: ["s0": ["nodes": [node(id: "a")]]])
+        let items = PullRequestParser.pullRequests(from: ["r0": ["nodes": [node(id: "a")]]], group: .reviewRequested)
         let item = try #require(items.first)
         #expect(item.number == 7)
         #expect(item.repository == "octo/server")
@@ -46,29 +46,29 @@ struct PullRequestParserTests {
     @Test("The same pull request in two searches is counted once")
     func deduplication() {
         let payload: [String: Any] = [
-            "s0": ["nodes": [node(id: "same"), node(id: "only-personal")]],
-            "s1": ["nodes": [node(id: "same"), node(id: "only-team")]],
+            "r0": ["nodes": [node(id: "same"), node(id: "only-personal")]],
+            "r1": ["nodes": [node(id: "same"), node(id: "only-team")]],
         ]
-        let items = PullRequestParser.pullRequests(from: payload)
+        let items = PullRequestParser.pullRequests(from: payload, group: .reviewRequested)
         #expect(items.count == 3)
         #expect(Set(items.map(\.id)) == ["same", "only-personal", "only-team"])
     }
 
     @Test("Results are sorted with the most recently updated first")
     func sorting() {
-        let payload: [String: Any] = ["s0": ["nodes": [
+        let payload: [String: Any] = ["r0": ["nodes": [
             node(id: "old", updated: "2026-09-01T10:00:00Z"),
             node(id: "new", updated: "2026-09-19T10:00:00Z"),
         ]]]
-        #expect(PullRequestParser.pullRequests(from: payload).map(\.id) == ["new", "old"])
+        #expect(PullRequestParser.pullRequests(from: payload, group: .reviewRequested).map(\.id) == ["new", "old"])
     }
 
     /// Search results also contain issues, which arrive as empty objects
     /// because the fragment only matches pull requests.
     @Test("Non-pull-request hits are skipped")
     func skipsUnusableNodes() {
-        let payload: [String: Any] = ["s0": ["nodes": [[:], node(id: "real")]]]
-        let items = PullRequestParser.pullRequests(from: payload)
+        let payload: [String: Any] = ["r0": ["nodes": [[:], node(id: "real")]]]
+        let items = PullRequestParser.pullRequests(from: payload, group: .reviewRequested)
         #expect(items.map(\.id) == ["real"])
     }
 
@@ -76,7 +76,7 @@ struct PullRequestParserTests {
     func missingAuthor() throws {
         var raw = node(id: "a")
         raw["author"] = NSNull()
-        let items = PullRequestParser.pullRequests(from: ["s0": ["nodes": [raw]]])
+        let items = PullRequestParser.pullRequests(from: ["r0": ["nodes": [raw]]], group: .reviewRequested)
         let item = try #require(items.first)
         #expect(item.author == "ghost")
         #expect(item.authorAvatarURL == nil)
@@ -85,7 +85,8 @@ struct PullRequestParserTests {
     @Test("Absent review decision and checks degrade to 'none'")
     func absentOptionalFields() throws {
         let items = PullRequestParser.pullRequests(
-            from: ["s0": ["nodes": [node(id: "a", decision: nil, rollup: nil)]]]
+            from: ["r0": ["nodes": [node(id: "a", decision: nil, rollup: nil)]]],
+            group: .reviewRequested
         )
         let item = try #require(items.first)
         #expect(item.reviewDecision == .none)
@@ -100,13 +101,25 @@ struct PullRequestParserTests {
         ("SOMETHING_NEW", ChecksStatus.none),
     ])
     func rollupStates(raw: String, expected: ChecksStatus) throws {
-        let items = PullRequestParser.pullRequests(from: ["s0": ["nodes": [node(id: "a", rollup: raw)]]])
+        let items = PullRequestParser.pullRequests(from: ["r0": ["nodes": [node(id: "a", rollup: raw)]]], group: .reviewRequested)
         #expect(try #require(items.first).checks == expected)
+    }
+
+    /// One document carries both lists; a parser that ignored the alias
+    /// prefix would show the user's own pull requests in the review queue.
+    @Test("Groups are kept apart by their alias prefix")
+    func groupsAreSeparate() {
+        let payload: [String: Any] = [
+            "r0": ["nodes": [node(id: "to-review")]],
+            "a0": ["nodes": [node(id: "mine")]],
+        ]
+        #expect(PullRequestParser.pullRequests(from: payload, group: .reviewRequested).map(\.id) == ["to-review"])
+        #expect(PullRequestParser.pullRequests(from: payload, group: .authored).map(\.id) == ["mine"])
     }
 
     @Test("An empty payload yields no items")
     func emptyPayload() {
-        #expect(PullRequestParser.pullRequests(from: [:]).isEmpty)
-        #expect(PullRequestParser.pullRequests(from: ["s0": ["nodes": []]]).isEmpty)
+        #expect(PullRequestParser.pullRequests(from: [:], group: .reviewRequested).isEmpty)
+        #expect(PullRequestParser.pullRequests(from: ["r0": ["nodes": []]], group: .reviewRequested).isEmpty)
     }
 }

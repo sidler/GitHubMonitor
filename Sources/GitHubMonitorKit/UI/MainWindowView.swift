@@ -20,6 +20,7 @@ struct MainWindowView: View {
             Group {
                 switch state.sidebarSelection {
                 case .pullRequests: pullRequestList
+                case .myPullRequests: authoredList
                 case .mentions: mentionList
                 case .settings: SettingsView(state: state, controller: controller)
                 }
@@ -57,7 +58,7 @@ struct MainWindowView: View {
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         switch state.sidebarSelection {
-        case .pullRequests:
+        case .pullRequests, .myPullRequests:
             ToolbarItem {
                 GroupingPicker(
                     settings: state.settings,
@@ -150,6 +151,17 @@ struct MainWindowView: View {
                 }
             }
 
+            Section("My Pull Requests") {
+                Label("All", systemImage: "person.crop.circle")
+                    .badge(state.visibleAuthoredPullRequests.count)
+                    .tag(SidebarSelection.myPullRequests(repository: nil))
+
+                ForEach(state.authoredRepositories) { entry in
+                    repositoryRow(entry)
+                        .tag(SidebarSelection.myPullRequests(repository: entry.repository))
+                }
+            }
+
             Section("Mentions") {
                 Label("All", systemImage: StatusBarTitleBuilder.mentionSymbol)
                     .badge(state.visibleNotifications.count)
@@ -166,6 +178,10 @@ struct MainWindowView: View {
                     .tag(SidebarSelection.settings)
             }
         }
+        // Without this the list renders as a plain list: its material stops
+        // below the toolbar, so the divider starts out of nowhere partway
+        // down the window instead of running the full height.
+        .listStyle(.sidebar)
     }
 
     private func repositoryRow(_ entry: SidebarRepository) -> some View {
@@ -209,6 +225,32 @@ struct MainWindowView: View {
                         )
                     )
                 }
+            }
+        }
+    }
+
+    /// The user's own open pull requests: what they are waiting on others for.
+    private var authoredList: some View {
+        let items = state.selectedAuthoredPullRequests
+        return GroupedList(
+            items: items,
+            grouping: state.settings.listGrouping,
+            repository: \.repository
+        ) { item in
+            PullRequestRow(
+                item: item,
+                inspect: { controller.inspect(item) },
+                isInspected: state.inspectedPullRequestID == item.id
+            )
+            .padding(.vertical, 3)
+        }
+        .overlay {
+            if items.isEmpty {
+                ContentUnavailableView(
+                    "No open pull requests",
+                    systemImage: "person.crop.circle",
+                    description: Text("You have nothing open and waiting on review.")
+                )
             }
         }
     }

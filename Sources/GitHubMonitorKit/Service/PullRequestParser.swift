@@ -10,12 +10,16 @@ public enum PullRequestParser {
     /// A pull request can be requested from the user personally *and* from one
     /// of their teams, so the same item may appear in more than one search;
     /// deduplicating by id is what keeps the count honest.
-    public static func pullRequests(from payload: [String: Any]) -> [PullRequestItem] {
+    public static func pullRequests(
+        from payload: [String: Any],
+        group: PullRequestQuery.Group
+    ) -> [PullRequestItem] {
         var seen = Set<String>()
         var items: [PullRequestItem] = []
 
-        // Alias order is our own (s0, s1, …); sort so results stay stable.
-        for key in payload.keys.sorted(by: aliasOrder) {
+        // Alias order is our own (r0, r1, …); sort so results stay stable.
+        let keys = payload.keys.filter { $0.hasPrefix(group.rawValue) }
+        for key in keys.sorted(by: aliasOrder) {
             guard
                 let search = payload[key] as? [String: Any],
                 let nodes = search["nodes"] as? [[String: Any]]

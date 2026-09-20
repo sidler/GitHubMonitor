@@ -166,13 +166,14 @@ public final class RefreshController {
                 state.viewer = viewer
             }
 
-            let pullRequests = try await service.pullRequests(
+            let fetched = try await service.pullRequests(
                 login: viewer.login,
                 teamSlugs: state.settings.teamSlugs,
                 repositoryFilters: state.settings.repositoryFilters
             )
-            state.pullRequests = pullRequests
-            let livePullRequests = Set(pullRequests.map(\.id))
+            state.pullRequests = fetched.reviewRequested
+            state.authoredPullRequests = fetched.authored
+            let livePullRequests = Set((fetched.reviewRequested + fetched.authored).map(\.id))
             state.pullRequestDetails = state.pullRequestDetails.filter {
                 livePullRequests.contains($0.key)
             }
