@@ -46,6 +46,10 @@ public final class AppState {
     public var viewer: Viewer?
     /// Team memberships offered as a checklist in settings.
     public var availableTeams: [TeamMembership] = []
+    /// Comment bodies, fetched only when a row is opened.
+    public var previews: [String: PreviewState] = [:]
+    /// The notification whose preview is expanded, if any.
+    public var expandedNotificationID: String?
     public var selectedTab: MainWindowTab = .pullRequests
 
     public init(settings: Settings) {
@@ -58,6 +62,16 @@ public final class AppState {
         PullRequestFilter.apply(
             pullRequests,
             includeDrafts: settings.includeDrafts,
+            repositoryFilters: settings.repositoryFilters
+        )
+    }
+
+    /// Notifications after every filter -- what the list shows and what the
+    /// menu bar counts.
+    public var visibleNotifications: [NotificationItem] {
+        NotificationFilter.apply(
+            notifications,
+            reasons: settings.notificationReasons,
             repositoryFilters: settings.repositoryFilters
         )
     }
@@ -122,7 +136,9 @@ public final class AppState {
                 avatarURL: URL(string: "https://avatars.githubusercontent.com/u/9919?v=4"),
                 reason: .mention,
                 updatedAt: .now.addingTimeInterval(-1800),
-                subjectType: "Issue", latestCommentAPIURL: nil, subjectAPIURL: nil
+                subjectType: "Issue",
+                latestCommentAPIURL: URL(string: "https://api.github.com/repos/octo/server/issues/comments/1"),
+                subjectAPIURL: URL(string: "https://api.github.com/repos/octo/server/issues/42")
             ),
             NotificationItem(
                 id: "n2", title: "Release 8.2 checklist",
@@ -130,9 +146,19 @@ public final class AppState {
                 avatarURL: URL(string: "https://avatars.githubusercontent.com/u/6154722?v=4"),
                 reason: .teamMention,
                 updatedAt: .now.addingTimeInterval(-7200),
-                subjectType: "Issue", latestCommentAPIURL: nil, subjectAPIURL: nil
+                subjectType: "Issue", latestCommentAPIURL: nil,
+                subjectAPIURL: URL(string: "https://api.github.com/repos/octo/toolkit/pulls/1204")
             ),
         ]
+        // Show one preview open, so the expanded layout is exercised too.
+        previews["n1"] = .text(
+            """
+            I think the migration for the session table has to run before the \
+            index is added, otherwise the unique constraint fails on existing \
+            rows. Could you check the ordering?
+            """
+        )
+        expandedNotificationID = "n1"
         loadState = .loaded(.now)
     }
 }

@@ -7,6 +7,15 @@ public struct Viewer: Equatable, Sendable {
     public let scopes: TokenScopes
 }
 
+/// Result of a notifications poll.
+public struct NotificationFetch: Sendable {
+    /// Nil when GitHub answered 304 — nothing changed, keep what we have.
+    public let items: [NotificationItem]?
+    public let lastModified: String?
+    /// GitHub's own minimum seconds between polls.
+    public let pollInterval: TimeInterval?
+}
+
 public struct TeamMembership: Identifiable, Hashable, Sendable {
     /// "org/team" — the form GitHub's search qualifiers expect.
     public var id: String { slug }
@@ -65,6 +74,58 @@ public struct GitHubService: Sendable {
             )
         }
         .sorted { $0.slug < $1.slug }
+    }
+
+    /// Unread notification threads.
+    ///
+    /// GitHub asks clients to send back the previous `Last-Modified` value; a
+    /// resulting 304 does not count against the rate limit, which matters at a
+    /// one-minute poll interval. The response also carries `X-Poll-Interval`,
+    /// the floor GitHub wants respected.
+    public func notifications(since lastModified: String?) async throws -> NotificationFetch {
+        var components = URLComponents(string: "https://api.github.com/notifications")!
+        components.queryItems = [
+            URLQueryItem(name: "all", value: "false"),
+            URLQueryItem(name: "per_page", value: "50"),
+        ]
+
+        var headers: [String: String] = [:]
+        if let lastModified {
+            headers["If-Modified-Since"] = lastModified
+        }
+
+        let (data, response) = try await client.get(components.url!, headers: headers)
+        let pollInterval = (response.value(forHTTPHeaderField: "X-Poll-Interval"))
+            .flatMap(TimeInterval.init)
+
+        guard response.statusCode != 304 else {
+            return NotificationFetch(
+                items: nil,
+                lastModified: lastModified,
+                pollInterval: pollInterval
+            )
+        }
+
+        return NotificationFetch(
+            items: try NotificationParser.notifications(from: data),
+            lastModified: response.value(forHTTPHeaderField: "Last-Modified") ?? lastModified,
+            pollInterval: pollInterval
+        )
+    }
+
+    /// The newest comment on a thread, fetched only when the user opens it.
+    public func commentBody(at url: URL) async throws -> String? {
+        let (data, _) = try await client.get(url)
+        return NotificationParser.commentBody(from: data)
+    }
+
+    /// Marks one thread read. This changes state on GitHub, including in the
+    /// web inbox, so it only ever runs on an explicit action.
+    public func markRead(threadID: String) async throws {
+        guard let url = URL(string: "https://api.github.com/notifications/threads/\(threadID)") else {
+            throw GitHubError.decoding("invalid thread id")
+        }
+        try await client.patch(url)
     }
 
     public func pullRequests(

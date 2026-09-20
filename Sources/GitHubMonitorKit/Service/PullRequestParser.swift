@@ -5,14 +5,6 @@ import Foundation
 /// Kept separate from the client so it can be tested against recorded
 /// responses without a network.
 public enum PullRequestParser {
-    // Formatters are documented as safe for concurrent formatting once
-    // configured; this one is never mutated after creation.
-    nonisolated(unsafe) static let dateFormatter: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter
-    }()
-
     /// Reads every aliased search in the payload and merges them.
     ///
     /// A pull request can be requested from the user personally *and* from one
@@ -56,7 +48,7 @@ public enum PullRequestParser {
 
         let repository = (node["repository"] as? [String: Any])?["nameWithOwner"] as? String ?? "?"
         let author = node["author"] as? [String: Any]
-        let updatedAt = (node["updatedAt"] as? String).flatMap(dateFormatter.date(from:)) ?? .now
+        let updatedAt = GitHubDate.date(from: node["updatedAt"] as? String)
 
         return PullRequestItem(
             id: id,

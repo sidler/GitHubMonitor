@@ -4,9 +4,13 @@ import Foundation
 @MainActor
 public final class RefreshController {
     private let state: AppState
-    private var service: GitHubService?
+    private(set) var service: GitHubService?
     private var timer: Task<Void, Never>?
     private var inFlight: Task<Void, Never>?
+    /// Passed back as If-Modified-Since so unchanged polls cost no rate limit.
+    private var lastModified: String?
+    /// GitHub's requested minimum interval, which overrides a shorter setting.
+    private var githubPollInterval: TimeInterval?
 
     public init(state: AppState) {
         self.state = state
@@ -41,14 +45,24 @@ public final class RefreshController {
     /// Restarts the periodic refresh, e.g. after the interval is changed.
     public func restartTimer() {
         timer?.cancel()
-        let interval = max(Settings.minimumRefreshInterval, state.settings.refreshInterval)
         timer = Task { [weak self] in
             while !Task.isCancelled {
+                guard let interval = self?.effectiveInterval else { return }
                 try? await Task.sleep(for: .seconds(interval))
                 guard !Task.isCancelled else { return }
                 await self?.refresh()
             }
         }
+    }
+
+    /// The user's interval, floored by our own minimum and by whatever GitHub
+    /// asks for in `X-Poll-Interval`. Polling faster than GitHub requests is
+    /// what gets clients throttled.
+    var effectiveInterval: TimeInterval {
+        max(
+            state.settings.refreshInterval,
+            max(Settings.minimumRefreshInterval, githubPollInterval ?? 0)
+        )
     }
 
     public func stop() {
@@ -141,12 +155,86 @@ public final class RefreshController {
                 repositoryFilters: state.settings.repositoryFilters
             )
             state.pullRequests = pullRequests
+
+            let fetch = try await service.notifications(since: lastModified)
+            lastModified = fetch.lastModified
+            githubPollInterval = fetch.pollInterval
+            // A 304 means nothing changed; keeping the current list is the
+            // point of asking conditionally.
+            if let items = fetch.items {
+                state.notifications = items
+                // Drop previews for threads that are gone, so the cache does
+                // not grow for the life of the process.
+                let live = Set(items.map(\.id))
+                state.previews = state.previews.filter { live.contains($0.key) }
+            }
+
             state.loadState = .loaded(.now)
         } catch let error as GitHubError {
             Log.api.error("refresh failed: \(error.localizedDescription, privacy: .public)")
             state.loadState = .failed(error.localizedDescription)
         } catch {
             state.loadState = .failed(error.localizedDescription)
+        }
+    }
+
+    // MARK: - Notifications
+
+    /// Opens or closes a preview, fetching the comment body the first time.
+    public func togglePreview(for item: NotificationItem) {
+        guard state.expandedNotificationID != item.id else {
+            state.expandedNotificationID = nil
+            return
+        }
+        state.expandedNotificationID = item.id
+
+        // Already fetched, or being fetched: nothing more to do.
+        guard state.previews[item.id] == nil else { return }
+
+        guard let url = item.latestCommentAPIURL else {
+            // Review requests and state changes have no comment to show.
+            state.previews[item.id] = .empty
+            return
+        }
+
+        state.previews[item.id] = .loading
+        Task { [weak self] in
+            guard let self, let service = self.service else { return }
+            do {
+                let body = try await service.commentBody(at: url)
+                self.state.previews[item.id] = body.map(PreviewState.text) ?? .empty
+            } catch let error as GitHubError {
+                self.state.previews[item.id] = .failed(error.localizedDescription)
+            } catch {
+                self.state.previews[item.id] = .failed(error.localizedDescription)
+            }
+        }
+    }
+
+    /// Marks a thread read on GitHub and removes it locally.
+    ///
+    /// This is a write that also empties the thread from the GitHub web inbox,
+    /// so it runs only from an explicit button press.
+    public func markRead(_ item: NotificationItem) async {
+        guard let service else { return }
+        do {
+            try await service.markRead(threadID: item.id)
+            state.notifications.removeAll { $0.id == item.id }
+            state.previews[item.id] = nil
+            if state.expandedNotificationID == item.id {
+                state.expandedNotificationID = nil
+            }
+        } catch let error as GitHubError {
+            state.loadState = .failed("Could not mark as read: \(error.localizedDescription)")
+        } catch {
+            state.loadState = .failed("Could not mark as read: \(error.localizedDescription)")
+        }
+    }
+
+    /// Marks every currently visible notification read, one request each.
+    public func markAllVisibleRead() async {
+        for item in state.visibleNotifications {
+            await markRead(item)
         }
     }
 

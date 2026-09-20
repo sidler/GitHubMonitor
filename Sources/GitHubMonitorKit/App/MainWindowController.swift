@@ -20,7 +20,7 @@ public final class MainWindowController {
 
         if window == nil {
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 760, height: 560),
+                contentRect: NSRect(x: 0, y: 0, width: 780, height: 900),
                 styleMask: [.titled, .closable, .miniaturizable, .resizable],
                 backing: .buffered,
                 defer: false

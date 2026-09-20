@@ -43,7 +43,7 @@ public enum GitHubError: Error, LocalizedError, Equatable {
         }
     }
 
-    nonisolated(unsafe) private static let clockFormatter: DateFormatter = {
+    private static let clockFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
         return formatter

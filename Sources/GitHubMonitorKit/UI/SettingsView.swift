@@ -49,11 +49,47 @@ private struct GeneralSettingsView: View {
                     .toggleStyle(.switch)
             }
 
+            Section("Mentions") {
+                Text("Which notification reasons count towards the badge.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                ForEach(NotificationReason.selectable, id: \.self) { reason in
+                    Toggle(reason.label, isOn: reasonBinding(reason))
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                }
+
+                if settings.notificationReasons.isEmpty {
+                    Label(
+                        "With nothing selected the mention count stays at zero.",
+                        systemImage: "exclamationmark.triangle"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                }
+            }
+
             Section("General") {
                 Toggle("Launch at login", isOn: $settings.launchAtLogin)
                     .toggleStyle(.switch)
             }
         }
         .formStyle(.grouped)
+    }
+
+    private func reasonBinding(_ reason: NotificationReason) -> Binding<Bool> {
+        Binding(
+            get: { settings.notificationReasons.contains(reason) },
+            set: { isOn in
+                var reasons = settings.notificationReasons
+                if isOn {
+                    reasons.insert(reason)
+                } else {
+                    reasons.remove(reason)
+                }
+                settings.notificationReasons = reasons
+            }
+        )
     }
 }

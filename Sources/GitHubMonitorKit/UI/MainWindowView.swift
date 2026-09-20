@@ -29,7 +29,7 @@ struct MainWindowView: View {
     private func badge(for tab: MainWindowTab) -> Int {
         switch tab {
         case .pullRequests: state.visiblePullRequests.count
-        case .mentions: state.notifications.count
+        case .mentions: state.visibleNotifications.count
         case .settings: 0
         }
     }
@@ -65,17 +65,46 @@ struct MainWindowView: View {
     }
 
     private var mentionList: some View {
-        List(state.notifications) { item in
-            NotificationRow(item: item)
-                .padding(.vertical, 2)
-        }
-        .overlay {
-            if state.notifications.isEmpty {
-                ContentUnavailableView(
-                    "No unread mentions",
-                    systemImage: StatusBarTitleBuilder.mentionSymbol,
-                    description: Text("Nobody has mentioned you recently.")
+        let items = state.visibleNotifications
+        return VStack(spacing: 0) {
+            if !items.isEmpty {
+                HStack {
+                    Text("Opening a message fetches its text; marking it read also clears it on GitHub.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Mark all read") {
+                        Task { await controller.markAllVisibleRead() }
+                    }
+                    .controlSize(.small)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                Divider()
+            }
+
+            List(items) { item in
+                NotificationRow(
+                    item: item,
+                    preview: state.previews[item.id],
+                    isExpanded: state.expandedNotificationID == item.id,
+                    toggle: { controller.togglePreview(for: item) },
+                    markRead: { Task { await controller.markRead(item) } }
                 )
+                .padding(.vertical, 3)
+            }
+            .overlay {
+                if items.isEmpty {
+                    ContentUnavailableView(
+                        "No unread mentions",
+                        systemImage: StatusBarTitleBuilder.mentionSymbol,
+                        description: Text(
+                            state.notifications.isEmpty
+                                ? "Nobody has mentioned you recently."
+                                : "Unread notifications exist, but none match the reasons selected in settings."
+                        )
+                    )
+                }
             }
         }
     }

@@ -1,0 +1,103 @@
+import SwiftUI
+
+/// A notification with an optional, lazily fetched comment preview.
+struct NotificationRow: View {
+    let item: NotificationItem
+    let preview: PreviewState?
+    let isExpanded: Bool
+    var compact: Bool = false
+    let toggle: () -> Void
+    let markRead: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            summary
+            if isExpanded {
+                previewBody
+                actions
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: toggle)
+    }
+
+    private var summary: some View {
+        HStack(alignment: .top, spacing: 8) {
+            AvatarView(url: item.avatarURL, size: compact ? 22 : 26)
+                .padding(.top, 1)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(item.title)
+                    .font(compact ? .callout : .body)
+                    .lineLimit(isExpanded ? 3 : (compact ? 1 : 2))
+                HStack(spacing: 8) {
+                    Text(item.repository)
+                    Text(item.reason.label)
+                    Text(RelativeTime.string(for: item.updatedAt))
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 4)
+
+            Image(systemName: "chevron.right")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                .padding(.top, 3)
+        }
+    }
+
+    @ViewBuilder
+    private var previewBody: some View {
+        Group {
+            switch preview {
+            case .loading, nil:
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text("Loading…").foregroundStyle(.secondary)
+                }
+            case .text(let body):
+                // Comment bodies are Markdown and can be long; the popover is
+                // a preview, not a reader.
+                Text(body)
+                    .lineLimit(compact ? 6 : 12)
+                    .textSelection(.enabled)
+            case .empty:
+                Text("This notification has no message body.")
+                    .foregroundStyle(.secondary)
+            case .failed(let message):
+                Label(message, systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.orange)
+            }
+        }
+        .font(.caption)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(8)
+        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 6))
+    }
+
+    private var actions: some View {
+        HStack(spacing: 10) {
+            if let url = NotificationLink.browserURL(for: item) {
+                Button {
+                    NSWorkspace.shared.open(url)
+                } label: {
+                    Label("Open on GitHub", systemImage: "arrow.up.forward.square")
+                }
+            }
+
+            Button(action: markRead) {
+                Label("Mark as read", systemImage: "envelope.open")
+            }
+            // Marking read also clears it from the GitHub web inbox.
+            .help("Marks the thread read on GitHub, not just here")
+
+            Spacer()
+        }
+        .buttonStyle(.accessoryBar)
+        .font(.caption)
+    }
+}

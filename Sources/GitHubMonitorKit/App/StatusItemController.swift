@@ -24,6 +24,7 @@ public final class StatusItemController {
         let hosting = NSHostingController(
             rootView: PopoverView(
                 state: state,
+                controller: controller,
                 openMainWindow: { [weak self] in
                     self?.closePopover()
                     openMainWindow()
@@ -51,7 +52,7 @@ public final class StatusItemController {
 
         let segments = StatusBarTitleBuilder.segments(
             pullRequests: state.visiblePullRequests.count,
-            mentions: state.notifications.count,
+            mentions: state.visibleNotifications.count,
             style: state.settings.statusBarStyle,
             health: state.health
         )
@@ -97,7 +98,7 @@ public final class StatusItemController {
         button.attributedTitle = title
         button.toolTip = StatusBarTitleBuilder.accessibilityLabel(
             pullRequests: state.visiblePullRequests.count,
-            mentions: state.notifications.count,
+            mentions: state.visibleNotifications.count,
             health: state.health
         )
     }
@@ -107,12 +108,13 @@ public final class StatusItemController {
     private func observeState() {
         withObservationTracking {
             _ = state.visiblePullRequests.count
-            _ = state.notifications.count
+            _ = state.visibleNotifications.count
             _ = state.hasToken
             _ = state.loadState
             _ = state.settings.statusBarStyle
             _ = state.settings.includeDrafts
             _ = state.settings.repositoryFilters
+            _ = state.settings.notificationReasons
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else { return }

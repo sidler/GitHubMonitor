@@ -5,6 +5,7 @@ import SwiftUI
 /// list plus a way into the full window.
 struct PopoverView: View {
     @Bindable var state: AppState
+    let controller: RefreshController
     let openMainWindow: () -> Void
     let refresh: () -> Void
     let quit: () -> Void
@@ -75,22 +76,41 @@ struct PopoverView: View {
     }
 
     private var mentionSection: some View {
-        VStack(alignment: .leading, spacing: 5) {
+        let items = state.visibleNotifications
+        return VStack(alignment: .leading, spacing: 5) {
             SectionHeader(
                 title: "Unread mentions",
-                count: state.notifications.count,
+                count: items.count,
                 symbol: StatusBarTitleBuilder.mentionSymbol
-            )
-
-            CardList(
-                items: Array(state.notifications.prefix(Self.previewLimit)),
-                emptyMessage: "No unread mentions."
-            ) { item in
-                NotificationRow(item: item, compact: true)
+            ) {
+                if !items.isEmpty {
+                    Button("Mark all read") {
+                        Task { await controller.markAllVisibleRead() }
+                    }
+                    .buttonStyle(.accessoryBar)
+                    .font(.caption)
+                    .help("Marks these threads read on GitHub too")
+                }
             }
 
-            if state.notifications.count > Self.previewLimit {
-                showAllButton(count: state.notifications.count)
+            CardList(
+                items: Array(items.prefix(Self.previewLimit)),
+                emptyMessage: state.notifications.isEmpty
+                    ? "No unread mentions."
+                    : "Nothing matching the selected reasons."
+            ) { item in
+                NotificationRow(
+                    item: item,
+                    preview: state.previews[item.id],
+                    isExpanded: state.expandedNotificationID == item.id,
+                    compact: true,
+                    toggle: { controller.togglePreview(for: item) },
+                    markRead: { Task { await controller.markRead(item) } }
+                )
+            }
+
+            if items.count > Self.previewLimit {
+                showAllButton(count: items.count)
             }
         }
     }

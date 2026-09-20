@@ -65,28 +65,3 @@ struct PullRequestRow: View {
     }
 }
 
-struct NotificationRow: View {
-    let item: NotificationItem
-    var compact: Bool = false
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            AvatarView(url: item.avatarURL, size: compact ? 22 : 26)
-                .padding(.top, 1)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(item.title)
-                    .font(compact ? .callout : .body)
-                    .lineLimit(compact ? 1 : 2)
-                HStack(spacing: 8) {
-                    Text(item.repository)
-                    Text(item.reason.label)
-                    Text(RelativeTime.string(for: item.updatedAt))
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
