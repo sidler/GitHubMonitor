@@ -91,6 +91,17 @@ struct ContentColumn: View {
         .background {
             Color(nsColor: .textBackgroundColor).ignoresSafeArea()
         }
+        // A translucent band over the strip the rows scroll behind. Fully
+        // transparent, scrolled rows collide with the title; fully opaque,
+        // the divider stops at the toolbar instead of running the height of
+        // the window.
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .frame(height: state.titleBarHeight)
+                .ignoresSafeArea(edges: .top)
+                .allowsHitTesting(false)
+        }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 0) {
                 Divider()

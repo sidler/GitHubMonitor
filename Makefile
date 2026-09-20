@@ -34,10 +34,13 @@ run: kill bundle
 # entry on the next clean.
 INSTALLED := /Applications/GitHubMonitor.app
 
+# rsync rather than rm+cp: replacing the bundle wholesale gives it a fresh
+# identity, and the keychain then asks for authorisation again on every
+# install. Updating in place keeps the entry the user already allowed.
 install: bundle
 	@pkill -x GitHubMonitor 2>/dev/null || true
-	@rm -rf "$(INSTALLED)"
-	@cp -R "$(APP)" "$(INSTALLED)"
+	@mkdir -p "$(INSTALLED)"
+	@rsync -a --delete "$(APP)/" "$(INSTALLED)/"
 	@echo "installed $(INSTALLED)"
 	@echo "If 'launch at login' was already on, switch it off and on again so"
 	@echo "the login item points at the new location."

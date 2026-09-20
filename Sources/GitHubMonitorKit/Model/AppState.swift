@@ -73,6 +73,9 @@ public final class AppState {
     /// The dashboard's own fetch, separate from the refresh cycle: it covers
     /// a whole repository and is only wanted while that view is open.
     public var dashboard: DashboardState = .unconfigured
+    /// Height of the window's title bar, so the content column can lay a
+    /// material over the area its rows scroll behind.
+    public var titleBarHeight: CGFloat = 0
 
     public init(settings: Settings) {
         self.settings = settings

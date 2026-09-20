@@ -5,6 +5,8 @@ import SwiftUI
 @MainActor
 private final class RepositoryFieldModel: ObservableObject {
     @Published var draft = ""
+    /// The row the pointer is over, if any.
+    @Published var hovered: String?
 }
 
 /// Open pull requests per author for one repository, as a stacked bar chart.
@@ -210,6 +212,19 @@ struct DashboardView: View {
             AxisMarks(preset: .aligned, position: .leading)
         }
         .chartLegend(position: .top, alignment: .leading)
+        .chartOverlay { proxy in hoverCatcher(proxy) }
+        .overlay(alignment: .topTrailing) {
+            if let author = data.authors.first(where: { $0.author == field.hovered }) {
+                tooltip(
+                    title: author.author,
+                    lines: [
+                        "\(author.ready) ready for review",
+                        "\(author.drafts) draft\(author.drafts == 1 ? "" : "s")",
+                        "\(author.total) open in total",
+                    ]
+                )
+            }
+        }
         .frame(minHeight: CGFloat(data.authors.count) * 28 + 80)
         .padding(16)
         .scrollableIfTall(rowCount: data.authors.count)
@@ -246,9 +261,68 @@ struct DashboardView: View {
             AxisMarks(preset: .aligned, position: .leading)
         }
         .chartLegend(position: .top, alignment: .leading)
+        .chartOverlay { proxy in hoverCatcher(proxy) }
+        .overlay(alignment: .topTrailing) {
+            if let reviewer = data.reviewers.first(where: { $0.reviewer == field.hovered }) {
+                tooltip(
+                    title: reviewer.isTeam ? "\(reviewer.reviewer) (team)" : reviewer.reviewer,
+                    lines: [
+                        "\(reviewer.pending) awaiting their review",
+                        "\(reviewer.onDrafts) on draft\(reviewer.onDrafts == 1 ? "" : "s")",
+                        "\(reviewer.done) already reviewed",
+                    ]
+                )
+            }
+        }
         .frame(minHeight: CGFloat(data.reviewers.count) * 28 + 80)
         .padding(16)
         .scrollableIfTall(rowCount: data.reviewers.count)
+    }
+
+    // MARK: - Hover
+
+    /// Maps the pointer's vertical position onto a row.
+    ///
+    /// Charts marks are not views, so they cannot carry a `.help` tooltip of
+    /// their own; the overlay reads the category under the pointer instead.
+    private func hoverCatcher(_ proxy: ChartProxy) -> some View {
+        GeometryReader { geometry in
+            Rectangle()
+                .fill(.clear)
+                .contentShape(Rectangle())
+                .onContinuousHover { phase in
+                    switch phase {
+                    case .active(let location):
+                        guard let plot = proxy.plotFrame else {
+                            field.hovered = nil
+                            return
+                        }
+                        let y = location.y - geometry[plot].origin.y
+                        field.hovered = proxy.value(atY: y, as: String.self)
+                    case .ended:
+                        field.hovered = nil
+                    }
+                }
+        }
+    }
+
+    private func tooltip(title: String, lines: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title).font(.caption.weight(.semibold))
+            ForEach(lines, id: \.self) { line in
+                Text(line)
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(8)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
+        .overlay(
+            RoundedRectangle(cornerRadius: 6).strokeBorder(.quaternary, lineWidth: 1)
+        )
+        .padding(8)
+        .allowsHitTesting(false)
+        .transition(.opacity)
     }
 }
 

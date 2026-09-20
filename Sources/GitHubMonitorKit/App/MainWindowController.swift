@@ -85,7 +85,9 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         window.contentViewController = split
         window.delegate = self
         window.isReleasedWhenClosed = false
-        window.toolbarStyle = .unified
+        // Compact: the regular height leaves a band of empty space above the
+        // content for a title that needs a fraction of it.
+        window.toolbarStyle = .unifiedCompact
         // Transparent, so each column's own background shows through the
         // title bar band — that is what makes the divider continuous, as in
         // Notes and Finder. The split view's safe area keeps scrolling
@@ -117,10 +119,11 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     /// the window's frame and the area it lays content out in.
     private func applyTitleBarInset() {
         guard let window, let contentController else { return }
-        let inset = window.frame.height - window.contentLayoutRect.height
+        let inset = max(0, window.frame.height - window.contentLayoutRect.height)
         contentController.view.additionalSafeAreaInsets = NSEdgeInsets(
-            top: max(0, inset), left: 0, bottom: 0, right: 0
+            top: inset, left: 0, bottom: 0, right: 0
         )
+        state.titleBarHeight = inset
     }
 
     public func windowDidResize(_ notification: Notification) {
