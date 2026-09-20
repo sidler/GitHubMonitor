@@ -21,6 +21,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     private var window: NSWindow?
     private var splitViewController: NSSplitViewController?
     private var inspectorItem: NSSplitViewItem?
+    private var contentController: NSViewController?
 
     public init(state: AppState, controller: RefreshController) {
         self.state = state
@@ -66,13 +67,13 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         sidebar.maximumThickness = 320
         split.addSplitViewItem(sidebar)
 
-        let content = NSSplitViewItem(
-            viewController: NSHostingController(
-                rootView: ContentColumn(state: state, controller: controller)
-            )
+        let contentController = NSHostingController(
+            rootView: ContentColumn(state: state, controller: controller)
         )
+        let content = NSSplitViewItem(viewController: contentController)
         content.minimumThickness = 420
         split.addSplitViewItem(content)
+        self.contentController = contentController
 
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1060, height: 680),
@@ -84,6 +85,11 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         window.delegate = self
         window.isReleasedWhenClosed = false
         window.toolbarStyle = .unified
+        // Transparent, so each column's own background shows through the
+        // title bar band — that is what makes the divider continuous, as in
+        // Notes and Finder. The split view's safe area keeps scrolling
+        // content from running under the toolbar.
+        window.titlebarAppearsTransparent = true
 
         let toolbar = NSToolbar(identifier: "main")
         toolbar.delegate = self
@@ -95,9 +101,29 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
 
         self.window = window
         splitViewController = split
+        applyTitleBarInset()
 
         updateTitle()
         observeSelection()
+    }
+
+    /// Keeps scrolling content clear of the title bar.
+    ///
+    /// With a transparent title bar the content column's own background runs
+    /// to the top — that is what makes the divider continuous — but AppKit
+    /// does not hand a split view item the resulting safe area, so the rows
+    /// would scroll up over the title. The inset is the difference between
+    /// the window's frame and the area it lays content out in.
+    private func applyTitleBarInset() {
+        guard let window, let contentController else { return }
+        let inset = window.frame.height - window.contentLayoutRect.height
+        contentController.view.additionalSafeAreaInsets = NSEdgeInsets(
+            top: max(0, inset), left: 0, bottom: 0, right: 0
+        )
+    }
+
+    public func windowDidResize(_ notification: Notification) {
+        applyTitleBarInset()
     }
 
     // MARK: - Title

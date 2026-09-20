@@ -81,6 +81,13 @@ struct ContentColumn: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Carry the content's own background up behind the toolbar. Without
+        // it the title bar band is one uniform colour across both columns and
+        // the divider only starts below it; Notes and Finder run the content
+        // background to the top so the divider is continuous.
+        .background {
+            Color(nsColor: .textBackgroundColor).ignoresSafeArea()
+        }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 0) {
                 Divider()
