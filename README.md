@@ -28,6 +28,7 @@ and launches it. Other targets:
 | `make bundle` | Compile and assemble the signed `.app` |
 | `make install` | Copy the app to `/Applications` and launch it |
 | `make uninstall` | Remove it from `/Applications` |
+| `make icon` | Regenerate `AppIcon.icns` from `Resources/AppIcon.svg` |
 | `make test` | Run the unit tests |
 | `make clean` | Remove build artifacts |
 

@@ -4,7 +4,14 @@ APP        := .build/GitHubMonitor.app
 CONFIG     ?= debug
 BIN        := .build/$(CONFIG)/GitHubMonitor
 
-.PHONY: all build bundle run install uninstall test clean kill
+.PHONY: all build bundle run install uninstall test clean kill icon
+
+# Regenerate the app icon from the SVG. Only needed when the artwork changes;
+# the .icns is checked in.
+icon:
+	@swift Scripts/make-icon.swift Resources/AppIcon.svg /tmp/AppIcon.iconset
+	@iconutil -c icns /tmp/AppIcon.iconset -o Resources/AppIcon.icns
+	@echo "regenerated Resources/AppIcon.icns"
 
 all: bundle
 
@@ -22,6 +29,7 @@ bundle: build
 	@rm -rf "$(APP)"
 	@mkdir -p "$(APP)/Contents/MacOS" "$(APP)/Contents/Resources"
 	@cp Resources/Info.plist "$(APP)/Contents/Info.plist"
+	@cp Resources/AppIcon.icns "$(APP)/Contents/Resources/AppIcon.icns"
 	@cp "$(BIN)" "$(APP)/Contents/MacOS/GitHubMonitor"
 	@codesign --force --sign $(if $(SIGN_ID),$(SIGN_ID),-) --identifier $(BUNDLE_ID) "$(APP)"
 	@echo "built $(APP) $(if $(SIGN_ID),(signed as '$(SIGN_NAME)'),(ad-hoc — run Scripts/create-signing-certificate.sh for a stable identity))"

@@ -6,6 +6,8 @@
 	<string>GitHubMonitor</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.sidler.githubmonitor</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundleName</key>
 	<string>GitHubMonitor</string>
 	<key>CFBundleDisplayName</key>

@@ -25,13 +25,18 @@ struct PullRequestRow: View {
                     Text("by \(item.author)")
                     Text(RelativeTime.string(for: item.updatedAt))
 
+                    // A step larger than the caption text around them: at
+                    // caption size the review and check results are the first
+                    // thing a reviewer looks for and the hardest to pick out.
                     Label(item.reviewDecision.label, systemImage: item.reviewDecision.symbolName)
                         .labelStyle(.iconOnly)
+                        .font(.body)
                         .foregroundStyle(reviewTint)
                         .help(item.reviewDecision.label)
 
                     Label(item.checks.label, systemImage: item.checks.symbolName)
                         .labelStyle(.iconOnly)
+                        .font(.body)
                         .foregroundStyle(checksTint)
                         .help(item.checks.label)
 
