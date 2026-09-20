@@ -158,20 +158,24 @@ struct PullRequestDetailView: View {
         Section {
             if detail.checks.isEmpty {
                 Text("No checks ran on this pull request.")
-                    .font(.caption)
+                    .font(.callout)
                     .foregroundStyle(.secondary)
             } else {
-                VStack(alignment: .leading, spacing: 5) {
+                VStack(alignment: .leading, spacing: 6) {
                     ForEach(detail.checks) { check in
-                        HStack(spacing: 6) {
+                        HStack(spacing: 7) {
                             Image(systemName: check.status.symbolName)
+                                // A step above the row text: the result is
+                                // what is being scanned for, the name only
+                                // says which check produced it.
+                                .font(.body)
                                 .foregroundStyle(tint(for: check.status))
                             Text(check.name)
                                 .lineLimit(1)
                                 .help(check.name)
                             Spacer(minLength: 0)
                         }
-                        .font(.caption)
+                        .font(.callout)
                     }
                 }
             }
@@ -200,26 +204,27 @@ struct PullRequestDetailView: View {
         Section {
             if detail.reviewers.isEmpty {
                 Text("Nobody has been asked to review yet.")
-                    .font(.caption)
+                    .font(.callout)
                     .foregroundStyle(.secondary)
             } else {
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 7) {
                     ForEach(detail.reviewers) { reviewer in
-                        HStack(spacing: 6) {
+                        HStack(spacing: 7) {
                             if reviewer.isTeam {
                                 Image(systemName: "person.2.fill")
                                     .foregroundStyle(.secondary)
-                                    .frame(width: 18)
+                                    .frame(width: 22)
                             } else {
-                                AvatarView(url: reviewer.avatarURL, size: 18)
+                                AvatarView(url: reviewer.avatarURL, size: 22)
                             }
                             Text(reviewer.name).lineLimit(1)
                             Spacer(minLength: 4)
                             Image(systemName: reviewer.state.symbolName)
+                                .font(.body)
                                 .foregroundStyle(tint(for: reviewer.state))
                                 .help(reviewer.state.label)
                         }
-                        .font(.caption)
+                        .font(.callout)
                     }
                 }
             }
