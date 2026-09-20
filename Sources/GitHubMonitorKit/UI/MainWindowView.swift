@@ -91,16 +91,16 @@ struct ContentColumn: View {
         .background {
             Color(nsColor: .textBackgroundColor).ignoresSafeArea()
         }
-        // A translucent band over the strip the rows scroll behind. Fully
-        // transparent, scrolled rows collide with the title; fully opaque,
-        // the divider stops at the toolbar instead of running the height of
-        // the window.
+        // The band over the strip the rows scroll behind. Clear while the
+        // list sits at its top — nothing is passing behind it — and a thin
+        // material once it scrolls, so rows do not collide with the title.
         .overlay(alignment: .top) {
             Rectangle()
-                .fill(.ultraThinMaterial)
+                .fill(state.isContentScrolled ? AnyShapeStyle(.ultraThinMaterial) : AnyShapeStyle(.clear))
                 .frame(height: state.titleBarHeight)
                 .ignoresSafeArea(edges: .top)
                 .allowsHitTesting(false)
+                .animation(.easeOut(duration: 0.15), value: state.isContentScrolled)
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 0) {
@@ -117,7 +117,8 @@ struct ContentColumn: View {
         return GroupedList(
             items: items,
             grouping: state.settings.listGrouping,
-            repository: \.repository
+            repository: \.repository,
+            onScrolled: { state.isContentScrolled = $0 }
         ) { item in
             pullRequestRow(item)
         }
@@ -142,7 +143,8 @@ struct ContentColumn: View {
         return GroupedList(
             items: items,
             grouping: state.settings.listGrouping,
-            repository: \.repository
+            repository: \.repository,
+            onScrolled: { state.isContentScrolled = $0 }
         ) { item in
             pullRequestRow(item)
         }
@@ -163,7 +165,8 @@ struct ContentColumn: View {
             items: items,
             grouping: state.settings.notificationGrouping,
             repository: \.repository,
-            type: \.subjectTypeLabel
+            type: \.subjectTypeLabel,
+            onScrolled: { state.isContentScrolled = $0 }
         ) { item in
             NotificationRow(
                 item: item,
@@ -284,6 +287,9 @@ private struct GroupedList<Item: Identifiable, Row: View>: View {
     let repository: (Item) -> String
     /// Nil for lists where grouping by type is meaningless.
     var type: ((Item) -> String)?
+    /// Reports whether the list has scrolled away from its top, so the
+    /// window can decide whether its title bar needs a material.
+    var onScrolled: ((Bool) -> Void)?
     @ViewBuilder var row: (Item) -> Row
 
     private var groupKey: ((Item) -> String)? {
@@ -314,6 +320,24 @@ private struct GroupedList<Item: Identifiable, Row: View>: View {
             } else {
                 ForEach(items) { row($0) }
             }
+        }
+        .reportScrolling(onScrolled)
+    }
+}
+
+private extension View {
+    /// `onScrollGeometryChange` is macOS 15; on 14 the band simply stays
+    /// clear, which is the state it spends most of its time in anyway.
+    @ViewBuilder
+    func reportScrolling(_ action: ((Bool) -> Void)?) -> some View {
+        if #available(macOS 15.0, *), let action {
+            self.onScrollGeometryChange(for: Bool.self) { geometry in
+                geometry.contentOffset.y > geometry.contentInsets.top + 1
+            } action: { _, scrolled in
+                action(scrolled)
+            }
+        } else {
+            self
         }
     }
 }

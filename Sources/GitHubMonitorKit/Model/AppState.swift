@@ -76,6 +76,9 @@ public final class AppState {
     /// Height of the window's title bar, so the content column can lay a
     /// material over the area its rows scroll behind.
     public var titleBarHeight: CGFloat = 0
+    /// Whether the content column is scrolled away from its top. The title
+    /// bar band only needs a material once rows are passing behind it.
+    public var isContentScrolled = false
 
     public init(settings: Settings) {
         self.settings = settings
