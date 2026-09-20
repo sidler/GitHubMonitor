@@ -1,146 +1,17 @@
 import SwiftUI
 
-/// Full view: complete lists, message previews and settings.
-struct MainWindowView: View {
+/// The sidebar column.
+///
+/// Hosted in its own `NSSplitViewItem` so AppKit treats it as a real sidebar.
+/// That is what lines the toolbar's own split up with the divider below it — a
+/// SwiftUI `NavigationSplitView` inside a plain hosting view leaves the two a
+/// few points apart.
+struct SidebarColumn: View {
     @Bindable var state: AppState
-    let controller: RefreshController
-    /// Lets the pane ask the window for more room when it opens.
-    var ensureRoomForInspector: () -> Void = {}
 
     var body: some View {
-        // The split view is the root on purpose. Wrapping it in a stack to
-        // put a status bar underneath stops AppKit from treating the first
-        // column as a real sidebar: the toolbar then splits itself a few
-        // points off the divider, and the status bar runs under both columns
-        // instead of under the content, as Finder has it.
-        NavigationSplitView {
-            sidebar
-                .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 300)
-        } detail: {
-            Group {
-                switch state.sidebarSelection {
-                case .pullRequests: pullRequestList
-                case .myPullRequests: authoredList
-                case .mentions: mentionList
-                case .settings: SettingsView(state: state, controller: controller)
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            // Attached to the content column, so it stops at the sidebar.
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                VStack(spacing: 0) {
-                    Divider()
-                    statusBar
-                }
-            }
-            .navigationTitle(state.sidebarSelection.title)
-            .navigationSubtitle(state.sidebarSelection.subtitle ?? "")
-            .toolbar { toolbarContent }
-            .inspector(isPresented: inspectorShown) {
-                if let item = state.inspectedPullRequest {
-                    PullRequestDetailView(
-                        item: item,
-                        detail: state.pullRequestDetails[item.id],
-                        reload: { controller.reloadDetail(for: item.id) },
-                        close: { controller.closeInspector() }
-                    )
-                    .inspectorColumnWidth(min: 260, ideal: 300, max: 380)
-                }
-            }
-        }
-        .frame(minWidth: 820, minHeight: 440)
-        .onChange(of: state.inspectedPullRequestID) { _, id in
-            if id != nil { ensureRoomForInspector() }
-        }
-    }
-
-    /// Controls for the list on screen, in the window's toolbar.
-    @ToolbarContentBuilder
-    private var toolbarContent: some ToolbarContent {
-        switch state.sidebarSelection {
-        case .pullRequests, .myPullRequests:
-            ToolbarItem {
-                GroupingPicker(
-                    settings: state.settings,
-                    keyPath: \.listGrouping,
-                    options: ListGrouping.forPullRequests
-                )
-            }
-            if state.draftCount > 0 {
-                ToolbarItem {
-                    DraftToggleControl(settings: state.settings, draftCount: state.draftCount)
-                }
-            }
-        case .mentions:
-            ToolbarItem {
-                GroupingPicker(
-                    settings: state.settings,
-                    keyPath: \.notificationGrouping,
-                    options: ListGrouping.forNotifications
-                )
-            }
-            if !state.selectedNotifications.isEmpty {
-                ToolbarItem {
-                    Button("Mark all read") {
-                        Task { await controller.markAllVisibleRead() }
-                    }
-                    .help("Marks these threads read on GitHub too")
-                }
-            }
-        case .settings:
-            ToolbarItem { EmptyView() }
-        }
-    }
-
-    /// The pane follows the selection: it is open exactly while a pull
-    /// request is being inspected.
-    private var inspectorShown: Binding<Bool> {
-        Binding(
-            get: { state.inspectedPullRequest != nil },
-            set: { shown in
-                if !shown { controller.closeInspector() }
-            }
-        )
-    }
-
-    /// Finder-style status bar: the totals, plus when they were last checked.
-    private var statusBar: some View {
-        HStack(spacing: 12) {
-            Label("\(state.visiblePullRequests.count)", systemImage: StatusBarTitleBuilder.pullRequestSymbol)
-                .help("Reviews requested")
-            Label("\(state.visibleNotifications.count)", systemImage: StatusBarTitleBuilder.mentionSymbol)
-                .help("Unread mentions")
-
-            Spacer()
-
-            if state.loadState == .loading {
-                ProgressView().controlSize(.small)
-            }
-            Text(state.statusMessage)
-                .foregroundStyle(state.health == .failing ? .red : .secondary)
-
-            Button {
-                Task { await controller.refresh() }
-            } label: {
-                Image(systemName: "arrow.clockwise")
-            }
-            .buttonStyle(.accessoryBar)
-            .disabled(state.loadState == .loading)
-            .help("Refresh now")
-        }
-        .font(.caption)
-        .monospacedDigit()
-        .padding(.horizontal, 12)
-        .padding(.vertical, 5)
-        .background(.bar)
-    }
-
-    /// Sections rather than a flat list, as in Finder's own sidebar: each
-    /// heading carries an "All" row plus one row per repository, so a single
-    /// click reaches a repository's queue.
-    private var sidebar: some View {
         List(selection: $state.sidebarSelection) {
-            Section("Pull Requests") {
+            Section("Reviews Requested") {
                 Label("All", systemImage: StatusBarTitleBuilder.pullRequestSymbol)
                     .badge(state.visiblePullRequests.count)
                     .tag(SidebarSelection.pullRequests(repository: nil))
@@ -178,9 +49,6 @@ struct MainWindowView: View {
                     .tag(SidebarSelection.settings)
             }
         }
-        // Without this the list renders as a plain list: its material stops
-        // below the toolbar, so the divider starts out of nowhere partway
-        // down the window instead of running the full height.
         .listStyle(.sidebar)
     }
 
@@ -195,36 +63,54 @@ struct MainWindowView: View {
         }
         .badge(entry.count)
     }
+}
 
-    // MARK: - Pull requests
+/// The content column: whichever list the sidebar points at, with the status
+/// bar along its bottom edge so it stops at the sidebar, as Finder's does.
+struct ContentColumn: View {
+    @Bindable var state: AppState
+    let controller: RefreshController
+
+    var body: some View {
+        Group {
+            switch state.sidebarSelection {
+            case .pullRequests: pullRequestList
+            case .myPullRequests: authoredList
+            case .mentions: mentionList
+            case .settings: SettingsView(state: state, controller: controller)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: 0) {
+                Divider()
+                statusBar
+            }
+        }
+    }
+
+    // MARK: - Lists
 
     private var pullRequestList: some View {
         let items = state.selectedPullRequests
-        return VStack(spacing: 0) {
-            GroupedList(
-                items: items,
-                grouping: state.settings.listGrouping,
-                repository: \.repository
-            ) { item in
-                PullRequestRow(
-                    item: item,
-                    inspect: { controller.inspect(item) },
-                    isInspected: state.inspectedPullRequestID == item.id
-                )
-                .padding(.vertical, 3)
-            }
-            .overlay {
-                if items.isEmpty {
-                    ContentUnavailableView(
-                        "No reviews requested",
-                        systemImage: StatusBarTitleBuilder.pullRequestSymbol,
-                        description: Text(
-                            state.draftCount > 0 && !state.settings.includeDrafts
-                                ? "Only drafts are waiting; switch them on above to see them."
-                                : "Nothing is waiting for your review."
-                        )
+        return GroupedList(
+            items: items,
+            grouping: state.settings.listGrouping,
+            repository: \.repository
+        ) { item in
+            pullRequestRow(item)
+        }
+        .overlay {
+            if items.isEmpty {
+                ContentUnavailableView(
+                    "No reviews requested",
+                    systemImage: StatusBarTitleBuilder.pullRequestSymbol,
+                    description: Text(
+                        state.draftCount > 0 && !state.settings.includeDrafts
+                            ? "Only drafts are waiting; switch them on above to see them."
+                            : "Nothing is waiting for your review."
                     )
-                }
+                )
             }
         }
     }
@@ -237,12 +123,7 @@ struct MainWindowView: View {
             grouping: state.settings.listGrouping,
             repository: \.repository
         ) { item in
-            PullRequestRow(
-                item: item,
-                inspect: { controller.inspect(item) },
-                isInspected: state.inspectedPullRequestID == item.id
-            )
-            .padding(.vertical, 3)
+            pullRequestRow(item)
         }
         .overlay {
             if items.isEmpty {
@@ -255,50 +136,127 @@ struct MainWindowView: View {
         }
     }
 
-    // MARK: - Mentions
-
     private var mentionList: some View {
         let items = state.selectedNotifications
-        return VStack(spacing: 0) {
-            GroupedList(
-                items: items,
-                grouping: state.settings.notificationGrouping,
-                repository: \.repository,
-                type: \.subjectTypeLabel
-            ) { item in
-                NotificationRow(
-                    item: item,
-                    preview: state.previews[item.id],
-                    isExpanded: state.expandedNotificationID == item.id,
-                    toggle: { controller.togglePreview(for: item) },
-                    markRead: { Task { await controller.markRead(item) } }
-                )
-                .padding(.vertical, 3)
-            }
-            .overlay {
-                if items.isEmpty {
-                    ContentUnavailableView(
-                        "No unread mentions",
-                        systemImage: StatusBarTitleBuilder.mentionSymbol,
-                        description: Text(
-                            state.notifications.isEmpty
-                                ? "Nobody has mentioned you recently."
-                                : "Unread notifications exist, but none match the reasons selected in settings."
-                        )
+        return GroupedList(
+            items: items,
+            grouping: state.settings.notificationGrouping,
+            repository: \.repository,
+            type: \.subjectTypeLabel
+        ) { item in
+            NotificationRow(
+                item: item,
+                preview: state.previews[item.id],
+                isExpanded: state.expandedNotificationID == item.id,
+                toggle: { controller.togglePreview(for: item) },
+                markRead: { Task { await controller.markRead(item) } }
+            )
+            .padding(.vertical, 3)
+        }
+        .overlay {
+            if items.isEmpty {
+                ContentUnavailableView(
+                    "No unread mentions",
+                    systemImage: StatusBarTitleBuilder.mentionSymbol,
+                    description: Text(
+                        state.notifications.isEmpty
+                            ? "Nobody has mentioned you recently."
+                            : "Unread notifications exist, but none match the reasons selected in settings."
                     )
-                }
+                )
             }
         }
+    }
+
+    private func pullRequestRow(_ item: PullRequestItem) -> some View {
+        PullRequestRow(
+            item: item,
+            inspect: { controller.inspect(item) },
+            isInspected: state.inspectedPullRequestID == item.id
+        )
+        .padding(.vertical, 3)
+    }
+
+    // MARK: - Status bar
+
+    /// Finder-style status bar: the totals, plus when they were last checked.
+    private var statusBar: some View {
+        HStack(spacing: 12) {
+            Label("\(state.visiblePullRequests.count)", systemImage: StatusBarTitleBuilder.pullRequestSymbol)
+                .help("Reviews requested")
+            Label("\(state.visibleNotifications.count)", systemImage: StatusBarTitleBuilder.mentionSymbol)
+                .help("Unread mentions")
+
+            Spacer()
+
+            if state.loadState == .loading {
+                ProgressView().controlSize(.small)
+            }
+            Text(state.statusMessage)
+                .foregroundStyle(state.health == .failing ? .red : .secondary)
+
+            Button {
+                Task { await controller.refresh() }
+            } label: {
+                Image(systemName: "arrow.clockwise")
+            }
+            .buttonStyle(.accessoryBar)
+            .disabled(state.loadState == .loading)
+            .help("Refresh now")
+        }
+        .font(.caption)
+        .monospacedDigit()
+        .padding(.horizontal, 12)
+        .padding(.vertical, 5)
+        .background(.bar)
+    }
+}
+
+/// Controls belonging to the list on screen, hosted in a toolbar item.
+struct ToolbarControls: View {
+    @Bindable var state: AppState
+    let controller: RefreshController
+
+    var body: some View {
+        HStack(spacing: 10) {
+            switch state.sidebarSelection {
+            case .pullRequests, .myPullRequests:
+                GroupingPicker(
+                    settings: state.settings,
+                    keyPath: \.listGrouping,
+                    options: ListGrouping.forPullRequests
+                )
+                if state.draftCount > 0 {
+                    DraftToggleControl(settings: state.settings, draftCount: state.draftCount)
+                }
+            case .mentions:
+                GroupingPicker(
+                    settings: state.settings,
+                    keyPath: \.notificationGrouping,
+                    options: ListGrouping.forNotifications
+                )
+                if !state.selectedNotifications.isEmpty {
+                    Button("Mark all read") {
+                        Task { await controller.markAllVisibleRead() }
+                    }
+                    .help("Marks these threads read on GitHub too")
+                }
+            case .settings:
+                EmptyView()
+            }
+        }
+        .padding(.horizontal, 4)
+        .fixedSize()
     }
 }
 
 // MARK: - Building blocks
 
-/// A list that is either flat or split into per-repository sections.
+/// A list that is either flat or split into sections.
 ///
 /// Sections rather than tabs: a review queue can span a dozen repositories,
-/// and tabs would hide most of them behind a scroll control while also
-/// hiding the total. Sections keep everything countable on one screen.
+/// and tabs would hide most of them behind a scroll control while also hiding
+/// the total. Sections keep everything countable on one screen.
 private struct GroupedList<Item: Identifiable, Row: View>: View {
     let items: [Item]
     let grouping: ListGrouping
@@ -339,6 +297,26 @@ private struct GroupedList<Item: Identifiable, Row: View>: View {
     }
 }
 
+/// The grouping switch, as a toolbar control.
+private struct GroupingPicker: View {
+    @Bindable var settings: Settings
+    /// Which grouping preference this list drives; the two lists keep their
+    /// own, since they offer different options.
+    let keyPath: ReferenceWritableKeyPath<Settings, ListGrouping>
+    let options: [ListGrouping]
+
+    var body: some View {
+        Picker("", selection: $settings[dynamicMember: keyPath]) {
+            ForEach(options, id: \.self) { grouping in
+                Text(grouping.label).tag(grouping)
+            }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .fixedSize()
+    }
+}
+
 /// Draft visibility.
 ///
 /// A button rather than a Toggle: a toolbar drops a toggle's label, leaving a
@@ -363,25 +341,5 @@ private struct DraftToggleControl: View {
             .labelStyle(.titleAndIcon)
         }
         .help("Drafts are counted in the menu bar only while shown")
-    }
-}
-
-/// The grouping switch, as a toolbar control.
-private struct GroupingPicker: View {
-    @Bindable var settings: Settings
-    /// Which grouping preference this list drives; the two lists keep their
-    /// own, since they offer different options.
-    let keyPath: ReferenceWritableKeyPath<Settings, ListGrouping>
-    let options: [ListGrouping]
-
-    var body: some View {
-        Picker("", selection: $settings[dynamicMember: keyPath]) {
-            ForEach(options, id: \.self) { grouping in
-                Text(grouping.label).tag(grouping)
-            }
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-        .fixedSize()
     }
 }

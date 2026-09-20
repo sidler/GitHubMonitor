@@ -1,17 +1,26 @@
 import AppKit
+import Observation
 import SwiftUI
 
 /// The optional full view: complete lists, previews and settings.
 ///
+/// Built from an `NSSplitViewController` rather than a SwiftUI
+/// `NavigationSplitView`. Only a real sidebar split view item, together with
+/// the toolbar's sidebar tracking separator, makes AppKit line the toolbar's
+/// own divider up with the split below it; hosting a SwiftUI split view in a
+/// plain window leaves the two three points apart, which shows as a step in
+/// the vertical line.
+///
 /// While this window is open the app switches to a regular activation policy,
 /// so it appears in the Dock and the app switcher and its menu bar is shown.
-/// Closing the window drops back to an accessory, which is what keeps the menu
-/// bar item from carrying a Dock icon around for a status readout.
+/// Closing the window drops back to an accessory.
 @MainActor
-public final class MainWindowController: NSObject, NSWindowDelegate {
+public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDelegate {
     private let state: AppState
     private let controller: RefreshController
     private var window: NSWindow?
+    private var splitViewController: NSSplitViewController?
+    private var inspectorItem: NSSplitViewItem?
 
     public init(state: AppState, controller: RefreshController) {
         self.state = state
@@ -29,44 +38,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate {
         }
 
         if window == nil {
-            let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 1060, height: 680),
-                styleMask: [.titled, .closable, .miniaturizable, .resizable],
-                backing: .buffered,
-                defer: false
-            )
-            window.title = "GitHub Monitor"
-            window.center()
-            window.isReleasedWhenClosed = false
-            window.delegate = self
-            // A unified toolbar puts the title and the list's controls into
-            // the title bar, which would otherwise sit empty above a row
-            // doing the same job. It also gives the sidebar its full height.
-            // Content runs under the title bar so the sidebar reaches the
-            // top, as in Finder. The toolbar keeps its own material, so
-            // scrolling rows pass behind it rather than over the title.
-            window.styleMask.insert(.fullSizeContentView)
-            window.toolbarStyle = .unified
-            // A continuous line under the whole title bar. Left automatic,
-            // macOS draws it only over the scrolling half, which leaves the
-            // toolbar looking like a step against the sidebar.
-            window.titlebarSeparatorStyle = .line
-            // contentViewController rather than contentView: SwiftUI's
-            // .toolbar and .navigationTitle only reach the window through a
-            // hosting controller.
-            window.contentViewController = NSHostingController(
-                rootView: MainWindowView(
-                    state: state,
-                    controller: controller,
-                    ensureRoomForInspector: { [weak self] in self?.ensureRoomForInspector() }
-                )
-            )
-            // After the hosting controller is attached: it reports its own
-            // preferred size, which shrinks the window to the SwiftUI
-            // minimum and ignores the rect above.
-            window.setContentSize(NSSize(width: 1060, height: 680))
-            window.center()
-            self.window = window
+            makeWindow()
         }
 
         // Becoming a regular app is what puts the window in the app switcher
@@ -75,23 +47,128 @@ public final class MainWindowController: NSObject, NSWindowDelegate {
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
 
-        // Development aid: report the window's screen rect so screenshots can
-        // be cropped to it exactly.
+        // Development aid: report the window number so screenshots can be
+        // taken with `screencapture -l` instead of guessing at crop rects.
         if ProcessInfo.processInfo.environment["GHM_TRACE_FRAME"] != nil, let window {
-            // The window number lets `screencapture -l` grab exactly this
-            // window, which is far less error-prone than computing a crop.
-            FileHandle.standardError.write(
-                "WINDOW \(window.windowNumber)\n".data(using: .utf8)!
-            )
+            FileHandle.standardError.write("WINDOW \(window.windowNumber)\n".data(using: .utf8)!)
         }
+    }
+
+    // MARK: - Construction
+
+    private func makeWindow() {
+        let split = NSSplitViewController()
+
+        let sidebar = NSSplitViewItem(
+            sidebarWithViewController: NSHostingController(rootView: SidebarColumn(state: state))
+        )
+        sidebar.minimumThickness = 200
+        sidebar.maximumThickness = 320
+        split.addSplitViewItem(sidebar)
+
+        let content = NSSplitViewItem(
+            viewController: NSHostingController(
+                rootView: ContentColumn(state: state, controller: controller)
+            )
+        )
+        content.minimumThickness = 420
+        split.addSplitViewItem(content)
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 1060, height: 680),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentViewController = split
+        window.delegate = self
+        window.isReleasedWhenClosed = false
+        window.toolbarStyle = .unified
+
+        let toolbar = NSToolbar(identifier: "main")
+        toolbar.delegate = self
+        toolbar.displayMode = .iconOnly
+        window.toolbar = toolbar
+
+        window.setContentSize(NSSize(width: 1060, height: 680))
+        window.center()
+
+        self.window = window
+        splitViewController = split
+
+        updateTitle()
+        observeSelection()
+    }
+
+    // MARK: - Title
+
+    /// The window title is the list's name, which AppKit draws in the unified
+    /// toolbar — the native equivalent of SwiftUI's navigationTitle.
+    private func updateTitle() {
+        window?.title = state.sidebarSelection.title
+        window?.subtitle = state.sidebarSelection.subtitle ?? ""
+    }
+
+    /// `@Observable` has no publisher, so the tracking closure re-arms itself.
+    private func observeSelection() {
+        withObservationTracking {
+            _ = state.sidebarSelection
+            _ = state.inspectedPullRequestID
+            _ = state.pullRequestDetails
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.updateTitle()
+                self.syncInspector()
+                self.observeSelection()
+            }
+        }
+    }
+
+    // MARK: - Inspector
+
+    /// Adds or removes the detail pane as a third column, following the
+    /// selection.
+    private func syncInspector() {
+        guard let split = splitViewController else { return }
+
+        guard let item = state.inspectedPullRequest else {
+            if let inspectorItem {
+                split.removeSplitViewItem(inspectorItem)
+                self.inspectorItem = nil
+            }
+            return
+        }
+
+        let hosting = NSHostingController(
+            rootView: PullRequestDetailView(
+                item: item,
+                detail: state.pullRequestDetails[item.id],
+                reload: { [weak self] in self?.controller.reloadDetail(for: item.id) },
+                close: { [weak self] in self?.controller.closeInspector() }
+            )
+        )
+
+        if let inspectorItem {
+            // Already open: swap the content rather than the column, so the
+            // pane does not animate away and back when moving between rows.
+            inspectorItem.viewController = hosting
+            return
+        }
+
+        let newItem = NSSplitViewItem(inspectorWithViewController: hosting)
+        newItem.minimumThickness = 280
+        newItem.maximumThickness = 400
+        split.addSplitViewItem(newItem)
+        inspectorItem = newItem
+        ensureRoomForInspector()
     }
 
     /// Widens the window when the detail pane opens into one too narrow to
     /// hold three columns, rather than squeezing the list to shreds.
-    public func ensureRoomForInspector() {
+    private func ensureRoomForInspector() {
         guard let window, window.frame.width < Self.widthWithInspector else { return }
         var frame = window.frame
-        // Grow to the right, but stay on screen.
         let available = window.screen?.visibleFrame ?? frame
         frame.size.width = Self.widthWithInspector
         if frame.maxX > available.maxX {
@@ -100,7 +177,38 @@ public final class MainWindowController: NSObject, NSWindowDelegate {
         window.setFrame(frame, display: true, animate: true)
     }
 
-    private static let widthWithInspector: CGFloat = 1060
+    private static let widthWithInspector: CGFloat = 1180
+
+    // MARK: - Toolbar
+
+    private static let controlsItem = NSToolbarItem.Identifier("controls")
+
+    public func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        toolbarDefaultItemIdentifiers(toolbar)
+    }
+
+    public func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        // The tracking separator pins the toolbar's divider to the sidebar's,
+        // which is the reason this window is built on a split view controller.
+        [.toggleSidebar, .sidebarTrackingSeparator, .flexibleSpace, Self.controlsItem]
+    }
+
+    public func toolbar(
+        _ toolbar: NSToolbar,
+        itemForItemIdentifier identifier: NSToolbarItem.Identifier,
+        willBeInsertedIntoToolbar flag: Bool
+    ) -> NSToolbarItem? {
+        guard identifier == Self.controlsItem else { return nil }
+
+        let item = NSToolbarItem(itemIdentifier: identifier)
+        let hosting = NSHostingView(rootView: ToolbarControls(state: state, controller: controller))
+        hosting.sizingOptions = [.intrinsicContentSize]
+        item.view = hosting
+        item.visibilityPriority = .high
+        return item
+    }
+
+    // MARK: - Window lifecycle
 
     public func windowWillClose(_ notification: Notification) {
         // Back to an agent once the window is gone. Deferred because the
