@@ -24,7 +24,10 @@ struct PullRequestRow: View {
                 }
 
                 HStack(spacing: 8) {
-                    Text("\(item.repository) #\(item.number)")
+                    // verbatim: a pull request number is an identifier, not a
+                    // quantity. SwiftUI's localized interpolation renders
+                    // 35442 as "35.442" on a German system.
+                    Text(verbatim: "\(item.repository) #\(item.number)")
                     Text("by \(item.author)")
                     Text(RelativeTime.string(for: item.updatedAt))
 
