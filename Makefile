@@ -4,7 +4,7 @@ APP        := .build/GitHubMonitor.app
 CONFIG     ?= debug
 BIN        := .build/$(CONFIG)/GitHubMonitor
 
-.PHONY: all build bundle run test clean kill
+.PHONY: all build bundle run install uninstall test clean kill
 
 all: bundle
 
@@ -28,6 +28,25 @@ bundle: build
 
 run: kill bundle
 	@open "$(APP)"
+
+# Install into /Applications. Worth doing before enabling "launch at login":
+# the login item records the app's path, so an app living in .build/ loses its
+# entry on the next clean.
+INSTALLED := /Applications/GitHubMonitor.app
+
+install: bundle
+	@pkill -x GitHubMonitor 2>/dev/null || true
+	@rm -rf "$(INSTALLED)"
+	@cp -R "$(APP)" "$(INSTALLED)"
+	@echo "installed $(INSTALLED)"
+	@echo "If 'launch at login' was already on, switch it off and on again so"
+	@echo "the login item points at the new location."
+	@open "$(INSTALLED)"
+
+uninstall:
+	@pkill -x GitHubMonitor 2>/dev/null || true
+	@rm -rf "$(INSTALLED)"
+	@echo "removed $(INSTALLED)"
 
 # The app has no Dock icon, so a plain relaunch would silently stack instances.
 kill:

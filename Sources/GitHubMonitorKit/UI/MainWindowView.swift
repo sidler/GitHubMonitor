@@ -8,15 +8,11 @@ struct MainWindowView: View {
     var body: some View {
         VStack(spacing: 0) {
             NavigationSplitView {
-                List(MainWindowTab.allCases, id: \.self, selection: $state.selectedTab) { tab in
-                    Label(tab.label, systemImage: tab.symbolName)
-                        .badge(badge(for: tab))
-                        .tag(tab)
-                }
-                .navigationSplitViewColumnWidth(min: 170, ideal: 190, max: 240)
+                sidebar
+                    .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 300)
             } detail: {
                 Group {
-                    switch state.selectedTab {
+                    switch state.sidebarSelection {
                     case .pullRequests: pullRequestList
                     case .mentions: mentionList
                     case .settings: SettingsView(state: state, controller: controller)
@@ -63,20 +59,59 @@ struct MainWindowView: View {
         .background(.bar)
     }
 
-    private func badge(for tab: MainWindowTab) -> Int {
-        switch tab {
-        case .pullRequests: state.visiblePullRequests.count
-        case .mentions: state.visibleNotifications.count
-        case .settings: 0
+    /// Sections rather than a flat list, as in Finder's own sidebar: each
+    /// heading carries an "All" row plus one row per repository, so a single
+    /// click reaches a repository's queue.
+    private var sidebar: some View {
+        List(selection: $state.sidebarSelection) {
+            Section("Pull Requests") {
+                Label("All", systemImage: StatusBarTitleBuilder.pullRequestSymbol)
+                    .badge(state.visiblePullRequests.count)
+                    .tag(SidebarSelection.pullRequests(repository: nil))
+
+                ForEach(state.pullRequestRepositories) { entry in
+                    repositoryRow(entry)
+                        .tag(SidebarSelection.pullRequests(repository: entry.repository))
+                }
+            }
+
+            Section("Mentions") {
+                Label("All", systemImage: StatusBarTitleBuilder.mentionSymbol)
+                    .badge(state.visibleNotifications.count)
+                    .tag(SidebarSelection.mentions(repository: nil))
+
+                ForEach(state.notificationRepositories) { entry in
+                    repositoryRow(entry)
+                        .tag(SidebarSelection.mentions(repository: entry.repository))
+                }
+            }
+
+            Section {
+                Label("Settings", systemImage: "gearshape")
+                    .tag(SidebarSelection.settings)
+            }
         }
+    }
+
+    private func repositoryRow(_ entry: SidebarRepository) -> some View {
+        Label {
+            // The owner is the same for most rows; the repository name is
+            // what distinguishes them, so it gets the room.
+            Text(entry.repository.split(separator: "/").last.map(String.init) ?? entry.repository)
+                .help(entry.repository)
+        } icon: {
+            Image(systemName: "book.closed")
+        }
+        .badge(entry.count)
     }
 
     // MARK: - Pull requests
 
     private var pullRequestList: some View {
-        let items = state.visiblePullRequests
+        let items = state.selectedPullRequests
         return VStack(spacing: 0) {
             ListToolbar(
+                selection: state.sidebarSelection,
                 settings: state.settings,
                 keyPath: \.listGrouping,
                 options: ListGrouping.forPullRequests
@@ -116,9 +151,10 @@ struct MainWindowView: View {
     // MARK: - Mentions
 
     private var mentionList: some View {
-        let items = state.visibleNotifications
+        let items = state.selectedNotifications
         return VStack(spacing: 0) {
             ListToolbar(
+                selection: state.sidebarSelection,
                 settings: state.settings,
                 keyPath: \.notificationGrouping,
                 options: ListGrouping.forNotifications
@@ -169,6 +205,7 @@ struct MainWindowView: View {
 
 /// Bar above a list: the grouping switch plus whatever that list adds.
 private struct ListToolbar<Trailing: View>: View {
+    let selection: SidebarSelection
     @Bindable var settings: Settings
     /// Which grouping preference this list drives; the two lists keep their
     /// own, since they offer different options.
@@ -178,6 +215,21 @@ private struct ListToolbar<Trailing: View>: View {
 
     var body: some View {
         HStack(spacing: 12) {
+            // Says what is on screen, as Finder's toolbar names the folder.
+            VStack(alignment: .leading, spacing: 0) {
+                Text(selection.title)
+                    .font(.headline)
+                    .lineLimit(1)
+                if let subtitle = selection.subtitle {
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .help(selection.title)
+
+            Spacer(minLength: 12)
+
             Picker("", selection: $settings[dynamicMember: keyPath]) {
                 ForEach(options, id: \.self) { grouping in
                     Text(grouping.label).tag(grouping)
@@ -187,7 +239,6 @@ private struct ListToolbar<Trailing: View>: View {
             .labelsHidden()
             .fixedSize()
 
-            Spacer()
             trailing()
         }
         .padding(.horizontal, 16)

@@ -26,8 +26,14 @@ and launches it. Other targets:
 |---|---|
 | `make build` | Compile only |
 | `make bundle` | Compile and assemble the signed `.app` |
+| `make install` | Copy the app to `/Applications` and launch it |
+| `make uninstall` | Remove it from `/Applications` |
 | `make test` | Run the unit tests |
 | `make clean` | Remove build artifacts |
+
+Install before enabling *launch at login*: the login item records the app's
+path, so an app running from `.build/` loses its entry on the next clean. If
+the setting was already on, switch it off and on again after installing.
 
 The app has no Dock icon; look for its icon in the menu bar. `make run` kills a
 previously running instance first.
@@ -121,6 +127,10 @@ Settings are split into three tabs.
 | Menu bar display | Both counts / single total / hide zeros |
 | Refresh interval | How often to poll. The app never polls faster than GitHub's own suggested interval, even when set to 1 minute. |
 | Launch at login | Register the app as a login item. The entry points at the app's current location, so moving it afterwards breaks it. |
+
+The sidebar lists each repository under *Pull Requests* and *Mentions*, so one
+click narrows the view to that repository's queue; the header says which list
+is on screen.
 
 The main window's lists can be shown flat, split into per-repository
 sections, or — for mentions — split by subject type (pull request, issue,

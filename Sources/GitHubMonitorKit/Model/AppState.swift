@@ -56,7 +56,7 @@ public final class AppState {
     public var previews: [String: PreviewState] = [:]
     /// The notification whose preview is expanded, if any.
     public var expandedNotificationID: String?
-    public var selectedTab: MainWindowTab = .pullRequests
+    public var sidebarSelection: SidebarSelection = .pullRequests(repository: nil)
     public var selectedSettingsTab: SettingsTab = .account
 
     public init(settings: Settings) {
@@ -89,6 +89,35 @@ public final class AppState {
         PullRequestFilter
             .matchingRepositories(pullRequests, repositoryFilters: settings.repositoryFilters)
             .count { $0.isDraft }
+    }
+
+    /// The list currently shown, narrowed to the selected repository.
+    public var selectedPullRequests: [PullRequestItem] {
+        narrow(visiblePullRequests, to: sidebarSelection.repository, by: \.repository)
+    }
+
+    public var selectedNotifications: [NotificationItem] {
+        narrow(visibleNotifications, to: sidebarSelection.repository, by: \.repository)
+    }
+
+    private func narrow<Item>(
+        _ items: [Item],
+        to repository: String?,
+        by key: (Item) -> String
+    ) -> [Item] {
+        guard let repository else { return items }
+        return items.filter { key($0) == repository }
+    }
+
+    /// Repository entries under each sidebar heading, busiest first.
+    public var pullRequestRepositories: [SidebarRepository] {
+        RepositoryGrouping.group(visiblePullRequests, by: \.repository)
+            .map { SidebarRepository(repository: $0.repository, count: $0.items.count) }
+    }
+
+    public var notificationRepositories: [SidebarRepository] {
+        RepositoryGrouping.group(visibleNotifications, by: \.repository)
+            .map { SidebarRepository(repository: $0.repository, count: $0.items.count) }
     }
 
     public var health: StatusBarHealth {
