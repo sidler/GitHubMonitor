@@ -52,7 +52,12 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         // Development aid: report the window number so screenshots can be
         // taken with `screencapture -l` instead of guessing at crop rects.
         if ProcessInfo.processInfo.environment["GHM_TRACE_FRAME"] != nil, let window {
-            FileHandle.standardError.write("WINDOW \(window.windowNumber)\n".data(using: .utf8)!)
+            let screenHeight = window.screen?.frame.height ?? 0
+            let frame = window.frame
+            FileHandle.standardError.write(
+                "WINDOW \(window.windowNumber) centre \(Int(frame.midX)) \(Int(screenHeight - frame.midY))\n"
+                    .data(using: .utf8)!
+            )
         }
     }
 
@@ -108,6 +113,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
 
         updateTitle()
         observeSelection()
+        observeScrolling()
     }
 
     /// Keeps scrolling content clear of the title bar.
@@ -128,6 +134,42 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
 
     public func windowDidResize(_ notification: Notification) {
         applyTitleBarInset()
+    }
+
+    // MARK: - Scrolling
+
+    /// Watches the content column's scroll view so the title bar band knows
+    /// when rows are passing behind it.
+    ///
+    /// SwiftUI's `onScrollGeometryChange` does not fire for a `List`, which
+    /// on macOS is an NSTableView inside an NSScrollView rather than a
+    /// SwiftUI scroll view. Observing the clip view directly works for every
+    /// list, and survives switching between them because the notification is
+    /// matched by ancestry rather than by a stored object.
+    private func observeScrolling() {
+        // A selector rather than a closure: Swift 6 will not let a
+        // Notification cross into the main actor from a sendable closure,
+        // and bounds changes are posted on the main thread anyway.
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(contentDidScroll(_:)),
+            name: NSView.boundsDidChangeNotification,
+            object: nil
+        )
+    }
+
+    @objc private func contentDidScroll(_ notification: Notification) {
+        guard
+            let clipView = notification.object as? NSClipView,
+            let contentView = contentController?.view,
+            clipView.isDescendant(of: contentView)
+        else { return }
+
+        let inset = clipView.enclosingScrollView?.contentInsets.top ?? 0
+        let scrolled = clipView.bounds.origin.y + inset > 1
+        if state.isContentScrolled != scrolled {
+            state.isContentScrolled = scrolled
+        }
     }
 
     // MARK: - Title
@@ -262,6 +304,8 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     // MARK: - Window lifecycle
 
     public func windowWillClose(_ notification: Notification) {
+        NotificationCenter.default.removeObserver(self, name: NSView.boundsDidChangeNotification, object: nil)
+
         // Back to an agent once the window is gone. Deferred because the
         // window is still closing at this point, and switching policy
         // mid-close leaves the Dock icon behind.

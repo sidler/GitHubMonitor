@@ -117,8 +117,7 @@ struct ContentColumn: View {
         return GroupedList(
             items: items,
             grouping: state.settings.listGrouping,
-            repository: \.repository,
-            onScrolled: { state.isContentScrolled = $0 }
+            repository: \.repository
         ) { item in
             pullRequestRow(item)
         }
@@ -143,8 +142,7 @@ struct ContentColumn: View {
         return GroupedList(
             items: items,
             grouping: state.settings.listGrouping,
-            repository: \.repository,
-            onScrolled: { state.isContentScrolled = $0 }
+            repository: \.repository
         ) { item in
             pullRequestRow(item)
         }
@@ -165,8 +163,7 @@ struct ContentColumn: View {
             items: items,
             grouping: state.settings.notificationGrouping,
             repository: \.repository,
-            type: \.subjectTypeLabel,
-            onScrolled: { state.isContentScrolled = $0 }
+            type: \.subjectTypeLabel
         ) { item in
             NotificationRow(
                 item: item,
@@ -311,9 +308,6 @@ private struct GroupedList<Item: Identifiable, Row: View>: View {
     let repository: (Item) -> String
     /// Nil for lists where grouping by type is meaningless.
     var type: ((Item) -> String)?
-    /// Reports whether the list has scrolled away from its top, so the
-    /// window can decide whether its title bar needs a material.
-    var onScrolled: ((Bool) -> Void)?
     @ViewBuilder var row: (Item) -> Row
 
     private var groupKey: ((Item) -> String)? {
@@ -344,26 +338,6 @@ private struct GroupedList<Item: Identifiable, Row: View>: View {
             } else {
                 ForEach(items) { row($0) }
             }
-        }
-        .reportScrolling(onScrolled)
-    }
-}
-
-private extension View {
-    /// `onScrollGeometryChange` is macOS 15; on 14 the band simply stays
-    /// clear, which is the state it spends most of its time in anyway.
-    @ViewBuilder
-    func reportScrolling(_ action: ((Bool) -> Void)?) -> some View {
-        if #available(macOS 15.0, *), let action {
-            self.onScrollGeometryChange(for: Bool.self) { geometry in
-                // At rest the offset sits at minus the top inset, not zero,
-                // so the two have to be added before comparing.
-                geometry.contentOffset.y + geometry.contentInsets.top > 1
-            } action: { _, scrolled in
-                action(scrolled)
-            }
-        } else {
-            self
         }
     }
 }
