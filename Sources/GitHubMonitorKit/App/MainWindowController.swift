@@ -43,6 +43,10 @@ public final class MainWindowController: NSObject, NSWindowDelegate {
             // the title bar, which would otherwise sit empty above a row
             // doing the same job. It also gives the sidebar its full height.
             window.toolbarStyle = .unified
+            // A continuous line under the whole title bar. Left automatic,
+            // macOS draws it only over the scrolling half, which leaves the
+            // toolbar looking like a step against the sidebar.
+            window.titlebarSeparatorStyle = .line
             // contentViewController rather than contentView: SwiftUI's
             // .toolbar and .navigationTitle only reach the window through a
             // hosting controller.
