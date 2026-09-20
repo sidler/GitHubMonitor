@@ -5,10 +5,12 @@ import SwiftUI
 @MainActor
 public final class MainWindowController {
     private let state: AppState
+    private let controller: RefreshController
     private var window: NSWindow?
 
-    public init(state: AppState) {
+    public init(state: AppState, controller: RefreshController) {
         self.state = state
+        self.controller = controller
     }
 
     public func show(selecting tab: MainWindowTab? = nil) {
@@ -26,7 +28,7 @@ public final class MainWindowController {
             window.title = "GitHub Monitor"
             window.center()
             window.isReleasedWhenClosed = false
-            window.contentView = NSHostingView(rootView: MainWindowView(state: state))
+            window.contentView = NSHostingView(rootView: MainWindowView(state: state, controller: controller))
             self.window = window
         }
 

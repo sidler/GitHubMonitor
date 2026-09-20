@@ -42,6 +42,10 @@ public final class AppState {
     public var loadState: LoadState = .idle
     /// True once a token has been found in the Keychain.
     public var hasToken: Bool = false
+    /// Who the token belongs to, once verified.
+    public var viewer: Viewer?
+    /// Team memberships offered as a checklist in settings.
+    public var availableTeams: [TeamMembership] = []
     public var selectedTab: MainWindowTab = .pullRequests
 
     public init(settings: Settings) {

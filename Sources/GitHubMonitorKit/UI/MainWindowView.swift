@@ -3,6 +3,7 @@ import SwiftUI
 /// Full view: complete lists, message previews and settings.
 struct MainWindowView: View {
     @Bindable var state: AppState
+    let controller: RefreshController
 
     var body: some View {
         NavigationSplitView {
@@ -17,7 +18,7 @@ struct MainWindowView: View {
                 switch state.selectedTab {
                 case .pullRequests: pullRequestList
                 case .mentions: mentionList
-                case .settings: SettingsView(settings: state.settings)
+                case .settings: SettingsView(state: state, controller: controller)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

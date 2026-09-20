@@ -11,7 +11,11 @@ public final class StatusItemController {
     private let popover = NSPopover()
     private let openMainWindow: () -> Void
 
-    public init(state: AppState, openMainWindow: @escaping () -> Void) {
+    public init(
+        state: AppState,
+        controller: RefreshController,
+        openMainWindow: @escaping () -> Void
+    ) {
         self.state = state
         self.openMainWindow = openMainWindow
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -24,6 +28,7 @@ public final class StatusItemController {
                     self?.closePopover()
                     openMainWindow()
                 },
+                refresh: { Task { await controller.refresh() } },
                 quit: { NSApp.terminate(nil) }
             )
         )

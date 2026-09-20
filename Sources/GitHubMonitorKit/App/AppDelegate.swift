@@ -4,6 +4,7 @@ import AppKit
 public final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItemController: StatusItemController?
     private var mainWindowController: MainWindowController?
+    private var refreshController: RefreshController?
     private let state = AppState(settings: Settings())
 
     public override init() {
@@ -11,15 +12,29 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     public func applicationDidFinishLaunching(_ notification: Notification) {
-        // Stage 1: sample data until the API clients land.
-        state.loadSampleData()
+        let refresh = RefreshController(state: state)
+        refreshController = refresh
 
-        let windowController = MainWindowController(state: state)
+        let windowController = MainWindowController(state: state, controller: refresh)
         mainWindowController = windowController
         statusItemController = StatusItemController(
             state: state,
+            controller: refresh,
             openMainWindow: { windowController.show() }
         )
+
+        // Sample data is opt-in now that real requests work, so the UI can
+        // still be exercised without a token.
+        if ProcessInfo.processInfo.environment["GHM_SAMPLE"] != nil {
+            state.loadSampleData()
+        } else {
+            refresh.start()
+            // Without a token there is nothing to show and nowhere to go, so
+            // put the user in front of the token field straight away.
+            if !state.hasToken {
+                windowController.show(selecting: .settings)
+            }
+        }
 
         // Development aid: lets the window and popover be opened without a
         // mouse click, e.g. for screenshots during a build.
@@ -33,5 +48,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }
+    }
+
+    public func applicationWillTerminate(_ notification: Notification) {
+        refreshController?.stop()
     }
 }

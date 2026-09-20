@@ -44,13 +44,27 @@ GHM_OPEN=settings ./.build/GitHubMonitor.app/Contents/MacOS/GitHubMonitor
 Note that `open` does not forward environment variables, so this needs the
 binary path rather than `open -a`.
 
-### Why the app is signed
+### Signing
 
-The GitHub token is stored in the macOS Keychain, and Keychain access control is
-tied to the app's code signature. The build ad-hoc signs the bundle with the
-fixed identifier `com.sidler.githubmonitor` so the stored token stays reachable
-across rebuilds. macOS may still ask for permission once after a rebuild —
-choose "Always Allow".
+Run this once before the first build:
+
+```bash
+./Scripts/create-signing-certificate.sh
+```
+
+It creates a self-signed code signing certificate in your keychain, and the
+Makefile picks it up automatically.
+
+Without it the build falls back to an ad-hoc signature, which is *not* an
+identity: Little Snitch reports "the process has no code signature" and asks
+again after every build, and the Keychain treats each build as a different
+application, so the stored token needs re-authorising every time. With the
+certificate, both ask once and then remember.
+
+### Network access
+
+The app talks to `api.github.com` and `avatars.githubusercontent.com`. If you
+run a firewall such as Little Snitch, allow those two hosts for GitHubMonitor.
 
 ## Setting up the token
 

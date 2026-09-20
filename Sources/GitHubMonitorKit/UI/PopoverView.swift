@@ -6,6 +6,7 @@ import SwiftUI
 struct PopoverView: View {
     @Bindable var state: AppState
     let openMainWindow: () -> Void
+    let refresh: () -> Void
     let quit: () -> Void
 
     private static let previewLimit = 5
@@ -135,7 +136,7 @@ struct PopoverView: View {
     private var footer: some View {
         HStack {
             Button {
-                // Wired up in stage 2.
+                refresh()
             } label: {
                 Label("Refresh", systemImage: "arrow.clockwise")
             }

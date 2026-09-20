@@ -1,0 +1,71 @@
+import Foundation
+import Testing
+@testable import GitHubMonitorKit
+
+@Suite("Pull request query")
+struct PullRequestQueryTests {
+    @Test("Without teams there is a single personal search")
+    func personalOnly() {
+        let queries = PullRequestQuery.searchQueries(
+            login: "sidler", teamSlugs: [], repositoryFilters: []
+        )
+        #expect(queries == ["is:pr is:open archived:false review-requested:sidler"])
+    }
+
+    /// Repeated review qualifiers are AND-ed by GitHub, so personal and team
+    /// requests cannot share one query.
+    @Test("Each team gets its own search")
+    func teamsGetSeparateQueries() {
+        let queries = PullRequestQuery.searchQueries(
+            login: "sidler", teamSlugs: ["octo/backend", "octo/server"], repositoryFilters: []
+        )
+        #expect(queries.count == 3)
+        #expect(queries[1].contains("team-review-requested:octo/backend"))
+        #expect(queries[2].contains("team-review-requested:octo/server"))
+        // No query may mix the two audiences.
+        #expect(queries.allSatisfy { query in
+            !(query.contains("review-requested:sidler") && query.contains("team-review-requested:"))
+        })
+    }
+
+    @Test("Repository filters become repo: and org: qualifiers")
+    func repositoryScope() {
+        #expect(PullRequestQuery.repositoryScope(["octo"]) == " org:octo")
+        #expect(PullRequestQuery.repositoryScope(["octo/server"]) == " repo:octo/server")
+        #expect(PullRequestQuery.repositoryScope([]) == "")
+        #expect(PullRequestQuery.repositoryScope(["  ", ""]) == "")
+    }
+
+    @Test("The repository scope applies to every audience")
+    func scopeAppliesEverywhere() {
+        let queries = PullRequestQuery.searchQueries(
+            login: "sidler", teamSlugs: ["octo/backend"], repositoryFilters: ["octo"]
+        )
+        #expect(queries.allSatisfy { $0.contains("org:octo") })
+    }
+
+    @Test("Team slugs are normalised and malformed ones dropped")
+    func teamNormalisation() {
+        let slugs = PullRequestQuery.normalisedTeams([
+            " @Octo/Backend ", "nosuchslug", "octo/", "/backend", "",
+        ])
+        #expect(slugs == ["octo/backend"])
+    }
+
+    @Test("Every search becomes its own alias in one document")
+    func documentAliases() {
+        let document = PullRequestQuery.document(for: ["a", "b"])
+        #expect(document.contains("s0: search("))
+        #expect(document.contains("s1: search("))
+        #expect(document.contains("fragment Results on SearchResultItemConnection"))
+    }
+
+    /// A quote or backslash in a filter would otherwise break out of the
+    /// GraphQL string and make the whole document invalid.
+    @Test("Quotes in a query are escaped")
+    func escaping() {
+        let document = PullRequestQuery.document(for: ["repo:a/b \"quoted\""])
+        #expect(document.contains("\\\"quoted\\\""))
+        #expect(!document.contains("search(query: \"repo:a/b \"quoted\""))
+    }
+}
