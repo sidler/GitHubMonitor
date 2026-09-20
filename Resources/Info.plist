@@ -20,9 +20,10 @@
 	<string>14.0</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
-	<!-- Menu bar agent: no Dock icon, no default menu bar. The optional main
-	     window is still shown by activating the app explicitly. -->
-	<key>LSUIElement</key>
-	<true/>
+	<!-- Deliberately NOT LSUIElement: that flag stops macOS from ever
+	     building the menu bar, so switching to a regular activation policy
+	     later leaves the menu titles visible but dead. main.swift sets the
+	     accessory policy instead, before the app finishes launching, which
+	     keeps the Dock icon away without losing the menu. -->
 </dict>
 </plist>
