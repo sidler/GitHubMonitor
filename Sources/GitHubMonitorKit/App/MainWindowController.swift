@@ -134,10 +134,10 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
 
     /// The window title is the list's name, which AppKit draws in the unified
     /// toolbar — the native equivalent of SwiftUI's navigationTitle.
+    /// The window keeps a title for the Window menu and the app switcher,
+    /// but does not draw it: ToolbarTitle does, so it can be inset away from
+    /// the sidebar divider.
     private func updateTitle() {
-        // One line rather than title plus subtitle: a second line makes the
-        // toolbar noticeably taller, and that height is reserved above every
-        // list for the sake of four words.
         let selection = state.sidebarSelection
         if let subtitle = selection.subtitle {
             window?.title = "\(selection.title) — \(subtitle)"
@@ -145,6 +145,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             window?.title = selection.title
         }
         window?.subtitle = ""
+        window?.titleVisibility = .hidden
     }
 
     /// `@Observable` has no publisher, so the tracking closure re-arms itself.
@@ -220,6 +221,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     // MARK: - Toolbar
 
     private static let controlsItem = NSToolbarItem.Identifier("controls")
+    private static let titleItem = NSToolbarItem.Identifier("title")
 
     public func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         toolbarDefaultItemIdentifiers(toolbar)
@@ -228,7 +230,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     public func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         // The tracking separator pins the toolbar's divider to the sidebar's,
         // which is the reason this window is built on a split view controller.
-        [.toggleSidebar, .sidebarTrackingSeparator, .flexibleSpace, Self.controlsItem]
+        [.toggleSidebar, .sidebarTrackingSeparator, Self.titleItem, .flexibleSpace, Self.controlsItem]
     }
 
     public func toolbar(
@@ -236,13 +238,24 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         itemForItemIdentifier identifier: NSToolbarItem.Identifier,
         willBeInsertedIntoToolbar flag: Bool
     ) -> NSToolbarItem? {
-        guard identifier == Self.controlsItem else { return nil }
-
         let item = NSToolbarItem(itemIdentifier: identifier)
-        let hosting = NSHostingView(rootView: ToolbarControls(state: state, controller: controller))
-        hosting.sizingOptions = [.intrinsicContentSize]
-        item.view = hosting
-        item.visibilityPriority = .high
+
+        switch identifier {
+        case Self.titleItem:
+            let hosting = NSHostingView(rootView: ToolbarTitle(state: state))
+            hosting.sizingOptions = [.intrinsicContentSize]
+            item.view = hosting
+            // Never collapse the title into the overflow menu.
+            item.visibilityPriority = .user
+        case Self.controlsItem:
+            let hosting = NSHostingView(rootView: ToolbarControls(state: state, controller: controller))
+            hosting.sizingOptions = [.intrinsicContentSize]
+            item.view = hosting
+            item.visibilityPriority = .high
+        default:
+            return nil
+        }
+
         return item
     }
 

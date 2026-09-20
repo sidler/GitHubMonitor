@@ -236,6 +236,30 @@ struct ContentColumn: View {
     }
 }
 
+/// The list's name, as its own toolbar item.
+///
+/// AppKit's own title sits hard against the sidebar divider; Notes and Mail
+/// inset theirs. Rendering it here is what allows the leading space.
+struct ToolbarTitle: View {
+    @Bindable var state: AppState
+
+    var body: some View {
+        Text(title)
+            .font(.headline)
+            .lineLimit(1)
+            .padding(.leading, 12)
+            .help(title)
+    }
+
+    private var title: String {
+        let selection = state.sidebarSelection
+        if let subtitle = selection.subtitle {
+            return "\(selection.title) — \(subtitle)"
+        }
+        return selection.title
+    }
+}
+
 /// Controls belonging to the list on screen, hosted in a toolbar item.
 struct ToolbarControls: View {
     @Bindable var state: AppState
@@ -332,7 +356,9 @@ private extension View {
     func reportScrolling(_ action: ((Bool) -> Void)?) -> some View {
         if #available(macOS 15.0, *), let action {
             self.onScrollGeometryChange(for: Bool.self) { geometry in
-                geometry.contentOffset.y > geometry.contentInsets.top + 1
+                // At rest the offset sits at minus the top inset, not zero,
+                // so the two have to be added before comparing.
+                geometry.contentOffset.y + geometry.contentInsets.top > 1
             } action: { _, scrolled in
                 action(scrolled)
             }
