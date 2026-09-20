@@ -52,11 +52,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         if devOption("GHM_SAMPLE") != nil {
             state.loadSampleData()
         } else {
-            refresh.start()
-            // Without a token there is nothing to show and nowhere to go, so
-            // put the user in front of the token field straight away.
-            if !state.hasToken {
-                windowController.show(selecting: .settings)
+            Task {
+                // Without a token there is nothing to show and nowhere to go,
+                // so put the user in front of the token field straight away.
+                if await refresh.start() == false {
+                    windowController.show(selecting: .settings)
+                }
             }
         }
 

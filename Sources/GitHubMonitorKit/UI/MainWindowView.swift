@@ -21,6 +21,9 @@ struct MainWindowView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .navigationTitle(state.sidebarSelection.title)
+                .navigationSubtitle(state.sidebarSelection.subtitle ?? "")
+                .toolbar { toolbarContent }
                 .inspector(isPresented: inspectorShown) {
                     if let item = state.inspectedPullRequest {
                         PullRequestDetailView(
@@ -40,6 +43,44 @@ struct MainWindowView: View {
         .frame(minWidth: 820, minHeight: 440)
         .onChange(of: state.inspectedPullRequestID) { _, id in
             if id != nil { ensureRoomForInspector() }
+        }
+    }
+
+    /// Controls for the list on screen, in the window's toolbar.
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        switch state.sidebarSelection {
+        case .pullRequests:
+            ToolbarItem {
+                GroupingPicker(
+                    settings: state.settings,
+                    keyPath: \.listGrouping,
+                    options: ListGrouping.forPullRequests
+                )
+            }
+            if state.draftCount > 0 {
+                ToolbarItem {
+                    DraftToggleControl(settings: state.settings, draftCount: state.draftCount)
+                }
+            }
+        case .mentions:
+            ToolbarItem {
+                GroupingPicker(
+                    settings: state.settings,
+                    keyPath: \.notificationGrouping,
+                    options: ListGrouping.forNotifications
+                )
+            }
+            if !state.selectedNotifications.isEmpty {
+                ToolbarItem {
+                    Button("Mark all read") {
+                        Task { await controller.markAllVisibleRead() }
+                    }
+                    .help("Marks these threads read on GitHub too")
+                }
+            }
+        case .settings:
+            ToolbarItem { EmptyView() }
         }
     }
 
@@ -137,20 +178,6 @@ struct MainWindowView: View {
     private var pullRequestList: some View {
         let items = state.selectedPullRequests
         return VStack(spacing: 0) {
-            ListToolbar(
-                selection: state.sidebarSelection,
-                settings: state.settings,
-                keyPath: \.listGrouping,
-                options: ListGrouping.forPullRequests
-            ) {
-                // Draft visibility belongs next to the list it changes, not
-                // only buried in settings.
-                if state.draftCount > 0 {
-                    DraftToggleControl(settings: state.settings, draftCount: state.draftCount)
-                }
-            }
-            Divider()
-
             GroupedList(
                 items: items,
                 grouping: state.settings.listGrouping,
@@ -184,22 +211,6 @@ struct MainWindowView: View {
     private var mentionList: some View {
         let items = state.selectedNotifications
         return VStack(spacing: 0) {
-            ListToolbar(
-                selection: state.sidebarSelection,
-                settings: state.settings,
-                keyPath: \.notificationGrouping,
-                options: ListGrouping.forNotifications
-            ) {
-                if !items.isEmpty {
-                    Button("Mark all read") {
-                        Task { await controller.markAllVisibleRead() }
-                    }
-                    .controlSize(.small)
-                    .help("Marks these threads read on GitHub too")
-                }
-            }
-            Divider()
-
             GroupedList(
                 items: items,
                 grouping: state.settings.notificationGrouping,
@@ -233,49 +244,6 @@ struct MainWindowView: View {
 }
 
 // MARK: - Building blocks
-
-/// Bar above a list: the grouping switch plus whatever that list adds.
-private struct ListToolbar<Trailing: View>: View {
-    let selection: SidebarSelection
-    @Bindable var settings: Settings
-    /// Which grouping preference this list drives; the two lists keep their
-    /// own, since they offer different options.
-    let keyPath: ReferenceWritableKeyPath<Settings, ListGrouping>
-    let options: [ListGrouping]
-    @ViewBuilder var trailing: () -> Trailing
-
-    var body: some View {
-        HStack(spacing: 12) {
-            // Says what is on screen, as Finder's toolbar names the folder.
-            VStack(alignment: .leading, spacing: 0) {
-                Text(selection.title)
-                    .font(.headline)
-                    .lineLimit(1)
-                if let subtitle = selection.subtitle {
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .help(selection.title)
-
-            Spacer(minLength: 12)
-
-            Picker("", selection: $settings[dynamicMember: keyPath]) {
-                ForEach(options, id: \.self) { grouping in
-                    Text(grouping.label).tag(grouping)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .fixedSize()
-
-            trailing()
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-    }
-}
 
 /// A list that is either flat or split into per-repository sections.
 ///
@@ -334,5 +302,25 @@ private struct DraftToggleControl: View {
         .toggleStyle(.switch)
         .controlSize(.small)
         .help("Drafts are counted in the menu bar only while shown")
+    }
+}
+
+/// The grouping switch, as a toolbar control.
+private struct GroupingPicker: View {
+    @Bindable var settings: Settings
+    /// Which grouping preference this list drives; the two lists keep their
+    /// own, since they offer different options.
+    let keyPath: ReferenceWritableKeyPath<Settings, ListGrouping>
+    let options: [ListGrouping]
+
+    var body: some View {
+        Picker("", selection: $settings[dynamicMember: keyPath]) {
+            ForEach(options, id: \.self) { grouping in
+                Text(grouping.label).tag(grouping)
+            }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .fixedSize()
     }
 }

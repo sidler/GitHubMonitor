@@ -20,21 +20,36 @@ public final class RefreshController {
 
     /// Picks up a stored token and starts refreshing. Safe to call once at
     /// launch; does nothing harmful when no token is stored.
-    public func start() {
-        do {
-            guard let token = try Keychain.readToken(), !token.isEmpty else {
+    /// Reports whether a usable token was found, so the caller can decide
+    /// whether to put the user in front of the token field.
+    ///
+    /// Reads the keychain off the main actor on purpose: that read can put an
+    /// authorisation dialog on screen, and doing it synchronously freezes the
+    /// whole interface — including the window behind the dialog — until the
+    /// user answers.
+    @discardableResult
+    public func start() async -> Bool {
+        let result = await Task.detached(priority: .userInitiated) {
+            Result { try Keychain.readToken() }
+        }.value
+
+        switch result {
+        case .success(let token):
+            guard let token, !token.isEmpty else {
                 state.hasToken = false
-                return
+                return false
             }
             adopt(token: token)
-        } catch {
+            // Not awaited: the first refresh should not hold up the window.
+            Task { await refresh() }
+            restartTimer()
+            return true
+
+        case .failure(let error):
             state.hasToken = false
             state.loadState = .failed("Keychain unavailable: \(error.localizedDescription)")
-            return
+            return false
         }
-
-        Task { await refresh() }
-        restartTimer()
     }
 
     private func adopt(token: String) {
@@ -89,7 +104,9 @@ public final class RefreshController {
                 return .failure(.missingScopes(viewer.scopes.missing))
             }
 
-            try Keychain.writeToken(trimmed)
+            try await Task.detached(priority: .userInitiated) {
+                try Keychain.writeToken(trimmed)
+            }.value
             service = candidate
             state.viewer = viewer
             state.hasToken = true

@@ -38,12 +38,15 @@ public final class MainWindowController: NSObject, NSWindowDelegate {
             window.center()
             window.isReleasedWhenClosed = false
             window.delegate = self
-            // Let the content run under the title bar so the sidebar reaches
-            // the top of the window, as in Finder and Mail.
-            window.titlebarAppearsTransparent = true
             window.styleMask.insert(.fullSizeContentView)
-            window.titleVisibility = .hidden
-            window.contentView = NSHostingView(
+            // A unified toolbar puts the title and the list's controls into
+            // the title bar, which would otherwise sit empty above a row
+            // doing the same job. It also gives the sidebar its full height.
+            window.toolbarStyle = .unified
+            // contentViewController rather than contentView: SwiftUI's
+            // .toolbar and .navigationTitle only reach the window through a
+            // hosting controller.
+            window.contentViewController = NSHostingController(
                 rootView: MainWindowView(
                     state: state,
                     controller: controller,
