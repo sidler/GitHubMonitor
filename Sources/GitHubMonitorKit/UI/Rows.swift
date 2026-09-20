@@ -13,18 +13,9 @@ struct PullRequestRow: View {
                 .padding(.top, 1)
 
             VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
-                    if item.isDraft {
-                        Text("DRAFT")
-                            .font(.system(size: 9, weight: .bold))
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 1)
-                            .background(.quaternary, in: RoundedRectangle(cornerRadius: 3))
-                    }
-                    Text(item.title)
-                        .font(compact ? .callout : .body)
-                        .lineLimit(compact ? 1 : 2)
-                }
+                Text(item.title)
+                    .font(compact ? .callout : .body)
+                    .lineLimit(compact ? 1 : 2)
 
                 HStack(spacing: 8) {
                     // verbatim: a pull request number is an identifier, not a
@@ -43,6 +34,17 @@ struct PullRequestRow: View {
                         .labelStyle(.iconOnly)
                         .foregroundStyle(checksTint)
                         .help(item.checks.label)
+
+                    // Next to the status symbols rather than before the
+                    // title: it is a state of the pull request, like the
+                    // review and check results beside it.
+                    if item.isDraft {
+                        Text("DRAFT")
+                            .font(.system(size: 9, weight: .bold))
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(.quaternary, in: RoundedRectangle(cornerRadius: 3))
+                    }
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)

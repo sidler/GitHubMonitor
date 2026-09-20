@@ -69,6 +69,9 @@ public struct ReviewerStatus: Identifiable, Hashable, Sendable {
 
 /// Everything the detail pane shows, fetched for one pull request at a time.
 public struct PullRequestDetail: Hashable, Sendable {
+    /// The branch being merged, and the one it targets.
+    public let headBranch: String
+    public let baseBranch: String
     public let additions: Int
     public let deletions: Int
     public let changedFiles: Int
@@ -77,6 +80,8 @@ public struct PullRequestDetail: Hashable, Sendable {
     public let reviewers: [ReviewerStatus]
 
     public init(
+        headBranch: String,
+        baseBranch: String,
         additions: Int,
         deletions: Int,
         changedFiles: Int,
@@ -84,6 +89,8 @@ public struct PullRequestDetail: Hashable, Sendable {
         checks: [CheckRun],
         reviewers: [ReviewerStatus]
     ) {
+        self.headBranch = headBranch
+        self.baseBranch = baseBranch
         self.additions = additions
         self.deletions = deletions
         self.changedFiles = changedFiles

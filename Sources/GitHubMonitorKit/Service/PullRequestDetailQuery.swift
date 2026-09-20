@@ -11,6 +11,8 @@ public enum PullRequestDetailQuery {
     query($id: ID!) {
       node(id: $id) {
         ... on PullRequest {
+          headRefName
+          baseRefName
           additions
           deletions
           changedFiles
@@ -54,6 +56,8 @@ public enum PullRequestDetailQuery {
         }
 
         return PullRequestDetail(
+            headBranch: node["headRefName"] as? String ?? "",
+            baseBranch: node["baseRefName"] as? String ?? "",
             additions: node["additions"] as? Int ?? 0,
             deletions: node["deletions"] as? Int ?? 0,
             changedFiles: node["changedFiles"] as? Int ?? 0,

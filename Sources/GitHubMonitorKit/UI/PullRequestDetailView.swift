@@ -22,6 +22,7 @@ struct PullRequestDetailView: View {
                         }
                         .font(.callout)
                     case .loaded(let detail):
+                        branches(detail)
                         changes(detail)
                         checks(detail)
                         reviewers(detail)
@@ -91,6 +92,34 @@ struct PullRequestDetailView: View {
     }
 
     // MARK: - Sections
+
+    @ViewBuilder
+    private func branches(_ detail: PullRequestDetail) -> some View {
+        if !detail.headBranch.isEmpty {
+            Section {
+                HStack(spacing: 5) {
+                    Image(systemName: "arrow.triangle.branch")
+                        .foregroundStyle(.secondary)
+                    Text(detail.headBranch)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .textSelection(.enabled)
+                        .help(detail.headBranch)
+                    if !detail.baseBranch.isEmpty {
+                        Image(systemName: "arrow.right")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                        Text(detail.baseBranch)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                .font(.callout)
+            } header: {
+                sectionTitle("Branch")
+            }
+        }
+    }
 
     private func changes(_ detail: PullRequestDetail) -> some View {
         Section {

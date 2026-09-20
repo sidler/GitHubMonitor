@@ -43,6 +43,11 @@ public final class MainWindowController: NSObject, NSWindowDelegate {
             // the title bar, which would otherwise sit empty above a row
             // doing the same job. It also gives the sidebar its full height.
             window.toolbarStyle = .unified
+            // Transparent title bar: the split view's own backgrounds run all
+            // the way up, so the sidebar/content boundary is one straight
+            // line. With an opaque title bar the toolbar draws its own split
+            // a few points to the left of the divider, leaving a visible jog.
+            window.titlebarAppearsTransparent = true
             // A continuous line under the whole title bar. Left automatic,
             // macOS draws it only over the scrolling half, which leaves the
             // toolbar looking like a step against the sidebar.

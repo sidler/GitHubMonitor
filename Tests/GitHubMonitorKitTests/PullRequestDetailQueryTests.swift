@@ -11,6 +11,8 @@ struct PullRequestDetailQueryTests {
     ) -> [String: Any] {
         [
             "node": [
+                "headRefName": "feature/csv-export",
+                "baseRefName": "main",
                 "additions": 120,
                 "deletions": 45,
                 "changedFiles": 7,
@@ -37,6 +39,13 @@ struct PullRequestDetailQueryTests {
         #expect(detail.deletions == 45)
         #expect(detail.changedFiles == 7)
         #expect(detail.comments == 3)
+    }
+
+    @Test("Branch names are read across")
+    func branches() throws {
+        let detail = try PullRequestDetailQuery.detail(from: payload())
+        #expect(detail.headBranch == "feature/csv-export")
+        #expect(detail.baseBranch == "main")
     }
 
     @Test("A missing node is an error, not an empty detail")
@@ -156,5 +165,7 @@ struct PullRequestDetailQueryTests {
         #expect(detail.checks.isEmpty)
         #expect(detail.reviewers.isEmpty)
         #expect(detail.changedFiles == 0)
+        // Empty rather than absent, so the view can simply skip the row.
+        #expect(detail.headBranch.isEmpty)
     }
 }
