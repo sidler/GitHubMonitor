@@ -4,6 +4,8 @@ import SwiftUI
 struct MainWindowView: View {
     @Bindable var state: AppState
     let controller: RefreshController
+    /// Lets the pane ask the window for more room when it opens.
+    var ensureRoomForInspector: () -> Void = {}
 
     var body: some View {
         VStack(spacing: 0) {
@@ -19,12 +21,37 @@ struct MainWindowView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .inspector(isPresented: inspectorShown) {
+                    if let item = state.inspectedPullRequest {
+                        PullRequestDetailView(
+                            item: item,
+                            detail: state.pullRequestDetails[item.id],
+                            reload: { controller.reloadDetail(for: item.id) },
+                            close: { controller.closeInspector() }
+                        )
+                        .inspectorColumnWidth(min: 260, ideal: 300, max: 380)
+                    }
+                }
             }
 
             Divider()
             statusBar
         }
-        .frame(minWidth: 680, minHeight: 440)
+        .frame(minWidth: 820, minHeight: 440)
+        .onChange(of: state.inspectedPullRequestID) { _, id in
+            if id != nil { ensureRoomForInspector() }
+        }
+    }
+
+    /// The pane follows the selection: it is open exactly while a pull
+    /// request is being inspected.
+    private var inspectorShown: Binding<Bool> {
+        Binding(
+            get: { state.inspectedPullRequest != nil },
+            set: { shown in
+                if !shown { controller.closeInspector() }
+            }
+        )
     }
 
     /// Finder-style status bar: the totals, plus when they were last checked.
@@ -129,8 +156,12 @@ struct MainWindowView: View {
                 grouping: state.settings.listGrouping,
                 repository: \.repository
             ) { item in
-                PullRequestRow(item: item)
-                    .padding(.vertical, 3)
+                PullRequestRow(
+                    item: item,
+                    inspect: { controller.inspect(item) },
+                    isInspected: state.inspectedPullRequestID == item.id
+                )
+                .padding(.vertical, 3)
             }
             .overlay {
                 if items.isEmpty {

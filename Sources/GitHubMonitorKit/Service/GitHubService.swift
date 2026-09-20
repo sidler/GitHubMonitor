@@ -76,6 +76,16 @@ public struct GitHubService: Sendable {
         .sorted { $0.slug < $1.slug }
     }
 
+    /// The extra detail behind one pull request, fetched when its row is
+    /// opened rather than for the whole list.
+    public func pullRequestDetail(id: String) async throws -> PullRequestDetail {
+        let payload = try await client.graphQL(
+            PullRequestDetailQuery.document,
+            variables: ["id": id]
+        )
+        return try PullRequestDetailQuery.detail(from: payload)
+    }
+
     /// Unread notification threads.
     ///
     /// GitHub asks clients to send back the previous `Last-Modified` value; a

@@ -60,6 +60,20 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
+        // Development aid: opens the detail pane for the first pull request
+        // once one has loaded, so the pane can be inspected without a click.
+        if devOption("GHM_INSPECT") != nil {
+            Task { [weak self] in
+                for _ in 0..<40 {
+                    if let first = self?.state.visiblePullRequests.first {
+                        refresh.inspect(first)
+                        return
+                    }
+                    try? await Task.sleep(for: .milliseconds(500))
+                }
+            }
+        }
+
         // Development aid: lets the window and popover be opened without a
         // mouse click, e.g. for screenshots during a build.
         if let tab = devOption("GHM_OPEN") {

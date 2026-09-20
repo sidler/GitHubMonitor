@@ -56,6 +56,10 @@ public final class AppState {
     public var previews: [String: PreviewState] = [:]
     /// The notification whose preview is expanded, if any.
     public var expandedNotificationID: String?
+    /// The pull request shown in the detail pane, if it is open.
+    public var inspectedPullRequestID: String?
+    /// Detail payloads, fetched per pull request when its pane is opened.
+    public var pullRequestDetails: [String: DetailState] = [:]
     public var sidebarSelection: SidebarSelection = .pullRequests(repository: nil)
     public var selectedSettingsTab: SettingsTab = .account
 
@@ -118,6 +122,13 @@ public final class AppState {
     public var notificationRepositories: [SidebarRepository] {
         RepositoryGrouping.group(visibleNotifications, by: \.repository)
             .map { SidebarRepository(repository: $0.repository, count: $0.items.count) }
+    }
+
+    /// The pull request the detail pane is describing, if it is still in the
+    /// list -- a refresh can drop it.
+    public var inspectedPullRequest: PullRequestItem? {
+        guard let id = inspectedPullRequestID else { return nil }
+        return pullRequests.first { $0.id == id }
     }
 
     public var health: StatusBarHealth {

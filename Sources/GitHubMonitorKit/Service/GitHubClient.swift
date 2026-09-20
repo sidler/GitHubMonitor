@@ -80,10 +80,15 @@ public struct GitHubClient: Sendable {
         return try await perform(request)
     }
 
-    public func graphQL(_ document: String) async throws -> [String: Any] {
+    public func graphQL(
+        _ document: String,
+        variables: [String: Any]? = nil
+    ) async throws -> [String: Any] {
         var request = URLRequest(url: URL(string: "https://api.github.com/graphql")!)
         request.httpMethod = "POST"
-        request.httpBody = try JSONSerialization.data(withJSONObject: ["query": document])
+        var body: [String: Any] = ["query": document]
+        if let variables { body["variables"] = variables }
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let (data, _) = try await perform(request)

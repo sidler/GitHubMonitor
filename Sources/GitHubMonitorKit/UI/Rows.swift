@@ -3,6 +3,9 @@ import SwiftUI
 struct PullRequestRow: View {
     let item: PullRequestItem
     var compact: Bool = false
+    /// Nil in the popover, where there is no detail pane to open.
+    var inspect: (() -> Void)?
+    var isInspected: Bool = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
@@ -43,11 +46,48 @@ struct PullRequestRow: View {
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                // Truncate instead of wrapping: in a narrow column a wrapping
+                // meta line turns into a stack of fragments like "arte-
+                // meon/" that reads far worse than an ellipsis.
+                .lineLimit(1)
+            }
+
+            Spacer(minLength: 4)
+
+            if let inspect {
+                actions(inspect: inspect)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
-        .onTapGesture { NSWorkspace.shared.open(item.url) }
+        // A single click opens the detail pane; the browser is one deliberate
+        // step further, since it leaves the app.
+        .onTapGesture {
+            if let inspect {
+                inspect()
+            } else {
+                NSWorkspace.shared.open(item.url)
+            }
+        }
+    }
+
+    private func actions(inspect: @escaping () -> Void) -> some View {
+        HStack(spacing: 2) {
+            Button(action: inspect) {
+                Image(systemName: isInspected ? "sidebar.right" : "info.circle")
+            }
+            .help("Show details")
+
+            Button {
+                NSWorkspace.shared.open(item.url)
+            } label: {
+                Image(systemName: "arrow.up.forward.square")
+            }
+            .help("Open on GitHub")
+        }
+        .buttonStyle(.accessoryBar)
+        .foregroundStyle(isInspected ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+        .padding(.top, 1)
     }
 
     private var reviewTint: Color {

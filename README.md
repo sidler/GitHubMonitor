@@ -128,6 +128,11 @@ Settings are split into three tabs.
 | Refresh interval | How often to poll. The app never polls faster than GitHub's own suggested interval, even when set to 1 minute. |
 | Launch at login | Register the app as a login item. The entry points at the app's current location, so moving it afterwards breaks it. |
 
+Each pull request row carries two actions: one opens a detail pane showing
+changed files, additions and deletions, comment count, every check with its
+result, and each reviewer with where they stand; the other opens the pull
+request on GitHub.
+
 The sidebar lists each repository under *Pull Requests* and *Mentions*, so one
 click narrows the view to that repository's queue; the header says which list
 is on screen.

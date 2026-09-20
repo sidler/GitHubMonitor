@@ -29,7 +29,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate {
 
         if window == nil {
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 780, height: 640),
+                contentRect: NSRect(x: 0, y: 0, width: 1060, height: 680),
                 styleMask: [.titled, .closable, .miniaturizable, .resizable],
                 backing: .buffered,
                 defer: false
@@ -43,7 +43,13 @@ public final class MainWindowController: NSObject, NSWindowDelegate {
             window.titlebarAppearsTransparent = true
             window.styleMask.insert(.fullSizeContentView)
             window.titleVisibility = .hidden
-            window.contentView = NSHostingView(rootView: MainWindowView(state: state, controller: controller))
+            window.contentView = NSHostingView(
+                rootView: MainWindowView(
+                    state: state,
+                    controller: controller,
+                    ensureRoomForInspector: { [weak self] in self?.ensureRoomForInspector() }
+                )
+            )
             self.window = window
         }
 
@@ -53,6 +59,22 @@ public final class MainWindowController: NSObject, NSWindowDelegate {
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
     }
+
+    /// Widens the window when the detail pane opens into one too narrow to
+    /// hold three columns, rather than squeezing the list to shreds.
+    public func ensureRoomForInspector() {
+        guard let window, window.frame.width < Self.widthWithInspector else { return }
+        var frame = window.frame
+        // Grow to the right, but stay on screen.
+        let available = window.screen?.visibleFrame ?? frame
+        frame.size.width = Self.widthWithInspector
+        if frame.maxX > available.maxX {
+            frame.origin.x = max(available.minX, available.maxX - frame.width)
+        }
+        window.setFrame(frame, display: true, animate: true)
+    }
+
+    private static let widthWithInspector: CGFloat = 1060
 
     public func windowWillClose(_ notification: Notification) {
         // Back to an agent once the window is gone. Deferred because the

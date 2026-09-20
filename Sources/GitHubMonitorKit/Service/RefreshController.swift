@@ -155,6 +155,13 @@ public final class RefreshController {
                 repositoryFilters: state.settings.repositoryFilters
             )
             state.pullRequests = pullRequests
+            let livePullRequests = Set(pullRequests.map(\.id))
+            state.pullRequestDetails = state.pullRequestDetails.filter {
+                livePullRequests.contains($0.key)
+            }
+            if let inspected = state.inspectedPullRequestID, !livePullRequests.contains(inspected) {
+                state.inspectedPullRequestID = nil
+            }
 
             let fetch = try await service.notifications(since: lastModified)
             lastModified = fetch.lastModified
@@ -175,6 +182,47 @@ public final class RefreshController {
             state.loadState = .failed(error.localizedDescription)
         } catch {
             state.loadState = .failed(error.localizedDescription)
+        }
+    }
+
+    // MARK: - Pull request detail
+
+    /// Opens the detail pane for a pull request, fetching its detail the
+    /// first time.
+    public func inspect(_ item: PullRequestItem) {
+        state.inspectedPullRequestID = item.id
+        loadDetail(for: item.id)
+    }
+
+    public func closeInspector() {
+        state.inspectedPullRequestID = nil
+    }
+
+    /// Refetches even when a detail is cached, for the pane's reload button.
+    public func reloadDetail(for id: String) {
+        state.pullRequestDetails[id] = nil
+        loadDetail(for: id)
+    }
+
+    private func loadDetail(for id: String) {
+        // Already fetched or in flight.
+        guard state.pullRequestDetails[id] == nil else { return }
+        guard let service else {
+            state.pullRequestDetails[id] = .failed(GitHubError.noToken.localizedDescription)
+            return
+        }
+
+        state.pullRequestDetails[id] = .loading
+        Task { [weak self] in
+            do {
+                let detail = try await service.pullRequestDetail(id: id)
+                self?.state.pullRequestDetails[id] = .loaded(detail)
+            } catch let error as GitHubError {
+                Log.api.error("detail failed: \(error.localizedDescription, privacy: .public)")
+                self?.state.pullRequestDetails[id] = .failed(error.localizedDescription)
+            } catch {
+                self?.state.pullRequestDetails[id] = .failed(error.localizedDescription)
+            }
         }
     }
 
