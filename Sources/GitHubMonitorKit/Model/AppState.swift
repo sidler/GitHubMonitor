@@ -48,6 +48,24 @@ public final class AppState {
         self.settings = settings
     }
 
+    /// Pull requests after every filter -- what the list shows and what the
+    /// menu bar counts. Both read this so they cannot drift apart.
+    public var visiblePullRequests: [PullRequestItem] {
+        PullRequestFilter.apply(
+            pullRequests,
+            includeDrafts: settings.includeDrafts,
+            repositoryFilters: settings.repositoryFilters
+        )
+    }
+
+    /// Drafts within the repository filter, whether or not they are shown.
+    /// Drives the wording of the draft toggle.
+    public var draftCount: Int {
+        PullRequestFilter
+            .matchingRepositories(pullRequests, repositoryFilters: settings.repositoryFilters)
+            .count { $0.isDraft }
+    }
+
     public var health: StatusBarHealth {
         guard hasToken else { return .unconfigured }
         if case .failed = loadState { return .failing }

@@ -27,24 +27,38 @@ struct MainWindowView: View {
 
     private func badge(for tab: MainWindowTab) -> Int {
         switch tab {
-        case .pullRequests: state.pullRequests.count
+        case .pullRequests: state.visiblePullRequests.count
         case .mentions: state.notifications.count
         case .settings: 0
         }
     }
 
     private var pullRequestList: some View {
-        List(state.pullRequests) { item in
-            PullRequestRow(item: item)
-                .padding(.vertical, 2)
-        }
-        .overlay {
-            if state.pullRequests.isEmpty {
-                ContentUnavailableView(
-                    "No reviews requested",
-                    systemImage: StatusBarTitleBuilder.pullRequestSymbol,
-                    description: Text("Nothing is waiting for your review.")
-                )
+        let items = state.visiblePullRequests
+        return VStack(spacing: 0) {
+            // Draft visibility belongs next to the list it changes, not only
+            // buried in settings.
+            if state.draftCount > 0 {
+                DraftVisibilityBar(settings: state.settings, draftCount: state.draftCount)
+                Divider()
+            }
+
+            List(items) { item in
+                PullRequestRow(item: item)
+                    .padding(.vertical, 3)
+            }
+            .overlay {
+                if items.isEmpty {
+                    ContentUnavailableView(
+                        "No reviews requested",
+                        systemImage: StatusBarTitleBuilder.pullRequestSymbol,
+                        description: Text(
+                            state.draftCount > 0 && !state.settings.includeDrafts
+                                ? "Only drafts are waiting; switch them on above to see them."
+                                : "Nothing is waiting for your review."
+                        )
+                    )
+                }
             }
         }
     }
@@ -63,5 +77,25 @@ struct MainWindowView: View {
                 )
             }
         }
+    }
+}
+
+/// Draft visibility, placed above the list it affects. Also changes the menu
+/// bar count, which the caption spells out.
+private struct DraftVisibilityBar: View {
+    @Bindable var settings: Settings
+    let draftCount: Int
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Toggle("Show drafts", isOn: $settings.includeDrafts)
+                .toggleStyle(.checkbox)
+            Text("\(draftCount) draft\(draftCount == 1 ? "" : "s") in this list — counted in the menu bar only while shown")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
     }
 }

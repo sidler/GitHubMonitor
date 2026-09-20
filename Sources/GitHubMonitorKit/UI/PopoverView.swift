@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 
 /// Compact overview shown under the menu bar icon: the top few items of each
@@ -19,36 +20,82 @@ struct PopoverView: View {
                 unconfiguredNotice
             } else {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 12) {
-                        section(
-                            title: "Reviews requested",
-                            count: state.pullRequests.count,
-                            symbol: StatusBarTitleBuilder.pullRequestSymbol
-                        ) {
-                            ForEach(state.pullRequests.prefix(Self.previewLimit)) { item in
-                                PullRequestRow(item: item, compact: true)
-                            }
-                        }
-
-                        section(
-                            title: "Unread mentions",
-                            count: state.notifications.count,
-                            symbol: StatusBarTitleBuilder.mentionSymbol
-                        ) {
-                            ForEach(state.notifications.prefix(Self.previewLimit)) { item in
-                                NotificationRow(item: item, compact: true)
-                            }
-                        }
+                    VStack(alignment: .leading, spacing: 18) {
+                        pullRequestSection
+                        mentionSection
                     }
                     .padding(12)
                 }
+                .scrollBounceBehavior(.basedOnSize)
+                // Grow with the content instead of leaving a fixed slab of
+                // empty space under a short list, but stop before the popover
+                // turns into a full window.
+                .frame(maxHeight: 460)
             }
 
             Divider()
             footer
         }
-        .frame(width: 380, height: 460)
+        .frame(width: 380)
     }
+
+    // MARK: - Sections
+
+    private var pullRequestSection: some View {
+        let items = state.visiblePullRequests
+        return Section {
+            CardList(
+                items: Array(items.prefix(Self.previewLimit)),
+                emptyMessage: state.draftCount > 0 && !state.settings.includeDrafts
+                    ? "Nothing but drafts."
+                    : "Nothing waiting for your review."
+            ) { item in
+                PullRequestRow(item: item, compact: true)
+            }
+
+            if items.count > Self.previewLimit {
+                showAllButton(count: items.count)
+            }
+        } header: {
+            SectionHeader(
+                title: "Reviews requested",
+                count: items.count,
+                symbol: StatusBarTitleBuilder.pullRequestSymbol
+            ) {
+                DraftToggle(state: state)
+            }
+        }
+    }
+
+    private var mentionSection: some View {
+        Section {
+            CardList(
+                items: Array(state.notifications.prefix(Self.previewLimit)),
+                emptyMessage: "No unread mentions."
+            ) { item in
+                NotificationRow(item: item, compact: true)
+            }
+
+            if state.notifications.count > Self.previewLimit {
+                showAllButton(count: state.notifications.count)
+            }
+        } header: {
+            SectionHeader(
+                title: "Unread mentions",
+                count: state.notifications.count,
+                symbol: StatusBarTitleBuilder.mentionSymbol
+            )
+        }
+    }
+
+    private func showAllButton(count: Int) -> some View {
+        Button("Show all \(count)…") { openMainWindow() }
+            .buttonStyle(.link)
+            .font(.caption)
+            .padding(.top, 4)
+    }
+
+    // MARK: - Chrome
 
     private var header: some View {
         HStack {
@@ -79,40 +126,6 @@ struct PopoverView: View {
         .padding()
     }
 
-    @ViewBuilder
-    private func section<Content: View>(
-        title: String,
-        count: Int,
-        symbol: String,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                Image(systemName: symbol)
-                Text(title).font(.subheadline.weight(.semibold))
-                Text("\(count)")
-                    .font(.caption.monospacedDigit())
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 1)
-                    .background(.quaternary, in: Capsule())
-            }
-            .foregroundStyle(.secondary)
-
-            if count == 0 {
-                Text("Nothing here.")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            } else {
-                content()
-                if count > Self.previewLimit {
-                    Button("Show all \(count)…") { openMainWindow() }
-                        .buttonStyle(.link)
-                        .font(.caption)
-                }
-            }
-        }
-    }
-
     private var footer: some View {
         HStack {
             Button {
@@ -130,5 +143,127 @@ struct PopoverView: View {
         .buttonStyle(.accessoryBar)
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+    }
+}
+
+// MARK: - Building blocks
+
+/// Section title, count badge and an optional trailing control.
+private struct SectionHeader<Accessory: View>: View {
+    let title: String
+    let count: Int
+    let symbol: String
+    @ViewBuilder var accessory: () -> Accessory
+
+    init(
+        title: String,
+        count: Int,
+        symbol: String,
+        @ViewBuilder accessory: @escaping () -> Accessory = { EmptyView() }
+    ) {
+        self.title = title
+        self.count = count
+        self.symbol = symbol
+        self.accessory = accessory
+    }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: symbol)
+                .font(.caption)
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+            Text("\(count)")
+                .font(.caption.monospacedDigit())
+                .padding(.horizontal, 6)
+                .padding(.vertical, 1)
+                .background(.quaternary, in: Capsule())
+
+            Spacer()
+            accessory()
+        }
+        .foregroundStyle(.secondary)
+        .padding(.bottom, 6)
+    }
+}
+
+/// Groups rows into one rounded card with hairlines between them, so a list
+/// reads as a list rather than as stacked paragraphs.
+private struct CardList<Item: Identifiable, Row: View>: View {
+    let items: [Item]
+    let emptyMessage: String
+    @ViewBuilder var row: (Item) -> Row
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if items.isEmpty {
+                Text(emptyMessage)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                    if index > 0 {
+                        Divider().padding(.leading, 10)
+                    }
+                    HoverRow { row(item) }
+                }
+            }
+        }
+        .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(.quaternary, lineWidth: 1)
+        )
+    }
+}
+
+/// View-local state without `@State`: its macro implementation ships only
+/// with Xcode, and this project builds against the Command Line Tools.
+/// `@StateObject` is unaffected, so it stands in wherever a view needs to
+/// remember something of its own.
+@MainActor
+private final class HoverState: ObservableObject {
+    @Published var isHovering = false
+}
+
+/// Rows are clickable, so they need to say so on hover.
+private struct HoverRow<Content: View>: View {
+    @ViewBuilder var content: () -> Content
+    @StateObject private var hover = HoverState()
+
+    var body: some View {
+        content()
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(hover.isHovering ? AnyShapeStyle(.selection.opacity(0.25)) : AnyShapeStyle(.clear))
+            .onHover { hover.isHovering = $0 }
+    }
+}
+
+/// Draft visibility, where it is actually needed: next to the list it changes.
+private struct DraftToggle: View {
+    @Bindable var state: AppState
+
+    var body: some View {
+        // With no drafts around, the control would be a no-op.
+        if state.draftCount > 0 {
+            Button {
+                state.settings.includeDrafts.toggle()
+            } label: {
+                Label(
+                    state.settings.includeDrafts
+                        ? "Hide drafts"
+                        : "Show \(state.draftCount) draft\(state.draftCount == 1 ? "" : "s")",
+                    systemImage: state.settings.includeDrafts ? "eye.slash" : "eye"
+                )
+                .font(.caption)
+            }
+            .buttonStyle(.accessoryBar)
+            .help("Drafts are counted in the menu bar only while shown")
+        }
     }
 }

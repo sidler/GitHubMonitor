@@ -17,8 +17,7 @@ public final class StatusItemController {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         popover.behavior = .transient
-        popover.contentSize = NSSize(width: 380, height: 460)
-        popover.contentViewController = NSHostingController(
+        let hosting = NSHostingController(
             rootView: PopoverView(
                 state: state,
                 openMainWindow: { [weak self] in
@@ -28,6 +27,10 @@ public final class StatusItemController {
                 quit: { NSApp.terminate(nil) }
             )
         )
+        // Let the popover follow the content's own height rather than fixing
+        // it, so a short list does not sit above a slab of empty space.
+        hosting.sizingOptions = [.preferredContentSize]
+        popover.contentViewController = hosting
 
         statusItem.button?.action = #selector(togglePopover)
         statusItem.button?.target = self
@@ -42,7 +45,7 @@ public final class StatusItemController {
         guard let button = statusItem.button else { return }
 
         let segments = StatusBarTitleBuilder.segments(
-            pullRequests: state.pullRequests.count,
+            pullRequests: state.visiblePullRequests.count,
             mentions: state.notifications.count,
             style: state.settings.statusBarStyle,
             health: state.health
@@ -71,18 +74,24 @@ public final class StatusItemController {
                 image.isTemplate = true
                 let attachment = NSTextAttachment()
                 attachment.image = image
-                // Sit the glyph on the baseline. Centring it on the cap height
-                // looks like the more correct choice but pushes SF Symbols
-                // noticeably below the digits, because they are taller than
-                // the cap height by design.
-                attachment.bounds = CGRect(origin: .zero, size: image.size)
+                let offset = SymbolAlignment.inkExtent(of: image).map {
+                    SymbolAlignment.baselineOffset(
+                        imageHeight: image.size.height,
+                        inkTop: $0.top,
+                        inkBottom: $0.bottom,
+                        capHeight: font.capHeight
+                    )
+                } ?? 0
+                attachment.bounds = CGRect(
+                    x: 0, y: offset, width: image.size.width, height: image.size.height
+                )
                 title.append(NSAttributedString(attachment: attachment))
             }
         }
 
         button.attributedTitle = title
         button.toolTip = StatusBarTitleBuilder.accessibilityLabel(
-            pullRequests: state.pullRequests.count,
+            pullRequests: state.visiblePullRequests.count,
             mentions: state.notifications.count,
             health: state.health
         )
@@ -92,11 +101,13 @@ public final class StatusItemController {
     /// every change.
     private func observeState() {
         withObservationTracking {
-            _ = state.pullRequests.count
+            _ = state.visiblePullRequests.count
             _ = state.notifications.count
             _ = state.hasToken
             _ = state.loadState
             _ = state.settings.statusBarStyle
+            _ = state.settings.includeDrafts
+            _ = state.settings.repositoryFilters
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else { return }
