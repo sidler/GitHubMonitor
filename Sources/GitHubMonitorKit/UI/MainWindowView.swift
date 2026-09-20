@@ -76,7 +76,11 @@ struct MainWindowView: View {
     private var pullRequestList: some View {
         let items = state.visiblePullRequests
         return VStack(spacing: 0) {
-            ListToolbar(settings: state.settings) {
+            ListToolbar(
+                settings: state.settings,
+                keyPath: \.listGrouping,
+                options: ListGrouping.forPullRequests
+            ) {
                 // Draft visibility belongs next to the list it changes, not
                 // only buried in settings.
                 if state.draftCount > 0 {
@@ -114,7 +118,11 @@ struct MainWindowView: View {
     private var mentionList: some View {
         let items = state.visibleNotifications
         return VStack(spacing: 0) {
-            ListToolbar(settings: state.settings) {
+            ListToolbar(
+                settings: state.settings,
+                keyPath: \.notificationGrouping,
+                options: ListGrouping.forNotifications
+            ) {
                 if !items.isEmpty {
                     Button("Mark all read") {
                         Task { await controller.markAllVisibleRead() }
@@ -127,8 +135,9 @@ struct MainWindowView: View {
 
             GroupedList(
                 items: items,
-                grouping: state.settings.listGrouping,
-                repository: \.repository
+                grouping: state.settings.notificationGrouping,
+                repository: \.repository,
+                type: \.subjectTypeLabel
             ) { item in
                 NotificationRow(
                     item: item,
@@ -161,12 +170,16 @@ struct MainWindowView: View {
 /// Bar above a list: the grouping switch plus whatever that list adds.
 private struct ListToolbar<Trailing: View>: View {
     @Bindable var settings: Settings
+    /// Which grouping preference this list drives; the two lists keep their
+    /// own, since they offer different options.
+    let keyPath: ReferenceWritableKeyPath<Settings, ListGrouping>
+    let options: [ListGrouping]
     @ViewBuilder var trailing: () -> Trailing
 
     var body: some View {
         HStack(spacing: 12) {
-            Picker("", selection: $settings.listGrouping) {
-                ForEach(ListGrouping.allCases, id: \.self) { grouping in
+            Picker("", selection: $settings[dynamicMember: keyPath]) {
+                ForEach(options, id: \.self) { grouping in
                     Text(grouping.label).tag(grouping)
                 }
             }
@@ -191,21 +204,28 @@ private struct GroupedList<Item: Identifiable, Row: View>: View {
     let items: [Item]
     let grouping: ListGrouping
     let repository: (Item) -> String
+    /// Nil for lists where grouping by type is meaningless.
+    var type: ((Item) -> String)?
     @ViewBuilder var row: (Item) -> Row
+
+    private var groupKey: ((Item) -> String)? {
+        switch grouping {
+        case .flat: nil
+        case .byRepository: repository
+        case .byType: type
+        }
+    }
 
     var body: some View {
         List {
-            switch grouping {
-            case .flat:
-                ForEach(items) { row($0) }
-            case .byRepository:
-                ForEach(RepositoryGrouping.group(items, by: repository)) { group in
+            if let groupKey {
+                ForEach(RepositoryGrouping.group(items, by: groupKey)) { group in
                     Section {
                         ForEach(group.items) { row($0) }
                     } header: {
                         HStack(spacing: 6) {
                             Text(group.repository)
-                            Text("\(group.items.count)")
+                            Text(verbatim: "\(group.items.count)")
                                 .font(.caption.monospacedDigit())
                                 .padding(.horizontal, 5)
                                 .padding(.vertical, 1)
@@ -213,6 +233,8 @@ private struct GroupedList<Item: Identifiable, Row: View>: View {
                         }
                     }
                 }
+            } else {
+                ForEach(items) { row($0) }
             }
         }
     }

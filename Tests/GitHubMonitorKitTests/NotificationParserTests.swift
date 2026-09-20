@@ -128,3 +128,32 @@ struct NotificationLinkTests {
         #expect(NotificationLink.browserURL(for: item)?.absoluteString == "https://github.com/octo/server")
     }
 }
+
+@Suite("Notification subject types")
+struct NotificationSubjectTypeTests {
+    private func item(_ subjectType: String) -> NotificationItem {
+        NotificationItem(
+            id: "1", title: "t", repository: "o/r", avatarURL: nil,
+            reason: .mention, updatedAt: .now, subjectType: subjectType,
+            latestCommentAPIURL: nil, subjectAPIURL: nil
+        )
+    }
+
+    @Test("Known types get an icon and a plural heading", arguments: [
+        ("PullRequest", "arrow.triangle.pull", "Pull requests"),
+        ("Issue", "smallcircle.filled.circle", "Issues"),
+        ("Commit", "arrow.triangle.branch", "Commits"),
+    ])
+    func knownTypes(subjectType: String, symbol: String, label: String) {
+        #expect(item(subjectType).symbolName == symbol)
+        #expect(item(subjectType).subjectTypeLabel == label)
+    }
+
+    /// GitHub adds subject types over time; an unknown one must still group
+    /// and render rather than vanishing.
+    @Test("An unknown type falls back without losing its name")
+    func unknownType() {
+        #expect(item("SomethingNew").symbolName == "bell")
+        #expect(item("SomethingNew").subjectTypeLabel == "SomethingNew")
+    }
+}

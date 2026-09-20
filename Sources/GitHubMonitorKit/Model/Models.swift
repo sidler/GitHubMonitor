@@ -166,6 +166,19 @@ public struct NotificationItem: Identifiable, Hashable, Sendable {
         }
     }
 
+    /// Plural heading used when the list is grouped by type.
+    public var subjectTypeLabel: String {
+        switch subjectType {
+        case "PullRequest": "Pull requests"
+        case "Issue": "Issues"
+        case "Commit": "Commits"
+        case "Release": "Releases"
+        case "Discussion": "Discussions"
+        case "CheckSuite": "Check suites"
+        default: subjectType
+        }
+    }
+
     public init(
         id: String,
         title: String,

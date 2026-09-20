@@ -5,7 +5,6 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItemController: StatusItemController?
     private var mainWindowController: MainWindowController?
     private var refreshController: RefreshController?
-    private var shortcuts: KeyboardShortcuts?
     private let state = AppState(settings: Settings())
 
     public override init() {
@@ -40,10 +39,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             openMainWindow: { windowController.show() }
         )
 
-        // Cmd+, opens settings, as everywhere else on macOS.
-        shortcuts = KeyboardShortcuts {
-            windowController.show(selecting: .settings)
-        }
+        // A real menu, so the standard shortcuts are where macOS expects
+        // them and text fields get working copy and paste.
+        NSApp.mainMenu = AppMenu.build(
+            appName: "GitHub Monitor",
+            openSettings: { windowController.show(selecting: .settings) },
+            refresh: { Task { await refresh.refresh() } }
+        )
 
         // Sample data is opt-in now that real requests work, so the UI can
         // still be exercised without a token.
@@ -81,6 +83,5 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     public func applicationWillTerminate(_ notification: Notification) {
         refreshController?.stop()
-        shortcuts?.stop()
     }
 }

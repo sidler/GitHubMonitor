@@ -49,9 +49,16 @@ public final class Settings {
         didSet { store.set(launchAtLogin, forKey: Key.launchAtLogin) }
     }
 
-    /// Whether the main window's lists are split by repository.
+    /// How the pull request list is split up.
     public var listGrouping: ListGrouping {
         didSet { store.set(listGrouping.rawValue, forKey: Key.listGrouping) }
+    }
+
+    /// Kept separate from the pull request grouping: the lists offer
+    /// different options, and choosing "by type" for notifications should not
+    /// silently reset how pull requests are shown.
+    public var notificationGrouping: ListGrouping {
+        didSet { store.set(notificationGrouping.rawValue, forKey: Key.notificationGrouping) }
     }
 
     private let store: UserDefaults
@@ -73,6 +80,8 @@ public final class Settings {
         launchAtLogin = store.object(forKey: Key.launchAtLogin) as? Bool ?? false
         listGrouping =
             (store.string(forKey: Key.listGrouping).flatMap(ListGrouping.init(rawValue:))) ?? .flat
+        notificationGrouping =
+            (store.string(forKey: Key.notificationGrouping).flatMap(ListGrouping.init(rawValue:))) ?? .flat
     }
 
     private enum Key {
@@ -84,5 +93,6 @@ public final class Settings {
         static let notificationReasons = "notificationReasons"
         static let launchAtLogin = "launchAtLogin"
         static let listGrouping = "listGrouping"
+        static let notificationGrouping = "notificationGrouping"
     }
 }

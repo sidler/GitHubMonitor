@@ -4,18 +4,26 @@ import Foundation
 public enum ListGrouping: String, CaseIterable, Codable, Sendable {
     case flat
     case byRepository
+    /// Only meaningful for notifications; a list of pull requests is all one
+    /// type by definition.
+    case byType
 
     public var label: String {
         switch self {
         case .flat: "All"
         case .byRepository: "By repository"
+        case .byType: "By type"
         }
     }
+
+    public static let forPullRequests: [ListGrouping] = [.flat, .byRepository]
+    public static let forNotifications: [ListGrouping] = [.flat, .byRepository, .byType]
 }
 
-/// One repository's worth of items.
+/// One group's worth of items, keyed by whatever it was grouped on.
 public struct RepositoryGroup<Item>: Identifiable {
     public var id: String { repository }
+    /// The group's heading: a repository name, or a subject type.
     public let repository: String
     public let items: [Item]
 }

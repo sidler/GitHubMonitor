@@ -122,8 +122,14 @@ Settings are split into three tabs.
 | Refresh interval | How often to poll. The app never polls faster than GitHub's own suggested interval, even when set to 1 minute. |
 | Launch at login | Register the app as a login item. The entry points at the app's current location, so moving it afterwards breaks it. |
 
-The main window's lists can be shown flat or split into per-repository
-sections, switched above each list.
+The main window's lists can be shown flat, split into per-repository
+sections, or — for mentions — split by subject type (pull request, issue,
+commit). Switched above each list; the two lists remember their own choice.
+
+While the main window is open the app behaves as an ordinary application:
+it appears in the Dock and the app switcher and shows a menu bar with the
+usual shortcuts (Cmd+, for settings, Cmd+R to refresh, Cmd+W to close).
+Closing the window returns it to a menu bar agent with no Dock icon.
 
 ## Project layout
 
