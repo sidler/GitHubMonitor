@@ -55,6 +55,18 @@ Run this once before the first build:
 It creates a self-signed code signing certificate in your keychain, and the
 Makefile picks it up automatically.
 
+If the script fails on the keychain import, use Apple's own route instead —
+it does not go through PKCS#12 and is the more reliable of the two:
+
+1. Open **Keychain Access**
+2. Menu: *Keychain Access → Certificate Assistant → Create a Certificate…*
+3. Name `GitHub Monitor Dev`, Identity Type *Self Signed Root*,
+   Certificate Type **Code Signing**
+4. Tick "Let me override defaults" and accept every following screen
+5. Run `make bundle` — it finds the certificate on its own
+
+Either way, `make bundle` prints which identity it used.
+
 Without it the build falls back to an ad-hoc signature, which is *not* an
 identity: Little Snitch reports "the process has no code signature" and asks
 again after every build, and the Keychain treats each build as a different

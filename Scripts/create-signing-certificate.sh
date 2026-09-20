@@ -56,14 +56,48 @@ openssl pkcs12 -export -out "$WORK_DIR/identity.p12" \
     -keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES -macalg sha1 \
     -passout "pass:$EXPORT_PASSWORD" 2>/dev/null
 
+# Verify the bundle before blaming the keychain for it later.
+if ! openssl pkcs12 -in "$WORK_DIR/identity.p12" -passin "pass:$EXPORT_PASSWORD" -noout 2>/dev/null; then
+    echo "Error: the generated PKCS#12 file cannot be read back with its own" >&2
+    echo "password. That is an OpenSSL problem, not a keychain one." >&2
+    exit 1
+fi
+
 echo
-echo "macOS will now ask for your login password to add the certificate to"
-echo "your keychain, and again to trust it for code signing."
+echo "macOS will now ask for your login password — first to unlock the"
+echo "keychain, then to trust the certificate for code signing."
 echo
 
+# Importing into a locked keychain fails with a confusing "MAC verification
+# failed (wrong password?)", which reads as if the PKCS#12 password were
+# wrong. Unlock explicitly so any failure after this point is the real one.
+if ! security unlock-keychain "$KEYCHAIN"; then
+    echo "Could not unlock the keychain — see the manual route in README.md." >&2
+    exit 1
+fi
+
 # -T grants codesign access to the private key without prompting on each build.
-security import "$WORK_DIR/identity.p12" -k "$KEYCHAIN" -P "$EXPORT_PASSWORD" \
-    -T /usr/bin/codesign -T /usr/bin/security
+if ! security import "$WORK_DIR/identity.p12" -k "$KEYCHAIN" -P "$EXPORT_PASSWORD" \
+    -T /usr/bin/codesign -T /usr/bin/security; then
+    cat >&2 <<'HINT'
+
+The import failed. The PKCS#12 file itself is valid — it was verified above —
+so this is the keychain refusing it.
+
+Create the certificate through the GUI instead, which is Apple's own route and
+does not go through PKCS#12 at all:
+
+  1. Open Keychain Access
+  2. Menu: Keychain Access > Certificate Assistant > Create a Certificate…
+  3. Name:              GitHub Monitor Dev
+     Identity Type:     Self Signed Root
+     Certificate Type:  Code Signing
+  4. Tick "Let me override defaults", accept every following screen
+  5. Run 'make bundle' — it picks the certificate up automatically
+
+HINT
+    exit 1
+fi
 
 # Without a trust setting the identity is present but not considered valid,
 # and `codesign -s` refuses to use it.
