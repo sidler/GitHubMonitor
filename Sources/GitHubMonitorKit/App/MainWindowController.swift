@@ -116,18 +116,17 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         observeScrolling()
     }
 
-    /// Keeps scrolling content clear of the title bar.
+    /// Reports the title bar's height so the content column can lay a
+    /// material over the strip its rows scroll behind.
     ///
-    /// With a transparent title bar the content column's own background runs
-    /// to the top — that is what makes the divider continuous — but AppKit
-    /// does not hand a split view item the resulting safe area, so the rows
-    /// would scroll up over the title. The inset is the difference between
-    /// the window's frame and the area it lays content out in.
+    /// No additional safe area inset: SwiftUI already applies one of exactly
+    /// this size for the transparent title bar, and adding a second put the
+    /// sticky group header a title bar's height too low.
     private func applyTitleBarInset() {
         guard let window, let contentController else { return }
         let inset = max(0, window.frame.height - window.contentLayoutRect.height)
         contentController.view.additionalSafeAreaInsets = NSEdgeInsets(
-            top: inset, left: 0, bottom: 0, right: 0
+            top: 0, left: 0, bottom: 0, right: 0
         )
         state.titleBarHeight = inset
     }
