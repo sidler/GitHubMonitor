@@ -20,7 +20,7 @@ struct PopoverView: View {
                 unconfiguredNotice
             } else {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 14) {
                         pullRequestSection
                         mentionSection
                     }
@@ -37,13 +37,27 @@ struct PopoverView: View {
             footer
         }
         .frame(width: 380)
+        // A popover is translucent by default, which drags the desktop
+        // wallpaper's colour through the whole panel and makes it look murky.
+        // An opaque window background keeps the contrast with the white cards.
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 
     // MARK: - Sections
 
     private var pullRequestSection: some View {
         let items = state.visiblePullRequests
-        return Section {
+        // A plain stack rather than `Section`, which imposes its own generous
+        // header spacing outside of a List.
+        return VStack(alignment: .leading, spacing: 5) {
+            SectionHeader(
+                title: "Reviews requested",
+                count: items.count,
+                symbol: StatusBarTitleBuilder.pullRequestSymbol
+            ) {
+                DraftToggle(state: state)
+            }
+
             CardList(
                 items: Array(items.prefix(Self.previewLimit)),
                 emptyMessage: state.draftCount > 0 && !state.settings.includeDrafts
@@ -56,19 +70,17 @@ struct PopoverView: View {
             if items.count > Self.previewLimit {
                 showAllButton(count: items.count)
             }
-        } header: {
-            SectionHeader(
-                title: "Reviews requested",
-                count: items.count,
-                symbol: StatusBarTitleBuilder.pullRequestSymbol
-            ) {
-                DraftToggle(state: state)
-            }
         }
     }
 
     private var mentionSection: some View {
-        Section {
+        VStack(alignment: .leading, spacing: 5) {
+            SectionHeader(
+                title: "Unread mentions",
+                count: state.notifications.count,
+                symbol: StatusBarTitleBuilder.mentionSymbol
+            )
+
             CardList(
                 items: Array(state.notifications.prefix(Self.previewLimit)),
                 emptyMessage: "No unread mentions."
@@ -79,12 +91,6 @@ struct PopoverView: View {
             if state.notifications.count > Self.previewLimit {
                 showAllButton(count: state.notifications.count)
             }
-        } header: {
-            SectionHeader(
-                title: "Unread mentions",
-                count: state.notifications.count,
-                symbol: StatusBarTitleBuilder.mentionSymbol
-            )
         }
     }
 
@@ -183,7 +189,6 @@ private struct SectionHeader<Accessory: View>: View {
             accessory()
         }
         .foregroundStyle(.secondary)
-        .padding(.bottom, 6)
     }
 }
 
@@ -212,7 +217,9 @@ private struct CardList<Item: Identifiable, Row: View>: View {
                 }
             }
         }
-        .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
+        // An opaque control background reads as a white card in light mode
+        // instead of tinting itself with whatever sits behind the popover.
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
         .overlay(
             RoundedRectangle(cornerRadius: 8)
                 .strokeBorder(.quaternary, lineWidth: 1)

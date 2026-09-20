@@ -88,8 +88,10 @@ private struct DraftVisibilityBar: View {
 
     var body: some View {
         HStack(spacing: 8) {
+            // A switch, matching how the same options are presented in settings.
             Toggle("Show drafts", isOn: $settings.includeDrafts)
-                .toggleStyle(.checkbox)
+                .toggleStyle(.switch)
+                .controlSize(.small)
             Text("\(draftCount) draft\(draftCount == 1 ? "" : "s") in this list — counted in the menu bar only while shown")
                 .font(.caption)
                 .foregroundStyle(.secondary)
