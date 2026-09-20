@@ -5,7 +5,13 @@ import Security
 ///
 /// Keychain access control is tied to the application's code signature, which
 /// is why the build signs with a stable identity — see
-/// Scripts/create-signing-certificate.sh.
+/// Scripts/create-signing-certificate.sh. Rebuilds signed with that same
+/// certificate keep the authorisation granted once with "Always Allow".
+///
+/// The data protection keychain would avoid authorisation dialogs entirely,
+/// but it needs a keychain-access-groups entitlement, and that entitlement
+/// requires a provisioning profile: signing it into a self-signed app makes
+/// the system kill the process at launch (SIGKILL). Measured, not assumed.
 public enum Keychain {
     public enum Failure: Error, LocalizedError {
         case status(OSStatus)
