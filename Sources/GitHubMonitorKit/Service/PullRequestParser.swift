@@ -82,7 +82,25 @@ public enum PullRequestParser {
             isDraft: node["isDraft"] as? Bool ?? false,
             updatedAt: updatedAt,
             reviewDecision: reviewDecision(node["reviewDecision"] as? String),
-            checks: checks(from: node)
+            checks: checks(from: node),
+            reviews: reviewTally(from: node)
+        )
+    }
+
+    /// Counts the reviewers behind a pull request.
+    ///
+    /// The lists ask for `latestOpinionatedReviews`, the dashboard for
+    /// `latestReviews` because it needs the reviewers' names as well. Both
+    /// carry one entry per reviewer, and only an approval or a request for
+    /// changes is counted either way, so the same reading serves both.
+    static func reviewTally(from node: [String: Any]) -> ReviewTally {
+        let reviews = (node["latestOpinionatedReviews"] ?? node["latestReviews"]) as? [String: Any]
+        let states = (reviews?["nodes"] as? [[String: Any]] ?? []).compactMap { $0["state"] as? String }
+
+        return ReviewTally(
+            accepted: states.count { $0 == "APPROVED" },
+            declined: states.count { $0 == "CHANGES_REQUESTED" },
+            pending: (node["reviewRequests"] as? [String: Any])?["totalCount"] as? Int ?? 0
         )
     }
 

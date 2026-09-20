@@ -15,6 +15,8 @@ public struct PullRequestItem: Identifiable, Hashable, Sendable {
     public let updatedAt: Date
     public let reviewDecision: ReviewDecision
     public let checks: ChecksStatus
+    /// Where the reviewers stand, for the counts in the row.
+    public let reviews: ReviewTally
 
     public init(
         id: String,
@@ -27,7 +29,8 @@ public struct PullRequestItem: Identifiable, Hashable, Sendable {
         isDraft: Bool,
         updatedAt: Date,
         reviewDecision: ReviewDecision,
-        checks: ChecksStatus
+        checks: ChecksStatus,
+        reviews: ReviewTally = .none
     ) {
         self.id = id
         self.number = number
@@ -40,10 +43,106 @@ public struct PullRequestItem: Identifiable, Hashable, Sendable {
         self.updatedAt = updatedAt
         self.reviewDecision = reviewDecision
         self.checks = checks
+        self.reviews = reviews
     }
 }
 
-public enum ReviewDecision: String, Sendable, Hashable {
+/// How many reviewers have accepted, asked for changes, or not answered yet.
+///
+/// The row's review decision says what the pull request needs as a whole; the
+/// tally says how far it has got, which is the difference between "one person
+/// still to go" and "nobody has looked".
+public struct ReviewTally: Hashable, Sendable {
+    /// Reviewers whose latest opinion is an approval.
+    public let accepted: Int
+    /// Reviewers whose latest opinion asks for changes.
+    public let declined: Int
+    /// Review requests still outstanding.
+    ///
+    /// Someone asked again after they had already reviewed counts both here
+    /// and under their earlier opinion -- GitHub keeps both, and dropping
+    /// either would hide that they have been asked a second time.
+    public let pending: Int
+
+    public static let none = ReviewTally(accepted: 0, declined: 0, pending: 0)
+
+    public var total: Int { accepted + declined + pending }
+    public var isEmpty: Bool { total == 0 }
+
+    public init(accepted: Int, declined: Int, pending: Int) {
+        self.accepted = accepted
+        self.declined = declined
+        self.pending = pending
+    }
+
+    /// The counts worth drawing: a zero says nothing a missing symbol does
+    /// not already say, and every row carries at least one of these.
+    public var entries: [(kind: ReviewTallyKind, count: Int)] {
+        ReviewTallyKind.allCases
+            .map { ($0, count(of: $0)) }
+            .filter { $0.1 > 0 }
+    }
+
+    public func count(of kind: ReviewTallyKind) -> Int {
+        switch kind {
+        case .accepted: accepted
+        case .declined: declined
+        case .pending: pending
+        }
+    }
+}
+
+/// The three numbers a row reports about its reviewers.
+public enum ReviewTallyKind: String, CaseIterable, Hashable, Sendable {
+    case accepted
+    case declined
+    case pending
+
+    /// Plural nouns: these count people, while the pull request's own
+    /// review decision beside them is a state. "Objections" rather than
+    /// "change requests", which would read as the same thing as the decision
+    /// symbol two entries earlier in the legend.
+    public var legendLabel: String {
+        switch self {
+        case .accepted: "approvals"
+        case .declined: "objections"
+        case .pending: "awaited"
+        }
+    }
+
+    /// What the legend's entry means, spelled out.
+    public var legendHelp: String {
+        switch self {
+        case .accepted: "How many reviewers have approved"
+        case .declined: "How many reviewers have asked for changes"
+        case .pending: "How many reviews are still outstanding"
+        }
+    }
+
+    /// What the number beside the symbol means, spelled out.
+    public func sentence(count: Int) -> String {
+        let people = count == 1 ? "reviewer" : "reviewers"
+        switch self {
+        case .accepted: return "\(count) \(people) approved"
+        case .declined: return "\(count) \(people) asked for changes"
+        case .pending: return count == 1
+            ? "1 review still outstanding"
+            : "\(count) reviews still outstanding"
+        }
+    }
+
+    /// People rather than seals and ticks: these count reviewers, and the
+    /// symbols beside them already report the pull request's own state.
+    public var symbolName: String {
+        switch self {
+        case .accepted: "person.crop.circle.badge.checkmark"
+        case .declined: "person.crop.circle.badge.xmark"
+        case .pending: "person.crop.circle.badge.clock"
+        }
+    }
+}
+
+public enum ReviewDecision: String, Sendable, Hashable, CaseIterable {
     case approved
     case changesRequested
     case reviewRequired
@@ -68,7 +167,7 @@ public enum ReviewDecision: String, Sendable, Hashable {
     }
 }
 
-public enum ChecksStatus: String, Sendable, Hashable {
+public enum ChecksStatus: String, Sendable, Hashable, CaseIterable {
     case success
     case failure
     case pending

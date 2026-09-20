@@ -76,6 +76,18 @@ struct PullRequestQueryTests {
 
     /// A quote or backslash in a filter would otherwise break out of the
     /// GraphQL string and make the whole document invalid.
+    /// The rows count reviewers, so the document has to bring them back --
+    /// and cheaply: these fields are paid for on every refresh of every list.
+    @Test("The list document asks for the reviewer counts")
+    func reviewFields() {
+        let document = PullRequestQuery.document(reviewRequested: ["q"], authored: [])
+        #expect(document.contains("latestOpinionatedReviews(first: 10)"))
+        // A plain count, so outstanding requests cost no nodes at all.
+        #expect(document.contains("reviewRequests { totalCount }"))
+        // Names and avatars belong to the detail pane; the rows only count.
+        #expect(!document.contains("requestedReviewer"))
+    }
+
     @Test("Quotes in a query are escaped")
     func escaping() {
         let document = PullRequestQuery.document(reviewRequested: ["repo:a/b \"quoted\""], authored: [])

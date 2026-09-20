@@ -25,6 +25,9 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     /// The selection the window last reacted to, so a change can be told
     /// from the other state the tracking closure watches.
     private var lastSelection: SidebarSelection?
+    /// Width constraints on the toolbar's hosted views, kept so each one can
+    /// be updated rather than stacking a new constraint on every switch.
+    private var toolbarWidths: [NSToolbarItem.Identifier: NSLayoutConstraint] = [:]
 
     public init(state: AppState, controller: RefreshController) {
         self.state = state
@@ -201,9 +204,19 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
 
             view.invalidateIntrinsicContentSize()
             view.layoutSubtreeIfNeeded()
-            let size = view.fittingSize
-            item.minSize = size
-            item.maxSize = size
+            // The intrinsic size rather than the fitting one: the fitting
+            // size solves the constraint set below and would therefore only
+            // ever report the width this method last handed out.
+            let intrinsic = view.intrinsicContentSize.width
+            let width = intrinsic == NSView.noIntrinsicMetric ? view.fittingSize.width : intrinsic
+
+            if let constraint = toolbarWidths[item.itemIdentifier] {
+                constraint.constant = width
+            } else {
+                let constraint = view.widthAnchor.constraint(equalToConstant: width)
+                constraint.isActive = true
+                toolbarWidths[item.itemIdentifier] = constraint
+            }
         }
     }
 

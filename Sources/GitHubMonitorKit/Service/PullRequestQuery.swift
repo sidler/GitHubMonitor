@@ -52,6 +52,7 @@ public enum PullRequestQuery {
                   }
                 }
                 reviewRequests(first: 25) {
+                  totalCount
                   nodes {
                     requestedReviewer {
                       ... on User { login avatarUrl }
@@ -152,6 +153,16 @@ public enum PullRequestQuery {
               commits(last: 1) {
                 nodes { commit { statusCheckRollup { state } } }
               }
+              # One entry per reviewer who has an opinion, so these are people
+              # rather than review events. Ten of them: a pull request with
+              # more approvals than that does not exist here, and every extra
+              # node is charged against the hourly GraphQL budget on every
+              # refresh of every list.
+              latestOpinionatedReviews(first: 10) {
+                nodes { state }
+              }
+              # Outstanding requests are a plain count, which costs nothing.
+              reviewRequests { totalCount }
             }
           }
         }

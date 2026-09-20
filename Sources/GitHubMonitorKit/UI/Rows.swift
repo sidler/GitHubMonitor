@@ -31,24 +31,35 @@ struct PullRequestRow: View {
                     Label(item.reviewDecision.label, systemImage: item.reviewDecision.symbolName)
                         .labelStyle(.iconOnly)
                         .font(.body)
-                        .foregroundStyle(reviewTint)
+                        .foregroundStyle(item.reviewDecision.tint)
                         .help(item.reviewDecision.label)
 
                     Label(item.checks.label, systemImage: item.checks.symbolName)
                         .labelStyle(.iconOnly)
                         .font(.body)
-                        .foregroundStyle(checksTint)
+                        .foregroundStyle(item.checks.tint)
                         .help(item.checks.label)
+
+                    // How far the review has got. The decision symbol before
+                    // it says what the pull request still needs; these say
+                    // how many people it is waiting on, which is the
+                    // difference between nearly done and not started.
+                    ForEach(item.reviews.entries, id: \.kind) { entry in
+                        HStack(spacing: 2) {
+                            Image(systemName: entry.kind.symbolName)
+                                .font(.body)
+                            Text(verbatim: "\(entry.count)")
+                                .monospacedDigit()
+                        }
+                        .foregroundStyle(entry.kind.tint)
+                        .help(entry.kind.sentence(count: entry.count))
+                    }
 
                     // Next to the status symbols rather than before the
                     // title: it is a state of the pull request, like the
                     // review and check results beside it.
                     if item.isDraft {
-                        Text("DRAFT")
-                            .font(.system(size: 9, weight: .bold))
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 1)
-                            .background(.quaternary, in: RoundedRectangle(cornerRadius: 3))
+                        DraftBadge()
                     }
                 }
                 .font(.caption)
@@ -95,23 +106,6 @@ struct PullRequestRow: View {
         .buttonStyle(.accessoryBar)
         .foregroundStyle(isInspected ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
         .padding(.top, 1)
-    }
-
-    private var reviewTint: Color {
-        switch item.reviewDecision {
-        case .approved: .green
-        case .changesRequested: .orange
-        case .reviewRequired, .none: .secondary
-        }
-    }
-
-    private var checksTint: Color {
-        switch item.checks {
-        case .success: .green
-        case .failure: .red
-        case .pending: .yellow
-        case .none: .secondary
-        }
     }
 }
 

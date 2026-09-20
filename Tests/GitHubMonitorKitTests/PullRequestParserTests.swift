@@ -123,3 +123,85 @@ struct PullRequestParserTests {
         #expect(PullRequestParser.pullRequests(from: ["r0": ["nodes": []]], group: .reviewRequested).isEmpty)
     }
 }
+
+@Suite("Review tally")
+struct ReviewTallyTests {
+    private func node(
+        opinions: [String]? = nil,
+        latestReviews: [String]? = nil,
+        requested: Int? = nil
+    ) -> [String: Any] {
+        var node: [String: Any] = [
+            "id": "a",
+            "number": 7,
+            "title": "Title",
+            "url": "https://github.com/octo/server/pull/7",
+            "updatedAt": "2026-09-20T10:00:00Z",
+        ]
+        if let opinions {
+            node["latestOpinionatedReviews"] = ["nodes": opinions.map { ["state": $0] }]
+        }
+        if let latestReviews {
+            node["latestReviews"] = ["nodes": latestReviews.map { ["state": $0] }]
+        }
+        if let requested {
+            node["reviewRequests"] = ["totalCount": requested]
+        }
+        return node
+    }
+
+    private func tally(_ node: [String: Any]) throws -> ReviewTally {
+        try #require(PullRequestParser.pullRequest(from: node)).reviews
+    }
+
+    @Test("Opinions and outstanding requests are counted apart")
+    func counts() throws {
+        let result = try tally(node(
+            opinions: ["APPROVED", "APPROVED", "CHANGES_REQUESTED"],
+            requested: 4
+        ))
+        #expect(result.accepted == 2)
+        #expect(result.declined == 1)
+        #expect(result.pending == 4)
+        #expect(result.total == 7)
+    }
+
+    /// A comment is not a verdict, and neither is a dismissed review; counting
+    /// either as an approval would report a pull request as further along
+    /// than it is.
+    @Test("Only approvals and change requests count as opinions")
+    func opinionsOnly() throws {
+        let result = try tally(node(opinions: ["COMMENTED", "DISMISSED", "PENDING"], requested: 0))
+        #expect(result.accepted == 0)
+        #expect(result.declined == 0)
+        #expect(result.isEmpty)
+    }
+
+    /// The dashboard's document asks for latestReviews, since it needs the
+    /// reviewers' names; the same reading has to serve both shapes.
+    @Test("The dashboard's review field is read the same way")
+    func latestReviewsShape() throws {
+        let result = try tally(node(latestReviews: ["APPROVED", "COMMENTED"], requested: 1))
+        #expect(result.accepted == 1)
+        #expect(result.pending == 1)
+    }
+
+    @Test("A pull request with no review fields tallies nothing")
+    func missingFields() throws {
+        #expect(try tally(node()) == .none)
+    }
+
+    @Test("Zero counts are left out of the row")
+    func entriesSkipZeroes() {
+        let tally = ReviewTally(accepted: 2, declined: 0, pending: 1)
+        #expect(tally.entries.map(\.kind) == [.accepted, .pending])
+        #expect(tally.entries.map(\.count) == [2, 1])
+    }
+
+    @Test("Wording follows the count")
+    func wording() {
+        #expect(ReviewTallyKind.accepted.sentence(count: 1) == "1 reviewer approved")
+        #expect(ReviewTallyKind.accepted.sentence(count: 3) == "3 reviewers approved")
+        #expect(ReviewTallyKind.pending.sentence(count: 1) == "1 review still outstanding")
+    }
+}

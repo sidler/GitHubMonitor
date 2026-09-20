@@ -218,7 +218,18 @@ struct ContentColumn: View {
 
     // MARK: - Status bar
 
-    /// Finder-style status bar: the totals, plus when they were last checked.
+    /// The symbols the rows on screen are using. Empty for the lists that
+    /// have none, which is what keeps the bar quiet elsewhere.
+    private var legendSymbols: [LegendSymbol] {
+        switch state.sidebarSelection {
+        case .pullRequests: PullRequestLegend.symbols(for: state.selectedPullRequests)
+        case .myPullRequests: PullRequestLegend.symbols(for: state.selectedAuthoredPullRequests)
+        case .mentions, .dashboard, .settings: []
+        }
+    }
+
+    /// Finder-style status bar: the totals, the legend for the list on
+    /// screen, and when it was last checked.
     private var statusBar: some View {
         HStack(spacing: 12) {
             Label("\(state.visiblePullRequests.count)", systemImage: StatusBarTitleBuilder.pullRequestSymbol)
@@ -226,7 +237,12 @@ struct ContentColumn: View {
             Label("\(state.visibleNotifications.count)", systemImage: StatusBarTitleBuilder.mentionSymbol)
                 .help("Unread mentions")
 
-            Spacer()
+            if !legendSymbols.isEmpty {
+                Divider().frame(height: 11)
+                LegendBar(symbols: legendSymbols)
+            }
+
+            Spacer(minLength: 8)
 
             if state.loadState == .loading {
                 ProgressView().controlSize(.small)
