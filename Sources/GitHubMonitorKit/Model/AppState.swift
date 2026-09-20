@@ -5,6 +5,7 @@ public enum MainWindowTab: String, Hashable, CaseIterable, Sendable {
     case pullRequests
     case myPullRequests
     case mentions
+    case dashboard
     case settings
 
     public var label: String {
@@ -12,6 +13,7 @@ public enum MainWindowTab: String, Hashable, CaseIterable, Sendable {
         case .pullRequests: "Reviews Requested"
         case .myPullRequests: "My Pull Requests"
         case .mentions: "Mentions"
+        case .dashboard: "Dashboard"
         case .settings: "Settings"
         }
     }
@@ -21,6 +23,7 @@ public enum MainWindowTab: String, Hashable, CaseIterable, Sendable {
         case .pullRequests: "arrow.triangle.pull"
         case .myPullRequests: "person.crop.circle"
         case .mentions: "bell"
+        case .dashboard: "chart.bar"
         case .settings: "gearshape"
         }
     }
@@ -67,6 +70,9 @@ public final class AppState {
     public var pullRequestDetails: [String: DetailState] = [:]
     public var sidebarSelection: SidebarSelection = .pullRequests(repository: nil)
     public var selectedSettingsTab: SettingsTab = .account
+    /// The dashboard's own fetch, separate from the refresh cycle: it covers
+    /// a whole repository and is only wanted while that view is open.
+    public var dashboard: DashboardState = .unconfigured
 
     public init(settings: Settings) {
         self.settings = settings

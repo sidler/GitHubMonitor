@@ -45,6 +45,16 @@ public final class Settings {
         }
     }
 
+    /// Repository the dashboard charts. Empty until one is chosen.
+    public var dashboardRepository: String {
+        didSet { store.set(dashboardRepository, forKey: Key.dashboardRepository) }
+    }
+
+    /// Whether the dashboard charts authors or reviewers.
+    public var dashboardGrouping: DashboardGrouping {
+        didSet { store.set(dashboardGrouping.rawValue, forKey: Key.dashboardGrouping) }
+    }
+
     public var launchAtLogin: Bool {
         didSet { store.set(launchAtLogin, forKey: Key.launchAtLogin) }
     }
@@ -77,6 +87,9 @@ public final class Settings {
         } else {
             notificationReasons = [.mention, .teamMention]
         }
+        dashboardRepository = store.string(forKey: Key.dashboardRepository) ?? ""
+        dashboardGrouping =
+            (store.string(forKey: Key.dashboardGrouping).flatMap(DashboardGrouping.init(rawValue:))) ?? .author
         launchAtLogin = store.object(forKey: Key.launchAtLogin) as? Bool ?? false
         listGrouping =
             (store.string(forKey: Key.listGrouping).flatMap(ListGrouping.init(rawValue:))) ?? .flat
@@ -91,6 +104,8 @@ public final class Settings {
         static let includeDrafts = "includeDrafts"
         static let teamSlugs = "teamSlugs"
         static let notificationReasons = "notificationReasons"
+        static let dashboardRepository = "dashboardRepository"
+        static let dashboardGrouping = "dashboardGrouping"
         static let launchAtLogin = "launchAtLogin"
         static let listGrouping = "listGrouping"
         static let notificationGrouping = "notificationGrouping"

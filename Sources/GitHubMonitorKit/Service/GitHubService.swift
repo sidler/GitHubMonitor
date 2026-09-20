@@ -76,6 +76,14 @@ public struct GitHubService: Sendable {
         .sorted { $0.slug < $1.slug }
     }
 
+    /// Every open pull request in one repository, summarised per author.
+    public func repositoryPullRequests(
+        _ repository: String
+    ) async throws -> [(item: PullRequestItem, reviewers: [ReviewerStatus])] {
+        let payload = try await client.graphQL(PullRequestQuery.repositoryDocument(repository))
+        return PullRequestParser.repositoryLoad(from: payload)
+    }
+
     /// The extra detail behind one pull request, fetched when its row is
     /// opened rather than for the whole list.
     public func pullRequestDetail(id: String) async throws -> PullRequestDetail {

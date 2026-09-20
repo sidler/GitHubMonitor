@@ -34,6 +34,22 @@ public enum PullRequestParser {
         return items.sorted { $0.updatedAt > $1.updatedAt }
     }
 
+    /// Pull requests paired with their reviewers, for the dashboard.
+    ///
+    /// Reuses the detail parser's reviewer logic, which already merges
+    /// outstanding requests with reviews already left.
+    public static func repositoryLoad(from payload: [String: Any]) -> [(item: PullRequestItem, reviewers: [ReviewerStatus])] {
+        guard
+            let search = payload["d0"] as? [String: Any],
+            let nodes = search["nodes"] as? [[String: Any]]
+        else { return [] }
+
+        return nodes.compactMap { node in
+            guard let item = pullRequest(from: node) else { return nil }
+            return (item, PullRequestDetailQuery.reviewers(from: node))
+        }
+    }
+
     static func aliasOrder(_ lhs: String, _ rhs: String) -> Bool {
         let left = Int(lhs.dropFirst()) ?? 0
         let right = Int(rhs.dropFirst()) ?? 0

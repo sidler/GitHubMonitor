@@ -16,6 +16,56 @@ public enum PullRequestQuery {
         "is:pr is:open archived:false author:\(login)" + repositoryScope(repositoryFilters)
     }
 
+    /// Every open pull request in one repository, for the dashboard.
+    /// Drafts included: the chart reports them as their own segment.
+    public static func repositoryQuery(_ repository: String) -> String {
+        "is:pr is:open archived:false repo:\(repository.trimmingCharacters(in: .whitespaces))"
+    }
+
+    /// The dashboard's own document.
+    ///
+    /// Carries reviewer fields the other lists do not need. They are nested
+    /// connections, so putting them in the shared fragment would make every
+    /// refresh pay for data only this view reads.
+    public static func repositoryDocument(_ repository: String) -> String {
+        """
+        query {
+          d0: search(query: \(jsonString(repositoryQuery(repository))), type: ISSUE, first: 100) {
+            nodes {
+              ... on PullRequest {
+                id
+                number
+                title
+                isDraft
+                updatedAt
+                url
+                reviewDecision
+                repository { nameWithOwner }
+                author { login avatarUrl }
+                commits(last: 1) {
+                  nodes { commit { statusCheckRollup { state } } }
+                }
+                latestReviews(first: 25) {
+                  nodes {
+                    state
+                    author { login avatarUrl }
+                  }
+                }
+                reviewRequests(first: 25) {
+                  nodes {
+                    requestedReviewer {
+                      ... on User { login avatarUrl }
+                      ... on Team { name }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        """
+    }
+
     /// One search string per audience whose review requests count as the
     /// user's own.
     public static func searchQueries(

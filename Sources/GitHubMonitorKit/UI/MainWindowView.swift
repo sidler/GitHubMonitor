@@ -45,6 +45,8 @@ struct SidebarColumn: View {
             }
 
             Section {
+                Label("Dashboard", systemImage: "chart.bar")
+                    .tag(SidebarSelection.dashboard)
                 Label("Settings", systemImage: "gearshape")
                     .tag(SidebarSelection.settings)
             }
@@ -77,6 +79,7 @@ struct ContentColumn: View {
             case .pullRequests: pullRequestList
             case .myPullRequests: authoredList
             case .mentions: mentionList
+            case .dashboard: DashboardView(state: state, controller: controller)
             case .settings: SettingsView(state: state, controller: controller)
             }
         }
@@ -248,7 +251,7 @@ struct ToolbarControls: View {
                     }
                     .help("Marks these threads read on GitHub too")
                 }
-            case .settings:
+            case .dashboard, .settings:
                 EmptyView()
             }
         }

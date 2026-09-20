@@ -42,6 +42,12 @@ public final class RefreshController {
             adopt(token: token)
             // Not awaited: the first refresh should not hold up the window.
             Task { await refresh() }
+            // The dashboard may already be on screen and waiting for this.
+            if case .unconfigured = state.dashboard,
+               !state.settings.dashboardRepository.isEmpty
+            {
+                Task { await loadDashboard() }
+            }
             restartTimer()
             return true
 
@@ -200,6 +206,40 @@ public final class RefreshController {
             state.loadState = .failed(error.localizedDescription)
         } catch {
             state.loadState = .failed(error.localizedDescription)
+        }
+    }
+
+    // MARK: - Dashboard
+
+    /// Loads every open pull request in the dashboard repository.
+    ///
+    /// Separate from the refresh cycle: it covers a whole repository rather
+    /// than the user's own queue, and is only worth fetching while that view
+    /// is open.
+    public func loadDashboard() async {
+        let repository = state.settings.dashboardRepository
+            .trimmingCharacters(in: .whitespaces)
+        guard !repository.isEmpty else {
+            state.dashboard = .unconfigured
+            return
+        }
+        guard let service else {
+            // The token is read asynchronously at launch, so this view can
+            // open before it arrives. Staying unconfigured lets the reload
+            // below pick it up, rather than showing a spurious failure.
+            state.dashboard = .unconfigured
+            return
+        }
+
+        state.dashboard = .loading
+        do {
+            let entries = try await service.repositoryPullRequests(repository)
+            state.dashboard = .loaded(DashboardData.summarise(entries, repository: repository))
+        } catch let error as GitHubError {
+            Log.api.error("dashboard failed: \(error.localizedDescription, privacy: .public)")
+            state.dashboard = .failed(error.localizedDescription)
+        } catch {
+            state.dashboard = .failed(error.localizedDescription)
         }
     }
 

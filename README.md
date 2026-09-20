@@ -128,6 +128,11 @@ Settings are split into three tabs.
 | Refresh interval | How often to poll. The app never polls faster than GitHub's own suggested interval, even when set to 1 minute. |
 | Launch at login | Register the app as a login item. The entry points at the app's current location, so moving it afterwards breaks it. |
 
+**Dashboard** charts one repository's open pull requests per author as a
+stacked bar: ready for review and drafts as separate segments, so a pile of
+drafts does not read as a review queue. The repository is chosen in the view
+itself and remembered.
+
 Each pull request row carries two actions: one opens a detail pane showing
 changed files, additions and deletions, comment count, every check with its
 result, and each reviewer with where they stand; the other opens the pull

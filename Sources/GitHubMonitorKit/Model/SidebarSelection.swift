@@ -10,6 +10,7 @@ public enum SidebarSelection: Hashable, Sendable {
     /// Pull requests the user opened, waiting on other people.
     case myPullRequests(repository: String?)
     case mentions(repository: String?)
+    case dashboard
     case settings
 
     public var tab: MainWindowTab {
@@ -17,6 +18,7 @@ public enum SidebarSelection: Hashable, Sendable {
         case .pullRequests: .pullRequests
         case .myPullRequests: .myPullRequests
         case .mentions: .mentions
+        case .dashboard: .dashboard
         case .settings: .settings
         }
     }
@@ -27,7 +29,7 @@ public enum SidebarSelection: Hashable, Sendable {
         case .pullRequests(let repository),
              .myPullRequests(let repository),
              .mentions(let repository): repository
-        case .settings: nil
+        case .dashboard, .settings: nil
         }
     }
 
@@ -38,6 +40,7 @@ public enum SidebarSelection: Hashable, Sendable {
         case .pullRequests(let repository): repository ?? "Reviews Requested"
         case .myPullRequests(let repository): repository ?? "My Pull Requests"
         case .mentions(let repository): repository ?? "Mentions"
+        case .dashboard: "Dashboard"
         case .settings: "Settings"
         }
     }
@@ -49,7 +52,7 @@ public enum SidebarSelection: Hashable, Sendable {
         case .pullRequests(let repository): repository == nil ? nil : "Reviews Requested"
         case .myPullRequests(let repository): repository == nil ? nil : "My Pull Requests"
         case .mentions(let repository): repository == nil ? nil : "Mentions"
-        case .settings: nil
+        case .dashboard, .settings: nil
         }
     }
 }

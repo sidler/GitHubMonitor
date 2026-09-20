@@ -34,6 +34,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         case .pullRequests: state.sidebarSelection = .pullRequests(repository: nil)
         case .myPullRequests: state.sidebarSelection = .myPullRequests(repository: nil)
         case .mentions: state.sidebarSelection = .mentions(repository: nil)
+        case .dashboard: state.sidebarSelection = .dashboard
         case .settings: state.sidebarSelection = .settings
         case nil: break
         }
