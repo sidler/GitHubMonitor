@@ -8,6 +8,8 @@ public struct PullRequestItem: Identifiable, Hashable, Sendable {
     /// "owner/name"
     public let repository: String
     public let author: String
+    /// Author's avatar; nil when GitHub reports none (e.g. a deleted user).
+    public let authorAvatarURL: URL?
     public let url: URL
     public let isDraft: Bool
     public let updatedAt: Date
@@ -20,6 +22,7 @@ public struct PullRequestItem: Identifiable, Hashable, Sendable {
         title: String,
         repository: String,
         author: String,
+        authorAvatarURL: URL?,
         url: URL,
         isDraft: Bool,
         updatedAt: Date,
@@ -31,6 +34,7 @@ public struct PullRequestItem: Identifiable, Hashable, Sendable {
         self.title = title
         self.repository = repository
         self.author = author
+        self.authorAvatarURL = authorAvatarURL
         self.url = url
         self.isDraft = isDraft
         self.updatedAt = updatedAt
@@ -133,6 +137,9 @@ public struct NotificationItem: Identifiable, Hashable, Sendable {
     public let id: String
     public let title: String
     public let repository: String
+    /// Avatar of the repository owner -- the notification API carries no
+    /// commenter identity, so this is the closest available signal.
+    public let avatarURL: URL?
     public let reason: NotificationReason
     public let updatedAt: Date
     /// "Issue", "PullRequest", "Commit", ...
@@ -146,6 +153,7 @@ public struct NotificationItem: Identifiable, Hashable, Sendable {
         id: String,
         title: String,
         repository: String,
+        avatarURL: URL?,
         reason: NotificationReason,
         updatedAt: Date,
         subjectType: String,
@@ -155,6 +163,7 @@ public struct NotificationItem: Identifiable, Hashable, Sendable {
         self.id = id
         self.title = title
         self.repository = repository
+        self.avatarURL = avatarURL
         self.reason = reason
         self.updatedAt = updatedAt
         self.subjectType = subjectType

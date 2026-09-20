@@ -89,6 +89,7 @@ public final class AppState {
             PullRequestItem(
                 id: "1", number: 482, title: "Fix race condition in session handler",
                 repository: "octo/server", author: "mira",
+                authorAvatarURL: URL(string: "https://avatars.githubusercontent.com/u/1?v=4"),
                 url: URL(string: "https://github.com")!, isDraft: false,
                 updatedAt: .now.addingTimeInterval(-3600),
                 reviewDecision: .reviewRequired, checks: .success
@@ -96,6 +97,7 @@ public final class AppState {
             PullRequestItem(
                 id: "2", number: 77, title: "Add PSR-12 ruleset to CI",
                 repository: "octo/website", author: "arun",
+                authorAvatarURL: URL(string: "https://avatars.githubusercontent.com/u/2?v=4"),
                 url: URL(string: "https://github.com")!, isDraft: true,
                 updatedAt: .now.addingTimeInterval(-86400 * 3),
                 reviewDecision: .changesRequested, checks: .failure
@@ -103,6 +105,7 @@ public final class AppState {
             PullRequestItem(
                 id: "3", number: 1204, title: "Bump dependencies for PHP 8.4",
                 repository: "octo/toolkit", author: "dara",
+                authorAvatarURL: URL(string: "https://avatars.githubusercontent.com/u/3?v=4"),
                 url: URL(string: "https://github.com")!, isDraft: false,
                 updatedAt: .now.addingTimeInterval(-600),
                 reviewDecision: .reviewRequired, checks: .pending
@@ -111,13 +114,17 @@ public final class AppState {
         notifications = [
             NotificationItem(
                 id: "n1", title: "Can you take a look at the migration order?",
-                repository: "octo/server", reason: .mention,
+                repository: "octo/server",
+                avatarURL: URL(string: "https://avatars.githubusercontent.com/u/9919?v=4"),
+                reason: .mention,
                 updatedAt: .now.addingTimeInterval(-1800),
                 subjectType: "Issue", latestCommentAPIURL: nil, subjectAPIURL: nil
             ),
             NotificationItem(
                 id: "n2", title: "Release 8.2 checklist",
-                repository: "octo/toolkit", reason: .teamMention,
+                repository: "octo/toolkit",
+                avatarURL: URL(string: "https://avatars.githubusercontent.com/u/6154722?v=4"),
+                reason: .teamMention,
                 updatedAt: .now.addingTimeInterval(-7200),
                 subjectType: "Issue", latestCommentAPIURL: nil, subjectAPIURL: nil
             ),

@@ -7,7 +7,7 @@ struct PullRequestFilterTests {
     private func item(_ repository: String, draft: Bool = false) -> PullRequestItem {
         PullRequestItem(
             id: repository + (draft ? "-d" : ""), number: 1, title: "t",
-            repository: repository, author: "a",
+            repository: repository, author: "a", authorAvatarURL: nil,
             url: URL(string: "https://github.com")!, isDraft: draft,
             updatedAt: .now, reviewDecision: .reviewRequired, checks: .none
         )
