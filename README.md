@@ -101,15 +101,29 @@ popover tells you what to do.
 
 ## Configuration
 
+Settings are split into three tabs.
+
+**Account** — the token, and the teams whose review requests count as yours
+(loadable as a checklist from your memberships).
+
+**Filters**
+
+| Setting | Effect |
+|---|---|
+| Repositories | Restrict counting to given owners or `owner/repo` entries. "Add from current results" offers what is actually in your lists. |
+| Include drafts | Whether draft pull requests count |
+| Mention reasons | Which notification reasons count towards the badge. With none selected the count stays at zero. |
+
+**General**
+
 | Setting | Effect |
 |---|---|
 | Menu bar display | Both counts / single total / hide zeros |
 | Refresh interval | How often to poll. The app never polls faster than GitHub's own suggested interval, even when set to 1 minute. |
-| Repository filter | Restrict counting to given owners or `owner/repo` entries |
-| Include drafts | Whether draft pull requests count |
-| Teams | Team review requests that should count as yours; loadable as a checklist from your memberships |
-| Notification reasons | Which notification reasons count towards the mention badge |
-| Launch at login | Register the app as a login item |
+| Launch at login | Register the app as a login item. The entry points at the app's current location, so moving it afterwards breaks it. |
+
+The main window's lists can be shown flat or split into per-repository
+sections, switched above each list.
 
 ## Project layout
 

@@ -1,15 +1,109 @@
+import Combine
 import SwiftUI
 
+/// Settings in tabs rather than one long form: account, filters and general
+/// preferences together run to several screens, and burying "launch at login"
+/// under two scrolls is a good way to make it undiscoverable.
 struct SettingsView: View {
     @Bindable var state: AppState
     let controller: RefreshController
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                AccountSettingsView(state: state, controller: controller)
-                GeneralSettingsView(settings: state.settings, controller: controller)
+        TabView(selection: $state.selectedSettingsTab) {
+            AccountSettingsView(state: state, controller: controller)
+                .tabItem { Label("Account", systemImage: "person.crop.circle") }
+                .tag(SettingsTab.account)
+
+            Form {
+                RepositoryFilterView(state: state, controller: controller)
+                FilterSettingsView(settings: state.settings)
             }
+            .formStyle(.grouped)
+            .tabItem { Label("Filters", systemImage: "line.3.horizontal.decrease.circle") }
+            .tag(SettingsTab.filters)
+
+            GeneralSettingsView(settings: state.settings, controller: controller)
+                .tabItem { Label("General", systemImage: "gearshape") }
+                .tag(SettingsTab.general)
+        }
+        .padding(.top, 8)
+    }
+}
+
+/// Filters that are not about repositories: drafts and notification reasons.
+/// They live here rather than under General because that is what they are.
+private struct FilterSettingsView: View {
+    @Bindable var settings: Settings
+
+    var body: some View {
+        Group {
+            Section("Pull requests") {
+                Toggle("Include drafts", isOn: $settings.includeDrafts)
+                    .toggleStyle(.switch)
+            }
+
+            Section("Mentions") {
+                Text("Which notification reasons count towards the badge.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                ForEach(NotificationReason.selectable, id: \.self) { reason in
+                    Toggle(reason.label, isOn: reasonBinding(reason))
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                }
+
+                if settings.notificationReasons.isEmpty {
+                    Label(
+                        "With nothing selected the mention count stays at zero.",
+                        systemImage: "exclamationmark.triangle"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                }
+            }
+        }
+    }
+
+    private func reasonBinding(_ reason: NotificationReason) -> Binding<Bool> {
+        Binding(
+            get: { settings.notificationReasons.contains(reason) },
+            set: { isOn in
+                var reasons = settings.notificationReasons
+                if isOn {
+                    reasons.insert(reason)
+                } else {
+                    reasons.remove(reason)
+                }
+                settings.notificationReasons = reasons
+            }
+        )
+    }
+}
+
+@MainActor
+private final class LoginItemModel: ObservableObject {
+    @Published var message: String?
+
+    /// Mirrors the system's own view rather than the stored preference, so a
+    /// registration the system refused does not show as enabled.
+    func syncFromSystem(into settings: Settings) {
+        let actual = LaunchAtLogin.isEnabled
+        if settings.launchAtLogin != actual {
+            settings.launchAtLogin = actual
+        }
+        message = LaunchAtLogin.statusMessage(after: nil)
+    }
+
+    func apply(_ enabled: Bool, to settings: Settings) {
+        do {
+            try LaunchAtLogin.setEnabled(enabled)
+            settings.launchAtLogin = enabled
+            message = LaunchAtLogin.statusMessage(after: nil)
+        } catch {
+            // Put the switch back where the system actually is.
+            settings.launchAtLogin = LaunchAtLogin.isEnabled
+            message = LaunchAtLogin.statusMessage(after: error)
         }
     }
 }
@@ -17,6 +111,8 @@ struct SettingsView: View {
 private struct GeneralSettingsView: View {
     @Bindable var settings: Settings
     let controller: RefreshController
+
+    @StateObject private var loginItem = LoginItemModel()
 
     var body: some View {
         Form {
@@ -44,52 +140,29 @@ private struct GeneralSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section("Pull requests") {
-                Toggle("Include drafts", isOn: $settings.includeDrafts)
+            Section("Startup") {
+                Toggle("Launch at login", isOn: loginItemBinding)
                     .toggleStyle(.switch)
-            }
 
-            Section("Mentions") {
-                Text("Which notification reasons count towards the badge.")
+                if let message = loginItem.message {
+                    Label(message, systemImage: "info.circle")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+
+                Text("The login item points at the app's current location, so moving the app afterwards breaks it.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-
-                ForEach(NotificationReason.selectable, id: \.self) { reason in
-                    Toggle(reason.label, isOn: reasonBinding(reason))
-                        .toggleStyle(.switch)
-                        .controlSize(.small)
-                }
-
-                if settings.notificationReasons.isEmpty {
-                    Label(
-                        "With nothing selected the mention count stays at zero.",
-                        systemImage: "exclamationmark.triangle"
-                    )
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                }
-            }
-
-            Section("General") {
-                Toggle("Launch at login", isOn: $settings.launchAtLogin)
-                    .toggleStyle(.switch)
             }
         }
         .formStyle(.grouped)
+        .task { loginItem.syncFromSystem(into: settings) }
     }
 
-    private func reasonBinding(_ reason: NotificationReason) -> Binding<Bool> {
+    private var loginItemBinding: Binding<Bool> {
         Binding(
-            get: { settings.notificationReasons.contains(reason) },
-            set: { isOn in
-                var reasons = settings.notificationReasons
-                if isOn {
-                    reasons.insert(reason)
-                } else {
-                    reasons.remove(reason)
-                }
-                settings.notificationReasons = reasons
-            }
+            get: { settings.launchAtLogin },
+            set: { loginItem.apply($0, to: settings) }
         )
     }
 }

@@ -49,6 +49,11 @@ public final class Settings {
         didSet { store.set(launchAtLogin, forKey: Key.launchAtLogin) }
     }
 
+    /// Whether the main window's lists are split by repository.
+    public var listGrouping: ListGrouping {
+        didSet { store.set(listGrouping.rawValue, forKey: Key.listGrouping) }
+    }
+
     private let store: UserDefaults
 
     public init(store: UserDefaults = .standard) {
@@ -66,6 +71,8 @@ public final class Settings {
             notificationReasons = [.mention, .teamMention]
         }
         launchAtLogin = store.object(forKey: Key.launchAtLogin) as? Bool ?? false
+        listGrouping =
+            (store.string(forKey: Key.listGrouping).flatMap(ListGrouping.init(rawValue:))) ?? .flat
     }
 
     private enum Key {
@@ -76,5 +83,6 @@ public final class Settings {
         static let teamSlugs = "teamSlugs"
         static let notificationReasons = "notificationReasons"
         static let launchAtLogin = "launchAtLogin"
+        static let listGrouping = "listGrouping"
     }
 }

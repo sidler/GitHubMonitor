@@ -23,6 +23,12 @@ public enum MainWindowTab: String, Hashable, CaseIterable, Sendable {
     }
 }
 
+public enum SettingsTab: String, Hashable, CaseIterable, Sendable {
+    case account
+    case filters
+    case general
+}
+
 public enum LoadState: Equatable, Sendable {
     case idle
     case loading
@@ -51,6 +57,7 @@ public final class AppState {
     /// The notification whose preview is expanded, if any.
     public var expandedNotificationID: String?
     public var selectedTab: MainWindowTab = .pullRequests
+    public var selectedSettingsTab: SettingsTab = .account
 
     public init(settings: Settings) {
         self.settings = settings

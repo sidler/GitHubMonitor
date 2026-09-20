@@ -34,17 +34,25 @@ struct MainWindowView: View {
         }
     }
 
+    // MARK: - Pull requests
+
     private var pullRequestList: some View {
         let items = state.visiblePullRequests
         return VStack(spacing: 0) {
-            // Draft visibility belongs next to the list it changes, not only
-            // buried in settings.
-            if state.draftCount > 0 {
-                DraftVisibilityBar(settings: state.settings, draftCount: state.draftCount)
-                Divider()
+            ListToolbar(settings: state.settings) {
+                // Draft visibility belongs next to the list it changes, not
+                // only buried in settings.
+                if state.draftCount > 0 {
+                    DraftToggleControl(settings: state.settings, draftCount: state.draftCount)
+                }
             }
+            Divider()
 
-            List(items) { item in
+            GroupedList(
+                items: items,
+                grouping: state.settings.listGrouping,
+                repository: \.repository
+            ) { item in
                 PullRequestRow(item: item)
                     .padding(.vertical, 3)
             }
@@ -64,26 +72,27 @@ struct MainWindowView: View {
         }
     }
 
+    // MARK: - Mentions
+
     private var mentionList: some View {
         let items = state.visibleNotifications
         return VStack(spacing: 0) {
-            if !items.isEmpty {
-                HStack {
-                    Text("Opening a message fetches its text; marking it read also clears it on GitHub.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
+            ListToolbar(settings: state.settings) {
+                if !items.isEmpty {
                     Button("Mark all read") {
                         Task { await controller.markAllVisibleRead() }
                     }
                     .controlSize(.small)
+                    .help("Marks these threads read on GitHub too")
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                Divider()
             }
+            Divider()
 
-            List(items) { item in
+            GroupedList(
+                items: items,
+                grouping: state.settings.listGrouping,
+                repository: \.repository
+            ) { item in
                 NotificationRow(
                     item: item,
                     preview: state.previews[item.id],
@@ -110,24 +119,79 @@ struct MainWindowView: View {
     }
 }
 
-/// Draft visibility, placed above the list it affects. Also changes the menu
-/// bar count, which the caption spells out.
-private struct DraftVisibilityBar: View {
+// MARK: - Building blocks
+
+/// Bar above a list: the grouping switch plus whatever that list adds.
+private struct ListToolbar<Trailing: View>: View {
+    @Bindable var settings: Settings
+    @ViewBuilder var trailing: () -> Trailing
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Picker("", selection: $settings.listGrouping) {
+                ForEach(ListGrouping.allCases, id: \.self) { grouping in
+                    Text(grouping.label).tag(grouping)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize()
+
+            Spacer()
+            trailing()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+    }
+}
+
+/// A list that is either flat or split into per-repository sections.
+///
+/// Sections rather than tabs: a review queue can span a dozen repositories,
+/// and tabs would hide most of them behind a scroll control while also
+/// hiding the total. Sections keep everything countable on one screen.
+private struct GroupedList<Item: Identifiable, Row: View>: View {
+    let items: [Item]
+    let grouping: ListGrouping
+    let repository: (Item) -> String
+    @ViewBuilder var row: (Item) -> Row
+
+    var body: some View {
+        List {
+            switch grouping {
+            case .flat:
+                ForEach(items) { row($0) }
+            case .byRepository:
+                ForEach(RepositoryGrouping.group(items, by: repository)) { group in
+                    Section {
+                        ForEach(group.items) { row($0) }
+                    } header: {
+                        HStack(spacing: 6) {
+                            Text(group.repository)
+                            Text("\(group.items.count)")
+                                .font(.caption.monospacedDigit())
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(.quaternary, in: Capsule())
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Draft visibility. Also changes the menu bar count, which the label says.
+private struct DraftToggleControl: View {
     @Bindable var settings: Settings
     let draftCount: Int
 
     var body: some View {
-        HStack(spacing: 8) {
-            // A switch, matching how the same options are presented in settings.
-            Toggle("Show drafts", isOn: $settings.includeDrafts)
-                .toggleStyle(.switch)
-                .controlSize(.small)
-            Text("\(draftCount) draft\(draftCount == 1 ? "" : "s") in this list — counted in the menu bar only while shown")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Spacer()
+        Toggle(isOn: $settings.includeDrafts) {
+            Text("Show \(draftCount) draft\(draftCount == 1 ? "" : "s")")
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .toggleStyle(.switch)
+        .controlSize(.small)
+        .help("Drafts are counted in the menu bar only while shown")
     }
 }

@@ -59,8 +59,15 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             // first pass through the run loop.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
                 switch tab {
-                case "popover": self?.statusItemController?.showPopover(activating: true)
-                default: windowController.show(selecting: MainWindowTab(rawValue: tab) ?? .pullRequests)
+                case "popover":
+                    self?.statusItemController?.showPopover(activating: true)
+                default:
+                    // "settings:general" opens a specific settings tab.
+                    let parts = tab.split(separator: ":", maxSplits: 1).map(String.init)
+                    if parts.count == 2, let settingsTab = SettingsTab(rawValue: parts[1]) {
+                        self?.state.selectedSettingsTab = settingsTab
+                    }
+                    windowController.show(selecting: MainWindowTab(rawValue: parts[0]) ?? .pullRequests)
                 }
             }
         }
