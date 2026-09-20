@@ -74,40 +74,54 @@ struct ContentColumn: View {
     let controller: RefreshController
 
     var body: some View {
-        Group {
-            switch state.sidebarSelection {
-            case .pullRequests: pullRequestList
-            case .myPullRequests: authoredList
-            case .mentions: mentionList
-            case .dashboard: DashboardView(state: state, controller: controller)
-            case .settings: SettingsView(state: state, controller: controller)
-            }
+        // The band's height is read from the safe area rather than measured
+        // by the window controller: a compact toolbar is as tall as whatever
+        // the current list puts in it, so a height pushed in from outside
+        // described the view before last until the window was resized.
+        GeometryReader { proxy in
+            list
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // Carry the content's own background up behind the toolbar.
+                // Without it the title bar band is one uniform colour across
+                // both columns and the divider only starts below it; Notes
+                // and Finder run the content background to the top so the
+                // divider is continuous.
+                .background {
+                    Color(nsColor: .textBackgroundColor).ignoresSafeArea()
+                }
+                .overlay(alignment: .top) {
+                    titleBarBand(height: proxy.safeAreaInsets.top)
+                }
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    VStack(spacing: 0) {
+                        Divider()
+                        statusBar
+                    }
+                }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // Carry the content's own background up behind the toolbar. Without
-        // it the title bar band is one uniform colour across both columns and
-        // the divider only starts below it; Notes and Finder run the content
-        // background to the top so the divider is continuous.
-        .background {
-            Color(nsColor: .textBackgroundColor).ignoresSafeArea()
+    }
+
+    @ViewBuilder
+    private var list: some View {
+        switch state.sidebarSelection {
+        case .pullRequests: pullRequestList
+        case .myPullRequests: authoredList
+        case .mentions: mentionList
+        case .dashboard: DashboardView(state: state, controller: controller)
+        case .settings: SettingsView(state: state, controller: controller)
         }
-        // The band over the strip the rows scroll behind. Clear while the
-        // list sits at its top — nothing is passing behind it — and a thin
-        // material once it scrolls, so rows do not collide with the title.
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(state.isContentScrolled ? AnyShapeStyle(.ultraThinMaterial) : AnyShapeStyle(.clear))
-                .frame(height: state.titleBarHeight)
-                .ignoresSafeArea(edges: .top)
-                .allowsHitTesting(false)
-                .animation(.easeOut(duration: 0.15), value: state.isContentScrolled)
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            VStack(spacing: 0) {
-                Divider()
-                statusBar
-            }
-        }
+    }
+
+    /// The strip the rows scroll behind. Clear while the list sits at its top
+    /// — nothing is passing behind it — and a thin material once it scrolls,
+    /// so rows do not collide with the title.
+    private func titleBarBand(height: CGFloat) -> some View {
+        Rectangle()
+            .fill(state.isContentScrolled ? AnyShapeStyle(.ultraThinMaterial) : AnyShapeStyle(.clear))
+            .frame(height: height)
+            .ignoresSafeArea(edges: .top)
+            .allowsHitTesting(false)
+            .animation(.easeOut(duration: 0.15), value: state.isContentScrolled)
     }
 
     // MARK: - Lists
@@ -127,7 +141,7 @@ struct ContentColumn: View {
                     "No reviews requested",
                     systemImage: StatusBarTitleBuilder.pullRequestSymbol,
                     description: Text(
-                        state.draftCount > 0 && !state.settings.includeDrafts
+                        state.selectedDraftCount > 0 && !state.settings.includeDrafts
                             ? "Only drafts are waiting; switch them on above to see them."
                             : "Nothing is waiting for your review."
                     )
@@ -151,7 +165,11 @@ struct ContentColumn: View {
                 ContentUnavailableView(
                     "No open pull requests",
                     systemImage: "person.crop.circle",
-                    description: Text("You have nothing open and waiting on review.")
+                    description: Text(
+                        state.selectedDraftCount > 0 && !state.settings.includeDrafts
+                            ? "Only your drafts are open; switch them on above to see them."
+                            : "You have nothing open and waiting on review."
+                    )
                 )
             }
         }
@@ -271,8 +289,8 @@ struct ToolbarControls: View {
                     keyPath: \.listGrouping,
                     options: ListGrouping.forPullRequests
                 )
-                if state.draftCount > 0 {
-                    DraftToggleControl(settings: state.settings, draftCount: state.draftCount)
+                if state.selectedDraftCount > 0 {
+                    DraftToggleControl(settings: state.settings, draftCount: state.selectedDraftCount)
                 }
             case .mentions:
                 GroupingPicker(

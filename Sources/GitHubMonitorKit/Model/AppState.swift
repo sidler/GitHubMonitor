@@ -73,9 +73,6 @@ public final class AppState {
     /// The dashboard's own fetch, separate from the refresh cycle: it covers
     /// a whole repository and is only wanted while that view is open.
     public var dashboard: DashboardState = .unconfigured
-    /// Height of the window's title bar, so the content column can lay a
-    /// material over the area its rows scroll behind.
-    public var titleBarHeight: CGFloat = 0
     /// Whether the content column is scrolled away from its top. The title
     /// bar band only needs a material once rows are passing behind it.
     public var isContentScrolled = false
@@ -122,12 +119,34 @@ public final class AppState {
             .map { SidebarRepository(repository: $0.repository, count: $0.items.count) }
     }
 
-    /// Drafts within the repository filter, whether or not they are shown.
-    /// Drives the wording of the draft toggle.
-    public var draftCount: Int {
-        PullRequestFilter
-            .matchingRepositories(pullRequests, repositoryFilters: settings.repositoryFilters)
-            .count { $0.isDraft }
+    /// Drafts in the review queue, whether or not they are shown. Drives the
+    /// wording of the popover's draft toggle, which shows that one list.
+    public var draftCount: Int { draftCount(in: pullRequests, repository: nil) }
+
+    /// Drafts in the list on screen, whether or not they are shown.
+    ///
+    /// The main window's toggle sits in that list's own toolbar, so it has to
+    /// count that list's drafts: offering to show the review queue's eight
+    /// drafts while "My Pull Requests" is open names a number nothing on
+    /// screen can account for.
+    public var selectedDraftCount: Int {
+        switch sidebarSelection {
+        case .pullRequests(let repository):
+            draftCount(in: pullRequests, repository: repository)
+        case .myPullRequests(let repository):
+            draftCount(in: authoredPullRequests, repository: repository)
+        case .mentions, .dashboard, .settings:
+            0
+        }
+    }
+
+    private func draftCount(in items: [PullRequestItem], repository: String?) -> Int {
+        narrow(
+            PullRequestFilter.matchingRepositories(items, repositoryFilters: settings.repositoryFilters),
+            to: repository,
+            by: \.repository
+        )
+        .count { $0.isDraft }
     }
 
     /// The list currently shown, narrowed to the selected repository.

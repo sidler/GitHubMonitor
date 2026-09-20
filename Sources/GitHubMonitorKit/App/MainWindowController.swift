@@ -22,6 +22,9 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     private var splitViewController: NSSplitViewController?
     private var inspectorItem: NSSplitViewItem?
     private var contentController: NSViewController?
+    /// The selection the window last reacted to, so a change can be told
+    /// from the other state the tracking closure watches.
+    private var lastSelection: SidebarSelection?
 
     public init(state: AppState, controller: RefreshController) {
         self.state = state
@@ -109,30 +112,11 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
 
         self.window = window
         splitViewController = split
-        applyTitleBarInset()
+        lastSelection = state.sidebarSelection
 
         updateTitle()
         observeSelection()
         observeScrolling()
-    }
-
-    /// Reports the title bar's height so the content column can lay a
-    /// material over the strip its rows scroll behind.
-    ///
-    /// No additional safe area inset: SwiftUI already applies one of exactly
-    /// this size for the transparent title bar, and adding a second put the
-    /// sticky group header a title bar's height too low.
-    private func applyTitleBarInset() {
-        guard let window, let contentController else { return }
-        let inset = max(0, window.frame.height - window.contentLayoutRect.height)
-        contentController.view.additionalSafeAreaInsets = NSEdgeInsets(
-            top: 0, left: 0, bottom: 0, right: 0
-        )
-        state.titleBarHeight = inset
-    }
-
-    public func windowDidResize(_ notification: Notification) {
-        applyTitleBarInset()
     }
 
     // MARK: - Scrolling
@@ -189,6 +173,40 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         window?.titleVisibility = .hidden
     }
 
+    /// Resets what belongs to the list being left behind.
+    private func selectionDidChange() {
+        guard lastSelection != state.sidebarSelection else { return }
+        lastSelection = state.sidebarSelection
+        // A list that has just appeared sits at its top, so the band over the
+        // title bar should be clear again. One that restores a scroll
+        // position posts its own bounds change and turns it back on.
+        state.isContentScrolled = false
+        // After SwiftUI has redrawn the toolbar's own views; their new sizes
+        // do not exist yet at this point.
+        DispatchQueue.main.async { [weak self] in self?.resizeToolbarItems() }
+    }
+
+    /// Re-sizes the toolbar items that host SwiftUI views.
+    ///
+    /// A view-based toolbar item keeps the width it was given when the
+    /// toolbar last laid out, and a new list changes both how long the title
+    /// is and which controls sit beside it. Without this, coming back from a
+    /// list with no controls left the title truncated and the controls
+    /// running off the window's edge until it was resized.
+    private func resizeToolbarItems() {
+        for item in window?.toolbar?.items ?? [] {
+            guard item.itemIdentifier == Self.titleItem || item.itemIdentifier == Self.controlsItem,
+                  let view = item.view
+            else { continue }
+
+            view.invalidateIntrinsicContentSize()
+            view.layoutSubtreeIfNeeded()
+            let size = view.fittingSize
+            item.minSize = size
+            item.maxSize = size
+        }
+    }
+
     /// `@Observable` has no publisher, so the tracking closure re-arms itself.
     private func observeSelection() {
         withObservationTracking {
@@ -198,6 +216,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else { return }
+                self.selectionDidChange()
                 self.updateTitle()
                 self.syncInspector()
                 self.observeSelection()

@@ -126,3 +126,87 @@ struct AppStateSelectionTests {
         #expect(state.selectedNotifications.isEmpty)
     }
 }
+
+@MainActor
+@Suite("The draft toggle counts the list on screen")
+struct DraftCountTests {
+    private func makeState() -> AppState {
+        let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
+        let state = AppState(settings: Settings(store: defaults))
+        state.pullRequests = [
+            pullRequest(id: "1", repository: "octo/platform", draft: true),
+            pullRequest(id: "2", repository: "octo/platform", draft: true),
+            pullRequest(id: "3", repository: "octo/octo.de", draft: true),
+            pullRequest(id: "4", repository: "octo/platform"),
+        ]
+        state.authoredPullRequests = [
+            pullRequest(id: "5", repository: "octo/platform", draft: true),
+            pullRequest(id: "6", repository: "octo/platform"),
+        ]
+        return state
+    }
+
+    private func pullRequest(id: String, repository: String, draft: Bool = false) -> PullRequestItem {
+        PullRequestItem(
+            id: id, number: 1, title: "t", repository: repository, author: "a",
+            authorAvatarURL: nil, url: URL(string: "https://github.com")!, isDraft: draft,
+            updatedAt: .now, reviewDecision: .none, checks: .none
+        )
+    }
+
+    @Test("The review queue's drafts are counted while it is shown")
+    func reviewQueue() {
+        let state = makeState()
+        state.sidebarSelection = .pullRequests(repository: nil)
+        #expect(state.selectedDraftCount == 3)
+    }
+
+    /// The toggle sits in the toolbar above whichever list is open, so
+    /// offering to show the review queue's drafts there names a number the
+    /// list cannot account for.
+    @Test("The authored list counts its own drafts, not the review queue's")
+    func authoredList() {
+        let state = makeState()
+        state.sidebarSelection = .myPullRequests(repository: nil)
+        #expect(state.selectedDraftCount == 1)
+    }
+
+    @Test("A repository selection narrows the count too")
+    func narrowedByRepository() {
+        let state = makeState()
+        state.sidebarSelection = .pullRequests(repository: "octo/octo.de")
+        #expect(state.selectedDraftCount == 1)
+        state.sidebarSelection = .pullRequests(repository: "octo/platform")
+        #expect(state.selectedDraftCount == 2)
+    }
+
+    /// Lists without drafts have no toggle; a count above zero would put one
+    /// in a toolbar it does not belong in.
+    @Test("Lists that hold no pull requests count nothing")
+    func otherViews() {
+        let state = makeState()
+        for selection in [SidebarSelection.mentions(repository: nil), .dashboard, .settings] {
+            state.sidebarSelection = selection
+            #expect(state.selectedDraftCount == 0)
+        }
+    }
+
+    /// The popover shows the review queue whatever the window is pointing at.
+    @Test("The popover's count stays with the review queue")
+    func popoverUnaffected() {
+        let state = makeState()
+        state.sidebarSelection = .myPullRequests(repository: nil)
+        #expect(state.draftCount == 3)
+    }
+
+    /// Hiding drafts must not hide the offer to show them again.
+    @Test("The count is the same whether drafts are shown or not")
+    func independentOfVisibility() {
+        let state = makeState()
+        state.sidebarSelection = .myPullRequests(repository: nil)
+        state.settings.includeDrafts = false
+        #expect(state.selectedDraftCount == 1)
+        state.settings.includeDrafts = true
+        #expect(state.selectedDraftCount == 1)
+    }
+}
