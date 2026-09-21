@@ -4,16 +4,21 @@ import Foundation
 @MainActor
 public final class RefreshController {
     private let state: AppState
+    private let trendStore: TrendStore
     private(set) var service: GitHubService?
     private var timer: Task<Void, Never>?
     private var inFlight: Task<Void, Never>?
+    /// The trends load, kept so a change of repository or resolution can
+    /// call off the one still running.
+    private var trendsTask: Task<Void, Never>?
     /// Passed back as If-Modified-Since so unchanged polls cost no rate limit.
     private var lastModified: String?
     /// GitHub's requested minimum interval, which overrides a shorter setting.
     private var githubPollInterval: TimeInterval?
 
-    public init(state: AppState) {
+    public init(state: AppState, trendStore: TrendStore = TrendStore()) {
         self.state = state
+        self.trendStore = trendStore
     }
 
     // MARK: - Lifecycle
@@ -210,6 +215,114 @@ public final class RefreshController {
         }
     }
 
+    // MARK: - Trends
+
+    /// The lowest GraphQL budget the trends fetch will start another period
+    /// on. A year of history is the app's most expensive request by far,
+    /// and the lists people actually work from must not go dark because a
+    /// chart ate the hour's quota.
+    static let quotaFloor = 500
+
+    /// Loads the trend charts, one period at a time.
+    ///
+    /// Publishes after every period so the charts fill in as they arrive:
+    /// a year of history takes long enough that a spinner would be the
+    /// wrong answer. A cached history is shown first and refreshed behind
+    /// it, so the view is never empty when something is known.
+    public func loadTrends(force: Bool = false) async {
+        // Switching the resolution while a year is still coming in would
+        // otherwise leave two loads writing periods into the same charts.
+        trendsTask?.cancel()
+        let task = Task { await performTrendsLoad(force: force) }
+        trendsTask = task
+        await task.value
+    }
+
+    private func performTrendsLoad(force: Bool) async {
+        let repository = state.settings.dashboardRepository
+            .trimmingCharacters(in: .whitespaces)
+        let resolution = state.settings.trendResolution
+
+        guard !repository.isEmpty else {
+            state.trends = .unconfigured
+            return
+        }
+
+        let cached = trendStore.load(repository: repository, resolution: resolution)
+        if let cached, !force, !cached.isStale, cached.isComplete {
+            state.trends = .loaded(cached)
+            return
+        }
+
+        guard let service else {
+            state.trends = .failed(GitHubError.noToken.localizedDescription)
+            return
+        }
+
+        // Whatever is known stays on screen while the periods come in.
+        state.trends = .loading(cached)
+
+        var fresh = TrendData(repository: repository, resolution: resolution)
+        for period in TrendMath.periods(resolution) {
+            guard !Task.isCancelled else { return }
+            do {
+                // The two halves of a period do not depend on each other,
+                // and a period is slow enough to be worth halving. Periods
+                // themselves stay sequential: GitHub asks that requests for
+                // one user go one after another.
+                async let mergedTask = service.mergedTimings(
+                    repository: repository,
+                    period: period
+                )
+                async let openedTask = service.openedCounts(
+                    repository: repository,
+                    period: period
+                )
+                let merged = try await mergedTask
+                let opened = try await openedTask
+
+                fresh.buckets.append(
+                    TrendMath.bucket(
+                        period: period,
+                        merged: merged.timings,
+                        openedByPeople: opened.byPeople,
+                        openedByEveryone: opened.byEveryone
+                    )
+                )
+                fresh.fetchedAt = .now
+                state.trends = .loading(fresh)
+
+                // Stop while there is still enough budget for the lists.
+                if let remaining = opened.remainingQuota ?? merged.remainingQuota,
+                   remaining < Self.quotaFloor {
+                    fresh.truncationReason =
+                        "Stopped after \(fresh.buckets.count) periods: GitHub's hourly query budget was running low."
+                    break
+                }
+            } catch let error as GitHubError {
+                // Periods already fetched are worth showing; only the empty
+                // case is a failure.
+                guard !fresh.buckets.isEmpty else {
+                    state.trends = .failed(error.localizedDescription)
+                    return
+                }
+                fresh.truncationReason = error.localizedDescription
+                break
+            } catch {
+                guard !fresh.buckets.isEmpty else {
+                    state.trends = .failed(error.localizedDescription)
+                    return
+                }
+                fresh.truncationReason = error.localizedDescription
+                break
+            }
+        }
+
+        guard !Task.isCancelled else { return }
+        state.trends = .loaded(fresh)
+        trendStore.save(fresh)
+    }
+
     // MARK: - Dashboard
 
     /// Loads every open pull request in the dashboard repository.
@@ -273,7 +386,7 @@ public final class RefreshController {
             ) {
                 inspect(next)
             }
-        case .dashboard, .settings:
+        case .dashboard, .trends, .settings:
             break
         }
     }

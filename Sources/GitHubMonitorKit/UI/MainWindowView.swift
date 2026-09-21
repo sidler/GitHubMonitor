@@ -45,8 +45,10 @@ struct SidebarColumn: View {
             }
 
             Section {
-                Label("Dashboard", systemImage: "chart.bar")
+                Label("Workload", systemImage: "chart.bar")
                     .tag(SidebarSelection.dashboard)
+                Label("Trends", systemImage: "chart.xyaxis.line")
+                    .tag(SidebarSelection.trends)
                 Label("Settings", systemImage: "gearshape")
                     .tag(SidebarSelection.settings)
             }
@@ -105,6 +107,7 @@ struct ContentColumn: View {
         case .myPullRequests: authoredList
         case .mentions: mentionList
         case .dashboard: DashboardView(state: state, controller: controller)
+        case .trends: TrendsView(state: state, controller: controller)
         case .settings: SettingsView(state: state, controller: controller)
         }
     }
@@ -232,7 +235,7 @@ struct ContentColumn: View {
         switch state.sidebarSelection {
         case .pullRequests: PullRequestLegend.symbols(for: state.selectedPullRequests)
         case .myPullRequests: PullRequestLegend.symbols(for: state.selectedAuthoredPullRequests)
-        case .mentions, .dashboard, .settings: []
+        case .mentions, .dashboard, .trends, .settings: []
         }
     }
 
@@ -325,7 +328,7 @@ struct ToolbarControls: View {
                     }
                     .help("Marks these threads read on GitHub too")
                 }
-            case .dashboard, .settings:
+            case .dashboard, .trends, .settings:
                 EmptyView()
             }
         }

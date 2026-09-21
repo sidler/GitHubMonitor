@@ -137,6 +137,68 @@ public struct GitHubService: Sendable {
         return NotificationParser.comment(from: data)
     }
 
+    // MARK: - Trends
+
+    /// Every merged pull request of one period, with the timestamps the
+    /// trend charts measure.
+    ///
+    /// Paged to the end rather than sampled: a median of the first hundred
+    /// would be a median of the first hundred, not of the period. The quota
+    /// left is reported back so the caller can stop before it runs out.
+    public func mergedTimings(
+        repository: String,
+        period: DateInterval
+    ) async throws -> (timings: [PullRequestTiming], remainingQuota: Int?) {
+        var timings: [PullRequestTiming] = []
+        var cursor: String?
+        var remaining: Int?
+
+        repeat {
+            let payload = try await client.graphQL(
+                TrendQuery.mergedDocument,
+                variables: [
+                    "query": TrendQuery.mergedQuery(repository: repository, period: period),
+                    "cursor": cursor as Any,
+                ]
+            )
+            let page = TrendQuery.mergedPage(from: payload)
+            timings += page.items
+            remaining = page.remainingQuota
+            cursor = page.cursor
+        } while cursor != nil
+
+        return (timings, remaining)
+    }
+
+    /// How many pull requests were opened in one period, and how many of
+    /// those a person opened.
+    public func openedCounts(
+        repository: String,
+        period: DateInterval
+    ) async throws -> (byPeople: Int, byEveryone: Int, remainingQuota: Int?) {
+        var total = 0
+        var bots = 0
+        var cursor: String?
+        var remaining: Int?
+
+        repeat {
+            let payload = try await client.graphQL(
+                TrendQuery.openedDocument,
+                variables: [
+                    "query": TrendQuery.openedQuery(repository: repository, period: period),
+                    "cursor": cursor as Any,
+                ]
+            )
+            let page = TrendQuery.openedPage(from: payload)
+            total += page.items.count
+            bots += page.items.count { $0 }
+            remaining = page.remainingQuota
+            cursor = page.cursor
+        } while cursor != nil
+
+        return (total - bots, total, remaining)
+    }
+
     /// Marks one thread read. This changes state on GitHub, including in the
     /// web inbox, so it only ever runs on an explicit action.
     public func markRead(threadID: String) async throws {

@@ -15,7 +15,14 @@ enum GitHubDate {
     /// Falls back to the current time so one unreadable timestamp cannot drop
     /// an otherwise usable item from the list.
     static func date(from value: String?, fallback: Date = .now) -> Date {
-        guard let value, let date = formatter.date(from: value) else { return fallback }
-        return date
+        optional(from: value) ?? fallback
+    }
+
+    /// For the places where a missing timestamp is an answer rather than a
+    /// problem: a pull request that was never merged has no merge date, and
+    /// substituting the current time would report it as merged just now.
+    static func optional(from value: String?) -> Date? {
+        guard let value else { return nil }
+        return formatter.date(from: value)
     }
 }

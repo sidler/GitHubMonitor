@@ -63,6 +63,18 @@ public final class Settings {
         didSet { store.set(dashboardGrouping.rawValue, forKey: Key.dashboardGrouping) }
     }
 
+    /// Whether the trend charts are drawn per week or per month.
+    public var trendResolution: TrendResolution {
+        didSet { store.set(trendResolution.rawValue, forKey: Key.trendResolution) }
+    }
+
+    /// Whether pull requests opened by bots count towards the trends.
+    /// Off by default: renovate and its kind are handled differently from
+    /// people's pull requests and would dominate both counts and durations.
+    public var trendsIncludeBots: Bool {
+        didSet { store.set(trendsIncludeBots, forKey: Key.trendsIncludeBots) }
+    }
+
     public var launchAtLogin: Bool {
         didSet { store.set(launchAtLogin, forKey: Key.launchAtLogin) }
     }
@@ -111,6 +123,9 @@ public final class Settings {
             (store.string(forKey: Key.notificationGrouping).flatMap(ListGrouping.init(rawValue:))) ?? .flat
         pullRequestSort =
             (store.string(forKey: Key.pullRequestSort).flatMap(PullRequestSort.init(rawValue:))) ?? .updated
+        trendResolution =
+            (store.string(forKey: Key.trendResolution).flatMap(TrendResolution.init(rawValue:))) ?? .weekly
+        trendsIncludeBots = store.object(forKey: Key.trendsIncludeBots) as? Bool ?? false
     }
 
     private enum Key {
@@ -126,5 +141,7 @@ public final class Settings {
         static let listGrouping = "listGrouping"
         static let notificationGrouping = "notificationGrouping"
         static let pullRequestSort = "pullRequestSort"
+        static let trendResolution = "trendResolution"
+        static let trendsIncludeBots = "trendsIncludeBots"
     }
 }

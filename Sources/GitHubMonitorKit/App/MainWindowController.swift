@@ -41,6 +41,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         case .myPullRequests: state.sidebarSelection = .myPullRequests(repository: nil)
         case .mentions: state.sidebarSelection = .mentions(repository: nil)
         case .dashboard: state.sidebarSelection = .dashboard
+        case .trends: state.sidebarSelection = .trends
         case .settings: state.sidebarSelection = .settings
         case nil: break
         }
@@ -263,7 +264,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             if let item = state.inspectedNotification {
                 controller.loadPreviewIfNeeded(for: item)
             }
-        case .dashboard, .settings:
+        case .dashboard, .trends, .settings:
             break
         }
 
