@@ -369,3 +369,47 @@ struct NotificationInspectionTests {
         #expect(!state.hasInspectorContent)
     }
 }
+
+@MainActor
+@Suite("Refresh interval")
+struct RefreshIntervalTests {
+    private func settings() -> Settings {
+        Settings(store: UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!)
+    }
+
+    /// Assigning to a property from inside its own `didSet` re-enters the
+    /// setter that @Observable generates, and the recursion overflows the
+    /// stack: changing the interval in settings used to crash the app. If
+    /// this test ever hangs or dies rather than failing, that is the reason.
+    @Test("Changing the interval does not re-enter its own setter")
+    func noRecursion() {
+        let settings = settings()
+        settings.refreshInterval = 900
+        #expect(settings.refreshInterval == 900)
+        settings.refreshInterval = 1800
+        #expect(settings.refreshInterval == 1800)
+    }
+
+    @Test("The floor GitHub asks for is kept")
+    func floor() {
+        let settings = settings()
+        settings.refreshInterval = 5
+        #expect(settings.refreshInterval == Settings.minimumRefreshInterval)
+    }
+
+    @Test("The interval survives a restart")
+    func persisted() {
+        let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
+        Settings(store: defaults).refreshInterval = 900
+        #expect(Settings(store: defaults).refreshInterval == 900)
+    }
+
+    /// A value written by an older build, or by hand, must not outlive the
+    /// floor either.
+    @Test("A stored value below the floor is raised on load")
+    func storedBelowFloor() {
+        let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
+        defaults.set(5.0, forKey: "refreshInterval")
+        #expect(Settings(store: defaults).refreshInterval == Settings.minimumRefreshInterval)
+    }
+}

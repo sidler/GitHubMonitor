@@ -15,12 +15,20 @@ public final class Settings {
         didSet { store.set(statusBarStyle.rawValue, forKey: Key.statusBarStyle) }
     }
 
-    /// Seconds between automatic refreshes.
+    /// Seconds between automatic refreshes, never below the floor.
+    ///
+    /// Clamped in this setter rather than in a `didSet` on the stored
+    /// property. Assigning to a property from inside its own observer
+    /// re-enters the setter that `@Observable` generates for it, which calls
+    /// the observer again: changing the interval in settings crashed on the
+    /// overflowing stack.
     public var refreshInterval: TimeInterval {
-        didSet {
-            refreshInterval = max(Self.minimumRefreshInterval, refreshInterval)
-            store.set(refreshInterval, forKey: Key.refreshInterval)
-        }
+        get { storedRefreshInterval }
+        set { storedRefreshInterval = max(Self.minimumRefreshInterval, newValue) }
+    }
+
+    private var storedRefreshInterval: TimeInterval {
+        didSet { store.set(storedRefreshInterval, forKey: Key.refreshInterval) }
     }
 
     /// Only count pull requests in these "owner" or "owner/repo" scopes.
@@ -83,8 +91,8 @@ public final class Settings {
         self.store = store
         statusBarStyle =
             (store.string(forKey: Key.statusBarStyle).flatMap(StatusBarStyle.init(rawValue:))) ?? .separate
-        let storedInterval = store.double(forKey: Key.refreshInterval)
-        refreshInterval = storedInterval > 0 ? max(Self.minimumRefreshInterval, storedInterval) : 300
+        let saved = store.double(forKey: Key.refreshInterval)
+        storedRefreshInterval = saved > 0 ? max(Self.minimumRefreshInterval, saved) : 300
         repositoryFilters = store.stringArray(forKey: Key.repositoryFilters) ?? []
         includeDrafts = store.object(forKey: Key.includeDrafts) as? Bool ?? false
         teamSlugs = store.stringArray(forKey: Key.teamSlugs) ?? []
