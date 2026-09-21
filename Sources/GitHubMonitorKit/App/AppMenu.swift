@@ -132,8 +132,10 @@ enum AppMenu {
         // The list moves the detail pane with the plain arrow keys while it
         // has focus. These do the same from anywhere in the window, and are
         // where someone looks to find out that it can be done at all.
+        // Named for the list rather than for pull requests: the mentions
+        // move the same way.
         let next = ActionItem(
-            title: "Next Pull Request",
+            title: "Next in List",
             keyEquivalent: String(UnicodeScalar(NSDownArrowFunctionKey)!),
             action: { moveDetail(1) }
         )
@@ -141,7 +143,7 @@ enum AppMenu {
         menu.addItem(next)
 
         let previous = ActionItem(
-            title: "Previous Pull Request",
+            title: "Previous in List",
             keyEquivalent: String(UnicodeScalar(NSUpArrowFunctionKey)!),
             action: { moveDetail(-1) }
         )

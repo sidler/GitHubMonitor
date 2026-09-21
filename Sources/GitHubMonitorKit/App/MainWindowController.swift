@@ -120,6 +120,10 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         updateTitle()
         observeSelection()
         observeScrolling()
+        // Something can already be open when the window is first built --
+        // the popover selects as it loads -- and the tracking closure only
+        // fires on the next change after that.
+        syncInspector()
     }
 
     // MARK: - Scrolling
@@ -225,7 +229,11 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         withObservationTracking {
             _ = state.sidebarSelection
             _ = state.inspectedPullRequestID
+            _ = state.expandedNotificationID
             _ = state.pullRequestDetails
+            // A thread marked read disappears, and the pane describing it
+            // has to go with it.
+            _ = state.notifications
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else { return }
@@ -244,13 +252,22 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     private func syncInspector() {
         guard let split = splitViewController else { return }
 
-        // The list is bound straight to the selection, so the arrow keys can
-        // move it without anything having asked for the payload yet.
-        if let id = state.inspectedPullRequestID {
-            controller.loadDetailIfNeeded(for: id)
+        // The lists are bound straight to their selection, so the arrow keys
+        // can move it without anything having asked for the payload yet.
+        switch state.sidebarSelection {
+        case .pullRequests, .myPullRequests:
+            if let id = state.inspectedPullRequestID {
+                controller.loadDetailIfNeeded(for: id)
+            }
+        case .mentions:
+            if let item = state.inspectedNotification {
+                controller.loadPreviewIfNeeded(for: item)
+            }
+        case .dashboard, .settings:
+            break
         }
 
-        guard state.inspectedPullRequest != nil else {
+        guard state.hasInspectorContent else {
             if let inspectorItem {
                 split.removeSplitViewItem(inspectorItem)
                 self.inspectorItem = nil

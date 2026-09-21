@@ -186,17 +186,22 @@ struct ContentColumn: View {
             items: items,
             grouping: state.settings.notificationGrouping,
             repository: \.repository,
-            type: \.subjectTypeLabel
+            type: \.subjectTypeLabel,
+            selection: $state.expandedNotificationID
         ) { item in
             NotificationRow(
                 item: item,
                 preview: state.previews[item.id],
                 isExpanded: state.expandedNotificationID == item.id,
-                toggle: { controller.togglePreview(for: item) },
+                // The message goes into the detail pane here; expanding the
+                // row in place would push the rest of the list down.
+                inlinePreview: false,
+                toggle: { controller.inspect(item) },
                 markRead: { Task { await controller.markRead(item) } }
             )
             .padding(.vertical, 3)
         }
+        .onExitCommand { controller.closeInspector() }
         .overlay {
             if items.isEmpty {
                 ContentUnavailableView(
@@ -374,18 +379,35 @@ private struct GroupedList<Item: Identifiable, Row: View>: View {
     /// A row, with the selection drawn quietly.
     ///
     /// The list's own highlight is the emphasised accent fill, which at the
-    /// height of these rows is a slab of blue across the window. The
-    /// background laid over it is the grey AppKit itself uses for a
-    /// selection in a window that is not key: enough to find the row again,
-    /// not enough to read as an alert.
+    /// height of these rows is a slab of blue across the window. It is
+    /// painted over rather than turned off, since a `List` offers no way to
+    /// ask for the unemphasised look:
+    ///
+    /// - an opaque layer the width of the row hides the accent fill,
+    /// - an inset rounded rectangle in AppKit's own unemphasised selection
+    ///   grey marks the row without reaching the window's edges,
+    /// - and the text is pinned to the label colours, because inside a
+    ///   selected row SwiftUI resolves every hierarchical style to white.
     private func listRow(_ item: Item) -> some View {
         row(item)
             .tag(item.id)
-            .listRowBackground(
-                selection?.wrappedValue == item.id
-                    ? Color(nsColor: .unemphasizedSelectedContentBackgroundColor)
-                    : Color.clear
-            )
+            .foregroundStyle(Color(nsColor: .labelColor))
+            .listRowBackground(background(selected: selection?.wrappedValue == item.id))
+    }
+
+    @ViewBuilder
+    private func background(selected: Bool) -> some View {
+        if selected {
+            ZStack {
+                Color(nsColor: .textBackgroundColor)
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color(nsColor: .unemphasizedSelectedContentBackgroundColor))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 1)
+            }
+        } else {
+            Color.clear
+        }
     }
 
     @ViewBuilder
@@ -504,7 +526,17 @@ struct InspectorColumn: View {
     let controller: RefreshController
 
     var body: some View {
-        if let item = state.inspectedPullRequest {
+        // Which detail belongs here follows the sidebar, not whichever id
+        // happens to be set: a pull request opened before switching to the
+        // mentions is not what this pane is describing any more.
+        if case .mentions = state.sidebarSelection, let item = state.inspectedNotification {
+            NotificationDetailView(
+                item: item,
+                preview: state.previews[item.id],
+                markRead: { Task { await controller.markRead(item) } },
+                close: { controller.closeInspector() }
+            )
+        } else if let item = state.inspectedPullRequest, !state.sidebarSelection.isMentions {
             PullRequestDetailView(
                 item: item,
                 detail: state.pullRequestDetails[item.id],

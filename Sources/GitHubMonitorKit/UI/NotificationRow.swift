@@ -6,20 +6,25 @@ struct NotificationRow: View {
     let preview: PreviewState?
     let isExpanded: Bool
     var compact: Bool = false
+    /// Whether the message belongs in the row. False in the window, which
+    /// has a detail pane to put it in.
+    var inlinePreview: Bool = true
     let toggle: () -> Void
     let markRead: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             summary
-            if isExpanded {
+            if isExpanded, inlinePreview {
                 previewBody
                 actions
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
-        .onTapGesture(perform: toggle)
+        // Only where the row is not part of a selectable list: a tap gesture
+        // there swallows the click the list needs to change its selection.
+        .modifier(TapToToggle(enabled: inlinePreview, toggle: toggle))
     }
 
     private var summary: some View {
@@ -34,7 +39,7 @@ struct NotificationRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.title)
                     .font(compact ? .callout : .body)
-                    .lineLimit(isExpanded ? 3 : (compact ? 1 : 2))
+                    .lineLimit(isExpanded && inlinePreview ? 3 : (compact ? 1 : 2))
                 HStack(spacing: 8) {
                     Text(item.repository)
                     Text(item.reason.label)
@@ -103,5 +108,22 @@ struct NotificationRow: View {
         }
         .buttonStyle(.accessoryBar)
         .font(.caption)
+    }
+}
+
+/// Opens the preview when the row is tapped.
+///
+/// A modifier because the gesture has to be absent, not merely inert, where
+/// a `List` is handling clicks itself.
+private struct TapToToggle: ViewModifier {
+    let enabled: Bool
+    let toggle: () -> Void
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content.onTapGesture(perform: toggle)
+        } else {
+            content
+        }
     }
 }

@@ -62,7 +62,8 @@ public final class AppState {
     public var availableTeams: [TeamMembership] = []
     /// Comment bodies, fetched only when a row is opened.
     public var previews: [String: PreviewState] = [:]
-    /// The notification whose preview is expanded, if any.
+    /// The notification whose message is open: in the window's detail pane,
+    /// and inline in the popover, which has nowhere else to put it.
     public var expandedNotificationID: String?
     /// The pull request shown in the detail pane, if it is open.
     public var inspectedPullRequestID: String?
@@ -211,6 +212,40 @@ public final class AppState {
     public var notificationRepositories: [SidebarRepository] {
         RepositoryGrouping.group(visibleNotifications, by: \.repository)
             .map { SidebarRepository(repository: $0.repository, count: $0.items.count) }
+    }
+
+    /// The notification the detail pane is describing, if it is still
+    /// unread -- marking it read, here or on GitHub, drops it.
+    public var inspectedNotification: NotificationItem? {
+        guard let id = expandedNotificationID else { return nil }
+        return notifications.first { $0.id == id }
+    }
+
+    /// Whether the detail pane has anything to show for the list on screen.
+    ///
+    /// Tied to the sidebar rather than to whichever id happens to be set:
+    /// the pane describes a row in the list being looked at, and a pull
+    /// request opened earlier is not that.
+    public var hasInspectorContent: Bool {
+        switch sidebarSelection {
+        case .pullRequests, .myPullRequests: inspectedPullRequest != nil
+        case .mentions: inspectedNotification != nil
+        case .dashboard, .settings: false
+        }
+    }
+
+    /// The notifications the detail pane can move between, in the order the
+    /// list is showing them.
+    public var inspectableNotifications: [NotificationItem] {
+        guard case .mentions = sidebarSelection else { return [] }
+        switch settings.notificationGrouping {
+        case .flat:
+            return selectedNotifications
+        case .byRepository:
+            return RepositoryGrouping.group(selectedNotifications, by: \.repository).flatMap(\.items)
+        case .byType:
+            return RepositoryGrouping.group(selectedNotifications, by: \.subjectTypeLabel).flatMap(\.items)
+        }
     }
 
     /// The pull request the detail pane is describing, if it is still in the

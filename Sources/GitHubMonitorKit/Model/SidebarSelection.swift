@@ -33,6 +33,11 @@ public enum SidebarSelection: Hashable, Sendable {
         }
     }
 
+    public var isMentions: Bool {
+        if case .mentions = self { return true }
+        return false
+    }
+
     /// Heading for the list being shown, in the style of Finder's toolbar
     /// title: the repository when one is chosen, the section otherwise.
     public var title: String {

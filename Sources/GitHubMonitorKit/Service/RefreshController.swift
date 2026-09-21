@@ -259,27 +259,50 @@ public final class RefreshController {
     /// it has focus, and the pane should be reachable from anywhere in the
     /// window.
     public func moveInspection(by offset: Int) {
-        let items = state.inspectableItems
-        guard !items.isEmpty else { return }
+        switch state.sidebarSelection {
+        case .pullRequests, .myPullRequests:
+            if let next = Self.step(state.inspectableItems, from: state.inspectedPullRequestID, by: offset) {
+                inspect(next)
+            }
+        case .mentions:
+            if let next = Self.step(
+                state.inspectableNotifications,
+                from: state.expandedNotificationID,
+                by: offset
+            ) {
+                inspect(next)
+            }
+        case .dashboard, .settings:
+            break
+        }
+    }
 
+    /// The row `offset` steps along from the one open now.
+    ///
+    /// Stops at the ends rather than wrapping: a list that jumps from the
+    /// last row back to the first loses the reader's place, and in a long
+    /// queue it is not even visible that it happened.
+    static func step<Item: Identifiable>(
+        _ items: [Item],
+        from current: Item.ID?,
+        by offset: Int
+    ) -> Item? {
+        guard !items.isEmpty else { return nil }
         guard
-            let current = state.inspectedPullRequestID,
+            let current,
             let index = items.firstIndex(where: { $0.id == current })
         else {
             // Nothing open yet: start at the end the user is heading for.
-            inspect(offset < 0 ? items[items.count - 1] : items[0])
-            return
+            return offset < 0 ? items.last : items.first
         }
-
-        // Stops at the ends rather than wrapping: a list that jumps from the
-        // last row back to the first loses the reader's place.
         let next = index + offset
-        guard items.indices.contains(next) else { return }
-        inspect(items[next])
+        return items.indices.contains(next) ? items[next] : nil
     }
 
+    /// Closes whichever detail the pane is showing.
     public func closeInspector() {
         state.inspectedPullRequestID = nil
+        state.expandedNotificationID = nil
     }
 
     /// Refetches even when a detail is cached, for the pane's reload button.
@@ -318,13 +341,29 @@ public final class RefreshController {
     // MARK: - Notifications
 
     /// Opens or closes a preview, fetching the comment body the first time.
+    ///
+    /// Used where the message is shown inline -- the popover. The window
+    /// selects instead, so that opening one notification closes the last.
     public func togglePreview(for item: NotificationItem) {
         guard state.expandedNotificationID != item.id else {
             state.expandedNotificationID = nil
             return
         }
-        state.expandedNotificationID = item.id
+        inspect(item)
+    }
 
+    /// Shows a notification in the detail pane.
+    public func inspect(_ item: NotificationItem) {
+        state.expandedNotificationID = item.id
+        loadPreviewIfNeeded(for: item)
+    }
+
+    /// Fetches a notification's message unless it is already there.
+    ///
+    /// Public for the same reason as the pull request detail: the list is
+    /// bound straight to the selection, so the arrow keys open a
+    /// notification without anything having asked for its body.
+    public func loadPreviewIfNeeded(for item: NotificationItem) {
         // Already fetched, or being fetched: nothing more to do.
         guard state.previews[item.id] == nil else { return }
 

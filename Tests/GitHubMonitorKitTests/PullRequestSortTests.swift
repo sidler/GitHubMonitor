@@ -269,3 +269,103 @@ struct InspectionOrderTests {
         #expect(state.inspectedPullRequestID == "b1")
     }
 }
+
+@MainActor
+@Suite("Notifications in the detail pane")
+struct NotificationInspectionTests {
+    private func makeState() -> (AppState, RefreshController) {
+        let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
+        let state = AppState(settings: Settings(store: defaults))
+        state.settings.notificationReasons = [.mention]
+        state.notifications = (1...3).map { index in
+            NotificationItem(
+                id: "n\(index)", title: "t", repository: "octo/platform", avatarURL: nil,
+                reason: .mention, updatedAt: .now, subjectType: index == 1 ? "Issue" : "PullRequest",
+                latestCommentAPIURL: nil, subjectAPIURL: nil
+            )
+        }
+        state.sidebarSelection = .mentions(repository: nil)
+        return (state, RefreshController(state: state))
+    }
+
+    @Test("Opening a notification puts it in the pane")
+    func opens() {
+        let (state, controller) = makeState()
+        controller.inspect(state.notifications[1])
+        #expect(state.inspectedNotification?.id == "n2")
+        #expect(state.hasInspectorContent)
+    }
+
+    /// Without a comment to fetch there is nothing to wait for, and a
+    /// spinner that never resolves is worse than a plain statement.
+    @Test("A notification with no comment resolves to an empty message")
+    func emptyPreview() {
+        let (state, controller) = makeState()
+        controller.inspect(state.notifications[0])
+        #expect(state.previews["n1"] == .empty)
+    }
+
+    @Test("The keyboard walks the mentions too")
+    func keyboard() {
+        let (state, controller) = makeState()
+        controller.moveInspection(by: 1)
+        #expect(state.expandedNotificationID == "n1")
+        controller.moveInspection(by: 1)
+        #expect(state.expandedNotificationID == "n2")
+        controller.moveInspection(by: -1)
+        #expect(state.expandedNotificationID == "n1")
+    }
+
+    /// Grouped by type, the list draws the issues and the pull requests in
+    /// their own sections; the keyboard has to follow what is drawn.
+    @Test("Grouping the mentions changes the order walked")
+    func grouped() {
+        let (state, _) = makeState()
+        state.settings.notificationGrouping = .byType
+        // Two pull requests outnumber the one issue, so their section leads.
+        #expect(state.inspectableNotifications.map(\.id) == ["n2", "n3", "n1"])
+    }
+
+    /// The pane describes a row in the list being looked at. A pull request
+    /// opened before switching to the mentions is not that.
+    @Test("The pane follows the sidebar, not whatever was opened last")
+    func followsTheSidebar() {
+        let (state, controller) = makeState()
+        controller.inspect(state.notifications[0])
+        state.pullRequests = [
+            PullRequestItem(
+                id: "pr", number: 1, title: "t", repository: "r", author: "a",
+                authorAvatarURL: nil, url: URL(string: "https://github.com")!, isDraft: false,
+                updatedAt: .now, reviewDecision: .none, checks: .none
+            ),
+        ]
+        state.inspectedPullRequestID = "pr"
+
+        #expect(state.hasInspectorContent)
+        state.sidebarSelection = .pullRequests(repository: nil)
+        #expect(state.inspectedPullRequest?.id == "pr")
+        state.sidebarSelection = .dashboard
+        #expect(!state.hasInspectorContent)
+    }
+
+    @Test("Closing the pane closes it for either list")
+    func close() {
+        let (state, controller) = makeState()
+        controller.inspect(state.notifications[0])
+        state.inspectedPullRequestID = "pr"
+        controller.closeInspector()
+        #expect(state.expandedNotificationID == nil)
+        #expect(state.inspectedPullRequestID == nil)
+    }
+
+    /// Marking a thread read drops it from the list, and the pane cannot go
+    /// on describing something that is no longer there.
+    @Test("A notification that is gone leaves the pane with nothing to show")
+    func vanishes() {
+        let (state, controller) = makeState()
+        controller.inspect(state.notifications[0])
+        state.notifications.removeAll { $0.id == "n1" }
+        #expect(state.inspectedNotification == nil)
+        #expect(!state.hasInspectorContent)
+    }
+}
