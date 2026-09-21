@@ -40,7 +40,6 @@ struct PullRequestDetailView: View {
                 .padding(14)
             }
 
-            Divider()
             footer
         }
     }
@@ -73,22 +72,21 @@ struct PullRequestDetailView: View {
     }
 
     private var footer: some View {
-        HStack {
-            Button {
-                NSWorkspace.shared.open(item.url)
-            } label: {
-                Label("Open on GitHub", systemImage: "arrow.up.forward.square")
+        BottomBar {
+            HStack {
+                Button {
+                    NSWorkspace.shared.open(item.url)
+                } label: {
+                    Label("Open on GitHub", systemImage: "arrow.up.forward.square")
+                }
+                Spacer()
+                Button(action: reload) {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .help("Reload details")
             }
-            Spacer()
-            Button(action: reload) {
-                Image(systemName: "arrow.clockwise")
-            }
-            .help("Reload details")
+            .buttonStyle(.accessoryBar)
         }
-        .buttonStyle(.accessoryBar)
-        .font(.callout)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
     }
 
     // MARK: - Sections

@@ -93,10 +93,7 @@ struct ContentColumn: View {
                     titleBarBand(height: proxy.safeAreaInsets.top)
                 }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    VStack(spacing: 0) {
-                        Divider()
-                        statusBar
-                    }
+                    BottomBar { statusBar }
                 }
         }
     }
@@ -270,11 +267,7 @@ struct ContentColumn: View {
             .disabled(state.loadState == .loading)
             .help("Refresh now")
         }
-        .font(.caption)
         .monospacedDigit()
-        .padding(.horizontal, 12)
-        .padding(.vertical, 5)
-        .background(.bar)
     }
 }
 

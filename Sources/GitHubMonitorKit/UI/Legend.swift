@@ -52,6 +52,38 @@ extension LegendSymbol {
     }
 }
 
+/// The strip along the bottom of a column: the content's status bar, and
+/// the detail pane's actions.
+///
+/// One definition because they sit side by side and are read as a single
+/// strip. Each had its own font and padding, and the difference showed as a
+/// step where the columns meet. The height is fixed rather than left to the
+/// contents for the same reason: what is in one column must not move the
+/// other's edge.
+struct BottomBar<Content: View>: View {
+    @ViewBuilder var content: () -> Content
+
+    /// Tall enough for the tallest thing any of these bars holds, which is
+    /// the legend's symbols at 27 points.
+    static var height: CGFloat { 28 }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Divider()
+            content()
+                .font(.caption)
+                .padding(.horizontal, 12)
+                // Padding first, then the frame: the other way round the
+                // bar asks for the window's width plus its own margins.
+                // A fixed height, not a minimum: what one column puts in
+                // its bar must not move the other column's edge.
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(height: Self.height)
+                .background(.bar)
+        }
+    }
+}
+
 /// The draft marker, as the rows draw it.
 struct DraftBadge: View {
     var body: some View {
@@ -65,29 +97,16 @@ struct DraftBadge: View {
 
 /// Explains the symbols the list above is using.
 ///
-/// Takes a second line before it drops the wording, and drops the wording
-/// before it drops the symbols. A list showing every state at once needs more
-/// width than a status bar has, and a row of unlabelled symbols is not a
-/// legend; in the narrowest windows the tooltips still answer the question.
+/// Drops the wording before it drops the symbols: one line only, since the
+/// bar it sits in has to keep the same height as the detail pane's beside
+/// it. Where the labels do not fit, the tooltips still answer the question.
 struct LegendBar: View {
     let symbols: [LegendSymbol]
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
             row(symbols, labelled: true)
-            twoLines
             row(symbols, labelled: false)
-        }
-    }
-
-    private var twoLines: some View {
-        // Split evenly rather than by group: the groups here are three and
-        // four entries long, and a 7/3 line break wastes the width it was
-        // asking for.
-        let half = (symbols.count + 1) / 2
-        return VStack(alignment: .leading, spacing: 1) {
-            row(Array(symbols.prefix(half)), labelled: true)
-            row(Array(symbols.dropFirst(half)), labelled: true)
         }
     }
 
