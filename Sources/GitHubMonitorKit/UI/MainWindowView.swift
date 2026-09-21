@@ -371,13 +371,30 @@ private struct GroupedList<Item: Identifiable, Row: View>: View {
         }
     }
 
+    /// A row, with the selection drawn quietly.
+    ///
+    /// The list's own highlight is the emphasised accent fill, which at the
+    /// height of these rows is a slab of blue across the window. The
+    /// background laid over it is the grey AppKit itself uses for a
+    /// selection in a window that is not key: enough to find the row again,
+    /// not enough to read as an alert.
+    private func listRow(_ item: Item) -> some View {
+        row(item)
+            .tag(item.id)
+            .listRowBackground(
+                selection?.wrappedValue == item.id
+                    ? Color(nsColor: .unemphasizedSelectedContentBackgroundColor)
+                    : Color.clear
+            )
+    }
+
     @ViewBuilder
     private var content: some View {
         if let groupKey {
             ForEach(RepositoryGrouping.group(items, by: groupKey)) { group in
                 Section {
                     ForEach(group.items) { item in
-                        row(item).tag(item.id)
+                        listRow(item)
                     }
                 } header: {
                     HStack(spacing: 6) {
@@ -392,7 +409,7 @@ private struct GroupedList<Item: Identifiable, Row: View>: View {
             }
         } else {
             ForEach(items) { item in
-                row(item).tag(item.id)
+                listRow(item)
             }
         }
     }
