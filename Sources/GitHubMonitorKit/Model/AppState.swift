@@ -324,8 +324,13 @@ public final class AppState {
         // Show one preview open, so the expanded layout is exercised too.
         // Written as the real ones are -- a bot's table, a details wrapper,
         // a code fence -- so the Markdown rendering is exercised as well.
-        previews["n1"] = .text(
-            """
+        previews["n1"] = .loaded(
+            CommentPreview(
+                author: CommentAuthor(
+                    login: "mira",
+                    avatarURL: URL(string: "https://avatars.githubusercontent.com/u/1?v=4")
+                ),
+                body: """
             I think the migration for the session table has to run **before** the
             index is added, otherwise the unique constraint fails on existing rows.
 
@@ -347,6 +352,7 @@ public final class AppState {
 
             > Could you check the ordering?
             """
+            )
         )
         expandedNotificationID = "n1"
         loadState = .loaded(.now)

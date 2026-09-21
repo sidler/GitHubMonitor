@@ -33,17 +33,49 @@ public enum NotificationParser {
         )
     }
 
-    /// The comment body behind `latest_comment_url`.
-    public static func commentBody(from data: Data) -> String? {
+    /// The comment behind `latest_comment_url`: who wrote it and what it
+    /// says.
+    ///
+    /// Both come from the same response, which is why the sender is known
+    /// for a notification only once its comment has been read.
+    public static func comment(from data: Data) -> CommentPreview {
         guard let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
-            return nil
+            return .none
         }
+        return CommentPreview(author: author(from: object), body: body(from: object))
+    }
+
+    static func body(from object: [String: Any]) -> String? {
         // Issue and review comments carry "body"; a commit carries "message".
         let body = object["body"] as? String ?? object["message"] as? String
         guard let body, !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return nil
         }
         return body
+    }
+
+    static func author(from object: [String: Any]) -> CommentAuthor? {
+        // A comment names its "user"; a commit names an "author", who is a
+        // git identity and only sometimes a GitHub account.
+        if let user = object["user"] as? [String: Any], let login = user["login"] as? String {
+            return CommentAuthor(
+                login: login,
+                avatarURL: (user["avatarUrl"] as? String ?? user["avatar_url"] as? String)
+                    .flatMap(URL.init(string:))
+            )
+        }
+        if let commit = object["author"] as? [String: Any] {
+            if let login = commit["login"] as? String {
+                return CommentAuthor(
+                    login: login,
+                    avatarURL: (commit["avatar_url"] as? String).flatMap(URL.init(string:))
+                )
+            }
+            if let name = commit["name"] as? String {
+                return CommentAuthor(login: name, avatarURL: nil)
+            }
+        }
+        return nil
     }
 }
 

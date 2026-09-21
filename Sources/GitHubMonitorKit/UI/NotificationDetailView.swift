@@ -25,7 +25,6 @@ struct NotificationDetailView: View {
                 .padding(14)
             }
 
-            Divider()
             footer
         }
     }
@@ -48,8 +47,15 @@ struct NotificationDetailView: View {
             }
 
             HStack(spacing: 6) {
-                Image(systemName: item.symbolName)
-                    .help(item.subjectType)
+                // The sender is only known once the comment has been read,
+                // so the line is written to read sensibly without them.
+                if let author = preview?.preview?.author {
+                    AvatarView(url: author.avatarURL, size: 18)
+                    Text("by \(author.login)")
+                } else {
+                    Image(systemName: item.symbolName)
+                        .help(item.subjectType)
+                }
                 Text(item.repository)
                 Text(RelativeTime.string(for: item.updatedAt))
                     .help(RelativeTime.absolute(item.updatedAt))
@@ -61,27 +67,26 @@ struct NotificationDetailView: View {
     }
 
     private var footer: some View {
-        HStack {
-            if let url = NotificationLink.browserURL(for: item) {
-                Button {
-                    NSWorkspace.shared.open(url)
-                } label: {
-                    Label("Open on GitHub", systemImage: "arrow.up.forward.square")
+        BottomBar {
+            HStack {
+                if let url = NotificationLink.browserURL(for: item) {
+                    Button {
+                        NSWorkspace.shared.open(url)
+                    } label: {
+                        Label("Open on GitHub", systemImage: "arrow.up.forward.square")
+                    }
                 }
-            }
 
-            Spacer()
+                Spacer()
 
-            Button(action: markRead) {
-                Label("Mark as read", systemImage: "envelope.open")
+                Button(action: markRead) {
+                    Label("Mark as read", systemImage: "envelope.open")
+                }
+                // Marking read also clears it from the GitHub web inbox.
+                .help("Marks the thread read on GitHub, not just here")
             }
-            // Marking read also clears it from the GitHub web inbox.
-            .help("Marks the thread read on GitHub, not just here")
+            .buttonStyle(.accessoryBar)
         }
-        .buttonStyle(.accessoryBar)
-        .font(.callout)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
     }
 
     // MARK: - Body
@@ -95,15 +100,17 @@ struct NotificationDetailView: View {
                 Text("Loading message…").foregroundStyle(.secondary)
             }
             .font(.callout)
-        case .text(let body):
-            // The pane has the room the popover did not, so the message is
-            // shown whole rather than clipped to a few lines -- and as
-            // Markdown, which is what it was written as.
-            MarkdownText(source: body)
-        case .empty:
-            Text("This notification has no message body.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
+        case .loaded(let preview):
+            if let body = preview.body {
+                // The pane has the room the popover did not, so the message
+                // is shown whole rather than clipped to a few lines -- and
+                // as Markdown, which is what it was written as.
+                MarkdownText(source: body)
+            } else {
+                Text("This notification has no message body.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
         case .failed(let message):
             Label(message, systemImage: "exclamationmark.triangle")
                 .font(.callout)

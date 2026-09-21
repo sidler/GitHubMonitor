@@ -132,9 +132,9 @@ public struct GitHubService: Sendable {
     }
 
     /// The newest comment on a thread, fetched only when the user opens it.
-    public func commentBody(at url: URL) async throws -> String? {
+    public func comment(at url: URL) async throws -> CommentPreview {
         let (data, _) = try await client.get(url)
-        return NotificationParser.commentBody(from: data)
+        return NotificationParser.comment(from: data)
     }
 
     /// Marks one thread read. This changes state on GitHub, including in the

@@ -42,6 +42,11 @@ struct NotificationRow: View {
                     .lineLimit(isExpanded && inlinePreview ? 3 : (compact ? 1 : 2))
                 HStack(spacing: 8) {
                     Text(item.repository)
+                    // Only once the comment behind the thread has been
+                    // read: the notifications API names no one.
+                    if let author = preview?.preview?.author {
+                        Text("by \(author.login)")
+                    }
                     Text(item.reason.label)
                     Text(RelativeTime.string(for: item.updatedAt))
                 }
@@ -74,15 +79,17 @@ struct NotificationRow: View {
                     ProgressView().controlSize(.small)
                     Text("Loading…").foregroundStyle(.secondary)
                 }
-            case .text(let body):
-                // Comment bodies are Markdown and can be long; the popover is
-                // a preview, not a reader.
-                Text(body)
-                    .lineLimit(compact ? 6 : 12)
-                    .textSelection(.enabled)
-            case .empty:
-                Text("This notification has no message body.")
-                    .foregroundStyle(.secondary)
+            case .loaded(let loaded):
+                if let body = loaded.body {
+                    // Comment bodies are Markdown and can be long; the
+                    // popover is a preview, not a reader.
+                    Text(body)
+                        .lineLimit(compact ? 6 : 12)
+                        .textSelection(.enabled)
+                } else {
+                    Text("This notification has no message body.")
+                        .foregroundStyle(.secondary)
+                }
             case .failed(let message):
                 Label(message, systemImage: "exclamationmark.triangle")
                     .foregroundStyle(.orange)

@@ -198,6 +198,7 @@ public final class RefreshController {
                 // not grow for the life of the process.
                 let live = Set(items.map(\.id))
                 state.previews = state.previews.filter { live.contains($0.key) }
+                prefetchPreviews()
             }
 
             state.loadState = .loaded(.now)
@@ -366,24 +367,68 @@ public final class RefreshController {
     public func loadPreviewIfNeeded(for item: NotificationItem) {
         // Already fetched, or being fetched: nothing more to do.
         guard state.previews[item.id] == nil else { return }
+        guard item.latestCommentAPIURL != nil else {
+            // Nothing to fetch, so nothing to wait for: a review request or
+            // a state change has no comment, and a spinner in its place
+            // would never resolve.
+            state.previews[item.id] = .loaded(.none)
+            return
+        }
+        state.previews[item.id] = .loading
+        Task { [weak self] in await self?.fetchPreview(for: item) }
+    }
 
+    /// Reads the comments behind the notifications just loaded.
+    ///
+    /// The list names the sender, and the notifications API does not: the
+    /// only place a person's name appears is the comment itself. Fetching
+    /// them up front is what lets every row say who wrote it rather than
+    /// only the row that happens to be open.
+    ///
+    /// Once per thread, not once per refresh -- the cache is keyed by
+    /// thread id, so a steady inbox costs nothing. Capped and sequential,
+    /// because an inbox left alone for a week should not turn one refresh
+    /// into a burst of requests.
+    private func prefetchPreviews() {
+        var fetchable: [NotificationItem] = []
+        for item in state.notifications where state.previews[item.id] == nil {
+            guard item.latestCommentAPIURL != nil else {
+                state.previews[item.id] = .loaded(.none)
+                continue
+            }
+            guard fetchable.count < Self.previewPrefetchLimit else { continue }
+            // Claimed before the fetching starts, so a row opened meanwhile
+            // does not ask for the same comment a second time.
+            state.previews[item.id] = .loading
+            fetchable.append(item)
+        }
+
+        guard !fetchable.isEmpty else { return }
+        Task { [weak self] in
+            for item in fetchable { await self?.fetchPreview(for: item) }
+        }
+    }
+
+    static let previewPrefetchLimit = 25
+
+    private func fetchPreview(for item: NotificationItem) async {
         guard let url = item.latestCommentAPIURL else {
-            // Review requests and state changes have no comment to show.
-            state.previews[item.id] = .empty
+            // Review requests and state changes have no comment to show,
+            // and no sender either.
+            state.previews[item.id] = .loaded(.none)
+            return
+        }
+        guard let service else {
+            state.previews[item.id] = .failed(GitHubError.noToken.localizedDescription)
             return
         }
 
-        state.previews[item.id] = .loading
-        Task { [weak self] in
-            guard let self, let service = self.service else { return }
-            do {
-                let body = try await service.commentBody(at: url)
-                self.state.previews[item.id] = body.map(PreviewState.text) ?? .empty
-            } catch let error as GitHubError {
-                self.state.previews[item.id] = .failed(error.localizedDescription)
-            } catch {
-                self.state.previews[item.id] = .failed(error.localizedDescription)
-            }
+        do {
+            state.previews[item.id] = .loaded(try await service.comment(at: url))
+        } catch let error as GitHubError {
+            state.previews[item.id] = .failed(error.localizedDescription)
+        } catch {
+            state.previews[item.id] = .failed(error.localizedDescription)
         }
     }
 

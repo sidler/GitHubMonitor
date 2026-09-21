@@ -70,17 +70,49 @@ struct NotificationParserTests {
 
     @Test("Comment bodies are read from either field")
     func commentBodies() {
-        #expect(NotificationParser.commentBody(from: Data(#"{"body":"hello"}"#.utf8)) == "hello")
+        #expect(NotificationParser.comment(from: Data(#"{"body":"hello"}"#.utf8)).body == "hello")
         // Commit notifications carry "message" instead of "body".
-        #expect(NotificationParser.commentBody(from: Data(#"{"message":"fix: thing"}"#.utf8)) == "fix: thing")
+        #expect(
+            NotificationParser.comment(from: Data(#"{"message":"fix: thing"}"#.utf8)).body
+                == "fix: thing"
+        )
     }
 
     /// An empty body must read as "no preview", not as an empty bubble.
     @Test("Blank comment bodies count as no body")
     func blankBody() {
-        #expect(NotificationParser.commentBody(from: Data(#"{"body":""}"#.utf8)) == nil)
-        #expect(NotificationParser.commentBody(from: Data(#"{"body":"   \n "}"#.utf8)) == nil)
-        #expect(NotificationParser.commentBody(from: Data(#"{}"#.utf8)) == nil)
+        #expect(NotificationParser.comment(from: Data(#"{"body":""}"#.utf8)).body == nil)
+        #expect(NotificationParser.comment(from: Data(#"{"body":"   \n "}"#.utf8)).body == nil)
+        #expect(NotificationParser.comment(from: Data(#"{}"#.utf8)).body == nil)
+    }
+
+    /// The sender is the whole reason the comment is fetched for every row,
+    /// not just the one that is open.
+    @Test("The sender comes out of the comment")
+    func commentAuthor() throws {
+        let data = Data(#"{"body":"hi","user":{"login":"mira","avatar_url":"https://e.com/a.png"}}"#.utf8)
+        let author = try #require(NotificationParser.comment(from: data).author)
+        #expect(author.login == "mira")
+        #expect(author.avatarURL?.absoluteString == "https://e.com/a.png")
+    }
+
+    /// A commit names an author who is a git identity, and only sometimes a
+    /// GitHub account: the name is what there always is.
+    @Test("A commit's author is read from its own field")
+    func commitAuthor() throws {
+        let withAccount = Data(#"{"message":"fix","author":{"login":"dara","avatar_url":"https://e.com/d.png"}}"#.utf8)
+        #expect(NotificationParser.comment(from: withAccount).author?.login == "dara")
+
+        let nameOnly = Data(#"{"message":"fix","author":{"name":"Dana Novak"}}"#.utf8)
+        let author = try #require(NotificationParser.comment(from: nameOnly).author)
+        #expect(author.login == "Dana Novak")
+        #expect(author.avatarURL == nil)
+    }
+
+    @Test("A thread with no comment names nobody, rather than guessing")
+    func noAuthor() {
+        #expect(NotificationParser.comment(from: Data(#"{"body":"hi"}"#.utf8)).author == nil)
+        #expect(NotificationParser.comment(from: Data("not json".utf8)) == .none)
     }
 }
 

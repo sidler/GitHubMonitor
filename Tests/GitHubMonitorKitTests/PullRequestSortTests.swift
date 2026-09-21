@@ -302,7 +302,7 @@ struct NotificationInspectionTests {
     func emptyPreview() {
         let (state, controller) = makeState()
         controller.inspect(state.notifications[0])
-        #expect(state.previews["n1"] == .empty)
+        #expect(state.previews["n1"] == .loaded(.none))
     }
 
     @Test("The keyboard walks the mentions too")
@@ -411,5 +411,66 @@ struct RefreshIntervalTests {
         let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
         defaults.set(5.0, forKey: "refreshInterval")
         #expect(Settings(store: defaults).refreshInterval == Settings.minimumRefreshInterval)
+    }
+}
+
+@MainActor
+@Suite("The sender of a notification")
+struct NotificationSenderTests {
+    private func makeState(comments: Bool = true) -> (AppState, RefreshController) {
+        let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
+        let state = AppState(settings: Settings(store: defaults))
+        state.settings.notificationReasons = [.mention]
+        state.notifications = (1...3).map { index in
+            NotificationItem(
+                id: "n\(index)", title: "t", repository: "octo/platform", avatarURL: nil,
+                reason: .mention, updatedAt: .now, subjectType: "Issue",
+                latestCommentAPIURL: comments
+                    ? URL(string: "https://api.github.com/repos/octo/platform/issues/comments/\(index)")
+                    : nil,
+                subjectAPIURL: nil
+            )
+        }
+        return (state, RefreshController(state: state))
+    }
+
+    /// The API names nobody, so a thread with no comment to read has no
+    /// sender to show -- and must not sit under a spinner for ever.
+    @Test("A thread with no comment resolves at once and names nobody")
+    func noComment() {
+        let (state, controller) = makeState(comments: false)
+        controller.loadPreviewIfNeeded(for: state.notifications[0])
+        #expect(state.previews["n1"] == .loaded(.none))
+        #expect(state.previews["n1"]?.preview?.author == nil)
+    }
+
+    /// Opening a row must not re-fetch a comment the list already has.
+    @Test("A comment is read once per thread")
+    func cached() {
+        let (state, controller) = makeState()
+        let known = PreviewState.loaded(
+            CommentPreview(author: CommentAuthor(login: "mira", avatarURL: nil), body: "hi")
+        )
+        state.previews["n1"] = known
+        controller.loadPreviewIfNeeded(for: state.notifications[0])
+        #expect(state.previews["n1"] == known)
+    }
+
+    @Test("A fetch in flight is claimed, so a second one does not start")
+    func claimed() {
+        let (state, controller) = makeState()
+        controller.loadPreviewIfNeeded(for: state.notifications[0])
+        #expect(state.previews["n1"] == .loading)
+    }
+
+    @Test("The sender travels with the body it came from")
+    func preview() {
+        let preview = CommentPreview(
+            author: CommentAuthor(login: "mira", avatarURL: URL(string: "https://e.com/a.png")),
+            body: "hi"
+        )
+        #expect(PreviewState.loaded(preview).preview?.author?.login == "mira")
+        #expect(PreviewState.loading.preview == nil)
+        #expect(PreviewState.failed("nope").preview == nil)
     }
 }
