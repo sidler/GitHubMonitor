@@ -163,6 +163,43 @@ struct TrendMathTests {
         #expect(bucket.values(includingBots: false) == bucket.people)
     }
 
+    /// The middle alone does not say whether a period was even or whether
+    /// one pull request sat while the rest went straight through.
+    @Test("A period reports both ends as well as the middle")
+    func ends() {
+        let values = TrendMath.values(
+            merged: [
+                timing(firstReview: 600, merged: 1_000),
+                timing(firstReview: 3_600, merged: 5_000),
+                timing(firstReview: 90_000, merged: 100_000),
+            ],
+            opened: 3
+        )
+        #expect(values.firstReview.fastest == 600)
+        #expect(values.firstReview.median == 3_600)
+        #expect(values.firstReview.slowest == 90_000)
+        #expect(values.firstReview.value(for: .slowest) == 90_000)
+    }
+
+    @Test("A single pull request is its own fastest, middle and slowest")
+    func singleSample() {
+        let values = TrendMath.values(merged: [timing(firstReview: 1_200, merged: 2_000)], opened: 1)
+        #expect(values.firstReview.fastest == 1_200)
+        #expect(values.firstReview.median == 1_200)
+        #expect(values.firstReview.slowest == 1_200)
+        #expect(values.firstReview.samples == 1)
+    }
+
+    /// Only the pull requests that reached the stage count towards its
+    /// ends, the same ones the median rests on.
+    @Test("A stage nobody reached has no ends either")
+    func endsOfMissingStage() {
+        let values = TrendMath.values(merged: [timing(merged: 900)], opened: 1)
+        #expect(values.approval.fastest == nil)
+        #expect(values.approval.slowest == nil)
+        #expect(values.merge.fastest == 900)
+    }
+
     @Test("An empty period reports nothing rather than zero")
     func emptyPeriod() {
         let values = TrendMath.values(merged: [], opened: 0)

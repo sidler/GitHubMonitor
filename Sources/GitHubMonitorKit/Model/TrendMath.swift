@@ -128,7 +128,12 @@ public enum TrendMath {
     }
 
     private static func point(_ values: [TimeInterval]) -> TrendPoint {
-        TrendPoint(median: median(values), samples: values.count)
+        TrendPoint(
+            median: median(values),
+            fastest: values.min(),
+            slowest: values.max(),
+            samples: values.count
+        )
     }
 
     // MARK: - Formatting

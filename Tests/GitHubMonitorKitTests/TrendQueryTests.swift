@@ -240,10 +240,10 @@ struct TrendStoreTests {
                     end: Date(timeIntervalSince1970: 1_700_604_800),
                     people: TrendValues(
                         opened: 4, merged: 3,
-                        firstReview: TrendPoint(median: 3_600, samples: 3),
-                        approval: TrendPoint(median: 7_200, samples: 2),
-                        approvalToMerge: TrendPoint(median: 1_800, samples: 2),
-                        merge: TrendPoint(median: 9_000, samples: 3)
+                        firstReview: TrendPoint(median: 3_600, fastest: 600, slowest: 9_000, samples: 3),
+                        approval: TrendPoint(median: 7_200, fastest: 7_200, slowest: 7_200, samples: 2),
+                        approvalToMerge: TrendPoint(median: 1_800, fastest: 60, slowest: 3_600, samples: 2),
+                        merge: TrendPoint(median: 9_000, fastest: 900, slowest: 20_000, samples: 3)
                     ),
                     everyone: .none
                 ),
@@ -260,7 +260,26 @@ struct TrendStoreTests {
         store.save(data())
         let loaded = try #require(store.load(repository: "octo/platform", resolution: .weekly))
         #expect(loaded.buckets.first?.people.firstReview.median == 3_600)
+        #expect(loaded.buckets.first?.people.firstReview.fastest == 600)
+        #expect(loaded.buckets.first?.people.firstReview.slowest == 9_000)
         #expect(loaded.buckets.first?.people.opened == 4)
+    }
+
+    /// A history written before a definition changed would go on being
+    /// drawn as though it had not; the version is what stops that.
+    @Test("A history from an older schema is not read")
+    func schema() throws {
+        let (store, directory) = store()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        store.save(data())
+        let url = store.url(repository: "octo/platform", resolution: .weekly)
+        let raw = try #require(try? Data(contentsOf: url))
+        let aged = String(decoding: raw, as: UTF8.self)
+            .replacingOccurrences(of: "\"schema\":\(TrendData.schema)", with: "\"schema\":1")
+        try aged.data(using: .utf8)?.write(to: url)
+
+        #expect(store.load(repository: "octo/platform", resolution: .weekly) == nil)
     }
 
     /// Weeks and months are different fetches; keeping both means switching

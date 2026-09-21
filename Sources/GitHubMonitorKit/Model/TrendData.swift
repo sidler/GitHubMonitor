@@ -62,22 +62,54 @@ public enum TrendMetric: String, CaseIterable, Codable, Sendable {
     public var isDuration: Bool { self != .volume }
 }
 
-/// One median and the number of pull requests behind it.
+/// What one period's pull requests took: the middle of them, the two ends,
+/// and how many there were.
 ///
-/// The count travels with the value because a median of two says something
+/// The count travels with the values because a median of two says something
 /// very different from a median of forty, and the chart cannot show that on
-/// its own.
+/// its own. The ends travel with it because the middle alone does not say
+/// whether the period was even, or whether one pull request sat for a month
+/// while the rest went through in an hour.
 public struct TrendPoint: Codable, Hashable, Sendable {
     /// Seconds. Nil where no pull request in the period reached this stage,
     /// which is a gap in the line rather than a zero.
     public let median: TimeInterval?
+    public let fastest: TimeInterval?
+    public let slowest: TimeInterval?
     public let samples: Int
 
-    public static let none = TrendPoint(median: nil, samples: 0)
+    public static let none = TrendPoint(median: nil, fastest: nil, slowest: nil, samples: 0)
 
-    public init(median: TimeInterval?, samples: Int) {
+    public init(median: TimeInterval?, fastest: TimeInterval?, slowest: TimeInterval?, samples: Int) {
         self.median = median
+        self.fastest = fastest
+        self.slowest = slowest
         self.samples = samples
+    }
+
+    public func value(for line: TrendLine) -> TimeInterval? {
+        switch line {
+        case .fastest: fastest
+        case .median: median
+        case .slowest: slowest
+        }
+    }
+}
+
+/// The three lines a duration chart draws.
+public enum TrendLine: String, CaseIterable, Sendable {
+    case fastest
+    case median
+    case slowest
+
+    /// Named for what they are, not for the statistic: "slowest" is the
+    /// pull request that took longest, and that is the word for it.
+    public var label: String {
+        switch self {
+        case .fastest: "Fastest"
+        case .median: "Median"
+        case .slowest: "Slowest"
+        }
     }
 }
 
@@ -117,7 +149,7 @@ public struct TrendValues: Codable, Hashable, Sendable {
         case .approval: approval
         case .approvalToMerge: approvalToMerge
         case .merge: merge
-        case .volume: TrendPoint(median: nil, samples: merged)
+        case .volume: TrendPoint(median: nil, fastest: nil, slowest: nil, samples: merged)
         }
     }
 }
@@ -149,6 +181,12 @@ public struct TrendBucket: Codable, Hashable, Sendable, Identifiable {
 
 /// A repository's history, as far as it has been read.
 public struct TrendData: Codable, Hashable, Sendable {
+    /// Raised whenever a stored history stops meaning what it did. A file
+    /// from before is not read, so a definition that changed cannot go on
+    /// being drawn as though it had not.
+    public static let schema = 2
+
+    public let schema: Int
     public let repository: String
     public let resolution: TrendResolution
     /// Oldest first. Grows as the periods come in, so the charts can be
@@ -167,6 +205,7 @@ public struct TrendData: Codable, Hashable, Sendable {
         fetchedAt: Date = .now,
         truncationReason: String? = nil
     ) {
+        self.schema = Self.schema
         self.repository = repository
         self.resolution = resolution
         self.buckets = buckets

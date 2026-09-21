@@ -156,8 +156,12 @@ struct TrendsView: View {
     }
 
     private func body(for metric: TrendMetric, points: [TrendSample], data: TrendData) -> some View {
+        // The unit follows the middle line, not the slowest: one pull
+        // request left for a year would otherwise put every chart in days
+        // and print the median as 0.0.
         let unit = metric.isDuration
-            ? TrendMath.unit(for: points.compactMap(\.value))
+            ? TrendMath.unit(for: points.filter { $0.series == TrendLine.median.label }
+                .compactMap(\.value))
             : nil
 
         return Chart {
@@ -174,16 +178,29 @@ struct TrendsView: View {
                     .foregroundStyle(by: .value("Series", point.series))
                     .interpolationMethod(.monotone)
 
-                    PointMark(
-                        x: .value("Period", point.start),
-                        y: .value(metric.title, scaled(value, unit: unit))
-                    )
-                    .foregroundStyle(by: .value("Series", point.series))
-                    .symbolSize(hover.hovered[metric] == point.start ? 90 : 40)
+                    // Dots on the middle line only: three sets of them
+                    // turn a twelve-point chart into a starfield.
+                    if !metric.isDuration || point.series == TrendLine.median.label {
+                        PointMark(
+                            x: .value("Period", point.start),
+                            y: .value(metric.title, scaled(value, unit: unit))
+                        )
+                        .foregroundStyle(by: .value("Series", point.series))
+                        .symbolSize(hover.hovered[metric] == point.start ? 90 : 40)
+                    }
                 }
             }
         }
-        .chartLegend(metric == .volume ? .visible : .hidden)
+        .chartForegroundStyleScale(
+            domain: Self.series(for: metric),
+            range: Self.series(for: metric).map { Self.colour($0) }
+        )
+        .chartLegend(position: .top, alignment: .leading)
+        // Logarithmic for the durations, because the three lines are three
+        // different orders of magnitude: the slowest pull request of a
+        // week can be a thousand times the median, and on a linear axis it
+        // presses the other two lines flat against the bottom.
+        .chartYScale(type: metric.isDuration ? .symmetricLog : .linear)
         .chartXAxis {
             AxisMarks(values: .automatic(desiredCount: 6)) { value in
                 AxisGridLine()
@@ -195,11 +212,25 @@ struct TrendsView: View {
             }
         }
         .chartYAxis {
-            AxisMarks { value in
-                AxisGridLine()
-                AxisValueLabel {
-                    if let number = value.as(Double.self) {
-                        Text(verbatim: axisNumber(number, unit: unit))
+            if let unit {
+                // The decades, chosen here rather than left to the chart: a
+                // logarithmic axis bunches its automatic ticks together at
+                // the bottom, where they overlap into a smudge.
+                AxisMarks(values: decades(points, unit: unit)) { value in
+                    AxisGridLine()
+                    AxisValueLabel {
+                        if let number = value.as(Double.self) {
+                            Text(verbatim: axisNumber(number, unit: unit))
+                        }
+                    }
+                }
+            } else {
+                AxisMarks { value in
+                    AxisGridLine()
+                    AxisValueLabel {
+                        if let number = value.as(Double.self) {
+                            Text(verbatim: "\(Int(number.rounded()))")
+                        }
                     }
                 }
             }
@@ -248,14 +279,19 @@ struct TrendsView: View {
             }
         }
 
-        return data.buckets.map { bucket in
+        // Three lines: the middle of the period and both ends. The middle
+        // alone does not say whether a period was even or whether one pull
+        // request sat for a month while the rest went through in an hour.
+        return data.buckets.flatMap { bucket -> [TrendSample] in
             let point = bucket.values(includingBots: includeBots).point(for: metric)
-            return TrendSample(
-                start: bucket.start,
-                value: point.median,
-                samples: point.samples,
-                series: metric.title
-            )
+            return TrendLine.allCases.map { line in
+                TrendSample(
+                    start: bucket.start,
+                    value: point.value(for: line),
+                    samples: point.samples,
+                    series: line.label
+                )
+            }
         }
     }
 
@@ -264,9 +300,30 @@ struct TrendsView: View {
         return value / unit.seconds
     }
 
+    /// Powers of ten from one up to the largest value, thinned until they
+    /// fit.
+    ///
+    /// From one rather than from the smallest value: the scale is linear
+    /// below one and logarithmic above, so every decade under it lands on
+    /// the same few pixels and their labels pile up on each other. The
+    /// fastest line still sits where it belongs, just without a tick of its
+    /// own -- which is what "faster than the unit can say" looks like.
+    private func decades(_ points: [TrendSample], unit: TrendMath.DurationUnit) -> [Double] {
+        let largest = points.compactMap(\.value).map { scaled($0, unit: unit) }.max() ?? 0
+        guard largest >= 1 else { return [] }
+
+        let upper = Int(ceil(log10(largest)))
+        var step = 1
+        while upper / step > 4 { step += 1 }
+        return stride(from: 0, through: upper, by: step).map { pow(10, Double($0)) }
+    }
+
+    /// Enough decimals to tell one decade from the next, and none beyond.
     private func axisNumber(_ value: Double, unit: TrendMath.DurationUnit?) -> String {
         guard unit != nil else { return "\(Int(value.rounded()))" }
-        return value < 10 ? String(format: "%.1f", value) : "\(Int(value.rounded()))"
+        if value >= 1 { return "\(Int(value.rounded()))" }
+        let decimals = max(1, Int(ceil(-log10(value))))
+        return String(format: "%.\(decimals)f", value)
     }
 
     private func axisLabel(_ date: Date, resolution: TrendResolution) -> String {
@@ -331,7 +388,9 @@ struct TrendsView: View {
                         : "\(point.series): \(Int(value))")
                         .font(.caption2.monospacedDigit())
                         .foregroundStyle(.secondary)
-                } else {
+                } else if point.series == TrendLine.median.label || !metric.isDuration {
+                    // One "no data" is the answer for the whole period;
+                    // three of them just repeat it.
                     Text("\(point.series): no data")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
@@ -351,6 +410,24 @@ struct TrendsView: View {
         .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.quaternary, lineWidth: 1))
         .padding(8)
         .allowsHitTesting(false)
+    }
+
+    /// The lines one chart draws, in the order the legend lists them.
+    static func series(for metric: TrendMetric) -> [String] {
+        metric.isDuration
+            ? [TrendLine.median.label, TrendLine.fastest.label, TrendLine.slowest.label]
+            : ["Opened", "Merged"]
+    }
+
+    /// Fixed rather than left to the chart: the same line must be the same
+    /// colour in all four duration charts, and "slowest" reads as the worst
+    /// of the three.
+    static func colour(_ series: String) -> Color {
+        switch series {
+        case TrendLine.fastest.label, "Merged": .green
+        case TrendLine.slowest.label: .orange
+        default: .accentColor
+        }
     }
 
     private func periodLabel(_ start: Date, resolution: TrendResolution) -> String {

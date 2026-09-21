@@ -48,7 +48,11 @@ public struct TrendStore: Sendable {
         // A file written for another repository or resolution would draw
         // the wrong chart silently; the name says which it is, but the
         // contents are what it is judged by.
-        guard stored.repository == repository, stored.resolution == resolution else { return nil }
+        guard
+            stored.schema == TrendData.schema,
+            stored.repository == repository,
+            stored.resolution == resolution
+        else { return nil }
         return stored
     }
 
