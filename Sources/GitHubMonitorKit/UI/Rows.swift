@@ -71,7 +71,10 @@ struct PullRequestRow: View {
                     }
                 }
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                // Concrete rather than .secondary: inside a selected row
+                // SwiftUI resolves hierarchical styles against the
+                // selection, and the line came out white.
+                .foregroundStyle(Color(nsColor: .secondaryLabelColor))
                 // Truncate instead of wrapping: in a narrow column a wrapping
                 // meta line turns into a stack of fragments like "arte-
                 // meon/" that reads far worse than an ellipsis.
@@ -117,7 +120,7 @@ struct PullRequestRow: View {
             .help("Open on GitHub")
         }
         .buttonStyle(.accessoryBar)
-        .foregroundStyle(isInspected ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+        .foregroundStyle(isInspected ? Color.accentColor : Color(nsColor: .secondaryLabelColor))
         .padding(.top, 1)
     }
 }

@@ -31,7 +31,7 @@ struct NotificationRow: View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: item.symbolName)
                 .font(compact ? .body : .title3)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color(nsColor: .secondaryLabelColor))
                 .frame(width: compact ? 22 : 26)
                 .padding(.top, 1)
                 .help(item.subjectType)
@@ -46,16 +46,22 @@ struct NotificationRow: View {
                     Text(RelativeTime.string(for: item.updatedAt))
                 }
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color(nsColor: .secondaryLabelColor))
             }
 
             Spacer(minLength: 4)
 
-            Image(systemName: "chevron.right")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                .padding(.top, 3)
+            // Only where it means something: in the popover the row opens
+            // into itself, so the caret says which way. In the window the
+            // message goes to the detail pane and the selection already
+            // says which row is showing.
+            if inlinePreview {
+                Image(systemName: "chevron.right")
+                    .font(.caption2)
+                    .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    .padding(.top, 3)
+            }
         }
     }
 

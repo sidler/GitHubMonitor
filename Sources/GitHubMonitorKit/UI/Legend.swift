@@ -5,12 +5,16 @@ import SwiftUI
 /// Here rather than inside the row so the legend can use the same ones: a
 /// legend printed in different colours from the list it explains is worse
 /// than none.
+///
+/// Concrete colours throughout, including where `.secondary` would read
+/// better: inside a selected row SwiftUI resolves hierarchical styles
+/// against the selection, and the symbols came out white.
 extension ReviewDecision {
     var tint: Color {
         switch self {
         case .approved: .green
         case .changesRequested: .orange
-        case .reviewRequired, .none: .secondary
+        case .reviewRequired, .none: Color(nsColor: .secondaryLabelColor)
         }
     }
 }
@@ -21,7 +25,7 @@ extension ChecksStatus {
         case .success: .green
         case .failure: .red
         case .pending: .yellow
-        case .none: .secondary
+        case .none: Color(nsColor: .secondaryLabelColor)
         }
     }
 }
@@ -32,7 +36,7 @@ extension ReviewTallyKind {
         case .accepted: .green
         case .declined: .orange
         // The others report a verdict; this one reports an absence.
-        case .pending: .secondary
+        case .pending: Color(nsColor: .secondaryLabelColor)
         }
     }
 }
@@ -43,7 +47,7 @@ extension LegendSymbol {
         case .review(let decision): decision.tint
         case .checks(let status): status.tint
         case .reviewers(let kind): kind.tint
-        case .draft: .secondary
+        case .draft: Color(nsColor: .secondaryLabelColor)
         }
     }
 }
@@ -55,7 +59,7 @@ struct DraftBadge: View {
             .font(.system(size: 9, weight: .bold))
             .padding(.horizontal, 4)
             .padding(.vertical, 1)
-            .background(.quaternary, in: RoundedRectangle(cornerRadius: 3))
+            .background(Color(nsColor: .quaternaryLabelColor), in: RoundedRectangle(cornerRadius: 3))
     }
 }
 

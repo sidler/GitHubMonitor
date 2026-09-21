@@ -383,7 +383,10 @@ private struct GroupedList<Item: Identifiable, Row: View>: View {
     /// painted over rather than turned off, since a `List` offers no way to
     /// ask for the unemphasised look:
     ///
-    /// - an opaque layer the width of the row hides the accent fill,
+    /// - an opaque layer under *every* row hides the accent fill. Only
+    ///   under the selected one is not enough: a click paints the row
+    ///   before the binding it is about to set comes back, so the row
+    ///   flashed blue under the pointer,
     /// - an inset rounded rectangle in AppKit's own unemphasised selection
     ///   grey marks the row without reaching the window's edges,
     /// - and the text is pinned to the label colours, because inside a
@@ -395,18 +398,15 @@ private struct GroupedList<Item: Identifiable, Row: View>: View {
             .listRowBackground(background(selected: selection?.wrappedValue == item.id))
     }
 
-    @ViewBuilder
     private func background(selected: Bool) -> some View {
-        if selected {
-            ZStack {
-                Color(nsColor: .textBackgroundColor)
+        ZStack {
+            Color(nsColor: .textBackgroundColor)
+            if selected {
                 RoundedRectangle(cornerRadius: 6)
                     .fill(Color(nsColor: .unemphasizedSelectedContentBackgroundColor))
                     .padding(.horizontal, 6)
                     .padding(.vertical, 1)
             }
-        } else {
-            Color.clear
         }
     }
 

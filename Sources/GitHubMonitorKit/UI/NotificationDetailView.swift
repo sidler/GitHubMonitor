@@ -97,11 +97,9 @@ struct NotificationDetailView: View {
             .font(.callout)
         case .text(let body):
             // The pane has the room the popover did not, so the message is
-            // shown whole rather than clipped to a few lines.
-            Text(body)
-                .font(.callout)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            // shown whole rather than clipped to a few lines -- and as
+            // Markdown, which is what it was written as.
+            MarkdownText(source: body)
         case .empty:
             Text("This notification has no message body.")
                 .font(.callout)

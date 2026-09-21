@@ -322,11 +322,30 @@ public final class AppState {
             ),
         ]
         // Show one preview open, so the expanded layout is exercised too.
+        // Written as the real ones are -- a bot's table, a details wrapper,
+        // a code fence -- so the Markdown rendering is exercised as well.
         previews["n1"] = .text(
             """
-            I think the migration for the session table has to run before the \
-            index is added, otherwise the unique constraint fails on existing \
-            rows. Could you check the ordering?
+            I think the migration for the session table has to run **before** the
+            index is added, otherwise the unique constraint fails on existing rows.
+
+            | Step | Migration | Note |
+            |---|---|---|
+            | 1 | `Migration20260901120000` | adds the column |
+            | 2 | `Migration20260901123000` | backfills it |
+
+            ---
+
+            ### What I ran
+
+            ```sh
+            bin/console migration:run --dry-run
+            ```
+
+            - the dry run is clean
+            - the index still fails on row 4711
+
+            > Could you check the ordering?
             """
         )
         expandedNotificationID = "n1"
