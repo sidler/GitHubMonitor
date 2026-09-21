@@ -25,4 +25,17 @@ public enum RelativeTime {
         }
         return formatter.localizedString(for: date, relativeTo: reference)
     }
+
+    /// The same locale rule, for tooltips: "3d ago" is enough to scan a list
+    /// by, but not enough to tell two rows of the same day apart.
+    static let absoluteFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US")
+        formatter.dateFormat = "d MMM yyyy, HH:mm"
+        return formatter
+    }()
+
+    public static func absolute(_ date: Date) -> String {
+        absoluteFormatter.string(from: date)
+    }
 }

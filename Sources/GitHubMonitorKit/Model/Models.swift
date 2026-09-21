@@ -12,6 +12,8 @@ public struct PullRequestItem: Identifiable, Hashable, Sendable {
     public let authorAvatarURL: URL?
     public let url: URL
     public let isDraft: Bool
+    /// When the pull request was opened, and when it last saw activity.
+    public let createdAt: Date
     public let updatedAt: Date
     public let reviewDecision: ReviewDecision
     public let checks: ChecksStatus
@@ -27,6 +29,7 @@ public struct PullRequestItem: Identifiable, Hashable, Sendable {
         authorAvatarURL: URL?,
         url: URL,
         isDraft: Bool,
+        createdAt: Date? = nil,
         updatedAt: Date,
         reviewDecision: ReviewDecision,
         checks: ChecksStatus,
@@ -40,10 +43,54 @@ public struct PullRequestItem: Identifiable, Hashable, Sendable {
         self.authorAvatarURL = authorAvatarURL
         self.url = url
         self.isDraft = isDraft
+        // Older payloads and callers that only care about activity leave it
+        // out; falling back keeps a row sortable either way.
+        self.createdAt = createdAt ?? updatedAt
         self.updatedAt = updatedAt
         self.reviewDecision = reviewDecision
         self.checks = checks
         self.reviews = reviews
+    }
+
+    /// The timestamp the list is ordered on.
+    public func date(for sort: PullRequestSort) -> Date {
+        switch sort {
+        case .updated: updatedAt
+        case .created: createdAt
+        }
+    }
+}
+
+/// What a pull request list is ordered by. Newest first either way: a review
+/// queue is read from the top, and the oldest entry is never the one being
+/// looked for.
+public enum PullRequestSort: String, CaseIterable, Codable, Sendable {
+    /// Last activity -- a comment, a push, a review.
+    case updated
+    /// When the pull request was opened.
+    case created
+
+    public var label: String {
+        switch self {
+        case .updated: "Last updated"
+        case .created: "Date opened"
+        }
+    }
+
+    /// Prefix for the timestamp in a row, so the column being sorted on says
+    /// which date it is showing.
+    public var rowPrefix: String {
+        switch self {
+        case .updated: "updated"
+        case .created: "opened"
+        }
+    }
+
+    public var symbolName: String {
+        switch self {
+        case .updated: "clock.arrow.circlepath"
+        case .created: "calendar"
+        }
     }
 }
 

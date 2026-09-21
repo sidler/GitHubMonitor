@@ -37,6 +37,7 @@ public enum PullRequestQuery {
                 number
                 title
                 isDraft
+                createdAt
                 updatedAt
                 url
                 reviewDecision
@@ -145,6 +146,7 @@ public enum PullRequestQuery {
               number
               title
               isDraft
+              createdAt
               updatedAt
               url
               reviewDecision

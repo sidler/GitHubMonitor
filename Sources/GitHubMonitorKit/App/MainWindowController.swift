@@ -244,6 +244,12 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     private func syncInspector() {
         guard let split = splitViewController else { return }
 
+        // The list is bound straight to the selection, so the arrow keys can
+        // move it without anything having asked for the payload yet.
+        if let id = state.inspectedPullRequestID {
+            controller.loadDetailIfNeeded(for: id)
+        }
+
         guard state.inspectedPullRequest != nil else {
             if let inspectorItem {
                 split.removeSplitViewItem(inspectorItem)

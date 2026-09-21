@@ -28,6 +28,20 @@ struct PullRequestParserTests {
         return node
     }
 
+    /// The list can be ordered by either date, so both have to survive the
+    /// trip out of the payload.
+    @Test("Both timestamps are read")
+    func timestamps() throws {
+        var raw = node(id: "a", updated: "2026-09-19T10:00:00Z")
+        raw["createdAt"] = "2026-09-01T08:30:00Z"
+        let items = PullRequestParser.pullRequests(from: ["r0": ["nodes": [raw]]], group: .reviewRequested)
+        let item = try #require(items.first)
+        #expect(item.createdAt == GitHubDate.date(from: "2026-09-01T08:30:00Z"))
+        #expect(item.updatedAt == GitHubDate.date(from: "2026-09-19T10:00:00Z"))
+        #expect(item.date(for: .created) == item.createdAt)
+        #expect(item.date(for: .updated) == item.updatedAt)
+    }
+
     @Test("Fields are mapped across")
     func mapping() throws {
         let items = PullRequestParser.pullRequests(from: ["r0": ["nodes": [node(id: "a")]]], group: .reviewRequested)

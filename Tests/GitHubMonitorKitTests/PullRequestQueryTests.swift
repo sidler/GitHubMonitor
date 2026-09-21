@@ -88,6 +88,13 @@ struct PullRequestQueryTests {
         #expect(!document.contains("requestedReviewer"))
     }
 
+    @Test("Both dates are asked for, so either can order the list")
+    func timestampFields() {
+        let document = PullRequestQuery.document(reviewRequested: ["q"], authored: [])
+        #expect(document.contains("createdAt"))
+        #expect(document.contains("updatedAt"))
+    }
+
     @Test("Quotes in a query are escaped")
     func escaping() {
         let document = PullRequestQuery.document(reviewRequested: ["repo:a/b \"quoted\""], authored: [])

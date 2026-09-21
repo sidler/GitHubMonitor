@@ -131,10 +131,13 @@ struct ContentColumn: View {
         return GroupedList(
             items: items,
             grouping: state.settings.listGrouping,
-            repository: \.repository
+            repository: \.repository,
+            selection: $state.inspectedPullRequestID
         ) { item in
             pullRequestRow(item)
         }
+        // Escape puts the detail pane away, as it does everywhere else.
+        .onExitCommand { controller.closeInspector() }
         .overlay {
             if items.isEmpty {
                 ContentUnavailableView(
@@ -156,10 +159,12 @@ struct ContentColumn: View {
         return GroupedList(
             items: items,
             grouping: state.settings.listGrouping,
-            repository: \.repository
+            repository: \.repository,
+            selection: $state.inspectedPullRequestID
         ) { item in
             pullRequestRow(item)
         }
+        .onExitCommand { controller.closeInspector() }
         .overlay {
             if items.isEmpty {
                 ContentUnavailableView(
@@ -210,6 +215,7 @@ struct ContentColumn: View {
     private func pullRequestRow(_ item: PullRequestItem) -> some View {
         PullRequestRow(
             item: item,
+            sort: state.settings.pullRequestSort,
             inspect: { controller.inspect(item) },
             isInspected: state.inspectedPullRequestID == item.id
         )
@@ -305,6 +311,7 @@ struct ToolbarControls: View {
                     keyPath: \.listGrouping,
                     options: ListGrouping.forPullRequests
                 )
+                SortPicker(settings: state.settings)
                 if state.selectedDraftCount > 0 {
                     DraftToggleControl(settings: state.settings, draftCount: state.selectedDraftCount)
                 }
@@ -342,6 +349,10 @@ private struct GroupedList<Item: Identifiable, Row: View>: View {
     let repository: (Item) -> String
     /// Nil for lists where grouping by type is meaningless.
     var type: ((Item) -> String)?
+    /// Nil for lists that are read rather than navigated. Where it is bound,
+    /// the list gets the arrow keys for free -- that is what moves the detail
+    /// pane from the keyboard.
+    var selection: Binding<Item.ID?>?
     @ViewBuilder var row: (Item) -> Row
 
     private var groupKey: ((Item) -> String)? {
@@ -353,24 +364,35 @@ private struct GroupedList<Item: Identifiable, Row: View>: View {
     }
 
     var body: some View {
-        List {
-            if let groupKey {
-                ForEach(RepositoryGrouping.group(items, by: groupKey)) { group in
-                    Section {
-                        ForEach(group.items) { row($0) }
-                    } header: {
-                        HStack(spacing: 6) {
-                            Text(group.repository)
-                            Text(verbatim: "\(group.items.count)")
-                                .font(.caption.monospacedDigit())
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 1)
-                                .background(.quaternary, in: Capsule())
-                        }
+        if let selection {
+            List(selection: selection) { content }
+        } else {
+            List { content }
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if let groupKey {
+            ForEach(RepositoryGrouping.group(items, by: groupKey)) { group in
+                Section {
+                    ForEach(group.items) { item in
+                        row(item).tag(item.id)
+                    }
+                } header: {
+                    HStack(spacing: 6) {
+                        Text(group.repository)
+                        Text(verbatim: "\(group.items.count)")
+                            .font(.caption.monospacedDigit())
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(.quaternary, in: Capsule())
                     }
                 }
-            } else {
-                ForEach(items) { row($0) }
+            }
+        } else {
+            ForEach(items) { item in
+                row(item).tag(item.id)
             }
         }
     }
@@ -393,6 +415,36 @@ private struct GroupingPicker: View {
         .pickerStyle(.segmented)
         .labelsHidden()
         .fixedSize()
+    }
+}
+
+/// What the list is ordered by.
+///
+/// A menu rather than another segmented control: the toolbar already carries
+/// two, and the chosen order reads better as a sentence than as a pressed
+/// segment.
+private struct SortPicker: View {
+    @Bindable var settings: Settings
+
+    var body: some View {
+        Menu {
+            // An inline picker inside the menu, so the chosen order carries a
+            // checkmark instead of having to be read off the button.
+            Picker("Sort by", selection: $settings.pullRequestSort) {
+                ForEach(PullRequestSort.allCases, id: \.self) { sort in
+                    Label(sort.label, systemImage: sort.symbolName).tag(sort)
+                }
+            }
+            .pickerStyle(.inline)
+        } label: {
+            Label(settings.pullRequestSort.label, systemImage: "arrow.up.arrow.down")
+                // The button has to say which order is in force; a bare icon
+                // would make the setting invisible until the menu is opened.
+                .labelStyle(.titleAndIcon)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("Order the list by when pull requests were opened or last updated")
     }
 }
 

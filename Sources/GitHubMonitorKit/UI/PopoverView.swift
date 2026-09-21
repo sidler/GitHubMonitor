@@ -66,7 +66,7 @@ struct PopoverView: View {
                     ? "Nothing but drafts."
                     : "Nothing waiting for your review."
             ) { item in
-                PullRequestRow(item: item, compact: true)
+                PullRequestRow(item: item, sort: state.settings.pullRequestSort, compact: true)
             }
 
             if items.count > Self.previewLimit {

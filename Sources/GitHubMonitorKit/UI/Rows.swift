@@ -2,6 +2,8 @@ import SwiftUI
 
 struct PullRequestRow: View {
     let item: PullRequestItem
+    /// Which date the row prints, so the list shows the one it is ordered on.
+    var sort: PullRequestSort = .updated
     var compact: Bool = false
     /// Nil in the popover, where there is no detail pane to open.
     var inspect: (() -> Void)?
@@ -23,7 +25,13 @@ struct PullRequestRow: View {
                     // 35442 as "35.442" on a German system.
                     Text(verbatim: "\(item.repository) #\(item.number)")
                     Text("by \(item.author)")
-                    Text(RelativeTime.string(for: item.updatedAt))
+                    Text(timestamp)
+                        .help(
+                            """
+                            Opened \(RelativeTime.absolute(item.createdAt)) · \
+                            updated \(RelativeTime.absolute(item.updatedAt))
+                            """
+                        )
 
                     // A step larger than the caption text around them: at
                     // caption size the review and check results are the first
@@ -78,15 +86,20 @@ struct PullRequestRow: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
-        // A single click opens the detail pane; the browser is one deliberate
-        // step further, since it leaves the app.
-        .onTapGesture {
-            if let inspect {
-                inspect()
-            } else {
-                NSWorkspace.shared.open(item.url)
-            }
-        }
+        // Only in the popover. In the window the row belongs to a list whose
+        // selection opens the detail pane, and a tap gesture there swallows
+        // the click the list needs to change that selection -- which would
+        // take the keyboard's place in the list away with it.
+        .modifier(OpenOnTap(url: item.url, enabled: inspect == nil))
+    }
+
+    /// The date the list is sorted on.
+    ///
+    /// Named only when it is not the usual one: "updated" is what this column
+    /// has always meant, and a word repeated down every row earns nothing.
+    private var timestamp: String {
+        let relative = RelativeTime.string(for: item.date(for: sort))
+        return sort == .updated ? relative : "\(sort.rowPrefix) \(relative)"
     }
 
     private func actions(inspect: @escaping () -> Void) -> some View {
@@ -109,3 +122,20 @@ struct PullRequestRow: View {
     }
 }
 
+
+/// Opens a pull request in the browser when the row is tapped.
+///
+/// A modifier because the gesture has to be absent, not merely inert, where
+/// a `List` is handling clicks itself.
+private struct OpenOnTap: ViewModifier {
+    let url: URL
+    let enabled: Bool
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content.onTapGesture { NSWorkspace.shared.open(url) }
+        } else {
+            content
+        }
+    }
+}

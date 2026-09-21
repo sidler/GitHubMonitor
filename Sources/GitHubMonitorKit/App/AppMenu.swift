@@ -11,14 +11,16 @@ enum AppMenu {
     static func build(
         appName: String,
         openSettings: @escaping () -> Void,
-        refresh: @escaping () -> Void
+        refresh: @escaping () -> Void,
+        moveDetail: @escaping (Int) -> Void,
+        closeDetail: @escaping () -> Void
     ) -> NSMenu {
         let main = NSMenu()
 
         main.addItem(applicationMenu(appName: appName, openSettings: openSettings))
         main.addItem(fileMenu())
         main.addItem(editMenu())
-        main.addItem(viewMenu(refresh: refresh))
+        main.addItem(viewMenu(refresh: refresh, moveDetail: moveDetail, closeDetail: closeDetail))
         main.addItem(windowMenu())
 
         return main
@@ -117,10 +119,38 @@ enum AppMenu {
         return item
     }
 
-    private static func viewMenu(refresh: @escaping () -> Void) -> NSMenuItem {
+    private static func viewMenu(
+        refresh: @escaping () -> Void,
+        moveDetail: @escaping (Int) -> Void,
+        closeDetail: @escaping () -> Void
+    ) -> NSMenuItem {
         let item = NSMenuItem()
         let menu = NSMenu(title: "View")
         menu.addItem(ActionItem(title: "Refresh", keyEquivalent: "r", action: refresh))
+        menu.addItem(.separator())
+
+        // The list moves the detail pane with the plain arrow keys while it
+        // has focus. These do the same from anywhere in the window, and are
+        // where someone looks to find out that it can be done at all.
+        let next = ActionItem(
+            title: "Next Pull Request",
+            keyEquivalent: String(UnicodeScalar(NSDownArrowFunctionKey)!),
+            action: { moveDetail(1) }
+        )
+        next.keyEquivalentModifierMask = [.command, .option]
+        menu.addItem(next)
+
+        let previous = ActionItem(
+            title: "Previous Pull Request",
+            keyEquivalent: String(UnicodeScalar(NSUpArrowFunctionKey)!),
+            action: { moveDetail(-1) }
+        )
+        previous.keyEquivalentModifierMask = [.command, .option]
+        menu.addItem(previous)
+
+        let close = ActionItem(title: "Close Details", keyEquivalent: "i", action: closeDetail)
+        close.keyEquivalentModifierMask = [.command, .option]
+        menu.addItem(close)
         menu.addItem(.separator())
         menu.addItem(
             withTitle: "Toggle Sidebar",

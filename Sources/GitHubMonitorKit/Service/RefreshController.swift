@@ -249,7 +249,33 @@ public final class RefreshController {
     /// first time.
     public func inspect(_ item: PullRequestItem) {
         state.inspectedPullRequestID = item.id
-        loadDetail(for: item.id)
+        loadDetailIfNeeded(for: item.id)
+    }
+
+    /// Moves the detail pane one row up or down the list on screen.
+    ///
+    /// Behind the menu items, and behind them the keyboard: a list bound to
+    /// the same selection already moves with the arrow keys, but only while
+    /// it has focus, and the pane should be reachable from anywhere in the
+    /// window.
+    public func moveInspection(by offset: Int) {
+        let items = state.inspectableItems
+        guard !items.isEmpty else { return }
+
+        guard
+            let current = state.inspectedPullRequestID,
+            let index = items.firstIndex(where: { $0.id == current })
+        else {
+            // Nothing open yet: start at the end the user is heading for.
+            inspect(offset < 0 ? items[items.count - 1] : items[0])
+            return
+        }
+
+        // Stops at the ends rather than wrapping: a list that jumps from the
+        // last row back to the first loses the reader's place.
+        let next = index + offset
+        guard items.indices.contains(next) else { return }
+        inspect(items[next])
     }
 
     public func closeInspector() {
@@ -259,10 +285,15 @@ public final class RefreshController {
     /// Refetches even when a detail is cached, for the pane's reload button.
     public func reloadDetail(for id: String) {
         state.pullRequestDetails[id] = nil
-        loadDetail(for: id)
+        loadDetailIfNeeded(for: id)
     }
 
-    private func loadDetail(for id: String) {
+    /// Fetches a pull request's detail unless it is already there.
+    ///
+    /// Public because the selection can move without going through
+    /// `inspect`: the list is bound straight to it, so the arrow keys change
+    /// the id and the window controller asks for the payload afterwards.
+    public func loadDetailIfNeeded(for id: String) {
         // Already fetched or in flight.
         guard state.pullRequestDetails[id] == nil else { return }
         guard let service else {

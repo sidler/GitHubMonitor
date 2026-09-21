@@ -57,10 +57,12 @@ struct AppStateSelectionTests {
         // An isolated defaults suite, so tests never touch the real settings.
         let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
         let state = AppState(settings: Settings(store: defaults))
+        // Explicit timestamps, newest first: the lists are sorted, so an
+        // expectation on their order has to say what the order is.
         state.pullRequests = [
-            pullRequest(id: "1", repository: "octo/platform"),
-            pullRequest(id: "2", repository: "octo/platform"),
-            pullRequest(id: "3", repository: "octo/octo.de"),
+            pullRequest(id: "1", repository: "octo/platform", minutesAgo: 1),
+            pullRequest(id: "2", repository: "octo/platform", minutesAgo: 2),
+            pullRequest(id: "3", repository: "octo/octo.de", minutesAgo: 3),
         ]
         state.notifications = [
             notification(id: "n1", repository: "octo/platform"),
@@ -68,11 +70,12 @@ struct AppStateSelectionTests {
         return state
     }
 
-    private func pullRequest(id: String, repository: String) -> PullRequestItem {
+    private func pullRequest(id: String, repository: String, minutesAgo: Int = 0) -> PullRequestItem {
         PullRequestItem(
             id: id, number: 1, title: "t", repository: repository, author: "a",
             authorAvatarURL: nil, url: URL(string: "https://github.com")!, isDraft: false,
-            updatedAt: .now, reviewDecision: .none, checks: .none
+            updatedAt: .now.addingTimeInterval(TimeInterval(-60 * minutesAgo)),
+            reviewDecision: .none, checks: .none
         )
     }
 

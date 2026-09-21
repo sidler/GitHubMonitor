@@ -84,11 +84,28 @@ public final class AppState {
     /// Pull requests after every filter -- what the list shows and what the
     /// menu bar counts. Both read this so they cannot drift apart.
     public var visiblePullRequests: [PullRequestItem] {
-        PullRequestFilter.apply(
+        sorted(PullRequestFilter.apply(
             pullRequests,
             includeDrafts: settings.includeDrafts,
             repositoryFilters: settings.repositoryFilters
-        )
+        ))
+    }
+
+    /// Newest first, on whichever date the user picked.
+    ///
+    /// Sorted here rather than in the parser so switching the order is
+    /// instant: the data is already in hand, and a refetch to reverse a list
+    /// would spend a request on something arithmetic.
+    private func sorted(_ items: [PullRequestItem]) -> [PullRequestItem] {
+        let sort = settings.pullRequestSort
+        return items.sorted { lhs, rhs in
+            let left = lhs.date(for: sort)
+            let right = rhs.date(for: sort)
+            // Timestamps do collide -- a batch opened by a bot shares a
+            // second. Falling back to the id keeps rows from swapping places
+            // on every refresh.
+            return left == right ? lhs.id > rhs.id : left > right
+        }
     }
 
     /// Notifications after every filter -- what the list shows and what the
@@ -103,11 +120,11 @@ public final class AppState {
 
     /// The user's own pull requests, after the same filters.
     public var visibleAuthoredPullRequests: [PullRequestItem] {
-        PullRequestFilter.apply(
+        sorted(PullRequestFilter.apply(
             authoredPullRequests,
             includeDrafts: settings.includeDrafts,
             repositoryFilters: settings.repositoryFilters
-        )
+        ))
     }
 
     public var selectedAuthoredPullRequests: [PullRequestItem] {
@@ -152,6 +169,24 @@ public final class AppState {
     /// The list currently shown, narrowed to the selected repository.
     public var selectedPullRequests: [PullRequestItem] {
         narrow(visiblePullRequests, to: sidebarSelection.repository, by: \.repository)
+    }
+
+    /// The rows the detail pane can move between: whichever pull request
+    /// list is on screen, in the order it is showing them.
+    ///
+    /// Grouped lists are flattened in the order their sections appear. The
+    /// list's own arrow keys walk what is drawn, and a menu item that walked
+    /// a different order would send the pane somewhere else on screen.
+    public var inspectableItems: [PullRequestItem] {
+        let items: [PullRequestItem] =
+            switch sidebarSelection {
+            case .pullRequests: selectedPullRequests
+            case .myPullRequests: selectedAuthoredPullRequests
+            case .mentions, .dashboard, .settings: []
+            }
+
+        guard settings.listGrouping == .byRepository else { return items }
+        return RepositoryGrouping.group(items, by: \.repository).flatMap(\.items)
     }
 
     public var selectedNotifications: [NotificationItem] {

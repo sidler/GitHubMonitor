@@ -44,7 +44,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.mainMenu = AppMenu.build(
             appName: "GitHub Monitor",
             openSettings: { windowController.show(selecting: .settings) },
-            refresh: { Task { await refresh.refresh() } }
+            refresh: { Task { await refresh.refresh() } },
+            moveDetail: { refresh.moveInspection(by: $0) },
+            closeDetail: { refresh.closeInspector() }
         )
 
         // Sample data is opt-in now that real requests work, so the UI can

@@ -64,6 +64,12 @@ public final class Settings {
         didSet { store.set(listGrouping.rawValue, forKey: Key.listGrouping) }
     }
 
+    /// What the pull request lists are ordered by. Shared by both of them:
+    /// they answer the same question about different pull requests.
+    public var pullRequestSort: PullRequestSort {
+        didSet { store.set(pullRequestSort.rawValue, forKey: Key.pullRequestSort) }
+    }
+
     /// Kept separate from the pull request grouping: the lists offer
     /// different options, and choosing "by type" for notifications should not
     /// silently reset how pull requests are shown.
@@ -95,6 +101,8 @@ public final class Settings {
             (store.string(forKey: Key.listGrouping).flatMap(ListGrouping.init(rawValue:))) ?? .flat
         notificationGrouping =
             (store.string(forKey: Key.notificationGrouping).flatMap(ListGrouping.init(rawValue:))) ?? .flat
+        pullRequestSort =
+            (store.string(forKey: Key.pullRequestSort).flatMap(PullRequestSort.init(rawValue:))) ?? .updated
     }
 
     private enum Key {
@@ -109,5 +117,6 @@ public final class Settings {
         static let launchAtLogin = "launchAtLogin"
         static let listGrouping = "listGrouping"
         static let notificationGrouping = "notificationGrouping"
+        static let pullRequestSort = "pullRequestSort"
     }
 }
