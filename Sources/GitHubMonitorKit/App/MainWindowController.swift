@@ -39,6 +39,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         switch tab {
         case .pullRequests: state.sidebarSelection = .pullRequests(repository: nil)
         case .myPullRequests: state.sidebarSelection = .myPullRequests(repository: nil)
+        case .myIssues: state.sidebarSelection = .myIssues(repository: nil)
         case .mentions: state.sidebarSelection = .mentions(repository: nil)
         case .dashboard: state.sidebarSelection = .dashboard
         case .trends: state.sidebarSelection = .trends
@@ -231,11 +232,14 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         withObservationTracking {
             _ = state.sidebarSelection
             _ = state.inspectedPullRequestID
+            _ = state.inspectedIssueID
             _ = state.expandedNotificationID
             _ = state.pullRequestDetails
+            _ = state.issueDetails
             // A thread marked read disappears, and the pane describing it
-            // has to go with it.
+            // has to go with it. So does an issue that is no longer assigned.
             _ = state.notifications
+            _ = state.issues
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else { return }
@@ -260,6 +264,10 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         case .pullRequests, .myPullRequests:
             if let id = state.inspectedPullRequestID {
                 controller.loadDetailIfNeeded(for: id)
+            }
+        case .myIssues:
+            if let id = state.inspectedIssueID {
+                controller.loadIssueDetailIfNeeded(for: id)
             }
         case .mentions:
             if let item = state.inspectedNotification {

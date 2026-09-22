@@ -241,13 +241,14 @@ public struct GitHubService: Sendable {
         try await client.patch(url)
     }
 
-    /// Both pull request lists in one request: those waiting for the user's
-    /// review, and those the user opened and is waiting on others for.
-    public func pullRequests(
+    /// Every list the menu bar counts, in one request: the pull requests
+    /// waiting for the user's review, the ones they opened and are waiting on
+    /// others for, and the issues assigned to them.
+    public func lists(
         login: String,
         teamSlugs: [String],
         repositoryFilters: [String]
-    ) async throws -> (reviewRequested: [PullRequestItem], authored: [PullRequestItem]) {
+    ) async throws -> ListFetch {
         let payload = try await client.graphQL(
             PullRequestQuery.document(
                 reviewRequested: PullRequestQuery.searchQueries(
@@ -257,12 +258,45 @@ public struct GitHubService: Sendable {
                     PullRequestQuery.authoredQuery(
                         login: login, repositoryFilters: repositoryFilters
                     ),
+                ],
+                issues: [
+                    IssueQuery.assignedQuery(
+                        login: login, repositoryFilters: repositoryFilters
+                    ),
                 ]
             )
         )
-        return (
-            PullRequestParser.pullRequests(from: payload, group: .reviewRequested),
-            PullRequestParser.pullRequests(from: payload, group: .authored)
+        return ListFetch(
+            reviewRequested: PullRequestParser.pullRequests(from: payload, group: .reviewRequested),
+            authored: PullRequestParser.pullRequests(from: payload, group: .authored),
+            issues: IssueParser.issues(from: payload)
         )
+    }
+
+    /// The text and the end of the thread behind one issue, fetched when its
+    /// row is opened rather than for the whole list.
+    public func issueDetail(id: String) async throws -> IssueDetail {
+        let payload = try await client.graphQL(
+            IssueQuery.detailDocument,
+            variables: ["id": id]
+        )
+        return try IssueQuery.detail(from: payload)
+    }
+}
+
+/// One refresh's worth of every list.
+public struct ListFetch: Sendable {
+    public let reviewRequested: [PullRequestItem]
+    public let authored: [PullRequestItem]
+    public let issues: [IssueItem]
+
+    public init(
+        reviewRequested: [PullRequestItem],
+        authored: [PullRequestItem],
+        issues: [IssueItem]
+    ) {
+        self.reviewRequested = reviewRequested
+        self.authored = authored
+        self.issues = issues
     }
 }

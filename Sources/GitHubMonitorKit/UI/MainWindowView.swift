@@ -33,6 +33,17 @@ struct SidebarColumn: View {
                 }
             }
 
+            Section("My Issues") {
+                Label("All", systemImage: StatusBarTitleBuilder.issueSymbol)
+                    .badge(state.visibleIssues.count)
+                    .tag(SidebarSelection.myIssues(repository: nil))
+
+                ForEach(state.issueRepositories) { entry in
+                    repositoryRow(entry)
+                        .tag(SidebarSelection.myIssues(repository: entry.repository))
+                }
+            }
+
             Section("Mentions") {
                 Label("All", systemImage: StatusBarTitleBuilder.mentionSymbol)
                     .badge(state.visibleNotifications.count)
@@ -107,6 +118,7 @@ struct ContentColumn: View {
         switch state.sidebarSelection {
         case .pullRequests: pullRequestList
         case .myPullRequests: authoredList
+        case .myIssues: issueList
         case .mentions: mentionList
         case .dashboard: DashboardView(state: state, controller: controller)
         case .trends: TrendsView(state: state, controller: controller)
@@ -183,6 +195,39 @@ struct ContentColumn: View {
         }
     }
 
+    /// The issues assigned to the user.
+    private var issueList: some View {
+        let items = state.selectedIssues
+        return GroupedList(
+            items: items,
+            grouping: state.settings.listGrouping,
+            repository: \.repository,
+            selection: $state.inspectedIssueID
+        ) { item in
+            IssueRow(
+                item: item,
+                sort: state.settings.pullRequestSort,
+                inspect: { controller.inspect(item) },
+                isInspected: state.inspectedIssueID == item.id
+            )
+            .padding(.vertical, 3)
+        }
+        .onExitCommand { controller.closeInspector() }
+        .overlay {
+            if items.isEmpty {
+                ContentUnavailableView(
+                    "No issues assigned",
+                    systemImage: StatusBarTitleBuilder.issueSymbol,
+                    description: Text(
+                        state.issues.isEmpty
+                            ? "Nothing is assigned to you."
+                            : "Nothing here matches the repository filter."
+                    )
+                )
+            }
+        }
+    }
+
     private var mentionList: some View {
         let items = state.selectedNotifications
         return GroupedList(
@@ -238,6 +283,7 @@ struct ContentColumn: View {
         switch state.sidebarSelection {
         case .pullRequests: PullRequestLegend.symbols(for: state.selectedPullRequests)
         case .myPullRequests: PullRequestLegend.symbols(for: state.selectedAuthoredPullRequests)
+        case .myIssues: IssueLegend.symbols(for: state.selectedIssues)
         case .mentions, .dashboard, .trends, .myTrends, .settings: []
         }
     }
@@ -250,6 +296,8 @@ struct ContentColumn: View {
                 .help("Reviews requested")
             Label("\(state.visibleNotifications.count)", systemImage: StatusBarTitleBuilder.mentionSymbol)
                 .help("Unread mentions")
+            Label("\(state.visibleIssues.count)", systemImage: StatusBarTitleBuilder.issueSymbol)
+                .help("Issues assigned to you")
 
             if !legendSymbols.isEmpty {
                 Divider().frame(height: 11)
@@ -319,6 +367,15 @@ struct ToolbarControls: View {
                 if state.selectedDraftCount > 0 {
                     DraftToggleControl(settings: state.settings, draftCount: state.selectedDraftCount)
                 }
+            case .myIssues:
+                GroupingPicker(
+                    settings: state.settings,
+                    keyPath: \.listGrouping,
+                    options: ListGrouping.forPullRequests
+                )
+                // The same switch as the pull request lists: an issue has no
+                // draft state, so that toggle has nothing to say here.
+                SortPicker(settings: state.settings)
             case .mentions:
                 GroupingPicker(
                     settings: state.settings,
@@ -482,7 +539,7 @@ private struct SortPicker: View {
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
-        .help("Order the list by when pull requests were opened or last updated")
+        .help("Order the list by when its rows were opened or last updated")
     }
 }
 
@@ -533,6 +590,13 @@ struct InspectorColumn: View {
                 item: item,
                 preview: state.previews[item.id],
                 markRead: { Task { await controller.markRead(item) } },
+                close: { controller.closeInspector() }
+            )
+        } else if case .myIssues = state.sidebarSelection, let item = state.inspectedIssue {
+            IssueDetailView(
+                item: item,
+                detail: state.issueDetails[item.id],
+                reload: { controller.reloadIssueDetail(for: item.id) },
                 close: { controller.closeInspector() }
             )
         } else if let item = state.inspectedPullRequest, !state.sidebarSelection.isMentions {

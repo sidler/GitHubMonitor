@@ -1,8 +1,8 @@
 import Foundation
 
-/// How the two counts are rendered in the menu bar.
+/// How the counts are rendered in the menu bar.
 public enum StatusBarStyle: String, CaseIterable, Codable, Sendable {
-    /// `⑂ 3  ◉ 5` -- both counts, each with its own symbol.
+    /// `⑂ 3  ◉ 5  ◍ 2` -- every count, each with its own symbol.
     case separate
     /// A single number: everything that wants attention.
     case sum
@@ -11,9 +11,9 @@ public enum StatusBarStyle: String, CaseIterable, Codable, Sendable {
 
     public var label: String {
         switch self {
-        case .separate: "Both counts"
+        case .separate: "All counts"
         case .sum: "Single total"
-        case .hideZero: "Both, hide zeros"
+        case .hideZero: "All, hide zeros"
         }
     }
 }
@@ -38,12 +38,14 @@ public enum StatusBarSegment: Equatable, Sendable {
 public enum StatusBarTitleBuilder {
     public static let pullRequestSymbol = "arrow.triangle.pull"
     public static let mentionSymbol = "bell"
+    public static let issueSymbol = "smallcircle.filled.circle"
     public static let warningSymbol = "exclamationmark.triangle.fill"
     public static let unconfiguredSymbol = "key.slash"
 
     public static func segments(
         pullRequests: Int,
         mentions: Int,
+        issues: Int,
         style: StatusBarStyle,
         health: StatusBarHealth
     ) -> [StatusBarSegment] {
@@ -56,36 +58,58 @@ public enum StatusBarTitleBuilder {
             break
         }
 
+        // One entry per count. Issues come last rather than beside the
+        // other pull request count: the two that were here first keep the
+        // place people are used to reading them in.
+        let counts = [
+            (symbol: pullRequestSymbol, value: pullRequests),
+            (symbol: mentionSymbol, value: mentions),
+            (symbol: issueSymbol, value: issues),
+        ]
+
         switch style {
         case .sum:
-            return [.symbol(pullRequestSymbol), .text(" \(pullRequests + mentions)")]
+            let total = counts.reduce(0) { $0 + $1.value }
+            return [.symbol(pullRequestSymbol), .text(" \(total)")]
 
         case .separate:
-            return [
-                .symbol(pullRequestSymbol), .text(" \(pullRequests)  "),
-                .symbol(mentionSymbol), .text(" \(mentions)"),
-            ]
+            return counts.enumerated().flatMap { index, count -> [StatusBarSegment] in
+                // Two spaces between groups, none after the last.
+                let gap = index == counts.count - 1 ? "" : "  "
+                return [.symbol(count.symbol), .text(" \(count.value)\(gap)")]
+            }
 
         case .hideZero:
-            var segments: [StatusBarSegment] = [.symbol(pullRequestSymbol)]
-            if pullRequests > 0 {
-                segments.append(.text(" \(pullRequests)"))
+            // A zero says nothing its symbol does not already say, and three
+            // counts in a menu bar are worth keeping narrow.
+            return counts.enumerated().flatMap { index, count -> [StatusBarSegment] in
+                var segments: [StatusBarSegment] = [.symbol(count.symbol)]
+                if count.value > 0 {
+                    segments.append(.text(" \(count.value)"))
+                }
+                if index < counts.count - 1 {
+                    segments.append(.text("  "))
+                }
+                return segments
             }
-            segments.append(.text("  "))
-            segments.append(.symbol(mentionSymbol))
-            if mentions > 0 {
-                segments.append(.text(" \(mentions)"))
-            }
-            return segments
         }
     }
 
     /// Plain-text rendering used for accessibility labels and tests.
-    public static func accessibilityLabel(pullRequests: Int, mentions: Int, health: StatusBarHealth) -> String {
+    public static func accessibilityLabel(
+        pullRequests: Int,
+        mentions: Int,
+        issues: Int,
+        health: StatusBarHealth
+    ) -> String {
         switch health {
         case .unconfigured: "GitHub Monitor: no token configured"
         case .failing: "GitHub Monitor: last refresh failed"
-        case .ok: "GitHub Monitor: \(pullRequests) reviews requested, \(mentions) unread mentions"
+        case .ok:
+            """
+            GitHub Monitor: \(pullRequests) reviews requested, \
+            \(mentions) unread mentions, \(issues) issues assigned
+            """
         }
     }
 }

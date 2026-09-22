@@ -53,6 +53,7 @@ public final class StatusItemController {
         let segments = StatusBarTitleBuilder.segments(
             pullRequests: state.visiblePullRequests.count,
             mentions: state.visibleNotifications.count,
+            issues: state.visibleIssues.count,
             style: state.settings.statusBarStyle,
             health: state.health
         )
@@ -99,6 +100,7 @@ public final class StatusItemController {
         button.toolTip = StatusBarTitleBuilder.accessibilityLabel(
             pullRequests: state.visiblePullRequests.count,
             mentions: state.visibleNotifications.count,
+            issues: state.visibleIssues.count,
             health: state.health
         )
     }
@@ -109,6 +111,7 @@ public final class StatusItemController {
         withObservationTracking {
             _ = state.visiblePullRequests.count
             _ = state.visibleNotifications.count
+            _ = state.visibleIssues.count
             _ = state.hasToken
             _ = state.loadState
             _ = state.settings.statusBarStyle

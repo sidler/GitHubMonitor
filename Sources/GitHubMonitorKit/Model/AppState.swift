@@ -4,6 +4,7 @@ import Observation
 public enum MainWindowTab: String, Hashable, CaseIterable, Sendable {
     case pullRequests
     case myPullRequests
+    case myIssues
     case mentions
     case dashboard
     case trends
@@ -14,6 +15,7 @@ public enum MainWindowTab: String, Hashable, CaseIterable, Sendable {
         switch self {
         case .pullRequests: "Reviews Requested"
         case .myPullRequests: "My Pull Requests"
+        case .myIssues: "My Issues"
         case .mentions: "Mentions"
         case .dashboard: "Workload"
         case .trends: "Trends"
@@ -26,6 +28,7 @@ public enum MainWindowTab: String, Hashable, CaseIterable, Sendable {
         switch self {
         case .pullRequests: "arrow.triangle.pull"
         case .myPullRequests: "person.crop.circle"
+        case .myIssues: "smallcircle.filled.circle"
         case .mentions: "bell"
         case .dashboard: "chart.bar"
         case .trends: "chart.xyaxis.line"
@@ -58,6 +61,8 @@ public final class AppState {
     public var pullRequests: [PullRequestItem] = []
     /// Pull requests the user opened, still waiting on other people.
     public var authoredPullRequests: [PullRequestItem] = []
+    /// Issues assigned to the user, from the same refresh as the lists above.
+    public var issues: [IssueItem] = []
     public var notifications: [NotificationItem] = []
     public var loadState: LoadState = .idle
     /// True once a token has been found in the Keychain.
@@ -73,6 +78,10 @@ public final class AppState {
     public var expandedNotificationID: String?
     /// The pull request shown in the detail pane, if it is open.
     public var inspectedPullRequestID: String?
+    /// The issue shown in the detail pane, if it is open.
+    public var inspectedIssueID: String?
+    /// Issue bodies and threads, fetched per issue when its pane is opened.
+    public var issueDetails: [String: IssueDetailState] = [:]
     /// Detail payloads, fetched per pull request when its pane is opened.
     public var pullRequestDetails: [String: DetailState] = [:]
     public var sidebarSelection: SidebarSelection = .pullRequests(repository: nil)
@@ -111,7 +120,7 @@ public final class AppState {
     /// Sorted here rather than in the parser so switching the order is
     /// instant: the data is already in hand, and a refetch to reverse a list
     /// would spend a request on something arithmetic.
-    private func sorted(_ items: [PullRequestItem]) -> [PullRequestItem] {
+    private func sorted<Item: ListedItem>(_ items: [Item]) -> [Item] {
         let sort = settings.pullRequestSort
         return items.sorted { lhs, rhs in
             let left = lhs.date(for: sort)
@@ -146,6 +155,25 @@ public final class AppState {
         narrow(visibleAuthoredPullRequests, to: sidebarSelection.repository, by: \.repository)
     }
 
+    /// The issues assigned to the user, after the repository filter and in
+    /// the order chosen for the lists. There is no draft toggle here -- an
+    /// issue has no draft state.
+    public var visibleIssues: [IssueItem] {
+        sorted(PullRequestFilter.matchingRepositories(
+            issues,
+            repositoryFilters: settings.repositoryFilters
+        ))
+    }
+
+    public var selectedIssues: [IssueItem] {
+        narrow(visibleIssues, to: sidebarSelection.repository, by: \.repository)
+    }
+
+    public var issueRepositories: [SidebarRepository] {
+        RepositoryGrouping.group(visibleIssues, by: \.repository)
+            .map { SidebarRepository(repository: $0.repository, count: $0.items.count) }
+    }
+
     public var authoredRepositories: [SidebarRepository] {
         RepositoryGrouping.group(visibleAuthoredPullRequests, by: \.repository)
             .map { SidebarRepository(repository: $0.repository, count: $0.items.count) }
@@ -167,7 +195,7 @@ public final class AppState {
             draftCount(in: pullRequests, repository: repository)
         case .myPullRequests(let repository):
             draftCount(in: authoredPullRequests, repository: repository)
-        case .mentions, .dashboard, .trends, .myTrends, .settings:
+        case .myIssues, .mentions, .dashboard, .trends, .myTrends, .settings:
             0
         }
     }
@@ -197,7 +225,7 @@ public final class AppState {
             switch sidebarSelection {
             case .pullRequests: selectedPullRequests
             case .myPullRequests: selectedAuthoredPullRequests
-            case .mentions, .dashboard, .trends, .myTrends, .settings: []
+            case .myIssues, .mentions, .dashboard, .trends, .myTrends, .settings: []
             }
 
         guard settings.listGrouping == .byRepository else { return items }
@@ -243,6 +271,7 @@ public final class AppState {
     public var hasInspectorContent: Bool {
         switch sidebarSelection {
         case .pullRequests, .myPullRequests: inspectedPullRequest != nil
+        case .myIssues: inspectedIssue != nil
         case .mentions: inspectedNotification != nil
         case .dashboard, .trends, .myTrends, .settings: false
         }
@@ -267,6 +296,21 @@ public final class AppState {
     public var inspectedPullRequest: PullRequestItem? {
         guard let id = inspectedPullRequestID else { return nil }
         return (pullRequests + authoredPullRequests).first { $0.id == id }
+    }
+
+    /// The issue the detail pane is describing, if it is still assigned --
+    /// a refresh drops the ones that were closed or handed on.
+    public var inspectedIssue: IssueItem? {
+        guard let id = inspectedIssueID else { return nil }
+        return issues.first { $0.id == id }
+    }
+
+    /// The issues the detail pane can move between, in the order the list is
+    /// showing them.
+    public var inspectableIssues: [IssueItem] {
+        guard case .myIssues = sidebarSelection else { return [] }
+        guard settings.listGrouping == .byRepository else { return selectedIssues }
+        return RepositoryGrouping.group(selectedIssues, by: \.repository).flatMap(\.items)
     }
 
     public var health: StatusBarHealth {
@@ -312,6 +356,31 @@ public final class AppState {
                 url: URL(string: "https://github.com")!, isDraft: false,
                 updatedAt: .now.addingTimeInterval(-600),
                 reviewDecision: .reviewRequired, checks: .pending
+            ),
+        ]
+        issues = [
+            IssueItem(
+                id: "i1", number: 318, title: "Session table migration order is ambiguous",
+                repository: "octo/server", author: "mira",
+                authorAvatarURL: URL(string: "https://avatars.githubusercontent.com/u/1?v=4"),
+                url: URL(string: "https://github.com")!,
+                createdAt: .now.addingTimeInterval(-86400 * 9),
+                updatedAt: .now.addingTimeInterval(-5400),
+                comments: 7,
+                labels: [
+                    IssueLabel(name: "bug", color: "d73a4a"),
+                    IssueLabel(name: "needs decision", color: "fbca04"),
+                ],
+                milestone: "8.3"
+            ),
+            IssueItem(
+                id: "i2", number: 91, title: "Document the release checklist",
+                repository: "octo/website", author: "arun",
+                authorAvatarURL: URL(string: "https://avatars.githubusercontent.com/u/2?v=4"),
+                url: URL(string: "https://github.com")!,
+                createdAt: .now.addingTimeInterval(-86400 * 30),
+                updatedAt: .now.addingTimeInterval(-86400 * 2),
+                labels: [IssueLabel(name: "documentation", color: "0075ca")]
             ),
         ]
         notifications = [

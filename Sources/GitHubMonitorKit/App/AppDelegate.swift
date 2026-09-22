@@ -63,12 +63,19 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        // Development aid: opens the detail pane for the first pull request
-        // once one has loaded, so the pane can be inspected without a click.
+        // Development aid: opens the detail pane for the first row of
+        // whichever list is on screen, so the pane can be inspected without
+        // a click.
         if devOption("GHM_INSPECT") != nil {
             Task { [weak self] in
                 for _ in 0..<40 {
-                    if let first = self?.state.visiblePullRequests.first {
+                    guard let self else { return }
+                    if case .myIssues = state.sidebarSelection {
+                        if let first = state.visibleIssues.first {
+                            refresh.inspect(first)
+                            return
+                        }
+                    } else if let first = state.visiblePullRequests.first {
                         refresh.inspect(first)
                         return
                     }

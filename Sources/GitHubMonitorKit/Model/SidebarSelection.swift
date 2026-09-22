@@ -9,6 +9,8 @@ public enum SidebarSelection: Hashable, Sendable {
     case pullRequests(repository: String?)
     /// Pull requests the user opened, waiting on other people.
     case myPullRequests(repository: String?)
+    /// Issues assigned to the user.
+    case myIssues(repository: String?)
     case mentions(repository: String?)
     case dashboard
     /// Delivery over time, as opposed to the dashboard's snapshot of who is
@@ -22,6 +24,7 @@ public enum SidebarSelection: Hashable, Sendable {
         switch self {
         case .pullRequests: .pullRequests
         case .myPullRequests: .myPullRequests
+        case .myIssues: .myIssues
         case .mentions: .mentions
         case .dashboard: .dashboard
         case .trends: .trends
@@ -35,6 +38,7 @@ public enum SidebarSelection: Hashable, Sendable {
         switch self {
         case .pullRequests(let repository),
              .myPullRequests(let repository),
+             .myIssues(let repository),
              .mentions(let repository): repository
         case .dashboard, .trends, .myTrends, .settings: nil
         }
@@ -51,6 +55,7 @@ public enum SidebarSelection: Hashable, Sendable {
         switch self {
         case .pullRequests(let repository): repository ?? "Reviews Requested"
         case .myPullRequests(let repository): repository ?? "My Pull Requests"
+        case .myIssues(let repository): repository ?? "My Issues"
         case .mentions(let repository): repository ?? "Mentions"
         case .dashboard: "Workload"
         case .trends: "Trends"
@@ -65,6 +70,7 @@ public enum SidebarSelection: Hashable, Sendable {
         switch self {
         case .pullRequests(let repository): repository == nil ? nil : "Reviews Requested"
         case .myPullRequests(let repository): repository == nil ? nil : "My Pull Requests"
+        case .myIssues(let repository): repository == nil ? nil : "My Issues"
         case .mentions(let repository): repository == nil ? nil : "Mentions"
         case .dashboard, .trends, .myTrends, .settings: nil
         }

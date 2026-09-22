@@ -47,7 +47,7 @@ extension LegendSymbol {
         case .review(let decision): decision.tint
         case .checks(let status): status.tint
         case .reviewers(let kind): kind.tint
-        case .draft: Color(nsColor: .secondaryLabelColor)
+        case .draft, .comments, .milestone: Color(nsColor: .secondaryLabelColor)
         }
     }
 }
@@ -134,5 +134,37 @@ struct LegendBar: View {
         } else {
             DraftBadge()
         }
+    }
+}
+
+/// A label as GitHub draws it: its own colour, with text that stays
+/// readable on it.
+///
+/// The colour is the label's meaning here -- teams pick red for breakage and
+/// green for done -- so a monochrome chip would throw away the fastest thing
+/// in the row to read.
+struct LabelChip: View {
+    let label: IssueLabel
+
+    var body: some View {
+        Text(label.name)
+            .font(.system(size: 10, weight: .medium))
+            .lineLimit(1)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .foregroundStyle(foreground)
+            .background(background, in: Capsule())
+            .help(label.name)
+    }
+
+    private var background: Color {
+        guard let components = label.components else {
+            return Color(nsColor: .quaternaryLabelColor)
+        }
+        return Color(red: components.red, green: components.green, blue: components.blue)
+    }
+
+    private var foreground: Color {
+        label.prefersDarkText ? Color(red: 0.1, green: 0.1, blue: 0.1) : .white
     }
 }

@@ -90,8 +90,9 @@ public final class Settings {
         didSet { store.set(listGrouping.rawValue, forKey: Key.listGrouping) }
     }
 
-    /// What the pull request lists are ordered by. Shared by both of them:
-    /// they answer the same question about different pull requests.
+    /// What the pull request and issue lists are ordered by. Shared by all
+    /// of them: they answer the same question about different things, and
+    /// one switch in the toolbar is one thing to find rather than three.
     public var pullRequestSort: PullRequestSort {
         didSet { store.set(pullRequestSort.rawValue, forKey: Key.pullRequestSort) }
     }

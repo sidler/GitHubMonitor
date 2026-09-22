@@ -1,7 +1,18 @@
 import Foundation
 
+/// What the lists have in common: a repository they belong to, and the two
+/// dates they can be ordered by.
+///
+/// The repository filter and the sort are written once against this rather
+/// than once per list. Two copies would eventually disagree, and a sidebar
+/// whose counts disagree with its lists is worse than no counts.
+public protocol ListedItem: Identifiable, Sendable where ID == String {
+    var repository: String { get }
+    func date(for sort: PullRequestSort) -> Date
+}
+
 /// A pull request that is waiting for the user's review.
-public struct PullRequestItem: Identifiable, Hashable, Sendable {
+public struct PullRequestItem: Identifiable, Hashable, Sendable, ListedItem {
     public let id: String
     public let number: Int
     public let title: String

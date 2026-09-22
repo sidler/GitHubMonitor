@@ -8,6 +8,10 @@ public enum LegendSymbol: Hashable, Sendable, Identifiable {
     /// One of the reviewer counts in a row.
     case reviewers(ReviewTallyKind)
     case draft
+    /// How much has been said on an issue.
+    case comments
+    /// The milestone an issue belongs to.
+    case milestone
 
     public var id: String {
         switch self {
@@ -15,6 +19,8 @@ public enum LegendSymbol: Hashable, Sendable, Identifiable {
         case .checks(let status): "checks.\(status.rawValue)"
         case .reviewers(let kind): "reviewers.\(kind.rawValue)"
         case .draft: "draft"
+        case .comments: "comments"
+        case .milestone: "milestone"
         }
     }
 
@@ -26,6 +32,8 @@ public enum LegendSymbol: Hashable, Sendable, Identifiable {
         case .checks(let status): status.symbolName
         case .reviewers(let kind): kind.symbolName
         case .draft: nil
+        case .comments: "bubble.left"
+        case .milestone: "flag"
         }
     }
 
@@ -51,6 +59,8 @@ public enum LegendSymbol: Hashable, Sendable, Identifiable {
             }
         case .reviewers(let kind): kind.legendLabel
         case .draft: "draft"
+        case .comments: "comments"
+        case .milestone: "milestone"
         }
     }
 
@@ -62,6 +72,8 @@ public enum LegendSymbol: Hashable, Sendable, Identifiable {
         case .checks(let status): status.label
         case .reviewers(let kind): kind.legendHelp
         case .draft: "Marked as a draft, so it is not asking for review yet"
+        case .comments: "How many comments the issue has collected"
+        case .milestone: "The milestone the issue belongs to"
         }
     }
 }
@@ -88,6 +100,20 @@ public enum PullRequestLegend {
 
         if items.contains(where: \.isDraft) { result.append(.draft) }
 
+        return result
+    }
+}
+
+/// Builds the legend under the issue list.
+///
+/// The same rule as for pull requests: only what the rows on screen are
+/// using. Labels have no entry -- they are drawn as their own words, and a
+/// legend that explained the word "bug" would be noise.
+public enum IssueLegend {
+    public static func symbols(for items: [IssueItem]) -> [LegendSymbol] {
+        var result: [LegendSymbol] = []
+        if items.contains(where: { $0.comments > 0 }) { result.append(.comments) }
+        if items.contains(where: { $0.milestone != nil }) { result.append(.milestone) }
         return result
     }
 }

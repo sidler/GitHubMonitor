@@ -113,63 +113,95 @@ public enum PullRequestQuery {
     public enum Group: String, CaseIterable, Sendable {
         case reviewRequested = "r"
         case authored = "a"
+        /// Issues assigned to the user. Search returns them from the same
+        /// `ISSUE` type as pull requests, but they carry different fields.
+        case issues = "i"
+
+        /// Which set of fields the searches in this group ask for.
+        var fragment: String {
+            switch self {
+            case .reviewRequested, .authored: "Results"
+            case .issues: "IssueResults"
+            }
+        }
     }
 
     /// A single GraphQL document running every search under its own alias.
     ///
-    /// Both lists travel in one request: a second round trip would double the
-    /// latency of a refresh for no benefit, since they are always wanted
-    /// together.
-    public static func document(reviewRequested: [String], authored: [String]) -> String {
-        let searches = ([Group.reviewRequested: reviewRequested, .authored: authored])
+    /// Every list travels in one request: further round trips would multiply
+    /// the latency of a refresh for no benefit, since the lists are always
+    /// wanted together -- and the menu bar counts all of them, so none of
+    /// them may be a refresh behind the others.
+    public static func document(
+        reviewRequested: [String],
+        authored: [String],
+        issues: [String] = []
+    ) -> String {
+        let groups: [Group: [String]] = [
+            .reviewRequested: reviewRequested,
+            .authored: authored,
+            .issues: issues,
+        ]
+        let searches = groups
             .sorted { $0.key.rawValue < $1.key.rawValue }
             .flatMap { group, queries in
                 queries.enumerated().map { index, query in
                     """
                         \(group.rawValue)\(index): search(query: \(jsonString(query)), type: ISSUE, first: \(pageSize)) {
-                          ...Results
+                          ...\(group.fragment)
                         }
                     """
                 }
             }
             .joined(separator: "\n")
 
+        // Only the fragments something asks for: GraphQL rejects a document
+        // that declares one nothing uses, so an empty list would otherwise
+        // fail the whole refresh.
+        var fragments: [String] = []
+        if !reviewRequested.isEmpty || !authored.isEmpty { fragments.append(pullRequestFragment) }
+        if !issues.isEmpty { fragments.append(IssueQuery.fragment) }
+
         return """
         query {
         \(searches)
         }
 
-        fragment Results on SearchResultItemConnection {
-          nodes {
-            ... on PullRequest {
-              id
-              number
-              title
-              isDraft
-              createdAt
-              updatedAt
-              url
-              reviewDecision
-              repository { nameWithOwner }
-              author { login avatarUrl }
-              commits(last: 1) {
-                nodes { commit { statusCheckRollup { state } } }
-              }
-              # One entry per reviewer who has an opinion, so these are people
-              # rather than review events. Ten of them: a pull request with
-              # more approvals than that does not exist here, and every extra
-              # node is charged against the hourly GraphQL budget on every
-              # refresh of every list.
-              latestOpinionatedReviews(first: 10) {
-                nodes { state }
-              }
-              # Outstanding requests are a plain count, which costs nothing.
-              reviewRequests { totalCount }
-            }
-          }
-        }
+        \(fragments.joined(separator: "\n\n"))
         """
     }
+
+    static let pullRequestFragment = """
+    fragment Results on SearchResultItemConnection {
+      nodes {
+        ... on PullRequest {
+          id
+          number
+          title
+          isDraft
+          createdAt
+          updatedAt
+          url
+          reviewDecision
+          repository { nameWithOwner }
+          author { login avatarUrl }
+          commits(last: 1) {
+            nodes { commit { statusCheckRollup { state } } }
+          }
+          # One entry per reviewer who has an opinion, so these are people
+          # rather than review events. Ten of them: a pull request with
+          # more approvals than that does not exist here, and every extra
+          # node is charged against the hourly GraphQL budget on every
+          # refresh of every list.
+          latestOpinionatedReviews(first: 10) {
+            nodes { state }
+          }
+          # Outstanding requests are a plain count, which costs nothing.
+          reviewRequests { totalCount }
+        }
+      }
+    }
+    """
 
     /// Escapes a Swift string for embedding in a GraphQL document.
     static func jsonString(_ value: String) -> String {

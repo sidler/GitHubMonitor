@@ -25,6 +25,7 @@ struct PopoverView: View {
                     VStack(alignment: .leading, spacing: 14) {
                         pullRequestSection
                         mentionSection
+                        issueSection
                     }
                     .padding(12)
                 }
@@ -107,6 +108,32 @@ struct PopoverView: View {
                     toggle: { controller.togglePreview(for: item) },
                     markRead: { Task { await controller.markRead(item) } }
                 )
+            }
+
+            if items.count > Self.previewLimit {
+                showAllButton(count: items.count)
+            }
+        }
+    }
+
+    private var issueSection: some View {
+        let items = state.visibleIssues
+        return VStack(alignment: .leading, spacing: 5) {
+            SectionHeader(
+                title: "Issues assigned",
+                count: items.count,
+                symbol: StatusBarTitleBuilder.issueSymbol
+            )
+
+            CardList(
+                items: Array(items.prefix(Self.previewLimit)),
+                emptyMessage: state.issues.isEmpty
+                    ? "Nothing is assigned to you."
+                    : "Nothing matching the repository filter."
+            ) { item in
+                // No detail pane here, so a row opens GitHub when tapped --
+                // as the pull request rows in this popover do.
+                IssueRow(item: item, sort: state.settings.pullRequestSort, compact: true)
             }
 
             if items.count > Self.previewLimit {

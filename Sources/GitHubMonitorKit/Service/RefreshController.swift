@@ -141,6 +141,7 @@ public final class RefreshController {
         state.viewer = nil
         state.hasToken = false
         state.pullRequests = []
+        state.issues = []
         state.notifications = []
         state.availableTeams = []
         state.loadState = .idle
@@ -179,7 +180,7 @@ public final class RefreshController {
                 state.viewer = viewer
             }
 
-            let fetched = try await service.pullRequests(
+            let fetched = try await service.lists(
                 login: viewer.login,
                 teamSlugs: state.settings.teamSlugs,
                 repositoryFilters: state.settings.repositoryFilters
@@ -192,6 +193,15 @@ public final class RefreshController {
             }
             if let inspected = state.inspectedPullRequestID, !livePullRequests.contains(inspected) {
                 state.inspectedPullRequestID = nil
+            }
+
+            state.issues = fetched.issues
+            // An issue that was closed or handed on is gone from the list,
+            // and the pane describing it has to go with it.
+            let liveIssues = Set(fetched.issues.map(\.id))
+            state.issueDetails = state.issueDetails.filter { liveIssues.contains($0.key) }
+            if let inspected = state.inspectedIssueID, !liveIssues.contains(inspected) {
+                state.inspectedIssueID = nil
             }
 
             let fetch = try await service.notifications(since: lastModified)
@@ -539,6 +549,10 @@ public final class RefreshController {
             if let next = Self.step(state.inspectableItems, from: state.inspectedPullRequestID, by: offset) {
                 inspect(next)
             }
+        case .myIssues:
+            if let next = Self.step(state.inspectableIssues, from: state.inspectedIssueID, by: offset) {
+                inspect(next)
+            }
         case .mentions:
             if let next = Self.step(
                 state.inspectableNotifications,
@@ -577,6 +591,7 @@ public final class RefreshController {
     /// Closes whichever detail the pane is showing.
     public func closeInspector() {
         state.inspectedPullRequestID = nil
+        state.inspectedIssueID = nil
         state.expandedNotificationID = nil
     }
 
@@ -609,6 +624,47 @@ public final class RefreshController {
                 self?.state.pullRequestDetails[id] = .failed(error.localizedDescription)
             } catch {
                 self?.state.pullRequestDetails[id] = .failed(error.localizedDescription)
+            }
+        }
+    }
+
+    // MARK: - Issues
+
+    /// Opens the detail pane for an issue, fetching its body the first time.
+    public func inspect(_ item: IssueItem) {
+        state.inspectedIssueID = item.id
+        loadIssueDetailIfNeeded(for: item.id)
+    }
+
+    /// Refetches a cached issue detail, for the pane's reload button.
+    public func reloadIssueDetail(for id: String) {
+        state.issueDetails[id] = nil
+        loadIssueDetailIfNeeded(for: id)
+    }
+
+    /// Fetches an issue's body and the end of its thread unless they are
+    /// already there.
+    ///
+    /// Public for the same reason as the pull request detail: the list is
+    /// bound straight to the selection, so the arrow keys open an issue
+    /// without anything having asked for its text.
+    public func loadIssueDetailIfNeeded(for id: String) {
+        guard state.issueDetails[id] == nil else { return }
+        guard let service else {
+            state.issueDetails[id] = .failed(GitHubError.noToken.localizedDescription)
+            return
+        }
+
+        state.issueDetails[id] = .loading
+        Task { [weak self] in
+            do {
+                let detail = try await service.issueDetail(id: id)
+                self?.state.issueDetails[id] = .loaded(detail)
+            } catch let error as GitHubError {
+                Log.api.error("issue detail failed: \(error.localizedDescription, privacy: .public)")
+                self?.state.issueDetails[id] = .failed(error.localizedDescription)
+            } catch {
+                self?.state.issueDetails[id] = .failed(error.localizedDescription)
             }
         }
     }
