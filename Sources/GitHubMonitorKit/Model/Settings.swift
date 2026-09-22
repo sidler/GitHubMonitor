@@ -41,11 +41,6 @@ public final class Settings {
         didSet { store.set(includeDrafts, forKey: Key.includeDrafts) }
     }
 
-    /// "org/team" slugs whose review requests also count as mine.
-    public var teamSlugs: [String] {
-        didSet { store.set(teamSlugs, forKey: Key.teamSlugs) }
-    }
-
     /// The lists in the sidebar, in the order they appear there.
     ///
     /// Seeded on first launch with what the app used to hard-code, under
@@ -131,7 +126,6 @@ public final class Settings {
         storedRefreshInterval = saved > 0 ? max(Self.minimumRefreshInterval, saved) : 300
         repositoryFilters = store.stringArray(forKey: Key.repositoryFilters) ?? []
         includeDrafts = store.object(forKey: Key.includeDrafts) as? Bool ?? false
-        teamSlugs = store.stringArray(forKey: Key.teamSlugs) ?? []
         if let raw = store.stringArray(forKey: Key.notificationReasons) {
             notificationReasons = Set(raw.map(NotificationReason.init(apiValue:)))
         } else {
@@ -142,7 +136,9 @@ public final class Settings {
         )
         let storedGrouping =
             (store.string(forKey: Key.listGrouping).flatMap(ListGrouping.init(rawValue:))) ?? .flat
-        savedLists = Self.decode(store.data(forKey: Key.savedLists)) ?? SavedList.seeds(
+        savedLists = Self.withoutTeamPlaceholder(
+            Self.decode(store.data(forKey: Key.savedLists))
+        ) ?? SavedList.seeds(
             grouping: storedGrouping,
             issueSettings: (
                 (store.string(forKey: Key.issueGrouping).flatMap(ListGrouping.init(rawValue:))) ?? .flat,
@@ -179,6 +175,24 @@ public final class Settings {
         savedLists.first { $0.id == id }
     }
 
+    /// Drops the line that used to be expanded into one search per team.
+    ///
+    /// `review-requested:` covers the teams one is on -- GitHub resolves the
+    /// membership itself -- so the second line was asking twice. It is
+    /// removed rather than left in place because nothing expands `@myteams`
+    /// any more, and a line with a placeholder still in it is a search that
+    /// can only fail.
+    nonisolated static func withoutTeamPlaceholder(_ lists: [SavedList]?) -> [SavedList]? {
+        guard let lists else { return nil }
+        return lists.map { list in
+            let kept = list.queryLines.filter { !$0.contains("@myteams") }
+            guard kept.count != list.queryLines.count else { return list }
+            var updated = list
+            updated.query = kept.joined(separator: "\n")
+            return updated
+        }
+    }
+
     nonisolated static func encode(_ lists: [SavedList]) -> Data {
         (try? JSONEncoder().encode(lists)) ?? Data()
     }
@@ -193,7 +207,6 @@ public final class Settings {
         static let refreshInterval = "refreshInterval"
         static let repositoryFilters = "repositoryFilters"
         static let includeDrafts = "includeDrafts"
-        static let teamSlugs = "teamSlugs"
         static let notificationReasons = "notificationReasons"
         static let hiddenLists = "hiddenLists"
         static let savedLists = "savedLists"

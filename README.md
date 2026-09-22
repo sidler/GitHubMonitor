@@ -14,9 +14,10 @@ popover gives a short overview; a separate window gives the full lists, message
 previews, the workload and trend charts, and settings.
 
 A list's search is GitHub's own syntax, one search per line, results merged.
-`@me` is you; `@myteams` runs the line once per team you have configured. The
-repository filter from the settings is added to a line that names no `repo:`,
-`org:` or `user:` of its own.
+`@me` is you, and GitHub resolves team membership itself — a review requested
+from a team you are on is returned by `review-requested:@me`. The repository
+filter from the settings is added to a line that names no `repo:`, `org:` or
+`user:` of its own.
 
 ## Requirements
 

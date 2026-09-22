@@ -352,10 +352,9 @@ private struct ListEditor: View {
                 if searchable {
                     Text("""
                     GitHub search syntax, one search per line; the results \
-                    are merged. `@me` is you. `@myteams` runs the line once \
-                    per team from the Account tab — which is how "requested \
-                    from me or one of my teams" is two searches rather than \
-                    one.
+                    are merged. `@me` is you — and GitHub resolves your \
+                    teams itself, so `review-requested:@me` already includes \
+                    what is asked of a team you are on.
                     """)
                     .font(.caption)
                     .foregroundStyle(.secondary)

@@ -60,8 +60,6 @@ public final class AppState {
     public var hasToken: Bool = false
     /// Who the token belongs to, once verified.
     public var viewer: Viewer?
-    /// Team memberships offered as a checklist in settings.
-    public var availableTeams: [TeamMembership] = []
     /// Comment bodies, fetched only when a row is opened.
     public var previews: [String: PreviewState] = [:]
     /// The notification whose message is open: in the window's detail pane,

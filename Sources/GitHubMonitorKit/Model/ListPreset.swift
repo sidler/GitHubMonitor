@@ -60,12 +60,11 @@ public enum ListPresets {
         id: SavedList.Seed.reviews,
         title: "Reviews Requested",
         summary: "Open pull requests waiting for your review, or one of your teams'",
-        // Two searches: GitHub reads two review qualifiers as AND, so asking
-        // for both in one would find nothing.
-        query: """
-        is:pr is:open archived:false review-requested:@me
-        is:pr is:open archived:false team-review-requested:@myteams
-        """,
+        // One search: `review-requested:` covers the teams you are on.
+        // GitHub's own words: "If the requested person is on a team that is
+        // requested for review, then review requests for that team will also
+        // appear in the search results." Asking for both was asking twice.
+        query: "is:pr is:open archived:false review-requested:@me",
         content: .pullRequests
     )
 

@@ -16,37 +16,23 @@ public struct ListSearch: Hashable, Sendable {
 /// Turns saved lists into the searches behind them, and those into one
 /// GraphQL document.
 public enum ListQuery {
-    /// Expands to one search per configured team. GitHub understands `@me`
-    /// itself, but a team qualifier takes one slug, and repeated qualifiers
-    /// of a kind are read as AND -- so several teams mean several searches.
-    public static let teamsPlaceholder = "@myteams"
-
-    /// The searches one list runs, after the placeholder and the global
-    /// repository filter have been applied.
+    /// The searches one list runs, after the global repository filter has
+    /// been applied.
+    ///
+    /// Nothing is substituted into the query: GitHub understands `@me`
+    /// itself, and resolves team membership itself as well -- a review
+    /// requested from a team is returned by `review-requested:@me` for
+    /// everyone on that team.
     public static func searches(
         for list: SavedList,
-        teamSlugs: [String],
         repositoryFilters: [String]
     ) -> [ListSearch] {
-        list.queryLines
-            .flatMap { expand($0, teamSlugs: teamSlugs) }
-            .map { query in
-                ListSearch(
-                    listID: list.id,
-                    content: list.content,
-                    query: scoped(query, repositoryFilters: repositoryFilters)
-                )
-            }
-    }
-
-    /// With no teams configured the line is dropped rather than run with the
-    /// placeholder still in it: `team-review-requested:@myteams` is not a
-    /// search GitHub understands, and dropping the qualifier instead would
-    /// turn one line into "every pull request there is".
-    static func expand(_ line: String, teamSlugs: [String]) -> [String] {
-        guard line.contains(teamsPlaceholder) else { return [line] }
-        return PullRequestQuery.normalisedTeams(teamSlugs).map {
-            line.replacingOccurrences(of: teamsPlaceholder, with: $0)
+        list.queryLines.map { query in
+            ListSearch(
+                listID: list.id,
+                content: list.content,
+                query: scoped(query, repositoryFilters: repositoryFilters)
+            )
         }
     }
 

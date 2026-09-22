@@ -24,7 +24,7 @@ private final class AccountFormModel: ObservableObject {
     }
 }
 
-/// Token entry, scope verification and team selection.
+/// Token entry and scope verification.
 struct AccountSettingsView: View {
     @Bindable var state: AppState
     let controller: RefreshController
@@ -39,7 +39,6 @@ struct AccountSettingsView: View {
                 tokenEntrySection
             }
 
-            teamsSection
         }
         .formStyle(.grouped)
     }
@@ -100,7 +99,7 @@ struct AccountSettingsView: View {
 
     /// Pre-selects the scopes so the GitHub page opens ready to submit.
     static let tokenCreationURL = URL(
-        string: "https://github.com/settings/tokens/new?description=GitHub%20Monitor&scopes=repo,notifications,read:org"
+        string: "https://github.com/settings/tokens/new?description=GitHub%20Monitor&scopes=repo,notifications"
     )!
 
     private func verify() async {
@@ -113,66 +112,6 @@ struct AccountSettingsView: View {
             form.token = ""
             form.message = .success("Signed in as \(viewer.login)")
         case .failure(let error):
-            form.message = .failure(error.localizedDescription)
-        }
-    }
-
-    // MARK: - Teams
-
-    private var teamsSection: some View {
-        Section("Team review requests") {
-            Text("Pull requests where one of these teams is the requested reviewer count as yours.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            if state.availableTeams.isEmpty {
-                HStack {
-                    Button("Load my teams") {
-                        Task { await loadTeams() }
-                    }
-                    .disabled(!state.hasToken)
-
-                    if !state.settings.teamSlugs.isEmpty {
-                        Text("\(state.settings.teamSlugs.count) configured")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            } else {
-                ForEach(state.availableTeams) { team in
-                    Toggle(isOn: binding(for: team)) {
-                        VStack(alignment: .leading, spacing: 0) {
-                            Text(team.name)
-                            Text(team.slug).font(.caption).foregroundStyle(.secondary)
-                        }
-                    }
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                }
-            }
-        }
-    }
-
-    private func binding(for team: TeamMembership) -> Binding<Bool> {
-        Binding(
-            get: { state.settings.teamSlugs.contains(team.slug) },
-            set: { isOn in
-                var slugs = state.settings.teamSlugs
-                if isOn {
-                    guard !slugs.contains(team.slug) else { return }
-                    slugs.append(team.slug)
-                } else {
-                    slugs.removeAll { $0 == team.slug }
-                }
-                state.settings.teamSlugs = slugs
-                // The audience changed, so the counts are stale.
-                Task { await controller.refresh() }
-            }
-        )
-    }
-
-    private func loadTeams() async {
-        if let error = await controller.loadTeams() {
             form.message = .failure(error.localizedDescription)
         }
     }

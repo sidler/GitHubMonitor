@@ -72,18 +72,6 @@ public enum PullRequestQuery {
         return terms.isEmpty ? "" : " " + terms.joined(separator: " ")
     }
 
-    /// Team slugs as GitHub expects them: `org/team`, lower-cased, without a
-    /// leading `@`.
-    static func normalisedTeams(_ slugs: [String]) -> [String] {
-        slugs
-            .map {
-                $0.trimmingCharacters(in: .whitespaces)
-                    .trimmingCharacters(in: CharacterSet(charactersIn: "@"))
-                    .lowercased()
-            }
-            .filter { $0.contains("/") && !$0.hasPrefix("/") && !$0.hasSuffix("/") }
-    }
-
     static let pullRequestFragment = """
     fragment Results on SearchResultItemConnection {
       nodes {

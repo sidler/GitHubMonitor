@@ -16,14 +16,6 @@ public struct NotificationFetch: Sendable {
     public let pollInterval: TimeInterval?
 }
 
-public struct TeamMembership: Identifiable, Hashable, Sendable {
-    /// "org/team" — the form GitHub's search qualifiers expect.
-    public var id: String { slug }
-    public let slug: String
-    public let organisation: String
-    public let name: String
-}
-
 /// Coordinates the API calls the app makes.
 public struct GitHubService: Sendable {
     private let client: GitHubClient
@@ -50,30 +42,6 @@ public struct GitHubService: Sendable {
             avatarURL: (object["avatar_url"] as? String).flatMap(URL.init(string:)),
             scopes: TokenScopes(header: response.value(forHTTPHeaderField: "X-OAuth-Scopes"))
         )
-    }
-
-    /// Teams the user belongs to, offered as a checklist in settings.
-    public func teams() async throws -> [TeamMembership] {
-        var url = URLComponents(string: "https://api.github.com/user/teams")!
-        url.queryItems = [URLQueryItem(name: "per_page", value: "100")]
-
-        let (data, _) = try await client.get(url.url!)
-        guard let array = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]] else {
-            throw GitHubError.decoding("could not read team memberships")
-        }
-
-        return array.compactMap { entry in
-            guard
-                let slug = entry["slug"] as? String,
-                let organisation = (entry["organization"] as? [String: Any])?["login"] as? String
-            else { return nil }
-            return TeamMembership(
-                slug: "\(organisation)/\(slug)",
-                organisation: organisation,
-                name: entry["name"] as? String ?? slug
-            )
-        }
-        .sorted { $0.slug < $1.slug }
     }
 
     /// Every open pull request in one repository, summarised per author.

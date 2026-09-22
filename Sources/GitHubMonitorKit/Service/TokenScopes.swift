@@ -26,7 +26,6 @@ public struct TokenScopes: Equatable, Sendable {
     public static let required: [(scope: String, purpose: String)] = [
         ("repo", "read pull requests and issues, including in private repositories"),
         ("notifications", "read notifications and mark them read"),
-        ("read:org", "list your teams so their review requests can count"),
     ]
 
     /// Scopes that imply others. GitHub lists only the broadest scope granted,

@@ -143,7 +143,6 @@ public final class RefreshController {
         state.listPullRequests = [:]
         state.listIssues = [:]
         state.notifications = []
-        state.availableTeams = []
         state.loadState = .idle
     }
 
@@ -176,7 +175,6 @@ public final class RefreshController {
             .flatMap {
                 ListQuery.searches(
                     for: $0,
-                    teamSlugs: state.settings.teamSlugs,
                     repositoryFilters: state.settings.repositoryFilters
                 )
             }
@@ -838,19 +836,6 @@ public final class RefreshController {
     public func markAllVisibleRead() async {
         for item in state.visibleNotifications {
             await markRead(item)
-        }
-    }
-
-    /// Loads the user's team memberships for the settings checklist.
-    public func loadTeams() async -> GitHubError? {
-        guard let service else { return .noToken }
-        do {
-            state.availableTeams = try await service.teams()
-            return nil
-        } catch let error as GitHubError {
-            return error
-        } catch {
-            return .transport(error.localizedDescription)
         }
     }
 }

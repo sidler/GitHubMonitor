@@ -13,7 +13,6 @@ struct ListQueryTests {
     func singleLine() {
         let searches = ListQuery.searches(
             for: list("is:pr is:open author:@me"),
-            teamSlugs: [],
             repositoryFilters: []
         )
         #expect(searches.map(\.query) == ["is:pr is:open author:@me"])
@@ -32,45 +31,25 @@ struct ListQueryTests {
 
                is:pr author:@me
             """),
-            teamSlugs: [],
             repositoryFilters: []
         )
         #expect(searches.map(\.query) == ["is:pr review-requested:@me", "is:pr author:@me"])
     }
 
-    @Test("@myteams runs the line once per team")
-    func teamPlaceholder() {
-        let searches = ListQuery.searches(
-            for: list("is:pr team-review-requested:@myteams"),
-            teamSlugs: [" @Octo/Backend ", "octo/server"],
-            repositoryFilters: []
-        )
-        #expect(searches.map(\.query) == [
-            "is:pr team-review-requested:octo/backend",
-            "is:pr team-review-requested:octo/server",
-        ])
-    }
-
-    /// Dropping the qualifier instead would turn one line into "every pull
-    /// request there is", which is a surprising thing for a list to become.
-    @Test("With no teams the line is dropped, not widened")
-    func teamPlaceholderWithoutTeams() {
-        let searches = ListQuery.searches(
-            for: list("""
-            is:pr review-requested:@me
-            is:pr team-review-requested:@myteams
-            """),
-            teamSlugs: [],
-            repositoryFilters: []
-        )
-        #expect(searches.map(\.query) == ["is:pr review-requested:@me"])
+    /// GitHub resolves team membership itself: a review requested from a
+    /// team is returned by `review-requested:@me` for everyone on it. The
+    /// app used to send a second search per team, which was asking twice.
+    @Test("Nothing is substituted into a query")
+    func noSubstitution() {
+        let query = "is:pr review-requested:@me"
+        let searches = ListQuery.searches(for: list(query), repositoryFilters: [])
+        #expect(searches.map(\.query) == [query])
     }
 
     @Test("The global repository filter is appended")
     func repositoryFilter() {
         let searches = ListQuery.searches(
             for: list("is:pr author:@me"),
-            teamSlugs: [],
             repositoryFilters: ["octo", "other/thing"]
         )
         #expect(searches.map(\.query) == ["is:pr author:@me org:octo repo:other/thing"])
@@ -87,7 +66,6 @@ struct ListQueryTests {
     func ownScopeWins(query: String) {
         let searches = ListQuery.searches(
             for: list(query),
-            teamSlugs: [],
             repositoryFilters: ["somewhere"]
         )
         #expect(searches.map(\.query) == [query])
@@ -181,10 +159,9 @@ struct SavedListTests {
         let reviews = try #require(seeds.first)
         #expect(reviews.content == .pullRequests)
         #expect(reviews.grouping == .byRepository)
-        // Personal and team requests, as two searches.
-        #expect(reviews.queryLines.count == 2)
-        #expect(reviews.queryLines[0].contains("review-requested:@me"))
-        #expect(reviews.queryLines[1].contains(ListQuery.teamsPlaceholder))
+        // One search: GitHub's `review-requested:` already covers the teams
+        // one is on, so a second line asking for them would ask twice.
+        #expect(reviews.queryLines == ["is:pr is:open archived:false review-requested:@me"])
 
         let issues = try #require(seeds.last)
         #expect(issues.content == .issues)
@@ -331,5 +308,43 @@ struct ListPresetTests {
                 "unknown symbol \(name)"
             )
         }
+    }
+}
+
+@MainActor
+@Suite("The team placeholder, after it was retired")
+struct TeamPlaceholderMigrationTests {
+    /// Lists stored while the app expanded `@myteams` still carry that line.
+    /// Nothing expands it now, and a placeholder left in a search is a
+    /// search that can only fail -- so it goes, and the line beside it
+    /// already covers what it asked for.
+    @Test("The line is dropped from stored lists")
+    func dropsTheLine() throws {
+        let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
+        let stored = [
+            SavedList(
+                id: "reviews", title: "Reviews Requested",
+                query: """
+                is:pr is:open archived:false review-requested:@me
+                is:pr is:open archived:false team-review-requested:@myteams
+                """,
+                content: .pullRequests
+            ),
+        ]
+        defaults.set(Settings.encode(stored), forKey: "savedLists")
+
+        let list = try #require(Settings(store: defaults).savedLists.first)
+        #expect(list.queryLines == ["is:pr is:open archived:false review-requested:@me"])
+    }
+
+    /// A list that never used it must come back exactly as it was.
+    @Test("Everything else is left alone")
+    func leavesOthersAlone() throws {
+        let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
+        let stored = [
+            SavedList(id: "a", title: "A", query: "is:pr author:@me", content: .pullRequests),
+        ]
+        defaults.set(Settings.encode(stored), forKey: "savedLists")
+        #expect(Settings(store: defaults).savedLists == stored)
     }
 }

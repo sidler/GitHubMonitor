@@ -26,7 +26,18 @@ struct TokenScopesTests {
     @Test("Missing scopes are listed in the documented order")
     func missingScopes() {
         let scopes = TokenScopes(header: "notifications")
-        #expect(scopes.missing == ["repo", "read:org"])
+        #expect(scopes.missing == ["repo"])
+    }
+
+    /// `read:org` was only ever needed to list the user's teams, and the
+    /// app stopped doing that when it turned out GitHub resolves team
+    /// membership inside `review-requested:` itself. A token without it is
+    /// complete now, and one with it is not asked to give it up.
+    @Test("read:org is no longer required, nor in the way")
+    func organisationScopeIsOptional() {
+        #expect(!TokenScopes.required.map(\.scope).contains("read:org"))
+        #expect(TokenScopes(header: "repo, notifications").isComplete)
+        #expect(TokenScopes(header: "repo, notifications, read:org").isComplete)
     }
 
     /// GitHub lists only the broadest scope granted, so a token with
