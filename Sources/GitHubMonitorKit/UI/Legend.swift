@@ -67,11 +67,21 @@ struct BottomBar<Content: View>: View {
     /// the legend's symbols at 27 points.
     static var height: CGFloat { 28 }
 
+    /// One size for everything along the bottom edge.
+    ///
+    /// A font alone was not enough: a button in the accessory bar style
+    /// takes its size from the control size rather than the inherited font,
+    /// so the sidebar's "Settings" and the detail pane's actions came out a
+    /// couple of points larger than the counts between them. Both are set
+    /// here, and both land on the same 11 points.
+    static var font: Font { .subheadline }
+
     var body: some View {
         VStack(spacing: 0) {
             Divider()
             content()
-                .font(.caption)
+                .font(Self.font)
+                .controlSize(.small)
                 .padding(.horizontal, 12)
                 // Padding first, then the frame: the other way round the
                 // bar asks for the window's width plus its own margins.
