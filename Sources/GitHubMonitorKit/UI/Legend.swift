@@ -52,6 +52,24 @@ extension LegendSymbol {
     }
 }
 
+extension Color {
+    /// The second line of a row: repository, number, author, dates.
+    ///
+    /// Darker than the system's secondary label in light mode, where that
+    /// grey on a white list is light enough to be hard work at this size.
+    /// Dark mode keeps the system colour: the same shift there would push
+    /// the line towards the title it is meant to sit behind.
+    ///
+    /// A concrete colour rather than `.secondary`, like everything else a
+    /// row draws: inside a selected row SwiftUI resolves hierarchical
+    /// styles to white.
+    static let rowDetail = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+            ? .secondaryLabelColor
+            : NSColor.labelColor.withAlphaComponent(0.68)
+    })
+}
+
 /// The strip along the bottom of a column: the content's status bar, and
 /// the detail pane's actions.
 ///

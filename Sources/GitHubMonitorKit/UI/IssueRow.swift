@@ -72,10 +72,7 @@ struct IssueRow: View {
                     }
                 }
                 .font(.caption)
-                // Concrete rather than .secondary: inside a selected row
-                // SwiftUI resolves hierarchical styles against the selection,
-                // and the line came out white.
-                .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+                .foregroundStyle(Color.rowDetail)
                 .lineLimit(1)
             }
 
