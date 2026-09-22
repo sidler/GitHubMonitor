@@ -50,10 +50,9 @@ public final class StatusItemController {
     private func updateTitle() {
         guard let button = statusItem.button else { return }
 
+        let counts = state.counts(in: .menuBar)
         let segments = StatusBarTitleBuilder.segments(
-            pullRequests: state.visiblePullRequests.count,
-            mentions: state.visibleNotifications.count,
-            issues: state.visibleIssues.count,
+            counts: counts,
             style: state.settings.statusBarStyle,
             health: state.health
         )
@@ -98,9 +97,7 @@ public final class StatusItemController {
 
         button.attributedTitle = title
         button.toolTip = StatusBarTitleBuilder.accessibilityLabel(
-            pullRequests: state.visiblePullRequests.count,
-            mentions: state.visibleNotifications.count,
-            issues: state.visibleIssues.count,
+            counts: counts,
             health: state.health
         )
     }
@@ -115,6 +112,7 @@ public final class StatusItemController {
             _ = state.hasToken
             _ = state.loadState
             _ = state.settings.statusBarStyle
+            _ = state.settings.listVisibility
             _ = state.settings.includeDrafts
             _ = state.settings.repositoryFilters
             _ = state.settings.notificationReasons

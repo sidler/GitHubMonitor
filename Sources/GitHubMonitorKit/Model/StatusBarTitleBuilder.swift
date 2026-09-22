@@ -42,10 +42,15 @@ public enum StatusBarTitleBuilder {
     public static let warningSymbol = "exclamationmark.triangle.fill"
     public static let unconfiguredSymbol = "key.slash"
 
+    /// Shown in place of the counts when every one of them is switched off,
+    /// so the icon is still there to click and still says why it is quiet.
+    public static let quietSymbol = "eye.slash"
+
+    /// The counts to render, in the order they are read. Whichever lists the
+    /// user left switched on for the menu bar; an empty list is a deliberate
+    /// choice rather than an error, and is drawn as such.
     public static func segments(
-        pullRequests: Int,
-        mentions: Int,
-        issues: Int,
+        counts: [(list: WatchedList, count: Int)],
         style: StatusBarStyle,
         health: StatusBarHealth
     ) -> [StatusBarSegment] {
@@ -58,34 +63,29 @@ public enum StatusBarTitleBuilder {
             break
         }
 
-        // One entry per count. Issues come last rather than beside the
-        // other pull request count: the two that were here first keep the
-        // place people are used to reading them in.
-        let counts = [
-            (symbol: pullRequestSymbol, value: pullRequests),
-            (symbol: mentionSymbol, value: mentions),
-            (symbol: issueSymbol, value: issues),
-        ]
+        guard !counts.isEmpty else { return [.symbol(quietSymbol)] }
 
         switch style {
         case .sum:
-            let total = counts.reduce(0) { $0 + $1.value }
-            return [.symbol(pullRequestSymbol), .text(" \(total)")]
+            let total = counts.reduce(0) { $0 + $1.count }
+            // The first symbol still on show leads the total, so the icon
+            // keeps saying what is being counted.
+            return [.symbol(counts[0].list.symbolName), .text(" \(total)")]
 
         case .separate:
-            return counts.enumerated().flatMap { index, count -> [StatusBarSegment] in
+            return counts.enumerated().flatMap { index, entry -> [StatusBarSegment] in
                 // Two spaces between groups, none after the last.
                 let gap = index == counts.count - 1 ? "" : "  "
-                return [.symbol(count.symbol), .text(" \(count.value)\(gap)")]
+                return [.symbol(entry.list.symbolName), .text(" \(entry.count)\(gap)")]
             }
 
         case .hideZero:
-            // A zero says nothing its symbol does not already say, and three
-            // counts in a menu bar are worth keeping narrow.
-            return counts.enumerated().flatMap { index, count -> [StatusBarSegment] in
-                var segments: [StatusBarSegment] = [.symbol(count.symbol)]
-                if count.value > 0 {
-                    segments.append(.text(" \(count.value)"))
+            // A zero says nothing its symbol does not already say, and
+            // several counts in a menu bar are worth keeping narrow.
+            return counts.enumerated().flatMap { index, entry -> [StatusBarSegment] in
+                var segments: [StatusBarSegment] = [.symbol(entry.list.symbolName)]
+                if entry.count > 0 {
+                    segments.append(.text(" \(entry.count)"))
                 }
                 if index < counts.count - 1 {
                     segments.append(.text("  "))
@@ -97,19 +97,19 @@ public enum StatusBarTitleBuilder {
 
     /// Plain-text rendering used for accessibility labels and tests.
     public static func accessibilityLabel(
-        pullRequests: Int,
-        mentions: Int,
-        issues: Int,
+        counts: [(list: WatchedList, count: Int)],
         health: StatusBarHealth
     ) -> String {
         switch health {
-        case .unconfigured: "GitHub Monitor: no token configured"
-        case .failing: "GitHub Monitor: last refresh failed"
-        case .ok:
-            """
-            GitHub Monitor: \(pullRequests) reviews requested, \
-            \(mentions) unread mentions, \(issues) issues assigned
-            """
+        case .unconfigured: return "GitHub Monitor: no token configured"
+        case .failing: return "GitHub Monitor: last refresh failed"
+        case .ok: break
         }
+
+        guard !counts.isEmpty else {
+            return "GitHub Monitor: no counts shown in the menu bar"
+        }
+        let phrases = counts.map { "\($0.count) \($0.list.countPhrase)" }
+        return "GitHub Monitor: " + phrases.joined(separator: ", ")
     }
 }

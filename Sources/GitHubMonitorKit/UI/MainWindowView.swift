@@ -11,14 +11,16 @@ struct SidebarColumn: View {
 
     var body: some View {
         List(selection: $state.sidebarSelection) {
-            Section("Reviews Requested") {
-                Label("All", systemImage: StatusBarTitleBuilder.pullRequestSymbol)
-                    .badge(state.visiblePullRequests.count)
-                    .tag(SidebarSelection.pullRequests(repository: nil))
+            if shown(.reviews) {
+                Section("Reviews Requested") {
+                    Label("All", systemImage: StatusBarTitleBuilder.pullRequestSymbol)
+                        .badge(state.visiblePullRequests.count)
+                        .tag(SidebarSelection.pullRequests(repository: nil))
 
-                ForEach(state.pullRequestRepositories) { entry in
-                    repositoryRow(entry)
-                        .tag(SidebarSelection.pullRequests(repository: entry.repository))
+                    ForEach(state.pullRequestRepositories) { entry in
+                        repositoryRow(entry)
+                            .tag(SidebarSelection.pullRequests(repository: entry.repository))
+                    }
                 }
             }
 
@@ -33,25 +35,29 @@ struct SidebarColumn: View {
                 }
             }
 
-            Section("My Issues") {
-                Label("All", systemImage: StatusBarTitleBuilder.issueSymbol)
-                    .badge(state.visibleIssues.count)
-                    .tag(SidebarSelection.myIssues(repository: nil))
+            if shown(.issues) {
+                Section("My Issues") {
+                    Label("All", systemImage: StatusBarTitleBuilder.issueSymbol)
+                        .badge(state.visibleIssues.count)
+                        .tag(SidebarSelection.myIssues(repository: nil))
 
-                ForEach(state.issueRepositories) { entry in
-                    repositoryRow(entry)
-                        .tag(SidebarSelection.myIssues(repository: entry.repository))
+                    ForEach(state.issueRepositories) { entry in
+                        repositoryRow(entry)
+                            .tag(SidebarSelection.myIssues(repository: entry.repository))
+                    }
                 }
             }
 
-            Section("Mentions") {
-                Label("All", systemImage: StatusBarTitleBuilder.mentionSymbol)
-                    .badge(state.visibleNotifications.count)
-                    .tag(SidebarSelection.mentions(repository: nil))
+            if shown(.mentions) {
+                Section("Mentions") {
+                    Label("All", systemImage: StatusBarTitleBuilder.mentionSymbol)
+                        .badge(state.visibleNotifications.count)
+                        .tag(SidebarSelection.mentions(repository: nil))
 
-                ForEach(state.notificationRepositories) { entry in
-                    repositoryRow(entry)
-                        .tag(SidebarSelection.mentions(repository: entry.repository))
+                    ForEach(state.notificationRepositories) { entry in
+                        repositoryRow(entry)
+                            .tag(SidebarSelection.mentions(repository: entry.repository))
+                    }
                 }
             }
 
@@ -88,6 +94,10 @@ struct SidebarColumn: View {
 
     private var isSettingsOpen: Bool {
         state.sidebarSelection == .settings
+    }
+
+    private func shown(_ list: WatchedList) -> Bool {
+        state.settings.listVisibility.isShown(list, in: .window)
     }
 
     private func repositoryRow(_ entry: SidebarRepository) -> some View {
@@ -313,15 +323,17 @@ struct ContentColumn: View {
     /// screen, and when it was last checked.
     private var statusBar: some View {
         HStack(spacing: 12) {
-            Label("\(state.visiblePullRequests.count)", systemImage: StatusBarTitleBuilder.pullRequestSymbol)
-                .help("Reviews requested")
-            Label("\(state.visibleNotifications.count)", systemImage: StatusBarTitleBuilder.mentionSymbol)
-                .help("Unread mentions")
-            Label("\(state.visibleIssues.count)", systemImage: StatusBarTitleBuilder.issueSymbol)
-                .help("Issues assigned to you")
+            // The same switches as the sidebar: a count for a section that
+            // is not there would be a number with nothing to look at.
+            ForEach(state.counts(in: .window), id: \.list) { entry in
+                Label("\(entry.count)", systemImage: entry.list.symbolName)
+                    .help(entry.list.label)
+            }
 
             if !legendSymbols.isEmpty {
-                Divider().frame(height: 11)
+                if !state.counts(in: .window).isEmpty {
+                    Divider().frame(height: 11)
+                }
                 LegendBar(symbols: legendSymbols)
             }
 

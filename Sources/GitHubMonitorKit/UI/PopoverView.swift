@@ -23,9 +23,12 @@ struct PopoverView: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 14) {
-                        pullRequestSection
-                        mentionSection
-                        issueSection
+                        if shown.isEmpty {
+                            everythingHiddenNotice
+                        }
+                        if shown.contains(.reviews) { pullRequestSection }
+                        if shown.contains(.mentions) { mentionSection }
+                        if shown.contains(.issues) { issueSection }
                     }
                     .padding(12)
                 }
@@ -47,6 +50,20 @@ struct PopoverView: View {
     }
 
     // MARK: - Sections
+
+    /// What the user left switched on for this panel.
+    private var shown: [WatchedList] {
+        state.settings.listVisibility.shown(in: .popover)
+    }
+
+    /// Switching every section off is a way of using the popover as a menu
+    /// rather than a mistake, so this says so and stays out of the way.
+    private var everythingHiddenNotice: some View {
+        Text("Every list is switched off for this panel. The window and the menu bar have their own switches in settings.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
 
     private var pullRequestSection: some View {
         let items = state.visiblePullRequests

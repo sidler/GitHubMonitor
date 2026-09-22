@@ -44,6 +44,26 @@ public enum SidebarSelection: Hashable, Sendable {
         }
     }
 
+    /// Which watched list this points at, if any. "My Pull Requests" and
+    /// the views below the lists have no switch, so they answer nil.
+    public var watchedList: WatchedList? {
+        switch self {
+        case .pullRequests: .reviews
+        case .myIssues: .issues
+        case .mentions: .mentions
+        case .myPullRequests, .dashboard, .trends, .myTrends, .settings: nil
+        }
+    }
+
+    /// The "All" entry for one list, as the sidebar tags it.
+    public static func all(_ list: WatchedList) -> SidebarSelection {
+        switch list {
+        case .reviews: .pullRequests(repository: nil)
+        case .issues: .myIssues(repository: nil)
+        case .mentions: .mentions(repository: nil)
+        }
+    }
+
     public var isMentions: Bool {
         if case .mentions = self { return true }
         return false

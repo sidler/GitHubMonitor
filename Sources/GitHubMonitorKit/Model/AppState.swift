@@ -105,6 +105,42 @@ public final class AppState {
 
     public init(settings: Settings) {
         self.settings = settings
+        // The default selection is the review queue, which the user may have
+        // switched off; starting on a list that is not in the sidebar would
+        // show a view with no way back to it.
+        normaliseSelection()
+    }
+
+    /// How many items one list holds, after every filter -- the number the
+    /// menu bar, the popover and the status bar all report.
+    public func count(of list: WatchedList) -> Int {
+        switch list {
+        case .reviews: visiblePullRequests.count
+        case .issues: visibleIssues.count
+        case .mentions: visibleNotifications.count
+        }
+    }
+
+    /// The lists one surface shows, with their counts.
+    public func counts(in surface: DisplaySurface) -> [(list: WatchedList, count: Int)] {
+        settings.listVisibility.shown(in: surface).map { ($0, count(of: $0)) }
+    }
+
+    /// Moves the sidebar off a list that is not shown in the window.
+    ///
+    /// Called when the switches change and at launch: the content column
+    /// follows this selection, so a hidden list left selected would still be
+    /// on screen with no sidebar entry to leave it by.
+    public func normaliseSelection() {
+        guard let list = sidebarSelection.watchedList else { return }
+        guard !settings.listVisibility.isShown(list, in: .window) else { return }
+
+        if let first = settings.listVisibility.shown(in: .window).first {
+            sidebarSelection = .all(first)
+        } else {
+            // Nothing left to list; the window still has its other views.
+            sidebarSelection = .myPullRequests(repository: nil)
+        }
     }
 
     /// Pull requests after every filter -- what the list shows and what the

@@ -46,6 +46,12 @@ public final class Settings {
         didSet { store.set(teamSlugs, forKey: Key.teamSlugs) }
     }
 
+    /// Which of the watched lists appear in the menu bar, the popover and
+    /// the window. Everything is shown until it is switched off.
+    public var listVisibility: ListVisibility {
+        didSet { store.set(listVisibility.storedKeys, forKey: Key.hiddenLists) }
+    }
+
     /// Notification reasons that count towards the mention badge.
     public var notificationReasons: Set<NotificationReason> {
         didSet {
@@ -120,6 +126,9 @@ public final class Settings {
         } else {
             notificationReasons = [.mention, .teamMention]
         }
+        listVisibility = ListVisibility(
+            storedKeys: store.stringArray(forKey: Key.hiddenLists) ?? []
+        )
         dashboardRepository = store.string(forKey: Key.dashboardRepository) ?? ""
         dashboardGrouping =
             (store.string(forKey: Key.dashboardGrouping).flatMap(DashboardGrouping.init(rawValue:))) ?? .author
@@ -144,6 +153,7 @@ public final class Settings {
         static let includeDrafts = "includeDrafts"
         static let teamSlugs = "teamSlugs"
         static let notificationReasons = "notificationReasons"
+        static let hiddenLists = "hiddenLists"
         static let dashboardRepository = "dashboardRepository"
         static let dashboardGrouping = "dashboardGrouping"
         static let launchAtLogin = "launchAtLogin"
