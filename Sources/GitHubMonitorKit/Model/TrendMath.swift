@@ -127,6 +127,41 @@ public enum TrendMath {
         )
     }
 
+    /// One period of one's own pull requests.
+    ///
+    /// The comment counts go through the same shape as the durations --
+    /// fewest, middle, most -- because the question is the same one: was the
+    /// period even, or did one pull request carry all the discussion.
+    public static func myBucket(
+        period: DateInterval,
+        opened: [MyPullRequestFacts],
+        merged: [PullRequestTiming],
+        calendar: Calendar = TrendMath.calendar
+    ) -> MyTrendBucket {
+        var hours: [Int: Int] = [:]
+        for item in opened {
+            hours[calendar.component(.hour, from: item.createdAt), default: 0] += 1
+        }
+
+        func commenters(_ keyPath: KeyPath<MyPullRequestFacts, [String: Int]>) -> [String: Int] {
+            opened.reduce(into: [String: Int]()) { total, item in
+                for (login, count) in item[keyPath: keyPath] { total[login, default: 0] += count }
+            }
+        }
+
+        return MyTrendBucket(
+            start: period.start,
+            end: period.end,
+            opened: opened.count,
+            hours: hours,
+            commentsFromPeople: point(opened.map { Double($0.commentsFromPeople) }),
+            commentsFromEveryone: point(opened.map { Double($0.commentsFromEveryone) }),
+            commentersFromPeople: commenters(\.commentersFromPeople),
+            commentersFromEveryone: commenters(\.commentersFromEveryone),
+            merge: point(merged.compactMap(\.timeToMerge))
+        )
+    }
+
     private static func point(_ values: [TimeInterval]) -> TrendPoint {
         TrendPoint(
             median: median(values),

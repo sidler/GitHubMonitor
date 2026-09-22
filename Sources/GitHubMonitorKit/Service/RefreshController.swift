@@ -11,6 +11,7 @@ public final class RefreshController {
     /// The trends load, kept so a change of repository or resolution can
     /// call off the one still running.
     private var trendsTask: Task<Void, Never>?
+    private var myTrendsTask: Task<Void, Never>?
     /// Passed back as If-Modified-Since so unchanged polls cost no rate limit.
     private var lastModified: String?
     /// GitHub's requested minimum interval, which overrides a shorter setting.
@@ -323,6 +324,101 @@ public final class RefreshController {
         trendStore.save(fresh)
     }
 
+    /// Loads the charts about one's own pull requests, period by period.
+    ///
+    /// Same shape as the repository trends -- cached, published as the
+    /// periods arrive, stopping if the quota runs low -- but scoped to the
+    /// signed-in user and to whatever repository filters the lists work
+    /// under, so it describes the same body of work.
+    public func loadMyTrends(force: Bool = false) async {
+        myTrendsTask?.cancel()
+        let task = Task { await performMyTrendsLoad(force: force) }
+        myTrendsTask = task
+        await task.value
+    }
+
+    private func performMyTrendsLoad(force: Bool) async {
+        guard let service else {
+            state.myTrends = .unconfigured
+            return
+        }
+
+        let login: String
+        if let viewer = state.viewer {
+            login = viewer.login
+        } else {
+            do {
+                let viewer = try await service.viewer()
+                state.viewer = viewer
+                login = viewer.login
+            } catch {
+                state.myTrends = .failed(error.localizedDescription)
+                return
+            }
+        }
+
+        let resolution = state.settings.trendResolution
+        let cached = trendStore.loadMine(login: login, resolution: resolution)
+        if let cached, !force, !cached.isStale, cached.isComplete {
+            state.myTrends = .loaded(cached)
+            return
+        }
+
+        state.myTrends = .loading(cached)
+
+        let filters = state.settings.repositoryFilters
+        var fresh = MyTrendData(login: login, resolution: resolution)
+        for period in TrendMath.periods(resolution) {
+            guard !Task.isCancelled else { return }
+            do {
+                async let openedTask = service.myPullRequests(
+                    matching: MyTrendQuery.openedQuery(
+                        login: login,
+                        repositoryFilters: filters,
+                        period: period
+                    )
+                )
+                async let mergedTask = service.mergedTimings(
+                    matching: MyTrendQuery.mergedQuery(
+                        login: login,
+                        repositoryFilters: filters,
+                        period: period
+                    )
+                )
+                let opened = try await openedTask
+                let merged = try await mergedTask
+
+                fresh.buckets.append(
+                    TrendMath.myBucket(
+                        period: period,
+                        opened: opened.facts,
+                        merged: merged.timings
+                    )
+                )
+                fresh.fetchedAt = .now
+                state.myTrends = .loading(fresh)
+
+                if let remaining = opened.remainingQuota ?? merged.remainingQuota,
+                   remaining < Self.quotaFloor {
+                    fresh.truncationReason =
+                        "Stopped after \(fresh.buckets.count) periods: GitHub's hourly query budget was running low."
+                    break
+                }
+            } catch {
+                guard !fresh.buckets.isEmpty else {
+                    state.myTrends = .failed(error.localizedDescription)
+                    return
+                }
+                fresh.truncationReason = error.localizedDescription
+                break
+            }
+        }
+
+        guard !Task.isCancelled else { return }
+        state.myTrends = .loaded(fresh)
+        trendStore.save(fresh)
+    }
+
     // MARK: - Dashboard
 
     /// Loads every open pull request in the dashboard repository.
@@ -386,7 +482,7 @@ public final class RefreshController {
             ) {
                 inspect(next)
             }
-        case .dashboard, .trends, .settings:
+        case .dashboard, .trends, .myTrends, .settings:
             break
         }
     }

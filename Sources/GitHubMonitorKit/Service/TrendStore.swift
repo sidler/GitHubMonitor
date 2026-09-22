@@ -22,9 +22,9 @@ public struct TrendStore: Sendable {
         return base.appendingPathComponent("GitHubMonitor/Trends", isDirectory: true)
     }
 
-    /// One file per repository and resolution, so switching between weeks
-    /// and months shows the other straight away instead of fetching it
-    /// again.
+    /// One file per subject and resolution, so switching between weeks and
+    /// months shows the other straight away instead of fetching it again.
+    /// The subject is a repository, or a login for the personal history.
     func url(repository: String, resolution: TrendResolution) -> URL {
         directory.appendingPathComponent("\(Self.slug(repository))-\(resolution.rawValue).json")
     }
@@ -56,10 +56,35 @@ public struct TrendStore: Sendable {
         return stored
     }
 
+    public func loadMine(login: String, resolution: TrendResolution) -> MyTrendData? {
+        guard
+            let data = try? Data(contentsOf: url(repository: "@\(login)", resolution: resolution))
+        else { return nil }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        guard let stored = try? decoder.decode(MyTrendData.self, from: data) else { return nil }
+
+        guard
+            stored.schema == MyTrendData.schema,
+            stored.login == login,
+            stored.resolution == resolution
+        else { return nil }
+        return stored
+    }
+
+    public func save(_ data: MyTrendData) {
+        write(data, to: url(repository: "@\(data.login)", resolution: data.resolution))
+    }
+
     public func save(_ data: TrendData) {
+        write(data, to: url(repository: data.repository, resolution: data.resolution))
+    }
+
+    private func write(_ value: some Encodable, to url: URL) {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
-        guard let encoded = try? encoder.encode(data) else { return }
+        guard let encoded = try? encoder.encode(value) else { return }
 
         try? FileManager.default.createDirectory(
             at: directory,
@@ -67,9 +92,6 @@ public struct TrendStore: Sendable {
         )
         // A failed write is not worth reporting: the charts are on screen
         // either way, and the only cost is fetching them again next time.
-        try? encoded.write(
-            to: url(repository: data.repository, resolution: data.resolution),
-            options: .atomic
-        )
+        try? encoded.write(to: url, options: .atomic)
     }
 }

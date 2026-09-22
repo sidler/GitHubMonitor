@@ -49,6 +49,8 @@ struct SidebarColumn: View {
                     .tag(SidebarSelection.dashboard)
                 Label("Trends", systemImage: "chart.xyaxis.line")
                     .tag(SidebarSelection.trends)
+                Label("My Trends", systemImage: "person.crop.circle.badge.clock")
+                    .tag(SidebarSelection.myTrends)
                 Label("Settings", systemImage: "gearshape")
                     .tag(SidebarSelection.settings)
             }
@@ -108,6 +110,7 @@ struct ContentColumn: View {
         case .mentions: mentionList
         case .dashboard: DashboardView(state: state, controller: controller)
         case .trends: TrendsView(state: state, controller: controller)
+        case .myTrends: MyTrendsView(state: state, controller: controller)
         case .settings: SettingsView(state: state, controller: controller)
         }
     }
@@ -235,7 +238,7 @@ struct ContentColumn: View {
         switch state.sidebarSelection {
         case .pullRequests: PullRequestLegend.symbols(for: state.selectedPullRequests)
         case .myPullRequests: PullRequestLegend.symbols(for: state.selectedAuthoredPullRequests)
-        case .mentions, .dashboard, .trends, .settings: []
+        case .mentions, .dashboard, .trends, .myTrends, .settings: []
         }
     }
 
@@ -328,7 +331,7 @@ struct ToolbarControls: View {
                     }
                     .help("Marks these threads read on GitHub too")
                 }
-            case .dashboard, .trends, .settings:
+            case .dashboard, .trends, .myTrends, .settings:
                 EmptyView()
             }
         }

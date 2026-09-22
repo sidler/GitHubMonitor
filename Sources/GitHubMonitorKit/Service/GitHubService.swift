@@ -149,6 +149,16 @@ public struct GitHubService: Sendable {
         repository: String,
         period: DateInterval
     ) async throws -> (timings: [PullRequestTiming], remainingQuota: Int?) {
+        try await mergedTimings(
+            matching: TrendQuery.mergedQuery(repository: repository, period: period)
+        )
+    }
+
+    /// The same, for any search: the personal charts ask for one author's
+    /// merges rather than a repository's.
+    public func mergedTimings(
+        matching query: String
+    ) async throws -> (timings: [PullRequestTiming], remainingQuota: Int?) {
         var timings: [PullRequestTiming] = []
         var cursor: String?
         var remaining: Int?
@@ -157,7 +167,7 @@ public struct GitHubService: Sendable {
             let payload = try await client.graphQL(
                 TrendQuery.mergedDocument,
                 variables: [
-                    "query": TrendQuery.mergedQuery(repository: repository, period: period),
+                    "query": query,
                     "cursor": cursor as Any,
                 ]
             )
@@ -197,6 +207,29 @@ public struct GitHubService: Sendable {
         } while cursor != nil
 
         return (total - bots, total, remaining)
+    }
+
+    /// One person's pull requests from one period, with what was said on
+    /// them.
+    public func myPullRequests(
+        matching query: String
+    ) async throws -> (facts: [MyPullRequestFacts], remainingQuota: Int?) {
+        var facts: [MyPullRequestFacts] = []
+        var cursor: String?
+        var remaining: Int?
+
+        repeat {
+            let payload = try await client.graphQL(
+                MyTrendQuery.document,
+                variables: ["query": query, "cursor": cursor as Any]
+            )
+            let page = MyTrendQuery.page(from: payload)
+            facts += page.items
+            remaining = page.remainingQuota
+            cursor = page.cursor
+        } while cursor != nil
+
+        return (facts, remaining)
     }
 
     /// Marks one thread read. This changes state on GitHub, including in the

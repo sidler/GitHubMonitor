@@ -14,6 +14,8 @@ public enum SidebarSelection: Hashable, Sendable {
     /// Delivery over time, as opposed to the dashboard's snapshot of who is
     /// carrying what right now.
     case trends
+    /// The same questions, asked about one's own pull requests.
+    case myTrends
     case settings
 
     public var tab: MainWindowTab {
@@ -23,6 +25,7 @@ public enum SidebarSelection: Hashable, Sendable {
         case .mentions: .mentions
         case .dashboard: .dashboard
         case .trends: .trends
+        case .myTrends: .myTrends
         case .settings: .settings
         }
     }
@@ -33,7 +36,7 @@ public enum SidebarSelection: Hashable, Sendable {
         case .pullRequests(let repository),
              .myPullRequests(let repository),
              .mentions(let repository): repository
-        case .dashboard, .trends, .settings: nil
+        case .dashboard, .trends, .myTrends, .settings: nil
         }
     }
 
@@ -51,6 +54,7 @@ public enum SidebarSelection: Hashable, Sendable {
         case .mentions(let repository): repository ?? "Mentions"
         case .dashboard: "Workload"
         case .trends: "Trends"
+        case .myTrends: "My Trends"
         case .settings: "Settings"
         }
     }
@@ -62,7 +66,7 @@ public enum SidebarSelection: Hashable, Sendable {
         case .pullRequests(let repository): repository == nil ? nil : "Reviews Requested"
         case .myPullRequests(let repository): repository == nil ? nil : "My Pull Requests"
         case .mentions(let repository): repository == nil ? nil : "Mentions"
-        case .dashboard, .trends, .settings: nil
+        case .dashboard, .trends, .myTrends, .settings: nil
         }
     }
 }

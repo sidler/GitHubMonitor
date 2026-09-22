@@ -7,6 +7,7 @@ public enum MainWindowTab: String, Hashable, CaseIterable, Sendable {
     case mentions
     case dashboard
     case trends
+    case myTrends
     case settings
 
     public var label: String {
@@ -16,6 +17,7 @@ public enum MainWindowTab: String, Hashable, CaseIterable, Sendable {
         case .mentions: "Mentions"
         case .dashboard: "Workload"
         case .trends: "Trends"
+        case .myTrends: "My Trends"
         case .settings: "Settings"
         }
     }
@@ -27,6 +29,7 @@ public enum MainWindowTab: String, Hashable, CaseIterable, Sendable {
         case .mentions: "bell"
         case .dashboard: "chart.bar"
         case .trends: "chart.xyaxis.line"
+        case .myTrends: "person.crop.circle.badge.clock"
         case .settings: "gearshape"
         }
     }
@@ -80,6 +83,8 @@ public final class AppState {
     /// The trend charts, which have their own fetch again: a year of
     /// history is far too expensive to hang off the refresh timer.
     public var trends: TrendState = .unconfigured
+    /// The same, for one's own pull requests rather than a repository's.
+    public var myTrends: MyTrendState = .unconfigured
     /// Whether the content column is scrolled away from its top. The title
     /// bar band only needs a material once rows are passing behind it.
     public var isContentScrolled = false
@@ -159,7 +164,7 @@ public final class AppState {
             draftCount(in: pullRequests, repository: repository)
         case .myPullRequests(let repository):
             draftCount(in: authoredPullRequests, repository: repository)
-        case .mentions, .dashboard, .trends, .settings:
+        case .mentions, .dashboard, .trends, .myTrends, .settings:
             0
         }
     }
@@ -189,7 +194,7 @@ public final class AppState {
             switch sidebarSelection {
             case .pullRequests: selectedPullRequests
             case .myPullRequests: selectedAuthoredPullRequests
-            case .mentions, .dashboard, .trends, .settings: []
+            case .mentions, .dashboard, .trends, .myTrends, .settings: []
             }
 
         guard settings.listGrouping == .byRepository else { return items }
@@ -236,7 +241,7 @@ public final class AppState {
         switch sidebarSelection {
         case .pullRequests, .myPullRequests: inspectedPullRequest != nil
         case .mentions: inspectedNotification != nil
-        case .dashboard, .trends, .settings: false
+        case .dashboard, .trends, .myTrends, .settings: false
         }
     }
 

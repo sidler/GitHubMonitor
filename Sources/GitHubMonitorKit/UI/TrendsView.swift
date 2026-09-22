@@ -206,7 +206,7 @@ struct TrendsView: View {
                 AxisGridLine()
                 AxisValueLabel {
                     if let date = value.as(Date.self) {
-                        Text(axisLabel(date, resolution: data.resolution))
+                        Text(TrendAxis.periodTick(date, resolution: data.resolution))
                     }
                 }
             }
@@ -216,11 +216,14 @@ struct TrendsView: View {
                 // The decades, chosen here rather than left to the chart: a
                 // logarithmic axis bunches its automatic ticks together at
                 // the bottom, where they overlap into a smudge.
-                AxisMarks(values: decades(points, unit: unit)) { value in
+                AxisMarks(values: TrendAxis.decades(
+                    points.compactMap(\.value).map { scaled($0, unit: unit) },
+                    enabled: true
+                )) { value in
                     AxisGridLine()
                     AxisValueLabel {
                         if let number = value.as(Double.self) {
-                            Text(verbatim: axisNumber(number, unit: unit))
+                            Text(verbatim: TrendAxis.number(number))
                         }
                     }
                 }
@@ -300,39 +303,6 @@ struct TrendsView: View {
         return value / unit.seconds
     }
 
-    /// Powers of ten from one up to the largest value, thinned until they
-    /// fit.
-    ///
-    /// From one rather than from the smallest value: the scale is linear
-    /// below one and logarithmic above, so every decade under it lands on
-    /// the same few pixels and their labels pile up on each other. The
-    /// fastest line still sits where it belongs, just without a tick of its
-    /// own -- which is what "faster than the unit can say" looks like.
-    private func decades(_ points: [TrendSample], unit: TrendMath.DurationUnit) -> [Double] {
-        let largest = points.compactMap(\.value).map { scaled($0, unit: unit) }.max() ?? 0
-        guard largest >= 1 else { return [] }
-
-        let upper = Int(ceil(log10(largest)))
-        var step = 1
-        while upper / step > 4 { step += 1 }
-        return stride(from: 0, through: upper, by: step).map { pow(10, Double($0)) }
-    }
-
-    /// Enough decimals to tell one decade from the next, and none beyond.
-    private func axisNumber(_ value: Double, unit: TrendMath.DurationUnit?) -> String {
-        guard unit != nil else { return "\(Int(value.rounded()))" }
-        if value >= 1 { return "\(Int(value.rounded()))" }
-        let decimals = max(1, Int(ceil(-log10(value))))
-        return String(format: "%.\(decimals)f", value)
-    }
-
-    private func axisLabel(_ date: Date, resolution: TrendResolution) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US")
-        formatter.dateFormat = resolution == .weekly ? "d MMM" : "MMM yy"
-        return formatter.string(from: date)
-    }
-
     // MARK: - Hover
 
     private func hoverCatcher(
@@ -378,7 +348,7 @@ struct TrendsView: View {
         let here = points.filter { $0.start == start }
 
         return VStack(alignment: .leading, spacing: 2) {
-            Text(periodLabel(start, resolution: data.resolution))
+            Text(TrendAxis.periodName(start, resolution: data.resolution))
                 .font(.caption.weight(.semibold))
 
             ForEach(here) { point in
@@ -430,17 +400,6 @@ struct TrendsView: View {
         }
     }
 
-    private func periodLabel(_ start: Date, resolution: TrendResolution) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US")
-        switch resolution {
-        case .weekly:
-            formatter.dateFormat = "'Week of' d MMM yyyy"
-        case .monthly:
-            formatter.dateFormat = "MMMM yyyy"
-        }
-        return formatter.string(from: start)
-    }
 }
 
 
@@ -453,14 +412,7 @@ private struct TrendControls: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Picker("", selection: $settings.trendResolution) {
-                ForEach(TrendResolution.allCases, id: \.self) { resolution in
-                    Text(resolution.label).tag(resolution)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .fixedSize()
+            TrendResolutionPicker(settings: settings)
 
             Toggle("Include bots", isOn: $settings.trendsIncludeBots)
                 .toggleStyle(.checkbox)
