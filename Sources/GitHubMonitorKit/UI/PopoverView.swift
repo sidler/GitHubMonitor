@@ -43,7 +43,8 @@ struct PopoverView: View {
             footer
         }
         .frame(width: 380)
-        .panelBackground()
+        // No background of its own: a popover is a panel the system draws
+        // the material for, and a fill here would cover it.
     }
 
     // MARK: - Sections

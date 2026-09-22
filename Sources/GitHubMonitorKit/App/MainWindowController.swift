@@ -121,6 +121,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         lastSelection = state.sidebarSelection
 
         updateTitle()
+        syncToolbarControls()
         observeSelection()
         observeScrolling()
         // Something can already be open when the window is first built --
@@ -167,20 +168,20 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
 
     // MARK: - Title
 
-    /// The window title is the list's name, which AppKit draws in the unified
-    /// toolbar — the native equivalent of SwiftUI's navigationTitle.
-    /// The window keeps a title for the Window menu and the app switcher,
-    /// but does not draw it: ToolbarTitle does, so it can be inset away from
-    /// the sidebar divider.
+    /// The window title is the list's name, and the section it belongs to is
+    /// the subtitle -- which AppKit draws in the unified toolbar, the native
+    /// equivalent of SwiftUI's navigationTitle.
+    ///
+    /// Drawn by AppKit again. It used to be a hosted SwiftUI view, because
+    /// the native title sat hard against the sidebar divider where Notes and
+    /// Mail inset theirs; macOS 26 insets it properly, and a hosted view in
+    /// a toolbar now comes with the glass background that belongs to
+    /// controls, which made a plain title look like a button.
     private func updateTitle() {
         let selection = state.sidebarSelection
-        if let subtitle = selection.subtitle {
-            window?.title = "\(selection.title) — \(subtitle)"
-        } else {
-            window?.title = selection.title
-        }
-        window?.subtitle = ""
-        window?.titleVisibility = .hidden
+        window?.title = selection.title
+        window?.subtitle = selection.subtitle ?? ""
+        window?.titleVisibility = .visible
     }
 
     /// Resets what belongs to the list being left behind.
@@ -191,22 +192,42 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         // title bar should be clear again. One that restores a scroll
         // position posts its own bounds change and turns it back on.
         state.isContentScrolled = false
+        syncToolbarControls()
         // After SwiftUI has redrawn the toolbar's own views; their new sizes
         // do not exist yet at this point.
         DispatchQueue.main.async { [weak self] in self?.resizeToolbarItems() }
     }
 
-    /// Re-sizes the toolbar items that host SwiftUI views.
+    /// Adds or removes the controls item, following whether the view on
+    /// screen has any controls to put there.
+    ///
+    /// Leaving an empty item in place is not free: every toolbar item gets
+    /// its own glass background, so one hosting nothing shows as a sliver of
+    /// glass beside the title.
+    private func syncToolbarControls() {
+        guard let toolbar = window?.toolbar else { return }
+        let index = toolbar.items.firstIndex { $0.itemIdentifier == Self.controlsItem }
+
+        if state.sidebarSelection.hasToolbarControls {
+            guard index == nil else { return }
+            toolbar.insertItem(withItemIdentifier: Self.controlsItem, at: toolbar.items.count)
+        } else if let index {
+            toolbar.removeItem(at: index)
+            // The item is rebuilt from scratch when it comes back, so the
+            // constraint measured for the old one must not outlive it.
+            toolbarWidths[Self.controlsItem] = nil
+        }
+    }
+
+    /// Re-sizes the toolbar item that hosts SwiftUI views.
     ///
     /// A view-based toolbar item keeps the width it was given when the
-    /// toolbar last laid out, and a new list changes both how long the title
-    /// is and which controls sit beside it. Without this, coming back from a
-    /// list with no controls left the title truncated and the controls
+    /// toolbar last laid out, and a new list brings different controls with
+    /// it. Without this, coming back from a list with no controls left them
     /// running off the window's edge until it was resized.
     private func resizeToolbarItems() {
         for item in window?.toolbar?.items ?? [] {
-            guard item.itemIdentifier == Self.titleItem || item.itemIdentifier == Self.controlsItem,
-                  let view = item.view
+            guard item.itemIdentifier == Self.controlsItem, let view = item.view
             else { continue }
 
             view.invalidateIntrinsicContentSize()
@@ -324,7 +345,6 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     // MARK: - Toolbar
 
     private static let controlsItem = NSToolbarItem.Identifier("controls")
-    private static let titleItem = NSToolbarItem.Identifier("title")
 
     public func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         toolbarDefaultItemIdentifiers(toolbar)
@@ -333,7 +353,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     public func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         // The tracking separator pins the toolbar's divider to the sidebar's,
         // which is the reason this window is built on a split view controller.
-        [.toggleSidebar, .sidebarTrackingSeparator, Self.titleItem, .flexibleSpace, Self.controlsItem]
+        [.toggleSidebar, .sidebarTrackingSeparator, .flexibleSpace, Self.controlsItem]
     }
 
     public func toolbar(
@@ -344,12 +364,6 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         let item = NSToolbarItem(itemIdentifier: identifier)
 
         switch identifier {
-        case Self.titleItem:
-            let hosting = NSHostingView(rootView: ToolbarTitle(state: state))
-            hosting.sizingOptions = [.intrinsicContentSize]
-            item.view = hosting
-            // Never collapse the title into the overflow menu.
-            item.visibilityPriority = .user
         case Self.controlsItem:
             let hosting = NSHostingView(rootView: ToolbarControls(state: state, controller: controller))
             hosting.sizingOptions = [.intrinsicContentSize]

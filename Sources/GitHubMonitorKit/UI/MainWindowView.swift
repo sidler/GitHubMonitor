@@ -161,6 +161,12 @@ struct ContentColumn: View {
     /// The strip the rows scroll behind. Clear while the list sits at its top
     /// — nothing is passing behind it — and a thin material once it scrolls,
     /// so rows do not collide with the title.
+    ///
+    /// Drawn by hand although the system has `scrollEdgeEffectStyle`: that
+    /// modifier does not reach a SwiftUI `List` on macOS, which is an
+    /// NSTableView inside an NSScrollView — the same reason
+    /// `onScrollGeometryChange` never fires for one. It was tried; the rows
+    /// scrolled straight through the toolbar.
     private func titleBarBand(height: CGFloat) -> some View {
         Rectangle()
             .fill(state.isContentScrolled ? AnyShapeStyle(.ultraThinMaterial) : AnyShapeStyle(.clear))
@@ -364,30 +370,6 @@ struct ContentColumn: View {
             .help("Refresh now")
         }
         .monospacedDigit()
-    }
-}
-
-/// The list's name, as its own toolbar item.
-///
-/// AppKit's own title sits hard against the sidebar divider; Notes and Mail
-/// inset theirs. Rendering it here is what allows the leading space.
-struct ToolbarTitle: View {
-    @Bindable var state: AppState
-
-    var body: some View {
-        Text(title)
-            .font(.headline)
-            .lineLimit(1)
-            .padding(.leading, 12)
-            .help(title)
-    }
-
-    private var title: String {
-        let selection = state.sidebarSelection
-        if let subtitle = selection.subtitle {
-            return "\(selection.title) — \(subtitle)"
-        }
-        return selection.title
     }
 }
 

@@ -362,7 +362,10 @@ struct DashboardView: View {
             }
         }
         .padding(8)
-        .floatingBackground(in: RoundedRectangle(cornerRadius: 6))
+        // Glass rather than a material with a hairline drawn around it:
+        // this floats over the chart, which is what the system's own
+        // material is for, and it brings its own edge.
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 6))
         .padding(8)
         .allowsHitTesting(false)
         .transition(.opacity)

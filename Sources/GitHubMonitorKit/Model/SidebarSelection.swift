@@ -64,6 +64,18 @@ public enum SidebarSelection: Hashable, Sendable {
         }
     }
 
+    /// Whether this view puts anything in the toolbar.
+    ///
+    /// An empty toolbar item is not nothing on macOS 26: the system draws
+    /// every item its own glass background, so a view with no controls left
+    /// a bare sliver of glass in the corner.
+    public var hasToolbarControls: Bool {
+        switch self {
+        case .pullRequests, .myPullRequests, .myIssues, .mentions: true
+        case .dashboard, .trends, .myTrends, .settings: false
+        }
+    }
+
     public var isMentions: Bool {
         if case .mentions = self { return true }
         return false

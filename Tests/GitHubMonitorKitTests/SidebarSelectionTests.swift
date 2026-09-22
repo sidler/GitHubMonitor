@@ -40,6 +40,24 @@ struct SidebarSelectionTests {
         #expect(SidebarSelection.settings.tab == .settings)
     }
 
+    /// An empty toolbar item is not nothing on macOS 26: every item gets its
+    /// own glass background, so one hosting nothing shows as a sliver of
+    /// glass beside the title.
+    @Test("Only the views with controls ask for a toolbar item")
+    func toolbarControls() {
+        for selection in [
+            SidebarSelection.pullRequests(repository: nil),
+            .myPullRequests(repository: nil),
+            .myIssues(repository: nil),
+            .mentions(repository: nil),
+        ] {
+            #expect(selection.hasToolbarControls)
+        }
+        for selection in [SidebarSelection.dashboard, .trends, .myTrends, .settings] {
+            #expect(!selection.hasToolbarControls)
+        }
+    }
+
     /// Selections are used as list tags, so two entries that look alike must
     /// not compare equal.
     @Test("Selections for different repositories are distinct")

@@ -4,13 +4,17 @@ A small macOS menu bar app that shows how much GitHub work is waiting for you:
 
 - **Reviews requested** — open pull requests where you (or one of your teams) are the requested reviewer
 - **Unread mentions** — unread notification threads matching the reasons you care about
+- **Issues assigned** — open issues assigned to you, with their type, labels and milestone
 
-Both counts live in the menu bar. A popover gives a short overview, a separate
-window gives the full lists, message previews and settings.
+The counts live in the menu bar, each list switchable per place it appears. A
+popover gives a short overview; a separate window gives the full lists, your
+own open pull requests, message previews, the workload and trend charts, and
+settings.
 
 ## Requirements
 
-- macOS 14 or later
+- macOS 26 or later — the app uses the system's own glass materials rather than
+  reproducing them
 - Swift 6 toolchain (Xcode not required — the Command Line Tools are enough)
 
 ## Build and run
