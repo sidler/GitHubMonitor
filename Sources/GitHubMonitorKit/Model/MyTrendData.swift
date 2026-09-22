@@ -22,7 +22,7 @@ public enum MyTrendMetric: String, CaseIterable, Codable, Sendable {
         switch self {
         case .opened: "Opened by you per period, whatever became of them."
         case .hourOfDay: "The hour each was opened, across the whole range."
-        case .comments: "Conversation and review comments, counted per pull request you opened."
+        case .comments: "What other people wrote on each pull request you opened; your own replies do not count."
         case .commenters: "Who wrote them, across the whole range."
         case .merge: "From ready for review to the merge, by the week it merged."
         }
@@ -85,7 +85,9 @@ public struct MyTrendBucket: Codable, Hashable, Sendable, Identifiable {
 
 /// One person's pull request history, as far as it has been read.
 public struct MyTrendData: Codable, Hashable, Sendable {
-    public static let schema = 1
+    /// Raised when a stored history stops meaning what it did -- at 2, the
+    /// counts stopped including one's own comments.
+    public static let schema = 2
 
     public let schema: Int
     /// Whose pull requests these are.

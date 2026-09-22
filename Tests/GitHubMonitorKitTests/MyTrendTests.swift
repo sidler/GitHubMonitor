@@ -51,12 +51,14 @@ struct MyTrendQueryTests {
 struct MyTrendPayloadTests {
     private func node(
         created: String = "2026-09-14T09:00:00Z",
+        author: String = "sidler",
         comments: [[String: Any]] = [],
         commentTotal: Int? = nil,
         reviews: [[String: Any]] = []
     ) -> [String: Any] {
         [
             "createdAt": created,
+            "author": ["login": author],
             "comments": [
                 "totalCount": commentTotal ?? comments.count,
                 "nodes": comments,
@@ -123,6 +125,25 @@ struct MyTrendPayloadTests {
             MyTrendQuery.facts(from: node(comments: [comment(by: "dara")], commentTotal: 120))
         )
         #expect(facts.commentsFromEveryone == 120)
+    }
+
+    /// You are in every one of your own pull requests, so counting yourself
+    /// would put you at the top of the ranking and say nothing.
+    @Test("Your own comments are left out")
+    func ownComments() throws {
+        let facts = try #require(
+            MyTrendQuery.facts(
+                from: node(
+                    comments: [comment(by: "sidler"), comment(by: "dara"), comment(by: "sidler")],
+                    reviews: [review(by: "sidler", inline: 3), review(by: "mira", inline: 1)]
+                )
+            )
+        )
+        #expect(facts.commentsFromEveryone == 3)
+        #expect(facts.commentsFromPeople == 3)
+        #expect(facts.commentersFromEveryone["sidler"] == nil)
+        #expect(facts.commentersFromEveryone["dara"] == 1)
+        #expect(facts.commentersFromEveryone["mira"] == 2)
     }
 
     @Test("A node without a creation date is not a data point")

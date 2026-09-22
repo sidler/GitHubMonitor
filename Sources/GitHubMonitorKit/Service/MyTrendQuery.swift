@@ -66,6 +66,9 @@ public enum MyTrendQuery {
         nodes {
           ... on PullRequest {
             createdAt
+            # To leave your own replies out: the question is what other
+            # people said on your pull requests.
+            author { login }
             comments(first: 50) {
               totalCount
               nodes { author { login __typename } }
@@ -95,16 +98,26 @@ public enum MyTrendQuery {
     static func facts(from node: [String: Any]) -> MyPullRequestFacts? {
         guard let createdAt = TrendQuery.date(node["createdAt"]) else { return nil }
 
+        // Your own replies are not what these charts are about: you are in
+        // every one of your pull requests, so counting yourself would put
+        // you at the top of the ranking and say nothing.
+        let mine = (node["author"] as? [String: Any])?["login"] as? String
+        func isMine(_ author: [String: Any]?) -> Bool {
+            guard let mine, let login = author?["login"] as? String else { return false }
+            return login == mine
+        }
+
         var byPeople: [String: Int] = [:]
         var byEveryone: [String: Int] = [:]
         func credit(_ author: [String: Any]?, _ count: Int) {
-            guard count > 0, let login = author?["login"] as? String else { return }
+            guard count > 0, !isMine(author), let login = author?["login"] as? String else { return }
             byEveryone[login, default: 0] += count
             if !TrendQuery.isBot(author) { byPeople[login, default: 0] += count }
         }
 
         let comments = node["comments"] as? [String: Any]
-        for comment in comments?["nodes"] as? [[String: Any]] ?? [] {
+        let conversationNodes = comments?["nodes"] as? [[String: Any]] ?? []
+        for comment in conversationNodes {
             credit(comment["author"] as? [String: Any], 1)
         }
 
@@ -115,6 +128,7 @@ public enum MyTrendQuery {
         var reviewCommentsFromPeople = 0
         for review in (node["reviews"] as? [String: Any])?["nodes"] as? [[String: Any]] ?? [] {
             let author = review["author"] as? [String: Any]
+            guard !isMine(author) else { continue }
             let inline = (review["comments"] as? [String: Any])?["totalCount"] as? Int ?? 0
             credit(author, inline + 1)
             reviewComments += inline + 1
@@ -122,22 +136,20 @@ public enum MyTrendQuery {
         }
 
         // The conversation's own total is exact even where the nodes were
-        // capped, so it is the one counted; what the cap costs is knowing
-        // which of those comments came from a bot.
+        // capped, so it is what the count starts from; what the cap costs is
+        // knowing which of those comments were yours or a bot's.
         let conversation = comments?["totalCount"] as? Int ?? 0
-        let conversationFromPeople = conversation - botConversationComments(comments)
+        let ownComments = conversationNodes.count { isMine($0["author"] as? [String: Any]) }
+        let botComments = conversationNodes.count {
+            TrendQuery.isBot($0["author"] as? [String: Any])
+        }
 
         return MyPullRequestFacts(
             createdAt: createdAt,
-            commentsFromPeople: conversationFromPeople + reviewCommentsFromPeople,
-            commentsFromEveryone: conversation + reviewComments,
+            commentsFromPeople: conversation - ownComments - botComments + reviewCommentsFromPeople,
+            commentsFromEveryone: conversation - ownComments + reviewComments,
             commentersFromPeople: byPeople,
             commentersFromEveryone: byEveryone
         )
-    }
-
-    static func botConversationComments(_ comments: [String: Any]?) -> Int {
-        (comments?["nodes"] as? [[String: Any]] ?? [])
-            .count { TrendQuery.isBot($0["author"] as? [String: Any]) }
     }
 }
