@@ -43,10 +43,7 @@ struct PopoverView: View {
             footer
         }
         .frame(width: 380)
-        // A popover is translucent by default, which drags the desktop
-        // wallpaper's colour through the whole panel and makes it look murky.
-        // An opaque window background keeps the contrast with the white cards.
-        .background(Color(nsColor: .windowBackgroundColor))
+        .panelBackground()
     }
 
     // MARK: - Sections

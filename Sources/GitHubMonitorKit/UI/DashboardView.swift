@@ -362,10 +362,7 @@ struct DashboardView: View {
             }
         }
         .padding(8)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
-        .overlay(
-            RoundedRectangle(cornerRadius: 6).strokeBorder(.quaternary, lineWidth: 1)
-        )
+        .floatingBackground(in: RoundedRectangle(cornerRadius: 6))
         .padding(8)
         .allowsHitTesting(false)
         .transition(.opacity)
