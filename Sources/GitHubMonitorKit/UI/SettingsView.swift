@@ -40,6 +40,13 @@ private struct FilterSettingsView: View {
             Section("Pull requests") {
                 Toggle("Include drafts", isOn: $settings.includeDrafts)
                     .toggleStyle(.switch)
+                // Only the pull request lists have anything to hide here, and
+                // the repository filter above applies to all three lists --
+                // saying so is what keeps this section from reading like the
+                // only filter there is.
+                Text("Drafts count in the menu bar only while they are shown. Issues have no draft state, so this leaves them alone.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Mentions") {
@@ -123,6 +130,10 @@ private struct GeneralSettingsView: View {
                     }
                 }
                 .pickerStyle(.inline)
+
+                Text("The three counts are reviews requested, unread mentions and issues assigned to you. A single total adds them up.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Refresh") {

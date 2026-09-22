@@ -6,7 +6,7 @@ private final class FilterEntryModel: ObservableObject {
     @Published var draft = ""
 }
 
-/// Restricts what counts, by owner or by repository.
+/// Restricts what counts, by owner or by repository -- every list at once.
 struct RepositoryFilterView: View {
     @Bindable var state: AppState
     let controller: RefreshController
@@ -20,8 +20,9 @@ struct RepositoryFilterView: View {
     /// what is actually there.
     private var suggestions: [String] {
         let repositories = RepositoryGrouping.repositories(
-            pullRequests: state.pullRequests,
-            notifications: state.notifications
+            pullRequests: state.pullRequests + state.authoredPullRequests,
+            notifications: state.notifications,
+            issues: state.issues
         )
         let owners = RepositoryGrouping.owners(of: repositories)
         return (owners + repositories).filter { !filters.contains($0) }
@@ -29,7 +30,7 @@ struct RepositoryFilterView: View {
 
     var body: some View {
         Section("Repositories") {
-            Text("Only count pull requests and mentions in these owners or repositories. With none listed, everything counts.")
+            Text("Only count pull requests, issues and mentions in these owners or repositories. With none listed, everything counts.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 

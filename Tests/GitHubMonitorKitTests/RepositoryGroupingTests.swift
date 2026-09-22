@@ -99,3 +99,30 @@ struct RepositoryGroupingTests {
         #expect(RepositoryGrouping.owners(of: repositories) == ["a"])
     }
 }
+
+@Suite("Filter suggestions")
+struct RepositorySuggestionTests {
+    /// The filter narrows every list, so a repository the user only has
+    /// issues in has to be offerable as one -- otherwise it would have to be
+    /// typed from memory.
+    @Test("Every list contributes a repository to filter by")
+    func issuesAreOffered() {
+        let pullRequest = PullRequestItem(
+            id: "1", number: 1, title: "t", repository: "octo/platform", author: "a",
+            authorAvatarURL: nil, url: URL(string: "https://github.com")!, isDraft: false,
+            updatedAt: .now, reviewDecision: .none, checks: .none
+        )
+        let issue = IssueItem(
+            id: "i1", number: 1, title: "t", repository: "octo/toolkit", author: "a",
+            authorAvatarURL: nil, url: URL(string: "https://github.com")!, updatedAt: .now
+        )
+
+        let repositories = RepositoryGrouping.repositories(
+            pullRequests: [pullRequest],
+            notifications: [],
+            issues: [issue]
+        )
+        #expect(repositories == ["octo/toolkit", "octo/platform"])
+        #expect(RepositoryGrouping.owners(of: repositories) == ["octo"])
+    }
+}

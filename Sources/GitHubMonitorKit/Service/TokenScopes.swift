@@ -24,7 +24,7 @@ public struct TokenScopes: Equatable, Sendable {
 
     /// What this app needs, and why, for the settings screen to explain itself.
     public static let required: [(scope: String, purpose: String)] = [
-        ("repo", "read pull requests, including in private repositories"),
+        ("repo", "read pull requests and issues, including in private repositories"),
         ("notifications", "read notifications and mark them read"),
         ("read:org", "list your teams so their review requests can count"),
     ]

@@ -60,11 +60,18 @@ public enum RepositoryGrouping {
     }
 
     /// Repositories present in the given items, for offering as filters.
+    ///
+    /// Every list contributes: a repository the user only has issues in is
+    /// as good a filter as one they review in, and offering half of them
+    /// would leave the other half to be typed from memory.
     public static func repositories(
         pullRequests: [PullRequestItem],
-        notifications: [NotificationItem]
+        notifications: [NotificationItem],
+        issues: [IssueItem] = []
     ) -> [String] {
-        let names = Set(pullRequests.map(\.repository)).union(notifications.map(\.repository))
+        let names = Set(pullRequests.map(\.repository))
+            .union(notifications.map(\.repository))
+            .union(issues.map(\.repository))
         return names
             .filter { $0 != "?" }
             .sorted { $0.localizedStandardCompare($1) == .orderedAscending }

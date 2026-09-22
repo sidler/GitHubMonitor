@@ -31,8 +31,8 @@ public final class Settings {
         didSet { store.set(storedRefreshInterval, forKey: Key.refreshInterval) }
     }
 
-    /// Only count pull requests in these "owner" or "owner/repo" scopes.
-    /// Empty means no restriction.
+    /// Only count pull requests, issues and mentions in these "owner" or
+    /// "owner/repo" scopes. Empty means no restriction.
     public var repositoryFilters: [String] {
         didSet { store.set(repositoryFilters, forKey: Key.repositoryFilters) }
     }
