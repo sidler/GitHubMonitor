@@ -148,51 +148,43 @@ public struct SavedList: Identifiable, Hashable, Codable, Sendable {
         public static let issues = "issues"
     }
 
-    /// The lists the app starts with: what it used to hard-code.
-    public static func seeds(grouping: ListGrouping, issueSettings: (ListGrouping, ListSort, Set<String>)) -> [SavedList] {
-        [
-            SavedList(
-                id: Seed.reviews,
-                title: "Reviews Requested",
-                // Two searches: GitHub reads two review qualifiers as AND,
-                // so asking for both in one would find nothing.
-                query: """
-                is:pr is:open archived:false review-requested:@me
-                is:pr is:open archived:false team-review-requested:@myteams
-                """,
-                content: .pullRequests,
-                grouping: grouping
-            ),
-            SavedList(
-                id: Seed.authored,
-                title: "My Pull Requests",
-                query: "is:pr is:open archived:false author:@me",
-                content: .pullRequests,
-                symbolName: "person.crop.circle",
-                grouping: grouping
-            ),
-            SavedList(
-                id: Seed.issues,
-                title: "My Issues",
-                query: "is:issue is:open archived:false assignee:@me",
-                content: .issues,
-                grouping: issueSettings.0,
-                sort: issueSettings.1,
-                hiddenTypes: issueSettings.2
-            ),
-        ]
+    /// The lists a fresh install starts with, carrying over what was
+    /// configured for them before lists were editable.
+    public static func seeds(
+        grouping: ListGrouping,
+        issueSettings: (ListGrouping, ListSort, Set<String>)
+    ) -> [SavedList] {
+        ListPresets.seeded.map { preset in
+            switch preset.content {
+            case .pullRequests:
+                preset.list(id: preset.id, grouping: grouping)
+            case .issues:
+                preset.list(
+                    id: preset.id,
+                    grouping: issueSettings.0,
+                    sort: issueSettings.1,
+                    hiddenTypes: issueSettings.2
+                )
+            }
+        }
     }
 
-    /// Symbols offered when a list is made. A short set on purpose: this is
-    /// a label for a row, not an icon editor.
+    /// The symbols offered in the picker's grid.
+    ///
+    /// A set that suits lists of work rather than a catalogue: any other SF
+    /// Symbol can be typed in by name, so this is the shortcut, not the
+    /// limit.
     public static let symbolChoices = [
-        StatusBarTitleBuilder.pullRequestSymbol,
-        StatusBarTitleBuilder.issueSymbol,
-        "person.crop.circle",
-        "star",
-        "flame",
-        "exclamationmark.triangle",
-        "clock",
-        "tray.full",
+        StatusBarTitleBuilder.pullRequestSymbol, StatusBarTitleBuilder.issueSymbol,
+        "checkmark.seal", "checkmark.circle", "xmark.octagon", "exclamationmark.triangle",
+        "person.crop.circle", "person.2", "eye", "bubble.left",
+        "star", "flame", "bolt", "sparkles",
+        "clock", "calendar", "hourglass", "timer",
+        "tag", "flag", "bookmark", "pin",
+        "tray.full", "shippingbox", "hammer", "wrench.and.screwdriver",
+        "ant", "ladybug", "lifepreserver", "cross.case",
+        "lock", "shield", "key", "seal",
+        "chart.bar", "chart.line.uptrend.xyaxis", "gauge", "speedometer",
+        "folder", "doc.text", "book.closed", "graduationcap",
     ]
 }

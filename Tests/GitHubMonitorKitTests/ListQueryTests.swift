@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 @testable import GitHubMonitorKit
@@ -258,5 +259,77 @@ struct ListMigrationTests {
         let settings = Settings(store: defaults)
         settings.savedLists = []
         #expect(Settings(store: defaults).savedLists.isEmpty)
+    }
+}
+
+@Suite("Presets")
+struct ListPresetTests {
+    /// What a new account gets is the same thing anyone can add later, so
+    /// the seeds have to be presets rather than a second kind of list.
+    @Test("A fresh install is seeded from presets, keeping their ids")
+    func seedsComeFromPresets() {
+        let seeds = SavedList.seeds(grouping: .flat, issueSettings: (.flat, .updated, []))
+        #expect(seeds.map(\.id) == ListPresets.seeded.map(\.id))
+        #expect(seeds.map(\.title) == ListPresets.seeded.map(\.title))
+    }
+
+    /// "Ready to merge" is a way of working, not a fact about an account:
+    /// offered in the menu, never added on somebody's behalf.
+    @Test("Ready to merge is offered but not seeded")
+    func readyToMergeIsOptional() {
+        #expect(ListPresets.all.contains(ListPresets.readyToMerge))
+        #expect(!ListPresets.seeded.contains(ListPresets.readyToMerge))
+    }
+
+    /// Approved, green, not a draft -- and about the user, since a search
+    /// for every approved pull request on GitHub would be a list of
+    /// strangers' work.
+    @Test("Ready to merge asks for what its name says")
+    func readyToMergeQuery() {
+        let query = ListPresets.readyToMerge.query
+        #expect(query.contains("review:approved"))
+        #expect(query.contains("status:success"))
+        #expect(query.contains("-is:draft"))
+        #expect(query.contains("involves:@me"))
+        #expect(ListPresets.readyToMerge.content == .pullRequests)
+    }
+
+    /// Adding the same preset twice must produce two lists, not two lists
+    /// fighting over one id.
+    @Test("A preset added later gets an id of its own")
+    func addedPresetsGetFreshIDs() {
+        let first = ListPresets.readyToMerge.list()
+        let second = ListPresets.readyToMerge.list()
+        #expect(first.id != second.id)
+        #expect(first.id != ListPresets.readyToMerge.id)
+        #expect(first.query == second.query)
+    }
+
+    @Test("Every preset is runnable as it stands")
+    func presetsAreRunnable() {
+        for preset in ListPresets.all {
+            let list = preset.list()
+            #expect(list.isRunnable)
+            #expect(!preset.summary.isEmpty)
+            // The searches have to match what the list says it shows.
+            for line in list.queryLines {
+                switch preset.content {
+                case .pullRequests: #expect(line.contains("is:pr"))
+                case .issues: #expect(line.contains("is:issue"))
+                }
+            }
+        }
+    }
+
+    /// An icon that the system does not know would be an empty gap in the
+    /// sidebar, the popover and the menu bar at once.
+    @Test("Every offered symbol exists on this system")
+    func symbolsExist() {
+        for name in SavedList.symbolChoices + ListPresets.all.compactMap(\.symbolName) {
+            #expect(
+                NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil,
+                "unknown symbol \(name)"
+            )
+        }
     }
 }

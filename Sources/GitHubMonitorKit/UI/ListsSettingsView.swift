@@ -141,8 +141,29 @@ struct ListsSettingsView: View {
     private var controls: some View {
         HStack(spacing: 8) {
             Menu {
-                ForEach(ListContent.allCases, id: \.self) { content in
-                    Button(content.label) { add(content) }
+                Section("From a preset") {
+                    ForEach(ListPresets.all) { preset in
+                        Button {
+                            add(preset.list())
+                        } label: {
+                            // The summary rather than the title alone: a
+                            // preset is a search, and its name only hints at
+                            // what it asks for.
+                            Text(verbatim: "\(preset.title) — \(preset.summary)")
+                        }
+                    }
+                }
+
+                Section("Empty") {
+                    ForEach(ListContent.allCases, id: \.self) { content in
+                        Button(content.label) {
+                            add(SavedList(
+                                title: "New list",
+                                query: content.queryPrefix,
+                                content: content
+                            ))
+                        }
+                    }
                 }
             } label: {
                 Label("New list", systemImage: "plus")
@@ -212,14 +233,12 @@ struct ListsSettingsView: View {
         )
     }
 
-    private func add(_ content: ListContent) {
-        let list = SavedList(
-            title: "New list",
-            query: content.queryPrefix,
-            content: content
-        )
+    private func add(_ list: SavedList) {
         settings.savedLists.append(list)
         model.selection = list.id
+        // A preset arrives with a search that is ready to run, so there is
+        // something to see without waiting for the next tick.
+        Task { await controller.refresh() }
     }
 
     private func delete(_ list: SavedList) {
@@ -271,12 +290,9 @@ private struct ListEditor: View {
                     }
                 }
 
-                Picker("Icon", selection: symbolBinding) {
-                    ForEach(SavedList.symbolChoices, id: \.self) { symbol in
-                        Image(systemName: symbol).tag(symbol)
-                    }
+                LabeledContent("Icon") {
+                    SymbolPicker(symbol: symbolBinding)
                 }
-                .pickerStyle(.segmented)
             }
 
             Section("Search") {
@@ -324,5 +340,107 @@ private struct ListEditor: View {
                 save(model.draft)
             }
         )
+    }
+}
+
+@MainActor
+private final class SymbolPickerModel: ObservableObject {
+    @Published var isOpen = false
+    @Published var typed = ""
+}
+
+/// Picks the icon a list wears in the sidebar, the popover and the menu bar.
+///
+/// A grid of the ones that suit a list of work, and a field for any other SF
+/// Symbol by name -- there are thousands, and which one means "release" to
+/// somebody is not a thing to guess at. A name the system does not know is
+/// refused rather than stored, since the icon would then be an empty gap in
+/// three places at once.
+private struct SymbolPicker: View {
+    @Binding var symbol: String
+
+    @StateObject private var model = SymbolPickerModel()
+
+    private let columns = Array(repeating: GridItem(.fixed(30), spacing: 4), count: 8)
+
+    var body: some View {
+        Button {
+            model.typed = symbol
+            model.isOpen = true
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: symbol)
+                    .frame(width: 18)
+                Text(symbol)
+                    .font(.caption.monospaced())
+                    .lineLimit(1)
+                Image(systemName: "chevron.down")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .popover(isPresented: $model.isOpen, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 10) {
+                LazyVGrid(columns: columns, spacing: 4) {
+                    ForEach(SavedList.symbolChoices, id: \.self) { choice in
+                        Button {
+                            symbol = choice
+                            model.isOpen = false
+                        } label: {
+                            Image(systemName: choice)
+                                .frame(width: 26, height: 22)
+                                .background(
+                                    choice == symbol
+                                        ? Color.accentColor.opacity(0.18)
+                                        : Color.clear,
+                                    in: RoundedRectangle(cornerRadius: 5)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .help(choice)
+                    }
+                }
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        TextField("Any SF Symbol name", text: $model.typed)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 200)
+                            .onSubmit { apply() }
+                        Button("Use", action: apply)
+                            .disabled(!isKnown(model.typed))
+                    }
+                    Text(hint)
+                        .font(.caption)
+                        .foregroundStyle(
+                            isKnown(model.typed) || model.typed.isEmpty
+                                ? Color(nsColor: .secondaryLabelColor)
+                                : Color.orange
+                        )
+                }
+            }
+            .padding(12)
+        }
+    }
+
+    private var hint: String {
+        if model.typed.isEmpty {
+            return "Names from the SF Symbols app, e.g. bolt.fill"
+        }
+        return isKnown(model.typed) ? "Looks good" : "No symbol of that name"
+    }
+
+    /// Asked of the system rather than matched against a list of our own:
+    /// which symbols exist depends on the macOS the app is running on.
+    private func isKnown(_ name: String) -> Bool {
+        !name.isEmpty && NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil
+    }
+
+    private func apply() {
+        guard isKnown(model.typed) else { return }
+        symbol = model.typed
+        model.isOpen = false
     }
 }
