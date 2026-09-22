@@ -40,6 +40,24 @@ struct BottomBarTests {
         #expect(status == actions, "status \(status) actions \(actions)")
     }
 
+    /// The sidebar's settings button sits on the same bottom edge as the
+    /// other two bars, so it has to be the same height as them.
+    @Test("The sidebar's settings bar lines up with the rest")
+    func sidebarBarAgrees() {
+        let status = height(BottomBar { Text("31") })
+        let settings = height(
+            BottomBar {
+                Button {} label: {
+                    Label("Settings", systemImage: "gearshape")
+                        .labelStyle(.titleAndIcon)
+                }
+                .buttonStyle(.accessoryBar)
+            },
+            width: 220
+        )
+        #expect(status == settings, "status \(status) settings \(settings)")
+    }
+
     /// What one column puts in its bar must not move the other column's
     /// edge, so the height cannot depend on the contents.
     @Test("An empty bar is as tall as a full one")
@@ -74,6 +92,6 @@ struct BottomBarTests {
         ReviewDecision.allCases.map(LegendSymbol.review)
             + ChecksStatus.allCases.map(LegendSymbol.checks)
             + ReviewTallyKind.allCases.map(LegendSymbol.reviewers)
-            + [.draft]
+            + [.draft, .comments, .milestone]
     }
 }

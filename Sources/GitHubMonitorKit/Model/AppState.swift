@@ -89,6 +89,8 @@ public final class AppState {
     /// The dashboard's own fetch, separate from the refresh cycle: it covers
     /// a whole repository and is only wanted while that view is open.
     public var dashboard: DashboardState = .unconfigured
+    /// The bar of the workload chart whose pull requests are being listed.
+    public var workloadSelection: WorkloadSelection?
     /// The trend charts, which have their own fetch again: a year of
     /// history is far too expensive to hang off the refresh timer.
     public var trends: TrendState = .unconfigured
@@ -273,7 +275,8 @@ public final class AppState {
         case .pullRequests, .myPullRequests: inspectedPullRequest != nil
         case .myIssues: inspectedIssue != nil
         case .mentions: inspectedNotification != nil
-        case .dashboard, .trends, .myTrends, .settings: false
+        case .dashboard: inspectedWorkload != nil
+        case .trends, .myTrends, .settings: false
         }
     }
 
@@ -311,6 +314,42 @@ public final class AppState {
         guard case .myIssues = sidebarSelection else { return [] }
         guard settings.listGrouping == .byRepository else { return selectedIssues }
         return RepositoryGrouping.group(selectedIssues, by: \.repository).flatMap(\.items)
+    }
+
+    /// The pull requests behind the bar that was clicked in the workload
+    /// chart, if that bar is still in the chart.
+    ///
+    /// Resolved against the data on screen rather than remembered: a reload
+    /// can drop a person entirely, and a pane describing somebody the chart
+    /// no longer shows would be describing nothing.
+    public var inspectedWorkload: WorkloadDetail? {
+        guard
+            case .dashboard = sidebarSelection,
+            let selection = workloadSelection,
+            selection.grouping == settings.dashboardGrouping,
+            case .loaded(let data) = dashboard
+        else { return nil }
+
+        switch selection.grouping {
+        case .author:
+            return data.authors.first { $0.id == selection.id }.map(WorkloadDetail.init)
+        case .reviewer:
+            return data.reviewers.first { $0.id == selection.id }.map(WorkloadDetail.init)
+        }
+    }
+
+    /// The bars the detail pane can move between, top to bottom.
+    public var inspectableWorkload: [WorkloadSelection] {
+        guard case .dashboard = sidebarSelection, case .loaded(let data) = dashboard else {
+            return []
+        }
+        let grouping = settings.dashboardGrouping
+        switch grouping {
+        case .author:
+            return data.authors.map { WorkloadSelection(grouping: grouping, id: $0.id) }
+        case .reviewer:
+            return data.reviewers.map { WorkloadSelection(grouping: grouping, id: $0.id) }
+        }
     }
 
     public var health: StatusBarHealth {

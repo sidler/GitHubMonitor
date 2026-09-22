@@ -561,7 +561,15 @@ public final class RefreshController {
             ) {
                 inspect(next)
             }
-        case .dashboard, .trends, .myTrends, .settings:
+        case .dashboard:
+            if let next = Self.step(
+                state.inspectableWorkload,
+                from: state.workloadSelection?.id,
+                by: offset
+            ) {
+                state.workloadSelection = next
+            }
+        case .trends, .myTrends, .settings:
             break
         }
     }
@@ -593,6 +601,17 @@ public final class RefreshController {
         state.inspectedPullRequestID = nil
         state.inspectedIssueID = nil
         state.expandedNotificationID = nil
+        state.workloadSelection = nil
+    }
+
+    /// Lists a workload bar's pull requests, or puts them away when that bar
+    /// is the one already open.
+    ///
+    /// Clicking the same bar twice closes the pane: a chart has no row to
+    /// click away from, so without this the only way out would be the pane's
+    /// own button.
+    public func toggleWorkload(_ selection: WorkloadSelection) {
+        state.workloadSelection = state.workloadSelection == selection ? nil : selection
     }
 
     /// Refetches even when a detail is cached, for the pane's reload button.

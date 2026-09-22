@@ -236,6 +236,10 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             _ = state.expandedNotificationID
             _ = state.pullRequestDetails
             _ = state.issueDetails
+            // The workload chart's pane follows a bar rather than a row, and
+            // a reload of the chart can take that bar away.
+            _ = state.workloadSelection
+            _ = state.dashboard
             // A thread marked read disappears, and the pane describing it
             // has to go with it. So does an issue that is no longer assigned.
             _ = state.notifications

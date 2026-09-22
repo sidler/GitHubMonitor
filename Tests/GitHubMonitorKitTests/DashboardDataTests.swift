@@ -220,3 +220,174 @@ struct DashboardReviewerTests {
         #expect(data.totalDrafts == 1)
     }
 }
+
+@Suite("A bar's pull requests")
+struct WorkloadSelectionTests {
+    private func item(
+        id: String,
+        author: String,
+        draft: Bool = false,
+        minutesAgo: Int = 0
+    ) -> PullRequestItem {
+        PullRequestItem(
+            id: id, number: 1, title: "t", repository: "octo/platform", author: author,
+            authorAvatarURL: nil, url: URL(string: "https://github.com")!, isDraft: draft,
+            updatedAt: .now.addingTimeInterval(TimeInterval(-60 * minutesAgo)),
+            reviewDecision: .none, checks: .none
+        )
+    }
+
+    private func reviewer(_ name: String, state: ReviewState) -> ReviewerStatus {
+        ReviewerStatus(name: name, avatarURL: nil, state: state, isTeam: false)
+    }
+
+    /// The bar is a number; the pane is what that number is made of. If they
+    /// came from different fetches they would eventually disagree.
+    @Test("An author's bar carries the pull requests it counted")
+    func authorCarriesItsItems() throws {
+        let data = DashboardData.summarise(
+            [
+                item(id: "1", author: "a", minutesAgo: 30),
+                item(id: "2", author: "a", draft: true),
+                item(id: "3", author: "a", minutesAgo: 5),
+                item(id: "4", author: "b"),
+            ],
+            repository: "r"
+        )
+        let author = try #require(data.authors.first { $0.author == "a" })
+        #expect(author.pullRequests.count == author.total)
+        // What is waiting on someone comes first, newest activity at the top.
+        #expect(author.pullRequests.map(\.id) == ["3", "1", "2"])
+
+        let detail = WorkloadDetail(author)
+        #expect(detail.ready.map(\.id) == ["3", "1"])
+        #expect(detail.drafts.map(\.id) == ["2"])
+    }
+
+    /// The reviewer bar measures what is still owed, so the list under it
+    /// must not include what they have already answered.
+    @Test("A reviewer's bar lists only what is still waiting on them")
+    func reviewerCarriesOutstandingOnly() throws {
+        let data = DashboardData.summarise(
+            [
+                (item: item(id: "1", author: "a"), reviewers: [reviewer("r1", state: .pending)]),
+                (item: item(id: "2", author: "b"), reviewers: [reviewer("r1", state: .approved)]),
+                (
+                    item: item(id: "3", author: "c", draft: true),
+                    reviewers: [reviewer("r1", state: .pending)]
+                ),
+            ],
+            repository: "r"
+        )
+        let load = try #require(data.reviewers.first)
+        #expect(load.pending == 1)
+        #expect(load.onDrafts == 1)
+        #expect(load.done == 1)
+        #expect(load.pullRequests.map(\.id) == ["1", "3"])
+    }
+}
+
+@MainActor
+@Suite("Clicking a workload bar")
+struct WorkloadInspectorTests {
+    private func makeState() -> AppState {
+        let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
+        let state = AppState(settings: Settings(store: defaults))
+        state.sidebarSelection = .dashboard
+        state.settings.dashboardRepository = "octo/platform"
+        state.dashboard = .loaded(
+            DashboardData.summarise(
+                [
+                    (
+                        item: PullRequestItem(
+                            id: "1", number: 1, title: "t", repository: "octo/platform",
+                            author: "mira", authorAvatarURL: nil,
+                            url: URL(string: "https://github.com")!, isDraft: false,
+                            updatedAt: .now, reviewDecision: .none, checks: .none
+                        ),
+                        reviewers: [
+                            ReviewerStatus(name: "sidler", avatarURL: nil, state: .pending, isTeam: false),
+                        ]
+                    ),
+                ],
+                repository: "octo/platform"
+            )
+        )
+        return state
+    }
+
+    @Test("The pane lists the pull requests behind the bar")
+    func listsTheBarsPullRequests() throws {
+        let state = makeState()
+        state.workloadSelection = WorkloadSelection(grouping: .author, id: "mira")
+
+        let detail = try #require(state.inspectedWorkload)
+        #expect(detail.title == "mira")
+        #expect(detail.pullRequests.map(\.id) == ["1"])
+        #expect(state.hasInspectorContent)
+    }
+
+    /// The same login means different things in the two charts, so a
+    /// selection made in one must not describe a bar in the other.
+    @Test("Switching the chart puts the pane away")
+    func groupingChangeClosesIt() {
+        let state = makeState()
+        state.workloadSelection = WorkloadSelection(grouping: .author, id: "mira")
+        state.settings.dashboardGrouping = .reviewer
+        #expect(state.inspectedWorkload == nil)
+        #expect(!state.hasInspectorContent)
+    }
+
+    @Test("The reviewer chart lists what is waiting on that person")
+    func reviewerSelection() throws {
+        let state = makeState()
+        state.settings.dashboardGrouping = .reviewer
+        state.workloadSelection = WorkloadSelection(grouping: .reviewer, id: "user:sidler")
+
+        let detail = try #require(state.inspectedWorkload)
+        #expect(detail.title == "sidler")
+        #expect(detail.pullRequests.map(\.id) == ["1"])
+    }
+
+    /// A reload can drop a person from the chart entirely, and a pane
+    /// describing somebody no longer drawn describes nothing.
+    @Test("A bar that disappears takes its pane with it")
+    func staleSelection() {
+        let state = makeState()
+        state.workloadSelection = WorkloadSelection(grouping: .author, id: "someone-else")
+        #expect(state.inspectedWorkload == nil)
+    }
+
+    /// A chart has no row to click away from, so the same bar twice has to
+    /// close what it opened.
+    @Test("Clicking the same bar twice closes the pane")
+    func toggles() {
+        let state = makeState()
+        let controller = RefreshController(state: state)
+        let selection = WorkloadSelection(grouping: .author, id: "mira")
+
+        controller.toggleWorkload(selection)
+        #expect(state.workloadSelection == selection)
+        controller.toggleWorkload(selection)
+        #expect(state.workloadSelection == nil)
+    }
+
+    @Test("The keyboard walks the bars from top to bottom")
+    func stepsThroughBars() {
+        let state = makeState()
+        let bars = state.inspectableWorkload
+        #expect(bars.map(\.id) == ["mira"])
+        #expect(RefreshController.step(bars, from: nil, by: 1)?.id == "mira")
+        #expect(RefreshController.step(bars, from: "mira", by: 1) == nil)
+    }
+
+    /// Only while the chart is the view on screen: the pane belongs to it.
+    @Test("The selection is ignored outside the workload view")
+    func onlyOnTheDashboard() {
+        let state = makeState()
+        state.workloadSelection = WorkloadSelection(grouping: .author, id: "mira")
+        state.sidebarSelection = .pullRequests(repository: nil)
+        #expect(state.inspectedWorkload == nil)
+        #expect(state.inspectableWorkload.isEmpty)
+    }
+}

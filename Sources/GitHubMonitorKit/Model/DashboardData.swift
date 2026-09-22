@@ -10,14 +10,27 @@ public struct AuthorLoad: Identifiable, Hashable, Sendable {
     /// Drafts, counted separately: they are not waiting on anyone yet, so
     /// folding them into the same number would overstate the queue.
     public let drafts: Int
+    /// The pull requests behind the bar, so a click on it can name them.
+    ///
+    /// Kept here rather than fetched again: they came out of the request
+    /// that drew the chart, and asking GitHub a second time for what is
+    /// already in memory would put a spinner in front of a list that exists.
+    public let pullRequests: [PullRequestItem]
 
     public var total: Int { ready + drafts }
 
-    public init(author: String, avatarURL: URL?, ready: Int, drafts: Int) {
+    public init(
+        author: String,
+        avatarURL: URL?,
+        ready: Int,
+        drafts: Int,
+        pullRequests: [PullRequestItem] = []
+    ) {
         self.author = author
         self.avatarURL = avatarURL
         self.ready = ready
         self.drafts = drafts
+        self.pullRequests = pullRequests
     }
 }
 
@@ -33,6 +46,10 @@ public struct ReviewerLoad: Identifiable, Hashable, Sendable {
     public let onDrafts: Int
     /// Reviews already given, for context on how much has been dealt with.
     public let done: Int
+    /// The pull requests still waiting on this reviewer -- what the bar
+    /// measures, so a click on it lists exactly those and not the ones they
+    /// have already answered.
+    public let pullRequests: [PullRequestItem]
 
     public var outstanding: Int { pending + onDrafts }
 
@@ -42,7 +59,8 @@ public struct ReviewerLoad: Identifiable, Hashable, Sendable {
         isTeam: Bool,
         pending: Int,
         onDrafts: Int,
-        done: Int
+        done: Int,
+        pullRequests: [PullRequestItem] = []
     ) {
         self.reviewer = reviewer
         self.avatarURL = avatarURL
@@ -50,6 +68,7 @@ public struct ReviewerLoad: Identifiable, Hashable, Sendable {
         self.pending = pending
         self.onDrafts = onDrafts
         self.done = done
+        self.pullRequests = pullRequests
     }
 }
 
@@ -94,9 +113,11 @@ public struct DashboardData: Equatable, Sendable {
         var ready: [String: Int] = [:]
         var drafts: [String: Int] = [:]
         var avatars: [String: URL?] = [:]
+        var byAuthor: [String: [PullRequestItem]] = [:]
 
         for item in items {
             avatars[item.author] = item.authorAvatarURL
+            byAuthor[item.author, default: []].append(item)
             if item.isDraft {
                 drafts[item.author, default: 0] += 1
             } else {
@@ -110,7 +131,8 @@ public struct DashboardData: Equatable, Sendable {
                     author: author,
                     avatarURL: avatars[author] ?? nil,
                     ready: ready[author] ?? 0,
-                    drafts: drafts[author] ?? 0
+                    drafts: drafts[author] ?? 0,
+                    pullRequests: sortedForReading(byAuthor[author] ?? [])
                 )
             }
             .sorted { lhs, rhs in
@@ -138,12 +160,14 @@ public struct DashboardData: Equatable, Sendable {
         var onDrafts: [String: Int] = [:]
         var done: [String: Int] = [:]
         var details: [String: ReviewerStatus] = [:]
+        var waitingOn: [String: [PullRequestItem]] = [:]
 
         for entry in entries {
             for reviewer in entry.reviewers {
                 details[reviewer.id] = reviewer
                 switch reviewer.state {
                 case .pending:
+                    waitingOn[reviewer.id, default: []].append(entry.item)
                     if entry.item.isDraft {
                         onDrafts[reviewer.id, default: 0] += 1
                     } else {
@@ -163,7 +187,8 @@ public struct DashboardData: Equatable, Sendable {
                     isTeam: status.isTeam,
                     pending: pending[status.id] ?? 0,
                     onDrafts: onDrafts[status.id] ?? 0,
-                    done: done[status.id] ?? 0
+                    done: done[status.id] ?? 0,
+                    pullRequests: sortedForReading(waitingOn[status.id] ?? [])
                 )
             }
             // Someone who has answered everything asked of them has nothing
@@ -179,6 +204,81 @@ public struct DashboardData: Equatable, Sendable {
             repository: repository,
             authors: authored.authors,
             reviewers: reviewers
+        )
+    }
+
+    /// The order the detail pane reads them in: what is waiting on somebody
+    /// first, oldest activity last, so the top of the list is the work that
+    /// has been sitting longest without being the part nobody is blocked by.
+    static func sortedForReading(_ items: [PullRequestItem]) -> [PullRequestItem] {
+        items.sorted { lhs, rhs in
+            lhs.isDraft == rhs.isDraft ? lhs.updatedAt > rhs.updatedAt : !lhs.isDraft
+        }
+    }
+}
+
+/// A person picked out of the workload chart.
+///
+/// Carries the grouping as well as the name: the same login can appear in
+/// both charts meaning different things, and a selection left over from the
+/// author chart must not describe a reviewer.
+public struct WorkloadSelection: Identifiable, Equatable, Sendable {
+    public let grouping: DashboardGrouping
+    /// `AuthorLoad.id` or `ReviewerLoad.id`, depending on the grouping.
+    public let id: String
+
+    public init(grouping: DashboardGrouping, id: String) {
+        self.grouping = grouping
+        self.id = id
+    }
+}
+
+/// What the detail pane shows for a bar in the workload chart.
+public struct WorkloadDetail: Equatable, Sendable {
+    public let title: String
+    /// What the list below is: their open pull requests, or the ones they
+    /// have been asked to review.
+    public let subtitle: String
+    public let avatarURL: URL?
+    public let isTeam: Bool
+    public let pullRequests: [PullRequestItem]
+
+    public init(
+        title: String,
+        subtitle: String,
+        avatarURL: URL?,
+        isTeam: Bool,
+        pullRequests: [PullRequestItem]
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.avatarURL = avatarURL
+        self.isTeam = isTeam
+        self.pullRequests = pullRequests
+    }
+
+    public var ready: [PullRequestItem] { pullRequests.filter { !$0.isDraft } }
+    public var drafts: [PullRequestItem] { pullRequests.filter(\.isDraft) }
+
+    public init(_ author: AuthorLoad) {
+        self.init(
+            title: author.author,
+            subtitle: "Open pull requests they opened",
+            avatarURL: author.avatarURL,
+            isTeam: false,
+            pullRequests: author.pullRequests
+        )
+    }
+
+    public init(_ reviewer: ReviewerLoad) {
+        self.init(
+            title: reviewer.reviewer,
+            subtitle: reviewer.isTeam
+                ? "Waiting on this team\u{2019}s review"
+                : "Waiting on their review",
+            avatarURL: reviewer.avatarURL,
+            isTeam: reviewer.isTeam,
+            pullRequests: reviewer.pullRequests
         )
     }
 }

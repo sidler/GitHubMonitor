@@ -188,12 +188,17 @@ struct DashboardView: View {
                 y: .value("Author", author.author)
             )
             .foregroundStyle(by: .value("Kind", Segment.ready))
+            // Once a bar is being listed, the others step back: the pane
+            // describes one of them, and nothing else should look equally
+            // current.
+            .opacity(emphasis(for: author.id))
 
             BarMark(
                 x: .value("Pull requests", author.drafts),
                 y: .value("Author", author.author)
             )
             .foregroundStyle(by: .value("Kind", Segment.draft))
+            .opacity(emphasis(for: author.id))
         }
         .chartForegroundStyleScale([
             Segment.ready: Color.accentColor,
@@ -212,7 +217,12 @@ struct DashboardView: View {
             AxisMarks(preset: .aligned, position: .leading)
         }
         .chartLegend(position: .top, alignment: .leading)
-        .chartOverlay { proxy in hoverCatcher(proxy) }
+        .chartOverlay { proxy in
+            pointerCatcher(proxy) { category in
+                guard let author = data.authors.first(where: { $0.author == category }) else { return }
+                controller.toggleWorkload(WorkloadSelection(grouping: .author, id: author.id))
+            }
+        }
         .overlay(alignment: .topTrailing) {
             if let author = data.authors.first(where: { $0.author == field.hovered }) {
                 tooltip(
@@ -221,6 +231,7 @@ struct DashboardView: View {
                         "\(author.ready) ready for review",
                         "\(author.drafts) draft\(author.drafts == 1 ? "" : "s")",
                         "\(author.total) open in total",
+                        "Click to list them",
                     ]
                 )
             }
@@ -238,12 +249,14 @@ struct DashboardView: View {
                 y: .value("Reviewer", reviewer.reviewer)
             )
             .foregroundStyle(by: .value("Kind", Segment.awaiting))
+            .opacity(emphasis(for: reviewer.id))
 
             BarMark(
                 x: .value("Reviews", reviewer.onDrafts),
                 y: .value("Reviewer", reviewer.reviewer)
             )
             .foregroundStyle(by: .value("Kind", Segment.onDraft))
+            .opacity(emphasis(for: reviewer.id))
         }
         .chartForegroundStyleScale([
             Segment.awaiting: Color.orange,
@@ -261,7 +274,14 @@ struct DashboardView: View {
             AxisMarks(preset: .aligned, position: .leading)
         }
         .chartLegend(position: .top, alignment: .leading)
-        .chartOverlay { proxy in hoverCatcher(proxy) }
+        .chartOverlay { proxy in
+            pointerCatcher(proxy) { category in
+                guard
+                    let reviewer = data.reviewers.first(where: { $0.reviewer == category })
+                else { return }
+                controller.toggleWorkload(WorkloadSelection(grouping: .reviewer, id: reviewer.id))
+            }
+        }
         .overlay(alignment: .topTrailing) {
             if let reviewer = data.reviewers.first(where: { $0.reviewer == field.hovered }) {
                 tooltip(
@@ -270,6 +290,7 @@ struct DashboardView: View {
                         "\(reviewer.pending) awaiting their review",
                         "\(reviewer.onDrafts) on draft\(reviewer.onDrafts == 1 ? "" : "s")",
                         "\(reviewer.done) already reviewed",
+                        "Click to list them",
                     ]
                 )
             }
@@ -279,13 +300,20 @@ struct DashboardView: View {
         .scrollableIfTall(rowCount: data.reviewers.count)
     }
 
-    // MARK: - Hover
+    // MARK: - Pointer
 
-    /// Maps the pointer's vertical position onto a row.
+    /// Maps the pointer's vertical position onto a row, for the tooltip and
+    /// for the click that lists the row's pull requests.
     ///
-    /// Charts marks are not views, so they cannot carry a `.help` tooltip of
-    /// their own; the overlay reads the category under the pointer instead.
-    private func hoverCatcher(_ proxy: ChartProxy) -> some View {
+    /// Chart marks are not views: they can carry neither a `.help` tooltip
+    /// nor a tap gesture of their own, so one overlay reads the category
+    /// under the pointer and both behaviours hang off it. Anywhere in the
+    /// row counts, not just the drawn part of the bar -- a person with one
+    /// pull request would otherwise be a target a few points wide.
+    private func pointerCatcher(
+        _ proxy: ChartProxy,
+        select: @escaping (String) -> Void
+    ) -> some View {
         GeometryReader { geometry in
             Rectangle()
                 .fill(.clear)
@@ -293,17 +321,34 @@ struct DashboardView: View {
                 .onContinuousHover { phase in
                     switch phase {
                     case .active(let location):
-                        guard let plot = proxy.plotFrame else {
-                            field.hovered = nil
-                            return
-                        }
-                        let y = location.y - geometry[plot].origin.y
-                        field.hovered = proxy.value(atY: y, as: String.self)
+                        field.hovered = category(at: location, proxy: proxy, geometry: geometry)
                     case .ended:
                         field.hovered = nil
                     }
                 }
+                .onTapGesture { location in
+                    guard
+                        let category = category(at: location, proxy: proxy, geometry: geometry)
+                    else { return }
+                    select(category)
+                }
         }
+    }
+
+    private func category(
+        at location: CGPoint,
+        proxy: ChartProxy,
+        geometry: GeometryProxy
+    ) -> String? {
+        guard let plot = proxy.plotFrame else { return nil }
+        return proxy.value(atY: location.y - geometry[plot].origin.y, as: String.self)
+    }
+
+    /// How present a bar should look: full while nothing is selected, and
+    /// full for the selected one.
+    private func emphasis(for id: String) -> Double {
+        guard let selection = state.workloadSelection else { return 1 }
+        return selection.id == id ? 1 : 0.35
     }
 
     private func tooltip(title: String, lines: [String]) -> some View {

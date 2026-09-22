@@ -62,11 +62,32 @@ struct SidebarColumn: View {
                     .tag(SidebarSelection.trends)
                 Label("My Trends", systemImage: "person.crop.circle.badge.clock")
                     .tag(SidebarSelection.myTrends)
-                Label("Settings", systemImage: "gearshape")
-                    .tag(SidebarSelection.settings)
             }
         }
         .listStyle(.sidebar)
+        // Settings sits on the window's bottom edge rather than at the end
+        // of the list, where a new section would keep pushing it around.
+        // The same bar as the other columns use, so the three bottom edges
+        // stay one line.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            BottomBar {
+                Button {
+                    state.sidebarSelection = .settings
+                } label: {
+                    Label("Settings", systemImage: "gearshape")
+                        .labelStyle(.titleAndIcon)
+                }
+                .buttonStyle(.accessoryBar)
+                // The button cannot carry the list's selection highlight, so
+                // it says which view is open in its own colour.
+                .foregroundStyle(isSettingsOpen ? Color.accentColor : Color(nsColor: .labelColor))
+                .help("Token, filters and everything else")
+            }
+        }
+    }
+
+    private var isSettingsOpen: Bool {
+        state.sidebarSelection == .settings
     }
 
     private func repositoryRow(_ entry: SidebarRepository) -> some View {
@@ -597,6 +618,12 @@ struct InspectorColumn: View {
                 item: item,
                 detail: state.issueDetails[item.id],
                 reload: { controller.reloadIssueDetail(for: item.id) },
+                close: { controller.closeInspector() }
+            )
+        } else if case .dashboard = state.sidebarSelection, let detail = state.inspectedWorkload {
+            WorkloadDetailView(
+                detail: detail,
+                repository: state.settings.dashboardRepository,
                 close: { controller.closeInspector() }
             )
         } else if let item = state.inspectedPullRequest, !state.sidebarSelection.isMentions {
