@@ -210,7 +210,15 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
 
         if state.sidebarSelection.hasToolbarControls {
             guard index == nil else { return }
-            toolbar.insertItem(withItemIdentifier: Self.controlsItem, at: toolbar.items.count)
+            // Before the inspector's separator, which is what holds the
+            // controls over the list rather than over the detail pane.
+            let separator = toolbar.items.firstIndex {
+                $0.itemIdentifier == .inspectorTrackingSeparator
+            }
+            toolbar.insertItem(
+                withItemIdentifier: Self.controlsItem,
+                at: separator ?? toolbar.items.count
+            )
         } else if let index {
             toolbar.removeItem(at: index)
             // The item is rebuilt from scratch when it comes back, so the
@@ -306,6 +314,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             if let inspectorItem {
                 split.removeSplitViewItem(inspectorItem)
                 self.inspectorItem = nil
+                syncInspectorSeparator()
             }
             return
         }
@@ -324,7 +333,27 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         newItem.maximumThickness = 400
         split.addSplitViewItem(newItem)
         inspectorItem = newItem
+        syncInspectorSeparator()
         ensureRoomForInspector()
+    }
+
+    /// Keeps the toolbar's inspector separator with the pane it tracks.
+    ///
+    /// It is what holds the list's controls over the list: with the pane
+    /// open they end at its divider rather than floating at the window's
+    /// edge above a pane they have nothing to do with. Without a pane it
+    /// has no divider to find and would sit at an arbitrary position, so it
+    /// is added and removed along with the pane itself.
+    private func syncInspectorSeparator() {
+        guard let toolbar = window?.toolbar else { return }
+        let index = toolbar.items.firstIndex { $0.itemIdentifier == .inspectorTrackingSeparator }
+
+        if inspectorItem != nil {
+            guard index == nil else { return }
+            toolbar.insertItem(withItemIdentifier: .inspectorTrackingSeparator, at: toolbar.items.count)
+        } else if let index {
+            toolbar.removeItem(at: index)
+        }
     }
 
     /// Widens the window when the detail pane opens into one too narrow to
@@ -347,12 +376,16 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     private static let controlsItem = NSToolbarItem.Identifier("controls")
 
     public func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        toolbarDefaultItemIdentifiers(toolbar)
+        toolbarDefaultItemIdentifiers(toolbar) + [.inspectorTrackingSeparator]
     }
 
     public func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        // The tracking separator pins the toolbar's divider to the sidebar's,
-        // which is the reason this window is built on a split view controller.
+        // The tracking separator pins the toolbar's divider to the
+        // sidebar's, which is the reason this window is built on a split
+        // view controller. The inspector's own separator is not here: it
+        // comes and goes with the detail pane, since with no pane to track
+        // it still takes a position in the toolbar and pushes the controls
+        // away from the edge.
         [.toggleSidebar, .sidebarTrackingSeparator, .flexibleSpace, Self.controlsItem]
     }
 
