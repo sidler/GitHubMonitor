@@ -61,7 +61,7 @@ struct SidebarColumn: View {
                 }
             }
 
-            Section {
+            Section("Analysis") {
                 Label("Workload", systemImage: "chart.bar")
                     .tag(SidebarSelection.dashboard)
                 Label("Trends", systemImage: "chart.xyaxis.line")
