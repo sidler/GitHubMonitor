@@ -2,14 +2,21 @@
 
 A small macOS menu bar app that shows how much GitHub work is waiting for you:
 
-- **Reviews requested** — open pull requests where you (or one of your teams) are the requested reviewer
-- **Unread mentions** — unread notification threads matching the reasons you care about
-- **Issues assigned** — open issues assigned to you, with their type, labels and milestone
+- **Lists you define** — each one a title and one or more GitHub searches, shown
+  as pull requests or as issues. It starts with three: reviews requested of you
+  or your teams, the pull requests you opened, and the issues assigned to you —
+  all three editable like any other.
+- **Unread mentions** — unread notification threads matching the reasons you
+  care about. Not a search, so not a list: they come from the notifications API.
 
 The counts live in the menu bar, each list switchable per place it appears. A
-popover gives a short overview; a separate window gives the full lists, your
-own open pull requests, message previews, the workload and trend charts, and
-settings.
+popover gives a short overview; a separate window gives the full lists, message
+previews, the workload and trend charts, and settings.
+
+A list's search is GitHub's own syntax, one search per line, results merged.
+`@me` is you; `@myteams` runs the line once per team you have configured. The
+repository filter from the settings is added to a line that names no `repo:`,
+`org:` or `user:` of its own.
 
 ## Requirements
 

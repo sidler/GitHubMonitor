@@ -7,16 +7,6 @@ import Foundation
 /// fresh as the rest, and a separate round trip would make every refresh
 /// slower for data that is one more alias in a document already being sent.
 public enum IssueQuery {
-    /// Issues assigned to the user and still open.
-    ///
-    /// Assigned, not "involving": being mentioned in an issue is what the
-    /// mentions list is for, and everything one has ever commented on would
-    /// be a list nobody can finish.
-    public static func assignedQuery(login: String, repositoryFilters: [String]) -> String {
-        "is:issue is:open archived:false assignee:\(login)"
-            + PullRequestQuery.repositoryScope(repositoryFilters)
-    }
-
     /// Ten labels and no more: rows show what fits on one line, and the
     /// browser is a click away for an issue that carries more.
     public static let labelLimit = 10
@@ -103,30 +93,8 @@ public enum IssueQuery {
     }
 }
 
-/// Turns the issue searches of the shared document into model objects.
+/// Reads one issue out of a search result.
 public enum IssueParser {
-    public static func issues(from payload: [String: Any]) -> [IssueItem] {
-        var seen = Set<String>()
-        var items: [IssueItem] = []
-
-        for key in payload.keys
-            .filter({ $0.hasPrefix(PullRequestQuery.Group.issues.rawValue) })
-            .sorted(by: PullRequestParser.aliasOrder)
-        {
-            guard
-                let search = payload[key] as? [String: Any],
-                let nodes = search["nodes"] as? [[String: Any]]
-            else { continue }
-
-            for node in nodes {
-                guard let item = issue(from: node), seen.insert(item.id).inserted else { continue }
-                items.append(item)
-            }
-        }
-
-        return items.sorted { $0.updatedAt > $1.updatedAt }
-    }
-
     static func issue(from node: [String: Any]) -> IssueItem? {
         // Search hits that are not issues come back as empty objects.
         guard

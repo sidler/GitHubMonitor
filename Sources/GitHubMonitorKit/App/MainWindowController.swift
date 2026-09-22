@@ -37,9 +37,14 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
 
     public func show(selecting tab: MainWindowTab? = nil) {
         switch tab {
-        case .pullRequests: state.sidebarSelection = .pullRequests(repository: nil)
-        case .myPullRequests: state.sidebarSelection = .myPullRequests(repository: nil)
-        case .myIssues: state.sidebarSelection = .myIssues(repository: nil)
+        case .list(let name):
+            // By id first, then by title: the development hook and the menu
+            // both name lists the way a person would.
+            let match = state.lists.first { $0.id == name }
+                ?? state.lists.first { $0.title.caseInsensitiveCompare(name) == .orderedSame }
+            if let match {
+                state.sidebarSelection = .list(id: match.id, repository: nil)
+            }
         case .mentions: state.sidebarSelection = .mentions(repository: nil)
         case .dashboard: state.sidebarSelection = .dashboard
         case .trends: state.sidebarSelection = .trends
@@ -47,6 +52,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         case .settings: state.sidebarSelection = .settings
         case nil: break
         }
+        state.normaliseSelection()
 
         if window == nil {
             makeWindow()
@@ -178,9 +184,8 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     /// a toolbar now comes with the glass background that belongs to
     /// controls, which made a plain title look like a button.
     private func updateTitle() {
-        let selection = state.sidebarSelection
-        window?.title = selection.title
-        window?.subtitle = selection.subtitle ?? ""
+        window?.title = state.selectionTitle
+        window?.subtitle = state.selectionSubtitle
         window?.titleVisibility = .visible
     }
 
@@ -272,7 +277,11 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             // A thread marked read disappears, and the pane describing it
             // has to go with it. So does an issue that is no longer assigned.
             _ = state.notifications
-            _ = state.issues
+            _ = state.listPullRequests
+            _ = state.listIssues
+            // A list can be renamed, reordered or deleted while the window
+            // is open, and the title bar follows it.
+            _ = state.settings.savedLists
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else { return }
@@ -294,13 +303,18 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         // The lists are bound straight to their selection, so the arrow keys
         // can move it without anything having asked for the payload yet.
         switch state.sidebarSelection {
-        case .pullRequests, .myPullRequests:
-            if let id = state.inspectedPullRequestID {
-                controller.loadDetailIfNeeded(for: id)
-            }
-        case .myIssues:
-            if let id = state.inspectedIssueID {
-                controller.loadIssueDetailIfNeeded(for: id)
+        case .list:
+            switch state.selectedList?.content {
+            case .pullRequests:
+                if let id = state.inspectedPullRequestID {
+                    controller.loadDetailIfNeeded(for: id)
+                }
+            case .issues:
+                if let id = state.inspectedIssueID {
+                    controller.loadIssueDetailIfNeeded(for: id)
+                }
+            case nil:
+                break
             }
         case .mentions:
             if let item = state.inspectedNotification {

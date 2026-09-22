@@ -1,43 +1,5 @@
 import Foundation
 
-/// The three things the app watches, as the user thinks of them.
-///
-/// "My Pull Requests" is not among them: it exists only in the window, has
-/// no count of its own anywhere, and a switch for it would sit in two
-/// columns that could never do anything.
-public enum WatchedList: String, CaseIterable, Codable, Sendable, Identifiable {
-    case reviews
-    case issues
-    case mentions
-
-    public var id: String { rawValue }
-
-    public var label: String {
-        switch self {
-        case .reviews: "Reviews requested"
-        case .issues: "Issues assigned"
-        case .mentions: "Mentions"
-        }
-    }
-
-    public var symbolName: String {
-        switch self {
-        case .reviews: StatusBarTitleBuilder.pullRequestSymbol
-        case .issues: StatusBarTitleBuilder.issueSymbol
-        case .mentions: StatusBarTitleBuilder.mentionSymbol
-        }
-    }
-
-    /// What the menu bar's tooltip and the accessibility label call it.
-    public var countPhrase: String {
-        switch self {
-        case .reviews: "reviews requested"
-        case .issues: "issues assigned"
-        case .mentions: "unread mentions"
-        }
-    }
-}
-
 /// Where a list can appear.
 public enum DisplaySurface: String, CaseIterable, Codable, Sendable, Identifiable {
     case menuBar
@@ -63,12 +25,34 @@ public enum DisplaySurface: String, CaseIterable, Codable, Sendable, Identifiabl
     }
 }
 
+/// One line of the menu bar, the popover or the window's status bar.
+public struct SurfaceCount: Identifiable, Hashable, Sendable {
+    public let id: String
+    public let title: String
+    public let symbolName: String
+    public let count: Int
+
+    public init(id: String, title: String, symbolName: String, count: Int) {
+        self.id = id
+        self.title = title
+        self.symbolName = symbolName
+        self.count = count
+    }
+}
+
 /// Which lists are shown where.
 ///
-/// Stored as what is *hidden* rather than what is shown: everything counts
-/// until it is switched off, so a list added later appears by itself instead
-/// of staying invisible until someone finds the switch.
+/// Keyed by the list's own id, plus one fixed key for the mentions, which
+/// are not a saved list: they come from the notifications API rather than
+/// from a search, and there is exactly one of them.
+///
+/// Stored as what is *hidden* rather than what is shown: a list counts
+/// everywhere until it is switched off, so a list made later appears by
+/// itself instead of staying invisible until someone finds the switch.
 public struct ListVisibility: Equatable, Sendable {
+    /// The mentions' key. Not a UUID, so it survives every migration.
+    public static let mentionsKey = "mentions"
+
     private var hidden: Set<String>
 
     public init(hidden: Set<String> = []) {
@@ -79,21 +63,21 @@ public struct ListVisibility: Equatable, Sendable {
         hidden = Set(storedKeys)
     }
 
-    static func key(_ list: WatchedList, _ surface: DisplaySurface) -> String {
-        "\(list.rawValue).\(surface.rawValue)"
+    static func key(_ list: String, _ surface: DisplaySurface) -> String {
+        "\(list).\(surface.rawValue)"
     }
 
-    public func isShown(_ list: WatchedList, in surface: DisplaySurface) -> Bool {
+    public func isShown(_ list: String, in surface: DisplaySurface) -> Bool {
         !hidden.contains(Self.key(list, surface))
     }
 
-    /// Whether anything still shows this list, so the app can tell "switched
-    /// off here" from "switched off everywhere".
-    public func isShownAnywhere(_ list: WatchedList) -> Bool {
+    /// Whether anything still shows this list, which is what decides whether
+    /// it is worth a request at all.
+    public func isShownAnywhere(_ list: String) -> Bool {
         DisplaySurface.allCases.contains { isShown(list, in: $0) }
     }
 
-    public mutating func setShown(_ shown: Bool, _ list: WatchedList, in surface: DisplaySurface) {
+    public mutating func setShown(_ shown: Bool, _ list: String, in surface: DisplaySurface) {
         if shown {
             hidden.remove(Self.key(list, surface))
         } else {
@@ -101,9 +85,12 @@ public struct ListVisibility: Equatable, Sendable {
         }
     }
 
-    /// The lists one surface shows, in the order they are listed everywhere.
-    public func shown(in surface: DisplaySurface) -> [WatchedList] {
-        WatchedList.allCases.filter { isShown($0, in: surface) }
+    /// Forgets a deleted list, so its switches do not outlive it in the
+    /// stored settings.
+    public mutating func forget(_ list: String) {
+        for surface in DisplaySurface.allCases {
+            hidden.remove(Self.key(list, surface))
+        }
     }
 
     /// Sorted, so the stored value does not churn with set ordering.

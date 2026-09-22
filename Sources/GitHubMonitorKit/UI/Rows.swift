@@ -2,8 +2,9 @@ import SwiftUI
 
 struct PullRequestRow: View {
     let item: PullRequestItem
-    /// Which date the row prints, so the list shows the one it is ordered on.
-    var sort: PullRequestSort = .updated
+    /// Which order the list is in, so the row prints the date it is
+    /// ordered on.
+    var sort: ListSort = .updated
     var compact: Bool = false
     /// Nil in the popover, where there is no detail pane to open.
     var inspect: (() -> Void)?
@@ -98,8 +99,9 @@ struct PullRequestRow: View {
     /// Named only when it is not the usual one: "updated" is what this column
     /// has always meant, and a word repeated down every row earns nothing.
     private var timestamp: String {
-        let relative = RelativeTime.string(for: item.date(for: sort))
-        return sort == .updated ? relative : "\(sort.rowPrefix) \(relative)"
+        let date = sort.date
+        let relative = RelativeTime.string(for: item.date(for: date))
+        return date == .updated ? relative : "\(date.rowPrefix) \(relative)"
     }
 
     private func actions(inspect: @escaping () -> Void) -> some View {

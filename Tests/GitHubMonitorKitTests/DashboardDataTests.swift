@@ -386,7 +386,7 @@ struct WorkloadInspectorTests {
     func onlyOnTheDashboard() {
         let state = makeState()
         state.workloadSelection = WorkloadSelection(grouping: .author, id: "mira")
-        state.sidebarSelection = .pullRequests(repository: nil)
+        state.sidebarSelection = .list(id: "some-list", repository: nil)
         #expect(state.inspectedWorkload == nil)
         #expect(state.inspectableWorkload.isEmpty)
     }

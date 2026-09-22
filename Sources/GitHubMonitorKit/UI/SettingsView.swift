@@ -14,6 +14,10 @@ struct SettingsView: View {
                 .tabItem { Label("Account", systemImage: "person.crop.circle") }
                 .tag(SettingsTab.account)
 
+            ListsSettingsView(state: state, controller: controller)
+                .tabItem { Label("Lists", systemImage: "list.bullet.rectangle") }
+                .tag(SettingsTab.lists)
+
             Form {
                 RepositoryFilterView(state: state, controller: controller)
                 FilterSettingsView(settings: state.settings)
@@ -126,8 +130,6 @@ private struct GeneralSettingsView: View {
 
     var body: some View {
         Form {
-            ListVisibilitySection(state: state)
-
             Section("Menu bar") {
                 Picker("Display", selection: $settings.statusBarStyle) {
                     ForEach(StatusBarStyle.allCases, id: \.self) { style in
@@ -136,7 +138,7 @@ private struct GeneralSettingsView: View {
                 }
                 .pickerStyle(.inline)
 
-                Text("The counts are whichever lists are switched on for the menu bar above. A single total adds them up.")
+                Text("The counts are whichever lists are switched on for the menu bar in the Lists tab. A single total adds them up.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -179,81 +181,6 @@ private struct GeneralSettingsView: View {
         Binding(
             get: { settings.launchAtLogin },
             set: { loginItem.apply($0, to: settings) }
-        )
-    }
-}
-
-/// Which list appears where.
-///
-/// A grid rather than three sections of switches: the question is which of
-/// nine boxes are ticked, and reading that off nine separate sentences is
-/// harder than reading it off a table.
-private struct ListVisibilitySection: View {
-    @Bindable var state: AppState
-
-    private var visibility: ListVisibility { state.settings.listVisibility }
-
-    var body: some View {
-        Section("Lists") {
-            Text("Where each list appears. Switching one off leaves it fetched but out of sight, so turning it back on costs nothing.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 9) {
-                GridRow {
-                    Color.clear.frame(width: 1, height: 1)
-                    ForEach(DisplaySurface.allCases) { surface in
-                        Text(surface.label)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .help(surface.help)
-                            .gridColumnAlignment(.center)
-                    }
-                }
-
-                ForEach(WatchedList.allCases) { list in
-                    GridRow {
-                        Label(list.label, systemImage: list.symbolName)
-                        ForEach(DisplaySurface.allCases) { surface in
-                            Toggle("", isOn: binding(list, surface))
-                                .toggleStyle(.checkbox)
-                                .labelsHidden()
-                                .help("\(list.label) — \(surface.help.lowercased())")
-                        }
-                    }
-                }
-            }
-            .padding(.vertical, 2)
-
-            // Switching a list off everywhere is allowed -- it is how you
-            // stop caring about one -- but it should not be something you
-            // did by accident and then went looking for.
-            ForEach(hiddenEverywhere) { list in
-                Label(
-                    "\(list.label) is switched off everywhere and will not be shown at all.",
-                    systemImage: "eye.slash"
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-        }
-    }
-
-    private var hiddenEverywhere: [WatchedList] {
-        WatchedList.allCases.filter { !visibility.isShownAnywhere($0) }
-    }
-
-    private func binding(_ list: WatchedList, _ surface: DisplaySurface) -> Binding<Bool> {
-        Binding(
-            get: { visibility.isShown(list, in: surface) },
-            set: { shown in
-                var updated = visibility
-                updated.setShown(shown, list, in: surface)
-                state.settings.listVisibility = updated
-                // The window follows this selection, so a list hidden while
-                // it is the one on screen has to hand over to another.
-                state.normaliseSelection()
-            }
         )
     }
 }

@@ -4,40 +4,20 @@ import Testing
 
 @Suite("Sidebar selection")
 struct SidebarSelectionTests {
-    @Test("An 'All' selection is titled by its section")
-    func sectionTitles() {
-        #expect(SidebarSelection.pullRequests(repository: nil).title == "Reviews Requested")
-        #expect(SidebarSelection.mentions(repository: nil).title == "Mentions")
-        #expect(SidebarSelection.pullRequests(repository: nil).subtitle == nil)
+    @Test("A selection points at one list, or at one of the fixed views")
+    func listID() {
+        #expect(SidebarSelection.list(id: "abc", repository: nil).listID == "abc")
+        #expect(SidebarSelection.mentions(repository: nil).listID == nil)
+        #expect(SidebarSelection.dashboard.listID == nil)
     }
 
-    /// With a repository chosen, its name is the headline and the section
-    /// moves to the subtitle -- otherwise the header would not say what kind
-    /// of list is on screen.
-    @Test("A repository selection keeps the section as a subtitle")
-    func repositoryTitles() {
-        let selection = SidebarSelection.pullRequests(repository: "octo/platform")
-        #expect(selection.title == "octo/platform")
-        #expect(selection.subtitle == "Reviews Requested")
-    }
-
-    /// The two pull request lists must be distinguishable at a glance;
-    /// naming both "Pull Requests" would make the header useless.
-    @Test("The two pull request lists have distinct titles")
-    func distinctPullRequestTitles() {
-        #expect(SidebarSelection.myPullRequests(repository: nil).title == "My Pull Requests")
-        #expect(
-            SidebarSelection.pullRequests(repository: nil).title
-                != SidebarSelection.myPullRequests(repository: nil).title
-        )
-        #expect(SidebarSelection.myPullRequests(repository: "a/b") != .pullRequests(repository: "a/b"))
-    }
-
-    @Test("Selections map onto the right list")
-    func tabs() {
-        #expect(SidebarSelection.pullRequests(repository: "a/b").tab == .pullRequests)
-        #expect(SidebarSelection.mentions(repository: nil).tab == .mentions)
-        #expect(SidebarSelection.settings.tab == .settings)
+    /// The switches are keyed by the same string the list is, and the
+    /// mentions keep the one fixed key they always had.
+    @Test("Selections map onto their visibility key")
+    func visibilityKey() {
+        #expect(SidebarSelection.list(id: "abc", repository: nil).visibilityKey == "abc")
+        #expect(SidebarSelection.mentions(repository: nil).visibilityKey == ListVisibility.mentionsKey)
+        #expect(SidebarSelection.settings.visibilityKey == nil)
     }
 
     /// An empty toolbar item is not nothing on macOS 26: every item gets its
@@ -45,14 +25,8 @@ struct SidebarSelectionTests {
     /// glass beside the title.
     @Test("Only the views with controls ask for a toolbar item")
     func toolbarControls() {
-        for selection in [
-            SidebarSelection.pullRequests(repository: nil),
-            .myPullRequests(repository: nil),
-            .myIssues(repository: nil),
-            .mentions(repository: nil),
-        ] {
-            #expect(selection.hasToolbarControls)
-        }
+        #expect(SidebarSelection.list(id: "a", repository: nil).hasToolbarControls)
+        #expect(SidebarSelection.mentions(repository: nil).hasToolbarControls)
         for selection in [SidebarSelection.dashboard, .trends, .myTrends, .settings] {
             #expect(!selection.hasToolbarControls)
         }
@@ -60,31 +34,36 @@ struct SidebarSelectionTests {
 
     /// Selections are used as list tags, so two entries that look alike must
     /// not compare equal.
-    @Test("Selections for different repositories are distinct")
+    @Test("Selections for different lists and repositories are distinct")
     func distinctTags() {
-        #expect(SidebarSelection.pullRequests(repository: "a/b") != .pullRequests(repository: "a/c"))
-        #expect(SidebarSelection.pullRequests(repository: "a/b") != .mentions(repository: "a/b"))
-        #expect(SidebarSelection.pullRequests(repository: nil) != .pullRequests(repository: "a/b"))
+        #expect(SidebarSelection.list(id: "a", repository: "x/y") != .list(id: "a", repository: "x/z"))
+        #expect(SidebarSelection.list(id: "a", repository: nil) != .list(id: "b", repository: nil))
+        #expect(SidebarSelection.list(id: "a", repository: nil) != .mentions(repository: nil))
     }
 }
 
 @MainActor
 @Suite("Selection narrows the lists")
 struct AppStateSelectionTests {
+    private let reviews = SavedList(
+        id: "reviews", title: "Reviews Requested",
+        query: "is:pr review-requested:@me", content: .pullRequests
+    )
+
     private func makeState() -> AppState {
         // An isolated defaults suite, so tests never touch the real settings.
         let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
         let state = AppState(settings: Settings(store: defaults))
+        state.settings.savedLists = [reviews]
+        state.sidebarSelection = .list(id: reviews.id, repository: nil)
         // Explicit timestamps, newest first: the lists are sorted, so an
         // expectation on their order has to say what the order is.
-        state.pullRequests = [
+        state.listPullRequests[reviews.id] = [
             pullRequest(id: "1", repository: "octo/platform", minutesAgo: 1),
             pullRequest(id: "2", repository: "octo/platform", minutesAgo: 2),
             pullRequest(id: "3", repository: "octo/octo.de", minutesAgo: 3),
         ]
-        state.notifications = [
-            notification(id: "n1", repository: "octo/platform"),
-        ]
+        state.notifications = [notification(id: "n1", repository: "octo/platform")]
         return state
     }
 
@@ -105,18 +84,17 @@ struct AppStateSelectionTests {
         )
     }
 
-    @Test("'All' shows everything")
+    @Test("'All' shows everything the list found")
     func allShowsEverything() {
         let state = makeState()
-        state.sidebarSelection = .pullRequests(repository: nil)
-        #expect(state.selectedPullRequests.count == 3)
+        #expect(state.selectedPullRequests(in: reviews).count == 3)
     }
 
     @Test("A repository selection narrows the list")
     func repositoryNarrows() {
         let state = makeState()
-        state.sidebarSelection = .pullRequests(repository: "octo/platform")
-        #expect(state.selectedPullRequests.map(\.id) == ["1", "2"])
+        state.sidebarSelection = .list(id: reviews.id, repository: "octo/platform")
+        #expect(state.selectedPullRequests(in: reviews).map(\.id) == ["1", "2"])
     }
 
     /// The sidebar entries are what the user clicks, so their counts have to
@@ -124,20 +102,22 @@ struct AppStateSelectionTests {
     @Test("Sidebar counts match the narrowed lists")
     func countsMatchLists() {
         let state = makeState()
-        for entry in state.pullRequestRepositories {
-            state.sidebarSelection = .pullRequests(repository: entry.repository)
-            #expect(state.selectedPullRequests.count == entry.count)
+        for entry in state.repositories(in: reviews) {
+            state.sidebarSelection = .list(id: reviews.id, repository: entry.repository)
+            #expect(state.selectedPullRequests(in: reviews).count == entry.count)
         }
     }
 
     @Test("Repository entries are listed busiest first")
     func busiestFirst() {
         let state = makeState()
-        #expect(state.pullRequestRepositories.map(\.repository) == ["octo/platform", "octo/octo.de"])
-        #expect(state.pullRequestRepositories.first?.count == 2)
+        #expect(state.repositories(in: reviews).map(\.repository) == [
+            "octo/platform", "octo/octo.de",
+        ])
+        #expect(state.repositories(in: reviews).first?.count == 2)
     }
 
-    @Test("Mentions narrow independently of pull requests")
+    @Test("Mentions narrow independently of the lists")
     func mentionsNarrow() {
         let state = makeState()
         state.sidebarSelection = .mentions(repository: "octo/platform")
@@ -146,24 +126,49 @@ struct AppStateSelectionTests {
         state.sidebarSelection = .mentions(repository: "octo/octo.de")
         #expect(state.selectedNotifications.isEmpty)
     }
+
+    /// The title bar names the list, which the selection cannot know: it
+    /// holds an id, and the title can be changed at any time.
+    @Test("The title comes from the list, the subtitle from the repository")
+    func titles() {
+        let state = makeState()
+        #expect(state.selectionTitle == "Reviews Requested")
+        #expect(state.selectionSubtitle.isEmpty)
+
+        state.sidebarSelection = .list(id: reviews.id, repository: "octo/platform")
+        #expect(state.selectionTitle == "octo/platform")
+        #expect(state.selectionSubtitle == "Reviews Requested")
+
+        state.sidebarSelection = .dashboard
+        #expect(state.selectionTitle == "Workload")
+    }
 }
 
 @MainActor
 @Suite("The draft toggle counts the list on screen")
 struct DraftCountTests {
+    private let reviews = SavedList(
+        id: "reviews", title: "Reviews", query: "is:pr review-requested:@me", content: .pullRequests
+    )
+    private let mine = SavedList(
+        id: "mine", title: "Mine", query: "is:pr author:@me", content: .pullRequests
+    )
+
     private func makeState() -> AppState {
         let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
         let state = AppState(settings: Settings(store: defaults))
-        state.pullRequests = [
+        state.settings.savedLists = [reviews, mine]
+        state.listPullRequests[reviews.id] = [
             pullRequest(id: "1", repository: "octo/platform", draft: true),
             pullRequest(id: "2", repository: "octo/platform", draft: true),
             pullRequest(id: "3", repository: "octo/octo.de", draft: true),
             pullRequest(id: "4", repository: "octo/platform"),
         ]
-        state.authoredPullRequests = [
+        state.listPullRequests[mine.id] = [
             pullRequest(id: "5", repository: "octo/platform", draft: true),
             pullRequest(id: "6", repository: "octo/platform"),
         ]
+        state.sidebarSelection = .list(id: reviews.id, repository: nil)
         return state
     }
 
@@ -175,35 +180,34 @@ struct DraftCountTests {
         )
     }
 
-    @Test("The review queue's drafts are counted while it is shown")
-    func reviewQueue() {
+    @Test("The list on screen counts its own drafts")
+    func listOnScreen() {
         let state = makeState()
-        state.sidebarSelection = .pullRequests(repository: nil)
         #expect(state.selectedDraftCount == 3)
     }
 
     /// The toggle sits in the toolbar above whichever list is open, so
-    /// offering to show the review queue's drafts there names a number the
-    /// list cannot account for.
-    @Test("The authored list counts its own drafts, not the review queue's")
-    func authoredList() {
+    /// offering to show another list's drafts names a number the list on
+    /// screen cannot account for.
+    @Test("Another list's drafts are not counted")
+    func otherList() {
         let state = makeState()
-        state.sidebarSelection = .myPullRequests(repository: nil)
+        state.sidebarSelection = .list(id: mine.id, repository: nil)
         #expect(state.selectedDraftCount == 1)
     }
 
     @Test("A repository selection narrows the count too")
     func narrowedByRepository() {
         let state = makeState()
-        state.sidebarSelection = .pullRequests(repository: "octo/octo.de")
+        state.sidebarSelection = .list(id: reviews.id, repository: "octo/octo.de")
         #expect(state.selectedDraftCount == 1)
-        state.sidebarSelection = .pullRequests(repository: "octo/platform")
+        state.sidebarSelection = .list(id: reviews.id, repository: "octo/platform")
         #expect(state.selectedDraftCount == 2)
     }
 
-    /// Lists without drafts have no toggle; a count above zero would put one
-    /// in a toolbar it does not belong in.
-    @Test("Lists that hold no pull requests count nothing")
+    /// Views without a list have no drafts to offer; a count above zero
+    /// would put a toggle in a toolbar it does not belong in.
+    @Test("Views that hold no list count nothing")
     func otherViews() {
         let state = makeState()
         for selection in [SidebarSelection.mentions(repository: nil), .dashboard, .settings] {
@@ -212,22 +216,17 @@ struct DraftCountTests {
         }
     }
 
-    /// The popover shows the review queue whatever the window is pointing at.
-    @Test("The popover's count stays with the review queue")
-    func popoverUnaffected() {
-        let state = makeState()
-        state.sidebarSelection = .myPullRequests(repository: nil)
-        #expect(state.draftCount == 3)
-    }
-
     /// Hiding drafts must not hide the offer to show them again.
     @Test("The count is the same whether drafts are shown or not")
     func independentOfVisibility() {
         let state = makeState()
-        state.sidebarSelection = .myPullRequests(repository: nil)
         state.settings.includeDrafts = false
-        #expect(state.selectedDraftCount == 1)
+        #expect(state.selectedDraftCount == 3)
         state.settings.includeDrafts = true
-        #expect(state.selectedDraftCount == 1)
+        #expect(state.selectedDraftCount == 3)
+        // What the list shows does change.
+        #expect(state.pullRequests(in: reviews).count == 4)
+        state.settings.includeDrafts = false
+        #expect(state.pullRequests(in: reviews).count == 1)
     }
 }

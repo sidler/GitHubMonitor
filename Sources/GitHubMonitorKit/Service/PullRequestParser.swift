@@ -5,35 +5,6 @@ import Foundation
 /// Kept separate from the client so it can be tested against recorded
 /// responses without a network.
 public enum PullRequestParser {
-    /// Reads every aliased search in the payload and merges them.
-    ///
-    /// A pull request can be requested from the user personally *and* from one
-    /// of their teams, so the same item may appear in more than one search;
-    /// deduplicating by id is what keeps the count honest.
-    public static func pullRequests(
-        from payload: [String: Any],
-        group: PullRequestQuery.Group
-    ) -> [PullRequestItem] {
-        var seen = Set<String>()
-        var items: [PullRequestItem] = []
-
-        // Alias order is our own (r0, r1, …); sort so results stay stable.
-        let keys = payload.keys.filter { $0.hasPrefix(group.rawValue) }
-        for key in keys.sorted(by: aliasOrder) {
-            guard
-                let search = payload[key] as? [String: Any],
-                let nodes = search["nodes"] as? [[String: Any]]
-            else { continue }
-
-            for node in nodes {
-                guard let item = pullRequest(from: node), seen.insert(item.id).inserted else { continue }
-                items.append(item)
-            }
-        }
-
-        return items.sorted { $0.updatedAt > $1.updatedAt }
-    }
-
     /// Pull requests paired with their reviewers, for the dashboard.
     ///
     /// Reuses the detail parser's reviewer logic, which already merges
@@ -48,12 +19,6 @@ public enum PullRequestParser {
             guard let item = pullRequest(from: node) else { return nil }
             return (item, PullRequestDetailQuery.reviewers(from: node))
         }
-    }
-
-    static func aliasOrder(_ lhs: String, _ rhs: String) -> Bool {
-        let left = Int(lhs.dropFirst()) ?? 0
-        let right = Int(rhs.dropFirst()) ?? 0
-        return left < right
     }
 
     static func pullRequest(from node: [String: Any]) -> PullRequestItem? {

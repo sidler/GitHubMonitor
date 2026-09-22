@@ -154,9 +154,9 @@ struct DashboardView: View {
 
     private var suggestions: [String] {
         RepositoryGrouping.repositories(
-            pullRequests: state.pullRequests + state.authoredPullRequests,
+            pullRequests: state.allPullRequests,
             notifications: state.notifications,
-            issues: state.issues
+            issues: state.allIssues
         )
     }
 

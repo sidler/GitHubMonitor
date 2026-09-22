@@ -241,36 +241,12 @@ public struct GitHubService: Sendable {
         try await client.patch(url)
     }
 
-    /// Every list the menu bar counts, in one request: the pull requests
-    /// waiting for the user's review, the ones they opened and are waiting on
-    /// others for, and the issues assigned to them.
-    public func lists(
-        login: String,
-        teamSlugs: [String],
-        repositoryFilters: [String]
-    ) async throws -> ListFetch {
-        let payload = try await client.graphQL(
-            PullRequestQuery.document(
-                reviewRequested: PullRequestQuery.searchQueries(
-                    login: login, teamSlugs: teamSlugs, repositoryFilters: repositoryFilters
-                ),
-                authored: [
-                    PullRequestQuery.authoredQuery(
-                        login: login, repositoryFilters: repositoryFilters
-                    ),
-                ],
-                issues: [
-                    IssueQuery.assignedQuery(
-                        login: login, repositoryFilters: repositoryFilters
-                    ),
-                ]
-            )
-        )
-        return ListFetch(
-            reviewRequested: PullRequestParser.pullRequests(from: payload, group: .reviewRequested),
-            authored: PullRequestParser.pullRequests(from: payload, group: .authored),
-            issues: IssueParser.issues(from: payload)
-        )
+    /// Every list in one request: whatever searches the saved lists come to,
+    /// each under its own alias.
+    public func lists(_ searches: [ListSearch]) async throws -> ListResults {
+        guard !searches.isEmpty else { return ListResults() }
+        let payload = try await client.graphQL(ListQuery.document(searches))
+        return ListParser.results(from: payload, searches: searches)
     }
 
     /// The text and the end of the thread behind one issue, fetched when its
@@ -281,22 +257,5 @@ public struct GitHubService: Sendable {
             variables: ["id": id]
         )
         return try IssueQuery.detail(from: payload)
-    }
-}
-
-/// One refresh's worth of every list.
-public struct ListFetch: Sendable {
-    public let reviewRequested: [PullRequestItem]
-    public let authored: [PullRequestItem]
-    public let issues: [IssueItem]
-
-    public init(
-        reviewRequested: [PullRequestItem],
-        authored: [PullRequestItem],
-        issues: [IssueItem]
-    ) {
-        self.reviewRequested = reviewRequested
-        self.authored = authored
-        self.issues = issues
     }
 }

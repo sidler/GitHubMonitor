@@ -23,12 +23,15 @@ struct PopoverView: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 14) {
-                        if shown.isEmpty {
+                        if shownLists.isEmpty && !showsMentions {
                             everythingHiddenNotice
                         }
-                        if shown.contains(.reviews) { pullRequestSection }
-                        if shown.contains(.mentions) { mentionSection }
-                        if shown.contains(.issues) { issueSection }
+                        ForEach(shownLists) { list in
+                            section(for: list)
+                        }
+                        if showsMentions {
+                            mentionSection
+                        }
                     }
                     .padding(12)
                 }
@@ -49,9 +52,13 @@ struct PopoverView: View {
 
     // MARK: - Sections
 
-    /// What the user left switched on for this panel.
-    private var shown: [WatchedList] {
-        state.settings.listVisibility.shown(in: .popover)
+    /// The lists left switched on for this panel, in sidebar order.
+    private var shownLists: [SavedList] {
+        state.lists.filter { state.settings.listVisibility.isShown($0.id, in: .popover) }
+    }
+
+    private var showsMentions: Bool {
+        state.settings.listVisibility.isShown(ListVisibility.mentionsKey, in: .popover)
     }
 
     /// Switching every section off is a way of using the popover as a menu
@@ -63,32 +70,50 @@ struct PopoverView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var pullRequestSection: some View {
-        let items = state.visiblePullRequests
-        // A plain stack rather than `Section`, which imposes its own generous
-        // header spacing outside of a List.
-        return VStack(alignment: .leading, spacing: 5) {
-            SectionHeader(
-                title: "Reviews requested",
-                count: items.count,
-                symbol: StatusBarTitleBuilder.pullRequestSymbol
-            ) {
-                DraftToggle(state: state)
+    @ViewBuilder
+    private func section(for list: SavedList) -> some View {
+        switch list.content {
+        case .pullRequests:
+            let items = state.pullRequests(in: list)
+            VStack(alignment: .leading, spacing: 5) {
+                SectionHeader(title: list.title, count: items.count, symbol: list.symbol) {
+                    DraftToggle(state: state, list: list)
+                }
+                CardList(
+                    items: Array(items.prefix(Self.previewLimit)),
+                    emptyMessage: emptyMessage(for: list, shown: items.count)
+                ) { item in
+                    PullRequestRow(item: item, sort: list.sort, compact: true)
+                }
+                if items.count > Self.previewLimit {
+                    showAllButton(count: items.count)
+                }
             }
-
-            CardList(
-                items: Array(items.prefix(Self.previewLimit)),
-                emptyMessage: state.draftCount > 0 && !state.settings.includeDrafts
-                    ? "Nothing but drafts."
-                    : "Nothing waiting for your review."
-            ) { item in
-                PullRequestRow(item: item, sort: state.settings.pullRequestSort, compact: true)
-            }
-
-            if items.count > Self.previewLimit {
-                showAllButton(count: items.count)
+        case .issues:
+            let items = state.issues(in: list)
+            VStack(alignment: .leading, spacing: 5) {
+                SectionHeader(title: list.title, count: items.count, symbol: list.symbol)
+                CardList(
+                    items: Array(items.prefix(Self.previewLimit)),
+                    emptyMessage: emptyMessage(for: list, shown: items.count)
+                ) { item in
+                    IssueRow(item: item, sort: list.sort, compact: true)
+                }
+                if items.count > Self.previewLimit {
+                    showAllButton(count: items.count)
+                }
             }
         }
+    }
+
+    /// Why a section is empty, which is a different question depending on
+    /// whether anything was found at all.
+    private func emptyMessage(for list: SavedList, shown: Int) -> String {
+        let fetched = list.content == .pullRequests
+            ? (state.listPullRequests[list.id] ?? []).count
+            : (state.listIssues[list.id] ?? []).count
+        if fetched > shown { return "Everything here is filtered out." }
+        return "Nothing matches this list."
     }
 
     private var mentionSection: some View {
@@ -123,32 +148,6 @@ struct PopoverView: View {
                     toggle: { controller.togglePreview(for: item) },
                     markRead: { Task { await controller.markRead(item) } }
                 )
-            }
-
-            if items.count > Self.previewLimit {
-                showAllButton(count: items.count)
-            }
-        }
-    }
-
-    private var issueSection: some View {
-        let items = state.visibleIssues
-        return VStack(alignment: .leading, spacing: 5) {
-            SectionHeader(
-                title: "Issues assigned",
-                count: items.count,
-                symbol: StatusBarTitleBuilder.issueSymbol
-            )
-
-            CardList(
-                items: Array(items.prefix(Self.previewLimit)),
-                emptyMessage: state.issues.isEmpty
-                    ? "Nothing is assigned to you."
-                    : "Nothing matching the repository filter."
-            ) { item in
-                // No detail pane here, so a row opens GitHub when tapped --
-                // as the pull request rows in this popover do.
-                IssueRow(item: item, sort: state.settings.issueSort, compact: true)
             }
 
             if items.count > Self.previewLimit {
@@ -314,20 +313,26 @@ private struct HoverRow<Content: View>: View {
     }
 }
 
-/// Draft visibility, where it is actually needed: next to the list it changes.
+/// Draft visibility, where it is actually needed: next to the list it
+/// changes.
 private struct DraftToggle: View {
     @Bindable var state: AppState
+    let list: SavedList
+
+    private var draftCount: Int {
+        (state.listPullRequests[list.id] ?? []).count { $0.isDraft }
+    }
 
     var body: some View {
         // With no drafts around, the control would be a no-op.
-        if state.draftCount > 0 {
+        if draftCount > 0 {
             Button {
                 state.settings.includeDrafts.toggle()
             } label: {
                 Label(
                     state.settings.includeDrafts
                         ? "Hide drafts"
-                        : "Show \(state.draftCount) draft\(state.draftCount == 1 ? "" : "s")",
+                        : "Show \(draftCount) draft\(draftCount == 1 ? "" : "s")",
                     systemImage: state.settings.includeDrafts ? "eye.slash" : "eye"
                 )
                 .font(.caption)

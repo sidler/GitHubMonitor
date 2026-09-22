@@ -10,7 +10,7 @@ struct IssueRow: View {
     let item: IssueItem
     /// Which order the list is in, so the row prints the date it is ordered
     /// on -- and, ordered by type, still prints the last activity.
-    var sort: IssueSort = .updated
+    var sort: ListSort = .updated
     var compact: Bool = false
     /// Nil in the popover, where there is no detail pane to open.
     var inspect: (() -> Void)?

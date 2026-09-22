@@ -140,8 +140,8 @@ public final class RefreshController {
         service = nil
         state.viewer = nil
         state.hasToken = false
-        state.pullRequests = []
-        state.issues = []
+        state.listPullRequests = [:]
+        state.listIssues = [:]
         state.notifications = []
         state.availableTeams = []
         state.loadState = .idle
@@ -162,6 +162,26 @@ public final class RefreshController {
         inFlight = nil
     }
 
+    /// The searches this refresh runs.
+    ///
+    /// Only the lists that are shown somewhere: one that appears in neither
+    /// the menu bar, the popover nor the window is a list nobody is looking
+    /// at, and every search costs a request. Switching one back on triggers
+    /// a refresh, so it fills in at once rather than at the next tick.
+    private func searches() -> [ListSearch] {
+        state.settings.savedLists
+            .filter {
+                $0.isRunnable && state.settings.listVisibility.isShownAnywhere($0.id)
+            }
+            .flatMap {
+                ListQuery.searches(
+                    for: $0,
+                    teamSlugs: state.settings.teamSlugs,
+                    repositoryFilters: state.settings.repositoryFilters
+                )
+            }
+    }
+
     private func performRefresh() async {
         guard let service else {
             state.loadState = .failed(GitHubError.noToken.localizedDescription)
@@ -180,14 +200,17 @@ public final class RefreshController {
                 state.viewer = viewer
             }
 
-            let fetched = try await service.lists(
-                login: viewer.login,
-                teamSlugs: state.settings.teamSlugs,
-                repositoryFilters: state.settings.repositoryFilters
-            )
-            state.pullRequests = fetched.reviewRequested
-            state.authoredPullRequests = fetched.authored
-            let livePullRequests = Set((fetched.reviewRequested + fetched.authored).map(\.id))
+            // The viewer is resolved for the teams and for `@me` to mean
+            // something to GitHub, not to be pasted into the queries.
+            _ = viewer
+
+            let results = try await service.lists(searches())
+            state.listPullRequests = results.pullRequests
+            state.listIssues = results.issues
+
+            // A row that is gone takes its detail with it -- and the pane
+            // describing it, which would otherwise sit there for good.
+            let livePullRequests = Set(state.allPullRequests.map(\.id))
             state.pullRequestDetails = state.pullRequestDetails.filter {
                 livePullRequests.contains($0.key)
             }
@@ -195,10 +218,7 @@ public final class RefreshController {
                 state.inspectedPullRequestID = nil
             }
 
-            state.issues = fetched.issues
-            // An issue that was closed or handed on is gone from the list,
-            // and the pane describing it has to go with it.
-            let liveIssues = Set(fetched.issues.map(\.id))
+            let liveIssues = Set(state.allIssues.map(\.id))
             state.issueDetails = state.issueDetails.filter { liveIssues.contains($0.key) }
             if let inspected = state.inspectedIssueID, !liveIssues.contains(inspected) {
                 state.inspectedIssueID = nil
@@ -545,13 +565,26 @@ public final class RefreshController {
     /// window.
     public func moveInspection(by offset: Int) {
         switch state.sidebarSelection {
-        case .pullRequests, .myPullRequests:
-            if let next = Self.step(state.inspectableItems, from: state.inspectedPullRequestID, by: offset) {
-                inspect(next)
-            }
-        case .myIssues:
-            if let next = Self.step(state.inspectableIssues, from: state.inspectedIssueID, by: offset) {
-                inspect(next)
+        case .list:
+            switch state.selectedList?.content {
+            case .pullRequests:
+                if let next = Self.step(
+                    state.inspectableItems,
+                    from: state.inspectedPullRequestID,
+                    by: offset
+                ) {
+                    inspect(next)
+                }
+            case .issues:
+                if let next = Self.step(
+                    state.inspectableIssues,
+                    from: state.inspectedIssueID,
+                    by: offset
+                ) {
+                    inspect(next)
+                }
+            case nil:
+                break
             }
         case .mentions:
             if let next = Self.step(

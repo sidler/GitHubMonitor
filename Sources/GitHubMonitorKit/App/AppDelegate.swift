@@ -70,14 +70,19 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             Task { [weak self] in
                 for _ in 0..<40 {
                     guard let self else { return }
-                    if case .myIssues = state.sidebarSelection {
-                        if let first = state.visibleIssues.first {
-                            refresh.inspect(first)
-                            return
+                    if let list = state.selectedList {
+                        switch list.content {
+                        case .pullRequests:
+                            if let first = state.pullRequests(in: list).first {
+                                refresh.inspect(first)
+                                return
+                            }
+                        case .issues:
+                            if let first = state.issues(in: list).first {
+                                refresh.inspect(first)
+                                return
+                            }
                         }
-                    } else if let first = state.visiblePullRequests.first {
-                        refresh.inspect(first)
-                        return
                     }
                     try? await Task.sleep(for: .milliseconds(500))
                 }
@@ -99,7 +104,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                     if parts.count == 2, let settingsTab = SettingsTab(rawValue: parts[1]) {
                         self?.state.selectedSettingsTab = settingsTab
                     }
-                    windowController.show(selecting: MainWindowTab(rawValue: parts[0]) ?? .pullRequests)
+                    windowController.show(selecting: MainWindowTab(name: parts[0]))
                 }
             }
         }

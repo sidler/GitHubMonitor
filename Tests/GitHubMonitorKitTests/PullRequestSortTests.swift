@@ -5,9 +5,25 @@ import Testing
 @MainActor
 @Suite("Sorting the pull request lists")
 struct PullRequestSortTests {
+    private let list = SavedList(
+        id: "l", title: "A list", query: "is:pr review-requested:@me", content: .pullRequests
+    )
+
     private func makeState() -> AppState {
         let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
-        return AppState(settings: Settings(store: defaults))
+        let state = AppState(settings: Settings(store: defaults))
+        state.settings.savedLists = [list]
+        state.sidebarSelection = .list(id: list.id, repository: nil)
+        return state
+    }
+
+    /// The order is the list's own now, so changing it means rewriting the
+    /// list -- which is what the toolbar's picker does.
+    private func order(_ state: AppState, by sort: ListSort) -> [String] {
+        var updated = list
+        updated.sort = sort
+        state.settings.update(updated)
+        return state.pullRequests(in: updated).map(\.id)
     }
 
     /// Opened long ago, touched a minute ago -- and the reverse. Only a list
@@ -30,36 +46,38 @@ struct PullRequestSortTests {
 
     private func loaded() -> AppState {
         let state = makeState()
-        state.pullRequests = [
+        state.listPullRequests[list.id] = [
             item(id: "old-but-busy", openedDaysAgo: 30, updatedDaysAgo: 1),
             item(id: "fresh-and-quiet", openedDaysAgo: 2, updatedDaysAgo: 2),
         ]
         return state
     }
 
-    @Test("By default the list follows the last activity")
+    @Test("By default a list follows the last activity")
     func defaultsToUpdated() {
         let state = loaded()
-        #expect(state.settings.pullRequestSort == .updated)
-        #expect(state.visiblePullRequests.map(\.id) == ["old-but-busy", "fresh-and-quiet"])
+        #expect(list.sort == .updated)
+        #expect(order(state, by: .updated) == ["old-but-busy", "fresh-and-quiet"])
     }
 
     @Test("Sorting by date opened reads the other field")
     func byCreated() {
         let state = loaded()
-        state.settings.pullRequestSort = .created
-        #expect(state.visiblePullRequests.map(\.id) == ["fresh-and-quiet", "old-but-busy"])
+        #expect(order(state, by: .created) == ["fresh-and-quiet", "old-but-busy"])
     }
 
-    @Test("The user's own list is ordered the same way")
-    func authoredListToo() {
-        let state = makeState()
-        state.authoredPullRequests = [
-            item(id: "old-but-busy", openedDaysAgo: 30, updatedDaysAgo: 1),
-            item(id: "fresh-and-quiet", openedDaysAgo: 2, updatedDaysAgo: 2),
-        ]
-        state.settings.pullRequestSort = .created
-        #expect(state.visibleAuthoredPullRequests.map(\.id) == ["fresh-and-quiet", "old-but-busy"])
+    /// Each list carries its own order: one of them being read by date
+    /// opened says nothing about the next.
+    @Test("The order belongs to the list, not to the app")
+    func perList() {
+        let state = loaded()
+        var other = SavedList(id: "other", title: "Other", query: "is:pr author:@me", content: .pullRequests)
+        other.sort = .created
+        state.settings.savedLists = [list, other]
+        state.listPullRequests[other.id] = state.listPullRequests[list.id]
+
+        #expect(state.pullRequests(in: list).map(\.id) == ["old-but-busy", "fresh-and-quiet"])
+        #expect(state.pullRequests(in: other).map(\.id) == ["fresh-and-quiet", "old-but-busy"])
     }
 
     /// Bots open pull requests in batches that share a timestamp to the
@@ -70,14 +88,14 @@ struct PullRequestSortTests {
         let moment = Date(timeIntervalSince1970: 1_700_000_000)
         func tied(_ ids: [String]) -> [String] {
             let state = makeState()
-            state.pullRequests = ids.map { id in
+            state.listPullRequests[list.id] = ids.map { id in
                 PullRequestItem(
                     id: id, number: 1, title: "t", repository: "r", author: "a",
                     authorAvatarURL: nil, url: URL(string: "https://github.com")!, isDraft: false,
                     createdAt: moment, updatedAt: moment, reviewDecision: .none, checks: .none
                 )
             }
-            return state.visiblePullRequests.map(\.id)
+            return state.pullRequests(in: list).map(\.id)
         }
         // The same rows in a different order out of GitHub must still land
         // in the same order on screen.
@@ -102,11 +120,13 @@ struct PullRequestSortTests {
     func persisted() {
         let suite = "githubmonitor.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
-        Settings(store: defaults).pullRequestSort = .created
-        #expect(Settings(store: defaults).pullRequestSort == .created)
+        var stored = list
+        stored.sort = .created
+        Settings(store: defaults).savedLists = [stored]
+        #expect(Settings(store: defaults).savedLists.first?.sort == .created)
     }
 
-    @Test("Both orders are offered, and named")
+    @Test("Both dates are offered, and named")
     func options() {
         #expect(PullRequestSort.allCases == [.updated, .created])
         for sort in PullRequestSort.allCases {
@@ -122,7 +142,12 @@ struct InspectionMovementTests {
     private func makeController() -> (AppState, RefreshController) {
         let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
         let state = AppState(settings: Settings(store: defaults))
-        state.pullRequests = (1...3).map { index in
+        let list = SavedList(
+            id: "l", title: "A list", query: "is:pr review-requested:@me", content: .pullRequests
+        )
+        state.settings.savedLists = [list]
+        state.sidebarSelection = .list(id: list.id, repository: nil)
+        state.listPullRequests[list.id] = (1...3).map { index in
             PullRequestItem(
                 id: "\(index)", number: index, title: "t", repository: "r", author: "a",
                 authorAvatarURL: nil, url: URL(string: "https://github.com")!, isDraft: false,
@@ -176,8 +201,10 @@ struct InspectionMovementTests {
     @Test("Re-sorting changes what the next row is")
     func followsTheSort() {
         let (state, controller) = makeController()
-        state.settings.pullRequestSort = .created
-        state.pullRequests = [
+        var list = try! #require(state.lists.first)
+        list.sort = .created
+        state.settings.update(list)
+        state.listPullRequests[list.id] = [
             PullRequestItem(
                 id: "old", number: 1, title: "t", repository: "r", author: "a",
                 authorAvatarURL: nil, url: URL(string: "https://github.com")!, isDraft: false,
@@ -206,16 +233,20 @@ struct InspectionMovementTests {
     @Test("The keyboard walks the list the sidebar is pointing at")
     func followsTheSidebar() {
         let (state, controller) = makeController()
-        state.authoredPullRequests = [
+        let mine = SavedList(
+            id: "mine", title: "Mine", query: "is:pr author:@me", content: .pullRequests
+        )
+        state.settings.savedLists += [mine]
+        state.listPullRequests[mine.id] = [
             PullRequestItem(
-                id: "mine", number: 9, title: "t", repository: "r", author: "sidler",
+                id: "mine-1", number: 9, title: "t", repository: "r", author: "sidler",
                 authorAvatarURL: nil, url: URL(string: "https://github.com")!, isDraft: false,
                 updatedAt: .now, reviewDecision: .none, checks: .none
             ),
         ]
-        state.sidebarSelection = .myPullRequests(repository: nil)
+        state.sidebarSelection = .list(id: mine.id, repository: nil)
         controller.moveInspection(by: 1)
-        #expect(state.inspectedPullRequestID == "mine")
+        #expect(state.inspectedPullRequestID == "mine-1")
     }
 }
 
@@ -225,14 +256,25 @@ struct InspectionOrderTests {
     private func makeState() -> AppState {
         let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
         let state = AppState(settings: Settings(store: defaults))
+        let list = SavedList(
+            id: "l", title: "A list", query: "is:pr review-requested:@me", content: .pullRequests
+        )
+        state.settings.savedLists = [list]
+        state.sidebarSelection = .list(id: list.id, repository: nil)
         // Interleaved repositories, so a grouped list is in a different
         // order from a flat one.
-        state.pullRequests = [
+        state.listPullRequests[list.id] = [
             item(id: "a1", repository: "org/alpha", minutesAgo: 1),
             item(id: "b1", repository: "org/beta", minutesAgo: 2),
             item(id: "a2", repository: "org/alpha", minutesAgo: 3),
         ]
         return state
+    }
+
+    private func group(_ state: AppState) {
+        guard var list = state.lists.first else { return }
+        list.grouping = .byRepository
+        state.settings.update(list)
     }
 
     private func item(id: String, repository: String, minutesAgo: Int) -> PullRequestItem {
@@ -255,14 +297,14 @@ struct InspectionOrderTests {
     @Test("A grouped list is walked section by section")
     func grouped() {
         let state = makeState()
-        state.settings.listGrouping = .byRepository
+        group(state)
         #expect(state.inspectableItems.map(\.id) == ["a1", "a2", "b1"])
     }
 
     @Test("Moving follows the grouping too")
     func movingFollowsGrouping() {
         let state = makeState()
-        state.settings.listGrouping = .byRepository
+        group(state)
         let controller = RefreshController(state: state)
         state.inspectedPullRequestID = "a2"
         controller.moveInspection(by: 1)
@@ -332,7 +374,11 @@ struct NotificationInspectionTests {
     func followsTheSidebar() {
         let (state, controller) = makeState()
         controller.inspect(state.notifications[0])
-        state.pullRequests = [
+        let list = SavedList(
+            id: "l", title: "A list", query: "is:pr review-requested:@me", content: .pullRequests
+        )
+        state.settings.savedLists = [list]
+        state.listPullRequests[list.id] = [
             PullRequestItem(
                 id: "pr", number: 1, title: "t", repository: "r", author: "a",
                 authorAvatarURL: nil, url: URL(string: "https://github.com")!, isDraft: false,
@@ -342,7 +388,7 @@ struct NotificationInspectionTests {
         state.inspectedPullRequestID = "pr"
 
         #expect(state.hasInspectorContent)
-        state.sidebarSelection = .pullRequests(repository: nil)
+        state.sidebarSelection = .list(id: list.id, repository: nil)
         #expect(state.inspectedPullRequest?.id == "pr")
         state.sidebarSelection = .dashboard
         #expect(!state.hasInspectorContent)

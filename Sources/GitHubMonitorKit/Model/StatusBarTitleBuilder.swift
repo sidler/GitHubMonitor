@@ -50,7 +50,7 @@ public enum StatusBarTitleBuilder {
     /// user left switched on for the menu bar; an empty list is a deliberate
     /// choice rather than an error, and is drawn as such.
     public static func segments(
-        counts: [(list: WatchedList, count: Int)],
+        counts: [SurfaceCount],
         style: StatusBarStyle,
         health: StatusBarHealth
     ) -> [StatusBarSegment] {
@@ -70,20 +70,20 @@ public enum StatusBarTitleBuilder {
             let total = counts.reduce(0) { $0 + $1.count }
             // The first symbol still on show leads the total, so the icon
             // keeps saying what is being counted.
-            return [.symbol(counts[0].list.symbolName), .text(" \(total)")]
+            return [.symbol(counts[0].symbolName), .text(" \(total)")]
 
         case .separate:
             return counts.enumerated().flatMap { index, entry -> [StatusBarSegment] in
                 // Two spaces between groups, none after the last.
                 let gap = index == counts.count - 1 ? "" : "  "
-                return [.symbol(entry.list.symbolName), .text(" \(entry.count)\(gap)")]
+                return [.symbol(entry.symbolName), .text(" \(entry.count)\(gap)")]
             }
 
         case .hideZero:
             // A zero says nothing its symbol does not already say, and
             // several counts in a menu bar are worth keeping narrow.
             return counts.enumerated().flatMap { index, entry -> [StatusBarSegment] in
-                var segments: [StatusBarSegment] = [.symbol(entry.list.symbolName)]
+                var segments: [StatusBarSegment] = [.symbol(entry.symbolName)]
                 if entry.count > 0 {
                     segments.append(.text(" \(entry.count)"))
                 }
@@ -97,7 +97,7 @@ public enum StatusBarTitleBuilder {
 
     /// Plain-text rendering used for accessibility labels and tests.
     public static func accessibilityLabel(
-        counts: [(list: WatchedList, count: Int)],
+        counts: [SurfaceCount],
         health: StatusBarHealth
     ) -> String {
         switch health {
@@ -109,7 +109,7 @@ public enum StatusBarTitleBuilder {
         guard !counts.isEmpty else {
             return "GitHub Monitor: no counts shown in the menu bar"
         }
-        let phrases = counts.map { "\($0.count) \($0.list.countPhrase)" }
+        let phrases = counts.map { "\($0.count) \($0.title.lowercased())" }
         return "GitHub Monitor: " + phrases.joined(separator: ", ")
     }
 }

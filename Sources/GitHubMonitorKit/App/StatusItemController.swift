@@ -106,9 +106,8 @@ public final class StatusItemController {
     /// every change.
     private func observeState() {
         withObservationTracking {
-            _ = state.visiblePullRequests.count
-            _ = state.visibleNotifications.count
-            _ = state.visibleIssues.count
+            _ = state.counts(in: .menuBar)
+            _ = state.settings.savedLists
             _ = state.hasToken
             _ = state.loadState
             _ = state.settings.statusBarStyle

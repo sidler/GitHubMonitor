@@ -196,39 +196,6 @@ public enum IssueDetailState: Equatable, Sendable {
     case failed(String)
 }
 
-/// What the issue list is ordered by.
-///
-/// Its own switch rather than the pull requests': an issue can be ordered by
-/// its type, and a pull request has none, so one setting for both would have
-/// to offer an order that does nothing half the time.
-public enum IssueSort: String, CaseIterable, Codable, Sendable {
-    case updated
-    case created
-    case type
-
-    public var label: String {
-        switch self {
-        case .updated: "Last updated"
-        case .created: "Date opened"
-        case .type: "Type"
-        }
-    }
-
-    public var symbolName: String {
-        switch self {
-        case .updated: "clock.arrow.circlepath"
-        case .created: "calendar"
-        case .type: "tag"
-        }
-    }
-
-    /// Which date a row prints under this order. Ordering by type still
-    /// leaves rows to date-stamp, and the last activity is the useful one.
-    public var date: PullRequestSort {
-        self == .created ? .created : .updated
-    }
-}
-
 /// One type present in the list, with how many issues carry it.
 public struct IssueTypeTally: Identifiable, Hashable, Sendable {
     public var id: String { name }
@@ -286,7 +253,7 @@ public enum IssueFilter {
 
     /// The order the list takes when it is sorted by type: by type name,
     /// untyped last, and within a type by the date the rows are showing.
-    public static func sorted(_ items: [IssueItem], by sort: IssueSort) -> [IssueItem] {
+    public static func sorted(_ items: [IssueItem], by sort: ListSort) -> [IssueItem] {
         items.sorted { lhs, rhs in
             if sort == .type, lhs.typeName != rhs.typeName {
                 let left = lhs.type, right = rhs.type

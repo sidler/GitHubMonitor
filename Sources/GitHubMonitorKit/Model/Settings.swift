@@ -46,7 +46,17 @@ public final class Settings {
         didSet { store.set(teamSlugs, forKey: Key.teamSlugs) }
     }
 
-    /// Which of the watched lists appear in the menu bar, the popover and
+    /// The lists in the sidebar, in the order they appear there.
+    ///
+    /// Seeded on first launch with what the app used to hard-code, under
+    /// fixed ids, so the settings written before lists were editable --
+    /// which of them the menu bar counts, how each was sorted and grouped --
+    /// carry over to them.
+    public var savedLists: [SavedList] {
+        didSet { store.set(Self.encode(savedLists), forKey: Key.savedLists) }
+    }
+
+    /// Which of the lists appear in the menu bar, the popover and
     /// the window. Everything is shown until it is switched off.
     public var listVisibility: ListVisibility {
         didSet { store.set(listVisibility.storedKeys, forKey: Key.hiddenLists) }
@@ -91,41 +101,10 @@ public final class Settings {
         didSet { store.set(launchAtLogin, forKey: Key.launchAtLogin) }
     }
 
-    /// How the pull request list is split up.
-    public var listGrouping: ListGrouping {
-        didSet { store.set(listGrouping.rawValue, forKey: Key.listGrouping) }
-    }
-
-    /// What the pull request and issue lists are ordered by. Shared by all
-    /// of them: they answer the same question about different things, and
-    /// one switch in the toolbar is one thing to find rather than three.
-    public var pullRequestSort: PullRequestSort {
-        didSet { store.set(pullRequestSort.rawValue, forKey: Key.pullRequestSort) }
-    }
-
-    /// Kept separate from the pull request grouping: the lists offer
-    /// different options, and choosing "by type" for notifications should not
-    /// silently reset how pull requests are shown.
+    /// The mentions' grouping. Not part of a list: they are not a search,
+    /// and they group by the kind of thing a notification is about.
     public var notificationGrouping: ListGrouping {
         didSet { store.set(notificationGrouping.rawValue, forKey: Key.notificationGrouping) }
-    }
-
-    /// The issue list's own grouping, for the same reason: it can be split
-    /// by type, and the pull request lists cannot.
-    public var issueGrouping: ListGrouping {
-        didSet { store.set(issueGrouping.rawValue, forKey: Key.issueGrouping) }
-    }
-
-    /// What the issue list is ordered by.
-    public var issueSort: IssueSort {
-        didSet { store.set(issueSort.rawValue, forKey: Key.issueSort) }
-    }
-
-    /// Issue types the list leaves out, by name. Stored as what is hidden,
-    /// so a type the organisation adds later is shown without being asked
-    /// for.
-    public var hiddenIssueTypes: Set<String> {
-        didSet { store.set(hiddenIssueTypes.sorted(), forKey: Key.hiddenIssueTypes) }
     }
 
     private let store: UserDefaults
@@ -147,26 +126,49 @@ public final class Settings {
         listVisibility = ListVisibility(
             storedKeys: store.stringArray(forKey: Key.hiddenLists) ?? []
         )
+        let storedGrouping =
+            (store.string(forKey: Key.listGrouping).flatMap(ListGrouping.init(rawValue:))) ?? .flat
+        savedLists = Self.decode(store.data(forKey: Key.savedLists)) ?? SavedList.seeds(
+            grouping: storedGrouping,
+            issueSettings: (
+                (store.string(forKey: Key.issueGrouping).flatMap(ListGrouping.init(rawValue:))) ?? .flat,
+                (store.string(forKey: Key.issueSort).flatMap(ListSort.init(rawValue:))) ?? .updated,
+                Set(store.stringArray(forKey: Key.hiddenIssueTypes) ?? [])
+            )
+        )
         dashboardRepository = store.string(forKey: Key.dashboardRepository) ?? ""
         dashboardGrouping =
             (store.string(forKey: Key.dashboardGrouping).flatMap(DashboardGrouping.init(rawValue:))) ?? .author
         launchAtLogin = store.object(forKey: Key.launchAtLogin) as? Bool ?? false
-        listGrouping =
-            (store.string(forKey: Key.listGrouping).flatMap(ListGrouping.init(rawValue:))) ?? .flat
         notificationGrouping =
             (store.string(forKey: Key.notificationGrouping).flatMap(ListGrouping.init(rawValue:))) ?? .flat
-        pullRequestSort =
-            (store.string(forKey: Key.pullRequestSort).flatMap(PullRequestSort.init(rawValue:))) ?? .updated
-        issueGrouping =
-            (store.string(forKey: Key.issueGrouping).flatMap(ListGrouping.init(rawValue:))) ?? .flat
-        issueSort =
-            (store.string(forKey: Key.issueSort).flatMap(IssueSort.init(rawValue:))) ?? .updated
-        hiddenIssueTypes = Set(store.stringArray(forKey: Key.hiddenIssueTypes) ?? [])
         trendResolution =
             (store.string(forKey: Key.trendResolution).flatMap(TrendResolution.init(rawValue:))) ?? .weekly
         trendsIncludeBots = store.object(forKey: Key.trendsIncludeBots) as? Bool ?? false
         commenterScope =
             (store.string(forKey: Key.commenterScope).flatMap(CommenterScope.init(rawValue:))) ?? .mine
+    }
+
+    // MARK: - Lists
+
+    /// Replaces one list, by id. The array is rewritten wholesale so the
+    /// stored value stays a single document.
+    public func update(_ list: SavedList) {
+        guard let index = savedLists.firstIndex(where: { $0.id == list.id }) else { return }
+        savedLists[index] = list
+    }
+
+    public func list(withID id: String) -> SavedList? {
+        savedLists.first { $0.id == id }
+    }
+
+    nonisolated static func encode(_ lists: [SavedList]) -> Data {
+        (try? JSONEncoder().encode(lists)) ?? Data()
+    }
+
+    nonisolated static func decode(_ data: Data?) -> [SavedList]? {
+        guard let data, !data.isEmpty else { return nil }
+        return try? JSONDecoder().decode([SavedList].self, from: data)
     }
 
     private enum Key {
@@ -177,9 +179,12 @@ public final class Settings {
         static let teamSlugs = "teamSlugs"
         static let notificationReasons = "notificationReasons"
         static let hiddenLists = "hiddenLists"
+        static let savedLists = "savedLists"
         static let dashboardRepository = "dashboardRepository"
         static let dashboardGrouping = "dashboardGrouping"
         static let launchAtLogin = "launchAtLogin"
+        // Read once, to seed the lists on the first launch after they
+        // became editable; never written again.
         static let listGrouping = "listGrouping"
         static let notificationGrouping = "notificationGrouping"
         static let pullRequestSort = "pullRequestSort"

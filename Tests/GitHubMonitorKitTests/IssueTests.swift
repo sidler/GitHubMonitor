@@ -2,62 +2,20 @@ import Foundation
 import Testing
 @testable import GitHubMonitorKit
 
-@Suite("Issue search")
-struct IssueQueryTests {
-    /// Assigned, open, and never a pull request: GitHub's search returns
-    /// both kinds from the same index, so `is:issue` is what keeps the list
-    /// from doubling up with the two pull request lists beside it.
-    @Test("The search asks for open issues assigned to the user")
-    func assignedQuery() {
-        let query = IssueQuery.assignedQuery(login: "sidler", repositoryFilters: [])
-        #expect(query.contains("is:issue"))
-        #expect(query.contains("is:open"))
-        #expect(query.contains("assignee:sidler"))
-        #expect(!query.contains("is:pr"))
-    }
-
-    @Test("Repository filters narrow the search like everywhere else")
-    func repositoryScope() {
-        let query = IssueQuery.assignedQuery(
-            login: "sidler",
-            repositoryFilters: ["octo", "octo/platform"]
-        )
-        #expect(query.contains("org:octo"))
-        #expect(query.contains("repo:octo/platform"))
-    }
-
-    /// One request carries every list, so a broken alias would take the
-    /// pull requests down with the issues.
-    @Test("The shared document carries the issue search under its own alias")
-    func documentCarriesIssues() {
-        let document = PullRequestQuery.document(
-            reviewRequested: ["review-requested:me"],
-            authored: ["author:me"],
-            issues: ["assignee:me"]
-        )
-        #expect(document.contains("i0: search"))
-        #expect(document.contains("...IssueResults"))
-        #expect(document.contains("fragment IssueResults"))
-        #expect(document.contains("fragment Results"))
-    }
-
-    /// GraphQL rejects a document that declares a fragment nothing uses, so
-    /// an empty list must take its fragment with it.
-    @Test("A document without issues declares no issue fragment")
-    func documentWithoutIssues() {
-        let document = PullRequestQuery.document(
-            reviewRequested: ["review-requested:me"],
-            authored: []
-        )
-        #expect(!document.contains("IssueResults"))
-        #expect(document.contains("fragment Results"))
-    }
-}
-
 @Suite("Issue parsing")
 struct IssueParserTests {
     private func payload(_ nodes: [[String: Any]]) -> [String: Any] {
-        ["i0": ["nodes": nodes]]
+        [ListQuery.alias(0): ["nodes": nodes]]
+    }
+
+    private func parse(_ payload: [String: Any], searches: Int = 1) -> [IssueItem] {
+        ListParser.results(
+            from: payload,
+            searches: (0..<searches).map {
+                ListSearch(listID: "l", content: .issues, query: "q\($0)")
+            }
+        )
+        .issues["l"] ?? []
     }
 
     private var node: [String: Any] {
@@ -79,7 +37,7 @@ struct IssueParserTests {
 
     @Test("An issue is read with everything its row shows")
     func readsAnIssue() throws {
-        let items = IssueParser.issues(from: payload([node]))
+        let items = parse(payload([node]))
         let item = try #require(items.first)
 
         #expect(item.id == "I_1")
@@ -104,7 +62,7 @@ struct IssueParserTests {
         sparse["labels"] = NSNull()
         sparse["issueType"] = NSNull()
 
-        let item = try #require(IssueParser.issues(from: payload([sparse])).first)
+        let item = try #require(parse(payload([sparse])).first)
         #expect(item.author == "ghost")
         #expect(item.comments == 0)
         #expect(item.milestone == nil)
@@ -119,7 +77,7 @@ struct IssueParserTests {
     func unknownColour() throws {
         var node = self.node
         node["issueType"] = ["name": "Chore", "color": "CHARTREUSE"]
-        let item = try #require(IssueParser.issues(from: payload([node])).first)
+        let item = try #require(parse(payload([node])).first)
         #expect(item.type == IssueType(name: "Chore", color: .gray))
     }
 
@@ -127,12 +85,15 @@ struct IssueParserTests {
     /// of those must not become a row with no title.
     @Test("Anything that is not an issue is skipped")
     func skipsForeignNodes() {
-        #expect(IssueParser.issues(from: payload([[:], ["id": "x"]])).isEmpty)
+        #expect(parse(payload([[:], ["id": "x"]])).isEmpty)
     }
 
     @Test("The same issue found twice is listed once")
     func deduplicates() {
-        let items = IssueParser.issues(from: ["i0": ["nodes": [node]], "i1": ["nodes": [node]]])
+        let items = parse(
+            [ListQuery.alias(0): ["nodes": [node]], ListQuery.alias(1): ["nodes": [node]]],
+            searches: 2
+        )
         #expect(items.count == 1)
     }
 
@@ -202,12 +163,18 @@ struct IssueLabelTests {
 }
 
 @MainActor
-@Suite("The issue list")
+@Suite("An issue list")
 struct IssueListTests {
+    private let list = SavedList(
+        id: "l", title: "My Issues", query: "is:issue assignee:@me", content: .issues
+    )
+
     private func makeState() -> AppState {
         let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
         let state = AppState(settings: Settings(store: defaults))
-        state.issues = [
+        state.settings.savedLists = [list]
+        state.sidebarSelection = .list(id: list.id, repository: nil)
+        state.listIssues[list.id] = [
             issue(id: "1", repository: "octo/platform", createdDaysAgo: 1, updatedMinutesAgo: 90),
             issue(id: "2", repository: "octo/platform", createdDaysAgo: 30, updatedMinutesAgo: 5),
             issue(id: "3", repository: "octo/octo.de", createdDaysAgo: 3, updatedMinutesAgo: 10),
@@ -229,48 +196,37 @@ struct IssueListTests {
         )
     }
 
-    /// The issue list has its own order, because it can be ordered by a
-    /// type that pull requests do not have.
-    @Test("The list follows its own sort setting")
-    func ownSortSetting() {
-        let state = makeState()
-        state.settings.issueSort = .updated
-        #expect(state.visibleIssues.map(\.id) == ["2", "3", "1"])
-        state.settings.issueSort = .created
-        #expect(state.visibleIssues.map(\.id) == ["1", "3", "2"])
-        // The pull request lists keep theirs.
-        state.settings.pullRequestSort = .created
-        #expect(state.settings.issueSort == .created)
-        state.settings.pullRequestSort = .updated
-        #expect(state.settings.issueSort == .created)
+    private func ordered(_ state: AppState, by sort: ListSort) -> [String] {
+        var updated = list
+        updated.sort = sort
+        state.settings.update(updated)
+        return state.issues(in: updated).map(\.id)
     }
 
-    @Test("The repository filter narrows the list and the count together")
-    func repositoryFilter() {
+    @Test("The list follows its own order")
+    func sorting() {
         let state = makeState()
-        state.settings.repositoryFilters = ["octo/platform"]
-        #expect(state.visibleIssues.count == 2)
-        #expect(state.issueRepositories.map(\.repository) == ["octo/platform"])
+        #expect(ordered(state, by: .updated) == ["2", "3", "1"])
+        #expect(ordered(state, by: .created) == ["1", "3", "2"])
     }
 
     @Test("A sidebar repository narrows the list to it")
     func sidebarNarrows() {
         let state = makeState()
-        state.sidebarSelection = .myIssues(repository: "octo/octo.de")
-        #expect(state.selectedIssues.map(\.id) == ["3"])
+        state.sidebarSelection = .list(id: list.id, repository: "octo/octo.de")
+        #expect(state.selectedIssues(in: list).map(\.id) == ["3"])
     }
 
-    /// The pane describes a row of the list on screen; a pull request opened
-    /// earlier is not that.
+    /// The pane describes a row of the list on screen; something opened in
+    /// another list is not that.
     @Test("The detail pane only counts while the issue list is shown")
     func inspectorFollowsTheList() {
         let state = makeState()
         state.inspectedIssueID = "1"
-        state.sidebarSelection = .myIssues(repository: nil)
         #expect(state.hasInspectorContent)
         #expect(state.inspectedIssue?.id == "1")
 
-        state.sidebarSelection = .pullRequests(repository: nil)
+        state.sidebarSelection = .dashboard
         #expect(!state.hasInspectorContent)
         #expect(state.inspectableIssues.isEmpty)
     }
@@ -281,16 +237,13 @@ struct IssueListTests {
     func forgetsMissingIssues() {
         let state = makeState()
         state.inspectedIssueID = "1"
-        state.issues = state.issues.filter { $0.id != "1" }
+        state.listIssues[list.id] = state.listIssues[list.id]?.filter { $0.id != "1" }
         #expect(state.inspectedIssue == nil)
     }
 
     @Test("The keyboard walks the list in the order it is drawn")
     func stepsThroughTheList() {
         let state = makeState()
-        state.sidebarSelection = .myIssues(repository: nil)
-        state.settings.pullRequestSort = .updated
-
         let items = state.inspectableIssues
         #expect(items.map(\.id) == ["2", "3", "1"])
         #expect(RefreshController.step(items, from: "3", by: 1)?.id == "1")
@@ -301,14 +254,12 @@ struct IssueListTests {
 
     /// Issues have no draft state, so the toolbar's draft toggle has nothing
     /// to offer while this list is open.
-    @Test("The draft count stays out of the issue list")
+    @Test("The draft count stays out of an issue list")
     func noDraftToggle() {
-        let state = makeState()
-        state.sidebarSelection = .myIssues(repository: nil)
-        #expect(state.selectedDraftCount == 0)
+        #expect(makeState().selectedDraftCount == 0)
     }
 
-    /// Only the symbols the rows are using, as under the pull request list.
+    /// Only the symbols the rows are using, as under a pull request list.
     @Test("The legend explains what the rows show")
     func legend() {
         #expect(IssueLegend.symbols(for: []).isEmpty)
@@ -421,17 +372,22 @@ struct IssueTypeTests {
 }
 
 @MainActor
-@Suite("The issue list, by type")
+@Suite("An issue list, by type")
 struct IssueTypeListTests {
+    private let list = SavedList(
+        id: "l", title: "Issues", query: "is:issue assignee:@me", content: .issues
+    )
+
     private func makeState() -> AppState {
         let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
         let state = AppState(settings: Settings(store: defaults))
-        state.issues = [
+        state.settings.savedLists = [list]
+        state.sidebarSelection = .list(id: list.id, repository: nil)
+        state.listIssues[list.id] = [
             issue(id: "1", type: IssueType(name: "Task", color: .blue)),
             issue(id: "2", type: IssueType(name: "Bug", color: .red)),
             issue(id: "3", type: nil),
         ]
-        state.sidebarSelection = .myIssues(repository: nil)
         return state
     }
 
@@ -443,17 +399,22 @@ struct IssueTypeListTests {
         )
     }
 
+    private func hide(_ types: Set<String>, on state: AppState) -> SavedList {
+        var updated = list
+        updated.hiddenTypes = types
+        state.settings.update(updated)
+        return updated
+    }
+
     /// A type switched off has to stay in the menu, or there is no way to
     /// switch it back on.
     @Test("The filter menu keeps offering what it is hiding")
     func menuKeepsHiddenTypes() {
         let state = makeState()
-        state.settings.hiddenIssueTypes = ["Bug"]
+        let updated = hide(["Bug"], on: state)
 
-        // Same timestamps here, so the id decides -- what matters is that
-        // the hidden type is gone and the rest is not.
-        #expect(Set(state.visibleIssues.map(\.id)) == ["1", "3"])
-        #expect(state.issueTypeTallies.map(\.name) == ["Bug", "Task", IssueItem.untyped])
+        #expect(Set(state.issues(in: updated).map(\.id)) == ["1", "3"])
+        #expect(state.selectedTypeTallies.map(\.name) == ["Bug", "Task", IssueItem.untyped])
         #expect(state.hiddenIssueCount == 1)
     }
 
@@ -462,8 +423,9 @@ struct IssueTypeListTests {
     @Test("The keyboard follows the grouping on screen")
     func inspectionFollowsGrouping() {
         let state = makeState()
-        state.settings.issueSort = .updated
-        state.settings.issueGrouping = .byType
+        var updated = list
+        updated.grouping = .byType
+        state.settings.update(updated)
 
         // Sections are ordered by size and then by name, as every grouped
         // list in the app is; here all three hold one issue.
@@ -473,17 +435,18 @@ struct IssueTypeListTests {
     @Test("Ordering by type reorders the list itself")
     func sorting() {
         let state = makeState()
-        state.settings.issueSort = .type
-        #expect(state.visibleIssues.map(\.id) == ["2", "1", "3"])
+        var updated = list
+        updated.sort = .type
+        state.settings.update(updated)
+        #expect(state.issues(in: updated).map(\.id) == ["2", "1", "3"])
     }
 
-    /// The window's issue count follows the list, filter and all -- a number
-    /// the list cannot account for is worse than no number.
+    /// The window's count follows the list, filter and all -- a number the
+    /// list cannot account for is worse than no number.
     @Test("A hidden type is not counted either")
     func countFollowsTheFilter() {
         let state = makeState()
-        #expect(state.count(of: .issues) == 3)
-        state.settings.hiddenIssueTypes = ["Task", "Bug"]
-        #expect(state.count(of: .issues) == 1)
+        #expect(state.count(of: list) == 3)
+        #expect(state.count(of: hide(["Task", "Bug"], on: state)) == 1)
     }
 }

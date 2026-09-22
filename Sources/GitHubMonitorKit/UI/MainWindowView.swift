@@ -11,44 +11,25 @@ struct SidebarColumn: View {
 
     var body: some View {
         List(selection: $state.sidebarSelection) {
-            if shown(.reviews) {
-                Section("Reviews Requested") {
-                    Label("All", systemImage: StatusBarTitleBuilder.pullRequestSymbol)
-                        .badge(state.visiblePullRequests.count)
-                        .tag(SidebarSelection.pullRequests(repository: nil))
+            // One section per saved list, in the order they are kept in
+            // settings. Nothing here knows what a list is about any more:
+            // the title, the icon and the searches all come from the list.
+            ForEach(state.lists) { list in
+                if shown(list.id) {
+                    Section(list.title) {
+                        Label("All", systemImage: list.symbol)
+                            .badge(state.count(of: list))
+                            .tag(SidebarSelection.list(id: list.id, repository: nil))
 
-                    ForEach(state.pullRequestRepositories) { entry in
-                        repositoryRow(entry)
-                            .tag(SidebarSelection.pullRequests(repository: entry.repository))
+                        ForEach(state.repositories(in: list)) { entry in
+                            repositoryRow(entry)
+                                .tag(SidebarSelection.list(id: list.id, repository: entry.repository))
+                        }
                     }
                 }
             }
 
-            Section("My Pull Requests") {
-                Label("All", systemImage: "person.crop.circle")
-                    .badge(state.visibleAuthoredPullRequests.count)
-                    .tag(SidebarSelection.myPullRequests(repository: nil))
-
-                ForEach(state.authoredRepositories) { entry in
-                    repositoryRow(entry)
-                        .tag(SidebarSelection.myPullRequests(repository: entry.repository))
-                }
-            }
-
-            if shown(.issues) {
-                Section("My Issues") {
-                    Label("All", systemImage: StatusBarTitleBuilder.issueSymbol)
-                        .badge(state.visibleIssues.count)
-                        .tag(SidebarSelection.myIssues(repository: nil))
-
-                    ForEach(state.issueRepositories) { entry in
-                        repositoryRow(entry)
-                            .tag(SidebarSelection.myIssues(repository: entry.repository))
-                    }
-                }
-            }
-
-            if shown(.mentions) {
+            if shown(ListVisibility.mentionsKey) {
                 Section("Mentions") {
                     Label("All", systemImage: StatusBarTitleBuilder.mentionSymbol)
                         .badge(state.visibleNotifications.count)
@@ -87,7 +68,7 @@ struct SidebarColumn: View {
                 // The button cannot carry the list's selection highlight, so
                 // it says which view is open in its own colour.
                 .foregroundStyle(isSettingsOpen ? Color.accentColor : Color(nsColor: .labelColor))
-                .help("Token, filters and everything else")
+                .help("Lists, token, filters and everything else")
             }
         }
     }
@@ -96,8 +77,8 @@ struct SidebarColumn: View {
         state.sidebarSelection == .settings
     }
 
-    private func shown(_ list: WatchedList) -> Bool {
-        state.settings.listVisibility.isShown(list, in: .window)
+    private func shown(_ key: String) -> Bool {
+        state.settings.listVisibility.isShown(key, in: .window)
     }
 
     private func repositoryRow(_ entry: SidebarRepository) -> some View {
@@ -147,9 +128,19 @@ struct ContentColumn: View {
     @ViewBuilder
     private var list: some View {
         switch state.sidebarSelection {
-        case .pullRequests: pullRequestList
-        case .myPullRequests: authoredList
-        case .myIssues: issueList
+        case .list(let id, _):
+            if let list = state.list(withID: id) {
+                switch list.content {
+                case .pullRequests: pullRequestList(list)
+                case .issues: issueList(list)
+                }
+            } else {
+                ContentUnavailableView(
+                    "This list is gone",
+                    systemImage: "questionmark.folder",
+                    description: Text("It was deleted in settings.")
+                )
+            }
         case .mentions: mentionList
         case .dashboard: DashboardView(state: state, controller: controller)
         case .trends: TrendsView(state: state, controller: controller)
@@ -178,73 +169,51 @@ struct ContentColumn: View {
 
     // MARK: - Lists
 
-    private var pullRequestList: some View {
-        let items = state.selectedPullRequests
+    private func pullRequestList(_ list: SavedList) -> some View {
+        let items = state.selectedPullRequests(in: list)
         return GroupedList(
             items: items,
-            grouping: state.settings.listGrouping,
+            grouping: list.grouping,
             repository: \.repository,
             selection: $state.inspectedPullRequestID
         ) { item in
-            pullRequestRow(item)
+            PullRequestRow(
+                item: item,
+                sort: list.sort,
+                inspect: { controller.inspect(item) },
+                isInspected: state.inspectedPullRequestID == item.id
+            )
+            .padding(.vertical, 3)
         }
         // Escape puts the detail pane away, as it does everywhere else.
         .onExitCommand { controller.closeInspector() }
         .overlay {
             if items.isEmpty {
                 ContentUnavailableView(
-                    "No reviews requested",
-                    systemImage: StatusBarTitleBuilder.pullRequestSymbol,
+                    "Nothing in “\(list.title)”",
+                    systemImage: list.symbol,
                     description: Text(
                         state.selectedDraftCount > 0 && !state.settings.includeDrafts
-                            ? "Only drafts are waiting; switch them on above to see them."
-                            : "Nothing is waiting for your review."
+                            ? "Only drafts match; switch them on above to see them."
+                            : "No pull request matches this list's search."
                     )
                 )
             }
         }
     }
 
-    /// The user's own open pull requests: what they are waiting on others for.
-    private var authoredList: some View {
-        let items = state.selectedAuthoredPullRequests
+    private func issueList(_ list: SavedList) -> some View {
+        let items = state.selectedIssues(in: list)
         return GroupedList(
             items: items,
-            grouping: state.settings.listGrouping,
-            repository: \.repository,
-            selection: $state.inspectedPullRequestID
-        ) { item in
-            pullRequestRow(item)
-        }
-        .onExitCommand { controller.closeInspector() }
-        .overlay {
-            if items.isEmpty {
-                ContentUnavailableView(
-                    "No open pull requests",
-                    systemImage: "person.crop.circle",
-                    description: Text(
-                        state.selectedDraftCount > 0 && !state.settings.includeDrafts
-                            ? "Only your drafts are open; switch them on above to see them."
-                            : "You have nothing open and waiting on review."
-                    )
-                )
-            }
-        }
-    }
-
-    /// The issues assigned to the user.
-    private var issueList: some View {
-        let items = state.selectedIssues
-        return GroupedList(
-            items: items,
-            grouping: state.settings.issueGrouping,
+            grouping: list.grouping,
             repository: \.repository,
             type: \.typeName,
             selection: $state.inspectedIssueID
         ) { item in
             IssueRow(
                 item: item,
-                sort: state.settings.issueSort,
+                sort: list.sort,
                 inspect: { controller.inspect(item) },
                 isInspected: state.inspectedIssueID == item.id
             )
@@ -254,24 +223,16 @@ struct ContentColumn: View {
         .overlay {
             if items.isEmpty {
                 ContentUnavailableView(
-                    "No issues assigned",
-                    systemImage: StatusBarTitleBuilder.issueSymbol,
-                    description: Text(emptyIssueMessage)
+                    "Nothing in “\(list.title)”",
+                    systemImage: list.symbol,
+                    description: Text(
+                        state.hiddenIssueCount > 0
+                            ? "Every issue here is of a type switched off above."
+                            : "No issue matches this list's search."
+                    )
                 )
             }
         }
-    }
-
-    /// Why the issue list is empty, which is a different question depending
-    /// on which filter emptied it.
-    private var emptyIssueMessage: String {
-        if state.issues.isEmpty {
-            return "Nothing is assigned to you."
-        }
-        if state.hiddenIssueCount > 0 {
-            return "Every issue here is of a type switched off above."
-        }
-        return "Nothing here matches the repository filter."
     }
 
     private var mentionList: some View {
@@ -311,26 +272,15 @@ struct ContentColumn: View {
         }
     }
 
-    private func pullRequestRow(_ item: PullRequestItem) -> some View {
-        PullRequestRow(
-            item: item,
-            sort: state.settings.pullRequestSort,
-            inspect: { controller.inspect(item) },
-            isInspected: state.inspectedPullRequestID == item.id
-        )
-        .padding(.vertical, 3)
-    }
-
     // MARK: - Status bar
 
     /// The symbols the rows on screen are using. Empty for the lists that
     /// have none, which is what keeps the bar quiet elsewhere.
     private var legendSymbols: [LegendSymbol] {
-        switch state.sidebarSelection {
-        case .pullRequests: PullRequestLegend.symbols(for: state.selectedPullRequests)
-        case .myPullRequests: PullRequestLegend.symbols(for: state.selectedAuthoredPullRequests)
-        case .myIssues: IssueLegend.symbols(for: state.selectedIssues)
-        case .mentions, .dashboard, .trends, .myTrends, .settings: []
+        guard let list = state.selectedList else { return [] }
+        switch list.content {
+        case .pullRequests: return PullRequestLegend.symbols(for: state.selectedPullRequests(in: list))
+        case .issues: return IssueLegend.symbols(for: state.selectedIssues(in: list))
         }
     }
 
@@ -340,9 +290,9 @@ struct ContentColumn: View {
         HStack(spacing: 12) {
             // The same switches as the sidebar: a count for a section that
             // is not there would be a number with nothing to look at.
-            ForEach(state.counts(in: .window), id: \.list) { entry in
-                Label("\(entry.count)", systemImage: entry.list.symbolName)
-                    .help(entry.list.label)
+            ForEach(state.counts(in: .window)) { entry in
+                Label("\(entry.count)", systemImage: entry.symbolName)
+                    .help(entry.title)
             }
 
             if !legendSymbols.isEmpty {
@@ -381,32 +331,37 @@ struct ToolbarControls: View {
     var body: some View {
         HStack(spacing: 10) {
             switch state.sidebarSelection {
-            case .pullRequests, .myPullRequests:
-                GroupingPicker(
-                    settings: state.settings,
-                    keyPath: \.listGrouping,
-                    options: ListGrouping.forPullRequests
-                )
-                SortPicker(settings: state.settings)
-                if state.selectedDraftCount > 0 {
-                    DraftToggleControl(settings: state.settings, draftCount: state.selectedDraftCount)
-                }
-            case .myIssues:
-                GroupingPicker(
-                    settings: state.settings,
-                    keyPath: \.issueGrouping,
-                    options: ListGrouping.forIssues
-                )
-                IssueSortPicker(settings: state.settings)
-                // Only where there is something to choose between: one type
-                // and nothing else is not a filter, it is a statement.
-                if state.issueTypeTallies.count > 1 {
-                    IssueTypeFilter(state: state)
+            case .list:
+                if let list = state.selectedList {
+                    GroupingPicker(
+                        selection: binding(list, \.grouping),
+                        options: list.content.groupings
+                    )
+                    SortPicker(selection: binding(list, \.sort), options: list.content.sorts)
+
+                    switch list.content {
+                    case .pullRequests:
+                        if state.selectedDraftCount > 0 {
+                            DraftToggleControl(
+                                settings: state.settings,
+                                draftCount: state.selectedDraftCount
+                            )
+                        }
+                    case .issues:
+                        // Only where there is something to choose between:
+                        // one type and nothing else is not a filter, it is a
+                        // statement.
+                        if state.selectedTypeTallies.count > 1 {
+                            IssueTypeFilter(state: state, list: list)
+                        }
+                    }
                 }
             case .mentions:
                 GroupingPicker(
-                    settings: state.settings,
-                    keyPath: \.notificationGrouping,
+                    selection: Binding(
+                        get: { state.settings.notificationGrouping },
+                        set: { state.settings.notificationGrouping = $0 }
+                    ),
                     options: ListGrouping.forNotifications
                 )
                 if !state.selectedNotifications.isEmpty {
@@ -421,6 +376,22 @@ struct ToolbarControls: View {
         }
         .padding(.horizontal, 4)
         .fixedSize()
+    }
+
+    /// Writes a change to one field of the list back into settings, where
+    /// the lists live as one stored document.
+    private func binding<Value>(
+        _ list: SavedList,
+        _ keyPath: WritableKeyPath<SavedList, Value>
+    ) -> Binding<Value> {
+        Binding(
+            get: { list[keyPath: keyPath] },
+            set: { value in
+                var updated = list
+                updated[keyPath: keyPath] = value
+                state.settings.update(updated)
+            }
+        )
     }
 }
 
@@ -522,14 +493,11 @@ private struct GroupedList<Item: Identifiable, Row: View>: View {
 
 /// The grouping switch, as a toolbar control.
 private struct GroupingPicker: View {
-    @Bindable var settings: Settings
-    /// Which grouping preference this list drives; the two lists keep their
-    /// own, since they offer different options.
-    let keyPath: ReferenceWritableKeyPath<Settings, ListGrouping>
+    @Binding var selection: ListGrouping
     let options: [ListGrouping]
 
     var body: some View {
-        Picker("", selection: $settings[dynamicMember: keyPath]) {
+        Picker("", selection: $selection) {
             ForEach(options, id: \.self) { grouping in
                 Text(grouping.label).tag(grouping)
             }
@@ -543,23 +511,25 @@ private struct GroupingPicker: View {
 /// What the list is ordered by.
 ///
 /// A menu rather than another segmented control: the toolbar already carries
-/// two, and the chosen order reads better as a sentence than as a pressed
-/// segment.
+/// one, and the chosen order reads better as a sentence than as a pressed
+/// segment. Which orders are offered comes from the list: only issues carry
+/// a type.
 private struct SortPicker: View {
-    @Bindable var settings: Settings
+    @Binding var selection: ListSort
+    let options: [ListSort]
 
     var body: some View {
         Menu {
             // An inline picker inside the menu, so the chosen order carries a
             // checkmark instead of having to be read off the button.
-            Picker("Sort by", selection: $settings.pullRequestSort) {
-                ForEach(PullRequestSort.allCases, id: \.self) { sort in
+            Picker("Sort by", selection: $selection) {
+                ForEach(options, id: \.self) { sort in
                     Label(sort.label, systemImage: sort.symbolName).tag(sort)
                 }
             }
             .pickerStyle(.inline)
         } label: {
-            Label(settings.pullRequestSort.label, systemImage: "arrow.up.arrow.down")
+            Label(selection.label, systemImage: "arrow.up.arrow.down")
                 // The button has to say which order is in force; a bare icon
                 // would make the setting invisible until the menu is opened.
                 .labelStyle(.titleAndIcon)
@@ -570,29 +540,6 @@ private struct SortPicker: View {
     }
 }
 
-/// What the issue list is ordered by -- including by type, which is the one
-/// thing a pull request cannot be ordered by.
-private struct IssueSortPicker: View {
-    @Bindable var settings: Settings
-
-    var body: some View {
-        Menu {
-            Picker("Sort by", selection: $settings.issueSort) {
-                ForEach(IssueSort.allCases, id: \.self) { sort in
-                    Label(sort.label, systemImage: sort.symbolName).tag(sort)
-                }
-            }
-            .pickerStyle(.inline)
-        } label: {
-            Label(settings.issueSort.label, systemImage: "arrow.up.arrow.down")
-                .labelStyle(.titleAndIcon)
-        }
-        .menuStyle(.borderlessButton)
-        .fixedSize()
-        .help("Order the issues by type, or by when they were opened or last updated")
-    }
-}
-
 /// Which issue types the list shows.
 ///
 /// A menu of switches rather than a segmented control: an organisation can
@@ -600,8 +547,9 @@ private struct IssueSortPicker: View {
 /// issues arrive.
 private struct IssueTypeFilter: View {
     @Bindable var state: AppState
+    let list: SavedList
 
-    private var tallies: [IssueTypeTally] { state.issueTypeTallies }
+    private var tallies: [IssueTypeTally] { state.selectedTypeTallies }
 
     var body: some View {
         Menu {
@@ -612,17 +560,15 @@ private struct IssueTypeFilter: View {
             }
 
             Divider()
-            Button("Show all types") {
-                state.settings.hiddenIssueTypes = []
-            }
-            .disabled(state.settings.hiddenIssueTypes.isEmpty)
+            Button("Show all types") { setHidden([]) }
+                .disabled(list.hiddenTypes.isEmpty)
         } label: {
             Label(title, systemImage: "line.3.horizontal.decrease.circle")
                 .labelStyle(.titleAndIcon)
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
-        .help("Which issue types the list shows")
+        .help("Which issue types this list shows")
     }
 
     /// Says what is being left out rather than what is kept: "All types" is
@@ -634,17 +580,23 @@ private struct IssueTypeFilter: View {
 
     private func binding(for name: String) -> Binding<Bool> {
         Binding(
-            get: { !state.settings.hiddenIssueTypes.contains(name) },
+            get: { !list.hiddenTypes.contains(name) },
             set: { shown in
-                var hidden = state.settings.hiddenIssueTypes
+                var hidden = list.hiddenTypes
                 if shown {
                     hidden.remove(name)
                 } else {
                     hidden.insert(name)
                 }
-                state.settings.hiddenIssueTypes = hidden
+                setHidden(hidden)
             }
         )
+    }
+
+    private func setHidden(_ hidden: Set<String>) {
+        var updated = list
+        updated.hiddenTypes = hidden
+        state.settings.update(updated)
     }
 }
 
@@ -697,7 +649,7 @@ struct InspectorColumn: View {
                 markRead: { Task { await controller.markRead(item) } },
                 close: { controller.closeInspector() }
             )
-        } else if case .myIssues = state.sidebarSelection, let item = state.inspectedIssue {
+        } else if state.selectedList?.content == .issues, let item = state.inspectedIssue {
             IssueDetailView(
                 item: item,
                 detail: state.issueDetails[item.id],
@@ -710,7 +662,7 @@ struct InspectorColumn: View {
                 repository: state.settings.dashboardRepository,
                 close: { controller.closeInspector() }
             )
-        } else if let item = state.inspectedPullRequest, !state.sidebarSelection.isMentions {
+        } else if state.selectedList?.content == .pullRequests, let item = state.inspectedPullRequest {
             PullRequestDetailView(
                 item: item,
                 detail: state.pullRequestDetails[item.id],

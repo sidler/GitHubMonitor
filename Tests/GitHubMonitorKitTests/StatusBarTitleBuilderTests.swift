@@ -3,10 +3,17 @@ import Testing
 
 @Suite("Status bar title")
 struct StatusBarTitleBuilderTests {
-    /// The three counts as the app shows them by default.
-    private let all: [(list: WatchedList, count: Int)] = [
-        (.reviews, 3), (.mentions, 5), (.issues, 2),
-    ]
+    private func count(_ symbol: String, _ value: Int, title: String = "List") -> SurfaceCount {
+        SurfaceCount(id: title, title: title, symbolName: symbol, count: value)
+    }
+
+    private var all: [SurfaceCount] {
+        [
+            count(StatusBarTitleBuilder.pullRequestSymbol, 3, title: "Reviews requested"),
+            count(StatusBarTitleBuilder.mentionSymbol, 5, title: "Mentions"),
+            count(StatusBarTitleBuilder.issueSymbol, 2, title: "Issues assigned"),
+        ]
+    }
 
     @Test("Separate style shows every count with its own symbol")
     func separateStyle() {
@@ -27,7 +34,12 @@ struct StatusBarTitleBuilderTests {
     @Test("hideZero drops the number but keeps the symbol")
     func hideZeroStyle() {
         let segments = StatusBarTitleBuilder.segments(
-            counts: [(.reviews, 0), (.mentions, 2)], style: .hideZero, health: .ok
+            counts: [
+                count(StatusBarTitleBuilder.pullRequestSymbol, 0),
+                count(StatusBarTitleBuilder.mentionSymbol, 2),
+            ],
+            style: .hideZero,
+            health: .ok
         )
         #expect(segments == [
             .symbol(StatusBarTitleBuilder.pullRequestSymbol), .text("  "),
@@ -35,17 +47,15 @@ struct StatusBarTitleBuilderTests {
         ])
     }
 
-    /// Every style has to be able to report the issues; a count that only
-    /// appears in one of them is a count the user can lose by accident.
-    @Test("Assigned issues are reported whatever the style")
-    func issuesInEveryStyle() {
+    /// However many lists there are, each is rendered: a count that appears
+    /// in one style and not another is a count the user can lose.
+    @Test("Every count is rendered whatever the style")
+    func everyCountInEveryStyle() {
         for style in StatusBarStyle.allCases {
             let without = StatusBarTitleBuilder.segments(
-                counts: [(.reviews, 1), (.mentions, 1)], style: style, health: .ok
+                counts: Array(all.prefix(2)), style: style, health: .ok
             )
-            let with = StatusBarTitleBuilder.segments(
-                counts: [(.reviews, 1), (.mentions, 1), (.issues, 4)], style: style, health: .ok
-            )
+            let with = StatusBarTitleBuilder.segments(counts: all, style: style, health: .ok)
             #expect(without != with)
         }
     }
@@ -55,17 +65,12 @@ struct StatusBarTitleBuilderTests {
     @Test("Only the lists switched on are rendered")
     func hiddenListsAreAbsent() {
         let segments = StatusBarTitleBuilder.segments(
-            counts: [(.issues, 4)], style: .separate, health: .ok
+            counts: [count(StatusBarTitleBuilder.issueSymbol, 4)], style: .separate, health: .ok
         )
         #expect(segments == [.symbol(StatusBarTitleBuilder.issueSymbol), .text(" 4")])
-
-        let total = StatusBarTitleBuilder.segments(
-            counts: [(.reviews, 3)], style: .sum, health: .ok
-        )
-        #expect(total == [.symbol(StatusBarTitleBuilder.pullRequestSymbol), .text(" 3")])
     }
 
-    /// Switching all three off is a way of asking for a quiet menu bar, so
+    /// Switching everything off is a way of asking for a quiet menu bar, so
     /// the icon still has to be there to click.
     @Test("With nothing switched on the icon stays, without a number")
     func everythingHidden() {
@@ -90,13 +95,12 @@ struct StatusBarTitleBuilderTests {
         }
     }
 
-    @Test("Accessibility label names every count on show")
+    /// The lists are named by the user, so the spoken label names them too.
+    @Test("Accessibility label names every list on show")
     func accessibilityLabel() {
-        let label = StatusBarTitleBuilder.accessibilityLabel(
-            counts: [(.reviews, 2), (.mentions, 4), (.issues, 6)], health: .ok
-        )
-        #expect(label.contains("2 reviews requested"))
-        #expect(label.contains("4 unread mentions"))
-        #expect(label.contains("6 issues assigned"))
+        let label = StatusBarTitleBuilder.accessibilityLabel(counts: all, health: .ok)
+        #expect(label.contains("3 reviews requested"))
+        #expect(label.contains("5 mentions"))
+        #expect(label.contains("2 issues assigned"))
     }
 }

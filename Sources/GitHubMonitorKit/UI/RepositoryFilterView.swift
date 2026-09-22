@@ -20,9 +20,9 @@ struct RepositoryFilterView: View {
     /// what is actually there.
     private var suggestions: [String] {
         let repositories = RepositoryGrouping.repositories(
-            pullRequests: state.pullRequests + state.authoredPullRequests,
+            pullRequests: state.allPullRequests,
             notifications: state.notifications,
-            issues: state.issues
+            issues: state.allIssues
         )
         let owners = RepositoryGrouping.owners(of: repositories)
         return (owners + repositories).filter { !filters.contains($0) }
