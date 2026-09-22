@@ -231,13 +231,14 @@ struct ContentColumn: View {
         let items = state.selectedIssues
         return GroupedList(
             items: items,
-            grouping: state.settings.listGrouping,
+            grouping: state.settings.issueGrouping,
             repository: \.repository,
+            type: \.typeName,
             selection: $state.inspectedIssueID
         ) { item in
             IssueRow(
                 item: item,
-                sort: state.settings.pullRequestSort,
+                sort: state.settings.issueSort,
                 inspect: { controller.inspect(item) },
                 isInspected: state.inspectedIssueID == item.id
             )
@@ -249,14 +250,22 @@ struct ContentColumn: View {
                 ContentUnavailableView(
                     "No issues assigned",
                     systemImage: StatusBarTitleBuilder.issueSymbol,
-                    description: Text(
-                        state.issues.isEmpty
-                            ? "Nothing is assigned to you."
-                            : "Nothing here matches the repository filter."
-                    )
+                    description: Text(emptyIssueMessage)
                 )
             }
         }
+    }
+
+    /// Why the issue list is empty, which is a different question depending
+    /// on which filter emptied it.
+    private var emptyIssueMessage: String {
+        if state.issues.isEmpty {
+            return "Nothing is assigned to you."
+        }
+        if state.hiddenIssueCount > 0 {
+            return "Every issue here is of a type switched off above."
+        }
+        return "Nothing here matches the repository filter."
     }
 
     private var mentionList: some View {
@@ -403,12 +412,15 @@ struct ToolbarControls: View {
             case .myIssues:
                 GroupingPicker(
                     settings: state.settings,
-                    keyPath: \.listGrouping,
-                    options: ListGrouping.forPullRequests
+                    keyPath: \.issueGrouping,
+                    options: ListGrouping.forIssues
                 )
-                // The same switch as the pull request lists: an issue has no
-                // draft state, so that toggle has nothing to say here.
-                SortPicker(settings: state.settings)
+                IssueSortPicker(settings: state.settings)
+                // Only where there is something to choose between: one type
+                // and nothing else is not a filter, it is a statement.
+                if state.issueTypeTallies.count > 1 {
+                    IssueTypeFilter(state: state)
+                }
             case .mentions:
                 GroupingPicker(
                     settings: state.settings,
@@ -573,6 +585,84 @@ private struct SortPicker: View {
         .menuStyle(.borderlessButton)
         .fixedSize()
         .help("Order the list by when its rows were opened or last updated")
+    }
+}
+
+/// What the issue list is ordered by -- including by type, which is the one
+/// thing a pull request cannot be ordered by.
+private struct IssueSortPicker: View {
+    @Bindable var settings: Settings
+
+    var body: some View {
+        Menu {
+            Picker("Sort by", selection: $settings.issueSort) {
+                ForEach(IssueSort.allCases, id: \.self) { sort in
+                    Label(sort.label, systemImage: sort.symbolName).tag(sort)
+                }
+            }
+            .pickerStyle(.inline)
+        } label: {
+            Label(settings.issueSort.label, systemImage: "arrow.up.arrow.down")
+                .labelStyle(.titleAndIcon)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("Order the issues by type, or by when they were opened or last updated")
+    }
+}
+
+/// Which issue types the list shows.
+///
+/// A menu of switches rather than a segmented control: an organisation can
+/// define any number of types, and the list of them is not known until the
+/// issues arrive.
+private struct IssueTypeFilter: View {
+    @Bindable var state: AppState
+
+    private var tallies: [IssueTypeTally] { state.issueTypeTallies }
+
+    var body: some View {
+        Menu {
+            ForEach(tallies) { tally in
+                Toggle(isOn: binding(for: tally.name)) {
+                    Text(verbatim: "\(tally.name) (\(tally.count))")
+                }
+            }
+
+            Divider()
+            Button("Show all types") {
+                state.settings.hiddenIssueTypes = []
+            }
+            .disabled(state.settings.hiddenIssueTypes.isEmpty)
+        } label: {
+            Label(title, systemImage: "line.3.horizontal.decrease.circle")
+                .labelStyle(.titleAndIcon)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("Which issue types the list shows")
+    }
+
+    /// Says what is being left out rather than what is kept: "All types" is
+    /// the state worth telling apart from every other.
+    private var title: String {
+        let hidden = state.hiddenIssueCount
+        return hidden == 0 ? "All types" : "\(hidden) hidden"
+    }
+
+    private func binding(for name: String) -> Binding<Bool> {
+        Binding(
+            get: { !state.settings.hiddenIssueTypes.contains(name) },
+            set: { shown in
+                var hidden = state.settings.hiddenIssueTypes
+                if shown {
+                    hidden.remove(name)
+                } else {
+                    hidden.insert(name)
+                }
+                state.settings.hiddenIssueTypes = hidden
+            }
+        )
     }
 }
 

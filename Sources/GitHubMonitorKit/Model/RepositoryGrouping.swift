@@ -4,8 +4,8 @@ import Foundation
 public enum ListGrouping: String, CaseIterable, Codable, Sendable {
     case flat
     case byRepository
-    /// Only meaningful for notifications; a list of pull requests is all one
-    /// type by definition.
+    /// Notifications by subject, issues by their own type. A list of pull
+    /// requests is all one kind by definition.
     case byType
 
     public var label: String {
@@ -18,6 +18,9 @@ public enum ListGrouping: String, CaseIterable, Codable, Sendable {
 
     public static let forPullRequests: [ListGrouping] = [.flat, .byRepository]
     public static let forNotifications: [ListGrouping] = [.flat, .byRepository, .byType]
+    /// Issues carry a type of their own -- Bug, Task, Feature, Epic -- so
+    /// they can be split by it as notifications are by their subject.
+    public static let forIssues: [ListGrouping] = [.flat, .byRepository, .byType]
 }
 
 /// One group's worth of items, keyed by whatever it was grouped on.

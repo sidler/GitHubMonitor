@@ -40,6 +40,43 @@ public struct IssueLabel: Identifiable, Hashable, Sendable {
     }
 }
 
+/// The colours GitHub offers for an issue type.
+///
+/// A fixed palette rather than a hex value, unlike labels: the organisation
+/// picks one of these eight when it defines the type.
+public enum IssueTypeColor: String, Hashable, Sendable, Codable {
+    case gray = "GRAY"
+    case blue = "BLUE"
+    case green = "GREEN"
+    case yellow = "YELLOW"
+    case orange = "ORANGE"
+    case red = "RED"
+    case pink = "PINK"
+    case purple = "PURPLE"
+
+    /// Anything GitHub adds later is drawn in the neutral colour rather than
+    /// dropped: a type with no colour still has a name worth reading.
+    public init(apiValue: String?) {
+        self = IssueTypeColor(rawValue: apiValue ?? "") ?? .gray
+    }
+}
+
+/// What kind of work an issue is: the organisation's own types, such as
+/// Bug, Task, Feature or Epic.
+///
+/// Not a label. The type is one value per issue, set from a list the
+/// organisation maintains, which is why it is worth its own place in a row
+/// rather than being lost among however many labels an issue carries.
+public struct IssueType: Hashable, Sendable {
+    public let name: String
+    public let color: IssueTypeColor
+
+    public init(name: String, color: IssueTypeColor) {
+        self.name = name
+        self.color = color
+    }
+}
+
 /// An issue assigned to the user.
 ///
 /// Deliberately not a `PullRequestItem` with the pull request parts left
@@ -63,6 +100,8 @@ public struct IssueItem: Identifiable, Hashable, Sendable, ListedItem {
     public let labels: [IssueLabel]
     /// Nil when the issue is in no milestone, which most are.
     public let milestone: String?
+    /// Nil where the organisation has no types, or none was set on this one.
+    public let type: IssueType?
 
     public init(
         id: String,
@@ -76,7 +115,8 @@ public struct IssueItem: Identifiable, Hashable, Sendable, ListedItem {
         updatedAt: Date,
         comments: Int = 0,
         labels: [IssueLabel] = [],
-        milestone: String? = nil
+        milestone: String? = nil,
+        type: IssueType? = nil
     ) {
         self.id = id
         self.number = number
@@ -90,7 +130,15 @@ public struct IssueItem: Identifiable, Hashable, Sendable, ListedItem {
         self.comments = comments
         self.labels = labels
         self.milestone = milestone
+        self.type = type
     }
+
+    /// The heading this issue sits under when the list is grouped by type,
+    /// and the name the type filter knows it by.
+    public var typeName: String { type?.name ?? Self.untyped }
+
+    /// What an issue with no type is called, wherever one has to be named.
+    public static let untyped = "No type"
 
     /// The timestamp the list is ordered on, as the pull request lists do it:
     /// one switch in the toolbar orders every list, since they answer the
@@ -146,4 +194,113 @@ public enum IssueDetailState: Equatable, Sendable {
     case loading
     case loaded(IssueDetail)
     case failed(String)
+}
+
+/// What the issue list is ordered by.
+///
+/// Its own switch rather than the pull requests': an issue can be ordered by
+/// its type, and a pull request has none, so one setting for both would have
+/// to offer an order that does nothing half the time.
+public enum IssueSort: String, CaseIterable, Codable, Sendable {
+    case updated
+    case created
+    case type
+
+    public var label: String {
+        switch self {
+        case .updated: "Last updated"
+        case .created: "Date opened"
+        case .type: "Type"
+        }
+    }
+
+    public var symbolName: String {
+        switch self {
+        case .updated: "clock.arrow.circlepath"
+        case .created: "calendar"
+        case .type: "tag"
+        }
+    }
+
+    /// Which date a row prints under this order. Ordering by type still
+    /// leaves rows to date-stamp, and the last activity is the useful one.
+    public var date: PullRequestSort {
+        self == .created ? .created : .updated
+    }
+}
+
+/// One type present in the list, with how many issues carry it.
+public struct IssueTypeTally: Identifiable, Hashable, Sendable {
+    public var id: String { name }
+    public let name: String
+    /// Nil for the bucket of issues with no type at all.
+    public let color: IssueTypeColor?
+    public let count: Int
+
+    public init(name: String, color: IssueTypeColor?, count: Int) {
+        self.name = name
+        self.color = color
+        self.count = count
+    }
+
+    public var isUntyped: Bool { color == nil }
+}
+
+/// Narrows the issue list to the repositories and the types being watched.
+public enum IssueFilter {
+    /// Types are stored by the names that are *hidden*, so a type the
+    /// organisation adds later shows up by itself rather than waiting to be
+    /// switched on.
+    public static func apply(
+        _ items: [IssueItem],
+        hiddenTypes: Set<String>,
+        repositoryFilters: [String]
+    ) -> [IssueItem] {
+        let matching = PullRequestFilter.matchingRepositories(
+            items,
+            repositoryFilters: repositoryFilters
+        )
+        guard !hiddenTypes.isEmpty else { return matching }
+        return matching.filter { !hiddenTypes.contains($0.typeName) }
+    }
+
+    /// The types present, most-used first is *not* what this returns: the
+    /// filter menu is read by name, so the order is alphabetical with the
+    /// untyped bucket last, and stays put as counts change.
+    public static func tallies(of items: [IssueItem]) -> [IssueTypeTally] {
+        var counts: [String: Int] = [:]
+        var colors: [String: IssueTypeColor] = [:]
+
+        for item in items {
+            counts[item.typeName, default: 0] += 1
+            if let type = item.type { colors[type.name] = type.color }
+        }
+
+        return counts
+            .map { IssueTypeTally(name: $0.key, color: colors[$0.key], count: $0.value) }
+            .sorted { lhs, rhs in
+                if lhs.isUntyped != rhs.isUntyped { return rhs.isUntyped }
+                return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
+            }
+    }
+
+    /// The order the list takes when it is sorted by type: by type name,
+    /// untyped last, and within a type by the date the rows are showing.
+    public static func sorted(_ items: [IssueItem], by sort: IssueSort) -> [IssueItem] {
+        items.sorted { lhs, rhs in
+            if sort == .type, lhs.typeName != rhs.typeName {
+                let left = lhs.type, right = rhs.type
+                // An issue with no type sorts after every named one rather
+                // than under "N" for "No type".
+                if (left == nil) != (right == nil) { return right == nil }
+                return lhs.typeName.localizedStandardCompare(rhs.typeName) == .orderedAscending
+            }
+
+            let left = lhs.date(for: sort.date)
+            let right = rhs.date(for: sort.date)
+            // Timestamps collide where a batch was opened at once; the id
+            // keeps rows from swapping places on every refresh.
+            return left == right ? lhs.id > rhs.id : left > right
+        }
+    }
 }

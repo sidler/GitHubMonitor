@@ -110,6 +110,24 @@ public final class Settings {
         didSet { store.set(notificationGrouping.rawValue, forKey: Key.notificationGrouping) }
     }
 
+    /// The issue list's own grouping, for the same reason: it can be split
+    /// by type, and the pull request lists cannot.
+    public var issueGrouping: ListGrouping {
+        didSet { store.set(issueGrouping.rawValue, forKey: Key.issueGrouping) }
+    }
+
+    /// What the issue list is ordered by.
+    public var issueSort: IssueSort {
+        didSet { store.set(issueSort.rawValue, forKey: Key.issueSort) }
+    }
+
+    /// Issue types the list leaves out, by name. Stored as what is hidden,
+    /// so a type the organisation adds later is shown without being asked
+    /// for.
+    public var hiddenIssueTypes: Set<String> {
+        didSet { store.set(hiddenIssueTypes.sorted(), forKey: Key.hiddenIssueTypes) }
+    }
+
     private let store: UserDefaults
 
     public init(store: UserDefaults = .standard) {
@@ -139,6 +157,11 @@ public final class Settings {
             (store.string(forKey: Key.notificationGrouping).flatMap(ListGrouping.init(rawValue:))) ?? .flat
         pullRequestSort =
             (store.string(forKey: Key.pullRequestSort).flatMap(PullRequestSort.init(rawValue:))) ?? .updated
+        issueGrouping =
+            (store.string(forKey: Key.issueGrouping).flatMap(ListGrouping.init(rawValue:))) ?? .flat
+        issueSort =
+            (store.string(forKey: Key.issueSort).flatMap(IssueSort.init(rawValue:))) ?? .updated
+        hiddenIssueTypes = Set(store.stringArray(forKey: Key.hiddenIssueTypes) ?? [])
         trendResolution =
             (store.string(forKey: Key.trendResolution).flatMap(TrendResolution.init(rawValue:))) ?? .weekly
         trendsIncludeBots = store.object(forKey: Key.trendsIncludeBots) as? Bool ?? false
@@ -160,6 +183,9 @@ public final class Settings {
         static let listGrouping = "listGrouping"
         static let notificationGrouping = "notificationGrouping"
         static let pullRequestSort = "pullRequestSort"
+        static let issueGrouping = "issueGrouping"
+        static let issueSort = "issueSort"
+        static let hiddenIssueTypes = "hiddenIssueTypes"
         static let trendResolution = "trendResolution"
         static let trendsIncludeBots = "trendsIncludeBots"
         static let commenterScope = "commenterScope"

@@ -168,3 +168,44 @@ struct LabelChip: View {
         label.prefersDarkText ? Color(red: 0.1, green: 0.1, blue: 0.1) : .white
     }
 }
+
+extension IssueTypeColor {
+    /// GitHub's palette, in the system colours closest to it. Concrete
+    /// values, like everything else a row draws: inside a selected row
+    /// SwiftUI resolves hierarchical styles to white.
+    var tint: Color {
+        switch self {
+        case .gray: Color(nsColor: .secondaryLabelColor)
+        case .blue: .blue
+        case .green: .green
+        case .yellow: .yellow
+        case .orange: .orange
+        case .red: .red
+        case .pink: .pink
+        case .purple: .purple
+        }
+    }
+}
+
+/// The kind of work an issue is: Bug, Task, Feature, Epic.
+///
+/// Drawn unlike a label on purpose -- tinted and outlined rather than filled
+/// -- because it is one value from a short list the organisation maintains,
+/// and a row can carry it beside any number of labels without the two being
+/// read as the same thing.
+struct IssueTypeChip: View {
+    let type: IssueType
+    var compact = false
+
+    var body: some View {
+        Text(type.name)
+            .font(.system(size: compact ? 9 : 10, weight: .semibold))
+            .lineLimit(1)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .foregroundStyle(type.color.tint)
+            .background(type.color.tint.opacity(0.14), in: Capsule())
+            .overlay(Capsule().strokeBorder(type.color.tint.opacity(0.45), lineWidth: 1))
+            .help("Issue type: \(type.name)")
+    }
+}

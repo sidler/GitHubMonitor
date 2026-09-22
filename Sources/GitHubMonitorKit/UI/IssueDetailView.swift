@@ -70,11 +70,14 @@ struct IssueDetailView: View {
             .font(.caption)
             .foregroundStyle(.secondary)
 
-            if !item.labels.isEmpty || item.milestone != nil {
+            if item.type != nil || !item.labels.isEmpty || item.milestone != nil {
                 // Wrapping, unlike the row's single line: here there is room
                 // to show every label, and which ones an issue carries is
                 // part of what the pane is for.
                 FlowRow(spacing: 4) {
+                    if let type = item.type {
+                        IssueTypeChip(type: type)
+                    }
                     ForEach(item.labels) { label in
                         LabelChip(label: label)
                     }

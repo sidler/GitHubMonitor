@@ -150,7 +150,7 @@ struct PopoverView: View {
             ) { item in
                 // No detail pane here, so a row opens GitHub when tapped --
                 // as the pull request rows in this popover do.
-                IssueRow(item: item, sort: state.settings.pullRequestSort, compact: true)
+                IssueRow(item: item, sort: state.settings.issueSort, compact: true)
             }
 
             if items.count > Self.previewLimit {

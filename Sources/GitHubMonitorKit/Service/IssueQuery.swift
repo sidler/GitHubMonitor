@@ -39,6 +39,9 @@ public enum IssueQuery {
           # the one issue whose detail pane is open.
           comments { totalCount }
           milestone { title }
+          # The organisation's own types -- Bug, Task, Feature, Epic. Null
+          # where none is set, and where the organisation defines none.
+          issueType { name color }
           labels(first: \(labelLimit)) { nodes { name color } }
         }
       }
@@ -148,8 +151,17 @@ public enum IssueParser {
             updatedAt: GitHubDate.date(from: node["updatedAt"] as? String),
             comments: (node["comments"] as? [String: Any])?["totalCount"] as? Int ?? 0,
             labels: labels(from: node),
-            milestone: (node["milestone"] as? [String: Any])?["title"] as? String
+            milestone: (node["milestone"] as? [String: Any])?["title"] as? String,
+            type: type(from: node)
         )
+    }
+
+    static func type(from node: [String: Any]) -> IssueType? {
+        guard
+            let type = node["issueType"] as? [String: Any],
+            let name = type["name"] as? String
+        else { return nil }
+        return IssueType(name: name, color: IssueTypeColor(apiValue: type["color"] as? String))
     }
 
     static func labels(from node: [String: Any]) -> [IssueLabel] {

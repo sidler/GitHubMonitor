@@ -193,14 +193,38 @@ public final class AppState {
         narrow(visibleAuthoredPullRequests, to: sidebarSelection.repository, by: \.repository)
     }
 
-    /// The issues assigned to the user, after the repository filter and in
-    /// the order chosen for the lists. There is no draft toggle here -- an
-    /// issue has no draft state.
+    /// The issues assigned to the user, after the repository and type
+    /// filters and in the order chosen for them. There is no draft toggle
+    /// here -- an issue has no draft state.
     public var visibleIssues: [IssueItem] {
-        sorted(PullRequestFilter.matchingRepositories(
+        IssueFilter.sorted(
+            IssueFilter.apply(
+                issues,
+                hiddenTypes: settings.hiddenIssueTypes,
+                repositoryFilters: settings.repositoryFilters
+            ),
+            by: settings.issueSort
+        )
+    }
+
+    /// The types on offer in the filter, counted before the type filter is
+    /// applied -- a type switched off has to stay in the menu, or there is
+    /// no way to switch it back on.
+    public var issueTypeTallies: [IssueTypeTally] {
+        IssueFilter.tallies(of: PullRequestFilter.matchingRepositories(
             issues,
             repositoryFilters: settings.repositoryFilters
         ))
+    }
+
+    /// Whether the type filter is leaving anything out, for the toolbar to
+    /// say so rather than leaving an unexplained gap between the counts.
+    public var hiddenIssueCount: Int {
+        let all = PullRequestFilter.matchingRepositories(
+            issues,
+            repositoryFilters: settings.repositoryFilters
+        )
+        return all.count - visibleIssues.count
     }
 
     public var selectedIssues: [IssueItem] {
@@ -348,8 +372,14 @@ public final class AppState {
     /// showing them.
     public var inspectableIssues: [IssueItem] {
         guard case .myIssues = sidebarSelection else { return [] }
-        guard settings.listGrouping == .byRepository else { return selectedIssues }
-        return RepositoryGrouping.group(selectedIssues, by: \.repository).flatMap(\.items)
+        switch settings.issueGrouping {
+        case .flat:
+            return selectedIssues
+        case .byRepository:
+            return RepositoryGrouping.group(selectedIssues, by: \.repository).flatMap(\.items)
+        case .byType:
+            return RepositoryGrouping.group(selectedIssues, by: \.typeName).flatMap(\.items)
+        }
     }
 
     /// The pull requests behind the bar that was clicked in the workload

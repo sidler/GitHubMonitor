@@ -8,8 +8,9 @@ import SwiftUI
 /// milestone it is promised to.
 struct IssueRow: View {
     let item: IssueItem
-    /// Which date the row prints, so the list shows the one it is ordered on.
-    var sort: PullRequestSort = .updated
+    /// Which order the list is in, so the row prints the date it is ordered
+    /// on -- and, ordered by type, still prints the last activity.
+    var sort: IssueSort = .updated
     var compact: Bool = false
     /// Nil in the popover, where there is no detail pane to open.
     var inspect: (() -> Void)?
@@ -26,6 +27,12 @@ struct IssueRow: View {
                     .lineLimit(compact ? 1 : 2)
 
                 HStack(spacing: 8) {
+                    // First in the line: the type is what an issue is, and
+                    // the rest of the line describes where it lives.
+                    if let type = item.type {
+                        IssueTypeChip(type: type, compact: compact)
+                    }
+
                     // verbatim: an issue number is an identifier, not a
                     // quantity, and would otherwise be printed as "1.204".
                     Text(verbatim: "\(item.repository) #\(item.number)")
@@ -88,8 +95,9 @@ struct IssueRow: View {
     /// The date the list is sorted on, named only when it is not the usual
     /// one -- as in the pull request rows.
     private var timestamp: String {
-        let relative = RelativeTime.string(for: item.date(for: sort))
-        return sort == .updated ? relative : "\(sort.rowPrefix) \(relative)"
+        let date = sort.date
+        let relative = RelativeTime.string(for: item.date(for: date))
+        return date == .updated ? relative : "\(date.rowPrefix) \(relative)"
     }
 
     private func actions(inspect: @escaping () -> Void) -> some View {

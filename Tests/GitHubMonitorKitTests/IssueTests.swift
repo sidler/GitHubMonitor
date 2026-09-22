@@ -62,6 +62,7 @@ struct IssueParserTests {
 
     private var node: [String: Any] {
         [
+            "issueType": ["name": "Bug", "color": "RED"],
             "id": "I_1",
             "number": 318,
             "title": "Session table migration order",
@@ -88,6 +89,7 @@ struct IssueParserTests {
         #expect(item.comments == 7)
         #expect(item.milestone == "8.3")
         #expect(item.labels.map(\.name) == ["bug"])
+        #expect(item.type == IssueType(name: "Bug", color: .red))
         #expect(item.createdAt < item.updatedAt)
     }
 
@@ -100,12 +102,25 @@ struct IssueParserTests {
         sparse["comments"] = NSNull()
         sparse["milestone"] = NSNull()
         sparse["labels"] = NSNull()
+        sparse["issueType"] = NSNull()
 
         let item = try #require(IssueParser.issues(from: payload([sparse])).first)
         #expect(item.author == "ghost")
         #expect(item.comments == 0)
         #expect(item.milestone == nil)
         #expect(item.labels.isEmpty)
+        #expect(item.type == nil)
+        // The list still has somewhere to file it.
+        #expect(item.typeName == IssueItem.untyped)
+    }
+
+    /// A colour GitHub adds later must not cost us the type's name.
+    @Test("An unknown type colour falls back to the neutral one")
+    func unknownColour() throws {
+        var node = self.node
+        node["issueType"] = ["name": "Chore", "color": "CHARTREUSE"]
+        let item = try #require(IssueParser.issues(from: payload([node])).first)
+        #expect(item.type == IssueType(name: "Chore", color: .gray))
     }
 
     /// Search hits that are not issues come back as empty objects, and one
@@ -214,15 +229,20 @@ struct IssueListTests {
         )
     }
 
-    /// One switch orders every list: issues and pull requests answer the
-    /// same question about different things.
-    @Test("The list follows the sort chosen for the pull requests")
-    func sharesTheSortSetting() {
+    /// The issue list has its own order, because it can be ordered by a
+    /// type that pull requests do not have.
+    @Test("The list follows its own sort setting")
+    func ownSortSetting() {
         let state = makeState()
-        state.settings.pullRequestSort = .updated
+        state.settings.issueSort = .updated
         #expect(state.visibleIssues.map(\.id) == ["2", "3", "1"])
-        state.settings.pullRequestSort = .created
+        state.settings.issueSort = .created
         #expect(state.visibleIssues.map(\.id) == ["1", "3", "2"])
+        // The pull request lists keep theirs.
+        state.settings.pullRequestSort = .created
+        #expect(state.settings.issueSort == .created)
+        state.settings.pullRequestSort = .updated
+        #expect(state.settings.issueSort == .created)
     }
 
     @Test("The repository filter narrows the list and the count together")
@@ -306,5 +326,164 @@ struct IssueListTests {
             updatedAt: .now, milestone: "8.3"
         )
         #expect(IssueLegend.symbols(for: [withComments, withMilestone]) == [.comments, .milestone])
+    }
+}
+
+@Suite("Issue types")
+struct IssueTypeTests {
+    private func issue(
+        id: String,
+        type: IssueType?,
+        repository: String = "a/b",
+        minutesAgo: Int = 0
+    ) -> IssueItem {
+        IssueItem(
+            id: id, number: 1, title: "t", repository: repository, author: "a",
+            authorAvatarURL: nil, url: URL(string: "https://github.com")!,
+            updatedAt: .now.addingTimeInterval(TimeInterval(-60 * minutesAgo)),
+            type: type
+        )
+    }
+
+    private let bug = IssueType(name: "Bug", color: .red)
+    private let task = IssueType(name: "Task", color: .blue)
+    private let epic = IssueType(name: "Epic", color: .purple)
+
+    /// Named types read alphabetically; the untyped bucket goes last rather
+    /// than sorting under "N".
+    @Test("Sorting by type groups the named types first")
+    func sortByType() {
+        let items = [
+            issue(id: "1", type: task),
+            issue(id: "2", type: nil),
+            issue(id: "3", type: bug, minutesAgo: 10),
+            issue(id: "4", type: bug, minutesAgo: 1),
+            issue(id: "5", type: epic),
+        ]
+        let sorted = IssueFilter.sorted(items, by: .type)
+        #expect(sorted.map(\.id) == ["4", "3", "5", "1", "2"])
+    }
+
+    @Test("The other orders are unaffected by the type")
+    func sortByDate() {
+        let items = [
+            issue(id: "1", type: task, minutesAgo: 10),
+            issue(id: "2", type: nil, minutesAgo: 1),
+        ]
+        #expect(IssueFilter.sorted(items, by: .updated).map(\.id) == ["2", "1"])
+    }
+
+    /// The menu is read by name, so it must not reshuffle as counts change.
+    @Test("The filter offers every type by name, untyped last")
+    func tallies() {
+        let tallies = IssueFilter.tallies(of: [
+            issue(id: "1", type: task),
+            issue(id: "2", type: task),
+            issue(id: "3", type: bug),
+            issue(id: "4", type: nil),
+        ])
+        #expect(tallies.map(\.name) == ["Bug", "Task", IssueItem.untyped])
+        #expect(tallies.map(\.count) == [1, 2, 1])
+        #expect(tallies.last?.isUntyped == true)
+        #expect(tallies.first?.color == .red)
+    }
+
+    @Test("Hiding a type takes it out of the list")
+    func filtering() {
+        let items = [
+            issue(id: "1", type: task),
+            issue(id: "2", type: bug),
+            issue(id: "3", type: nil),
+        ]
+        let shown = IssueFilter.apply(items, hiddenTypes: ["Task"], repositoryFilters: [])
+        #expect(shown.map(\.id) == ["2", "3"])
+
+        // The untyped bucket is a type like any other as far as the filter
+        // is concerned, or there would be no way to hide it.
+        let typedOnly = IssueFilter.apply(
+            items, hiddenTypes: [IssueItem.untyped], repositoryFilters: []
+        )
+        #expect(typedOnly.map(\.id) == ["1", "2"])
+    }
+
+    @Test("The type filter and the repository filter both apply")
+    func combinedWithRepositoryFilter() {
+        let items = [
+            issue(id: "1", type: task, repository: "octo/platform"),
+            issue(id: "2", type: bug, repository: "octo/platform"),
+            issue(id: "3", type: task, repository: "other/thing"),
+        ]
+        let shown = IssueFilter.apply(
+            items, hiddenTypes: ["Bug"], repositoryFilters: ["octo"]
+        )
+        #expect(shown.map(\.id) == ["1"])
+    }
+}
+
+@MainActor
+@Suite("The issue list, by type")
+struct IssueTypeListTests {
+    private func makeState() -> AppState {
+        let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
+        let state = AppState(settings: Settings(store: defaults))
+        state.issues = [
+            issue(id: "1", type: IssueType(name: "Task", color: .blue)),
+            issue(id: "2", type: IssueType(name: "Bug", color: .red)),
+            issue(id: "3", type: nil),
+        ]
+        state.sidebarSelection = .myIssues(repository: nil)
+        return state
+    }
+
+    private func issue(id: String, type: IssueType?) -> IssueItem {
+        IssueItem(
+            id: id, number: 1, title: "t", repository: "a/b", author: "a",
+            authorAvatarURL: nil, url: URL(string: "https://github.com")!,
+            updatedAt: .now, type: type
+        )
+    }
+
+    /// A type switched off has to stay in the menu, or there is no way to
+    /// switch it back on.
+    @Test("The filter menu keeps offering what it is hiding")
+    func menuKeepsHiddenTypes() {
+        let state = makeState()
+        state.settings.hiddenIssueTypes = ["Bug"]
+
+        // Same timestamps here, so the id decides -- what matters is that
+        // the hidden type is gone and the rest is not.
+        #expect(Set(state.visibleIssues.map(\.id)) == ["1", "3"])
+        #expect(state.issueTypeTallies.map(\.name) == ["Bug", "Task", IssueItem.untyped])
+        #expect(state.hiddenIssueCount == 1)
+    }
+
+    /// The menu item that walks the list has to walk what is drawn, section
+    /// by section, or it sends the detail pane somewhere else on screen.
+    @Test("The keyboard follows the grouping on screen")
+    func inspectionFollowsGrouping() {
+        let state = makeState()
+        state.settings.issueSort = .updated
+        state.settings.issueGrouping = .byType
+
+        // Sections are ordered by size and then by name, as every grouped
+        // list in the app is; here all three hold one issue.
+        #expect(state.inspectableIssues.map(\.typeName) == ["Bug", IssueItem.untyped, "Task"])
+    }
+
+    @Test("Ordering by type reorders the list itself")
+    func sorting() {
+        let state = makeState()
+        state.settings.issueSort = .type
+        #expect(state.visibleIssues.map(\.id) == ["2", "1", "3"])
+    }
+
+    /// The window's issue count follows the list, filter and all -- a number
+    /// the list cannot account for is worse than no number.
+    @Test("A hidden type is not counted either")
+    func countFollowsTheFilter() {
+        let state = makeState()
+        #expect(state.count(of: .issues) == 3)
+        state.settings.hiddenIssueTypes = ["Task", "Bug"]
+        #expect(state.count(of: .issues) == 1)
     }
 }
