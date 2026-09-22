@@ -201,3 +201,61 @@ struct ListVisibilityStateTests {
         }
     }
 }
+
+@MainActor
+@Suite("The mentions among the lists")
+struct MentionsEntryTests {
+    private func makeState() -> AppState {
+        let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
+        let state = AppState(settings: Settings(store: defaults))
+        state.settings.savedLists = []
+        state.notifications = [
+            NotificationItem(
+                id: "n1", title: "t", repository: "a/b", avatarURL: nil, reason: .mention,
+                updatedAt: .now, subjectType: "Issue", latestCommentAPIURL: nil, subjectAPIURL: nil
+            ),
+        ]
+        return state
+    }
+
+    @Test("They are named and drawn like a list, by default as they always were")
+    func defaults() throws {
+        let state = makeState()
+        let entry = try #require(state.counts(in: .window).first)
+        #expect(entry.id == ListVisibility.mentionsKey)
+        #expect(entry.title == "Mentions")
+        #expect(entry.symbolName == StatusBarTitleBuilder.mentionSymbol)
+        #expect(entry.count == 1)
+    }
+
+    /// There is no reason for the one entry nobody can label to be the one
+    /// the app named itself.
+    @Test("A name and icon of one's own carry through to every surface")
+    func renamed() throws {
+        let state = makeState()
+        state.settings.mentionsTitle = "Erwähnungen"
+        state.settings.mentionsSymbol = "bell.badge"
+
+        let entry = try #require(state.counts(in: .menuBar).first)
+        #expect(entry.title == "Erwähnungen")
+        #expect(entry.symbolName == "bell.badge")
+
+        state.sidebarSelection = .mentions(repository: nil)
+        #expect(state.selectionTitle == "Erwähnungen")
+        state.sidebarSelection = .mentions(repository: "a/b")
+        #expect(state.selectionTitle == "a/b")
+        #expect(state.selectionSubtitle == "Erwähnungen")
+    }
+
+    @Test("The choice survives a restart")
+    func persisted() {
+        let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
+        let settings = Settings(store: defaults)
+        settings.mentionsTitle = "Inbox"
+        settings.mentionsSymbol = "tray.full"
+
+        let restored = Settings(store: defaults)
+        #expect(restored.mentionsTitle == "Inbox")
+        #expect(restored.mentionsSymbol == "tray.full")
+    }
+}

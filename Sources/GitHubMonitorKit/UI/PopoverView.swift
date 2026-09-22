@@ -120,9 +120,9 @@ struct PopoverView: View {
         let items = state.visibleNotifications
         return VStack(alignment: .leading, spacing: 5) {
             SectionHeader(
-                title: "Unread mentions",
+                title: state.settings.mentionsTitle,
                 count: items.count,
-                symbol: StatusBarTitleBuilder.mentionSymbol
+                symbol: state.settings.mentionsSymbol
             ) {
                 if !items.isEmpty {
                     Button("Mark all read") {

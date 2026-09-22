@@ -30,8 +30,8 @@ struct SidebarColumn: View {
             }
 
             if shown(ListVisibility.mentionsKey) {
-                Section("Mentions") {
-                    Label("All", systemImage: StatusBarTitleBuilder.mentionSymbol)
+                Section(state.settings.mentionsTitle) {
+                    Label("All", systemImage: state.settings.mentionsSymbol)
                         .badge(state.visibleNotifications.count)
                         .tag(SidebarSelection.mentions(repository: nil))
 
@@ -261,7 +261,7 @@ struct ContentColumn: View {
             if items.isEmpty {
                 ContentUnavailableView(
                     "No unread mentions",
-                    systemImage: StatusBarTitleBuilder.mentionSymbol,
+                    systemImage: state.settings.mentionsSymbol,
                     description: Text(
                         state.notifications.isEmpty
                             ? "Nobody has mentioned you recently."

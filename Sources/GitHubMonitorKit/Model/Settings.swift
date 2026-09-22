@@ -101,6 +101,20 @@ public final class Settings {
         didSet { store.set(launchAtLogin, forKey: Key.launchAtLogin) }
     }
 
+    /// What the mentions are called and which icon they wear.
+    ///
+    /// They are not a saved list -- they come from the notifications API
+    /// rather than a search -- but they sit among the lists everywhere they
+    /// appear, and there is no reason for the one entry nobody can label to
+    /// be the one the app named itself.
+    public var mentionsTitle: String {
+        didSet { store.set(mentionsTitle, forKey: Key.mentionsTitle) }
+    }
+
+    public var mentionsSymbol: String {
+        didSet { store.set(mentionsSymbol, forKey: Key.mentionsSymbol) }
+    }
+
     /// The mentions' grouping. Not part of a list: they are not a search,
     /// and they group by the kind of thing a notification is about.
     public var notificationGrouping: ListGrouping {
@@ -142,6 +156,9 @@ public final class Settings {
         launchAtLogin = store.object(forKey: Key.launchAtLogin) as? Bool ?? false
         notificationGrouping =
             (store.string(forKey: Key.notificationGrouping).flatMap(ListGrouping.init(rawValue:))) ?? .flat
+        mentionsTitle = store.string(forKey: Key.mentionsTitle) ?? "Mentions"
+        mentionsSymbol = store.string(forKey: Key.mentionsSymbol)
+            ?? StatusBarTitleBuilder.mentionSymbol
         trendResolution =
             (store.string(forKey: Key.trendResolution).flatMap(TrendResolution.init(rawValue:))) ?? .weekly
         trendsIncludeBots = store.object(forKey: Key.trendsIncludeBots) as? Bool ?? false
@@ -187,6 +204,8 @@ public final class Settings {
         // became editable; never written again.
         static let listGrouping = "listGrouping"
         static let notificationGrouping = "notificationGrouping"
+        static let mentionsTitle = "mentionsTitle"
+        static let mentionsSymbol = "mentionsSymbol"
         static let pullRequestSort = "pullRequestSort"
         static let issueGrouping = "issueGrouping"
         static let issueSort = "issueSort"

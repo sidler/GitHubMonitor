@@ -200,6 +200,7 @@ public final class AppState {
     public var selectionTitle: String {
         if let repository = sidebarSelection.repository { return repository }
         if let list = selectedList { return list.title }
+        if sidebarSelection.isMentions { return settings.mentionsTitle }
         return sidebarSelection.fixedTitle ?? ""
     }
 
@@ -208,6 +209,7 @@ public final class AppState {
     public var selectionSubtitle: String {
         guard sidebarSelection.repository != nil else { return "" }
         if let list = selectedList { return list.title }
+        if sidebarSelection.isMentions { return settings.mentionsTitle }
         return sidebarSelection.fixedSubtitle ?? ""
     }
 
@@ -224,8 +226,8 @@ public final class AppState {
             result.append(
                 SurfaceCount(
                     id: ListVisibility.mentionsKey,
-                    title: "Mentions",
-                    symbolName: StatusBarTitleBuilder.mentionSymbol,
+                    title: settings.mentionsTitle,
+                    symbolName: settings.mentionsSymbol,
                     count: visibleNotifications.count
                 )
             )

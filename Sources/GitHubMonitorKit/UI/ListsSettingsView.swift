@@ -54,9 +54,10 @@ struct ListsSettingsView: View {
 
                 // The mentions are not a saved list -- they come from the
                 // notifications API rather than a search -- but they take
-                // the same three switches, and hiding them in another tab
-                // would be hiding them.
-                mentionsRow
+                // the same three switches, and their name and icon are as
+                // much theirs as any list's. Only the search is not a thing
+                // they have.
+                mentionsRow.tag(ListVisibility.mentionsKey)
             }
             .listStyle(.inset)
             .frame(minHeight: 180)
@@ -111,14 +112,14 @@ struct ListsSettingsView: View {
         HStack(spacing: 0) {
             Label {
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("Mentions")
+                    Text(settings.mentionsTitle)
                     Text("Unread notifications, filtered by reason in Filters")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
             } icon: {
-                Image(systemName: StatusBarTitleBuilder.mentionSymbol)
+                Image(systemName: settings.mentionsSymbol)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -176,6 +177,8 @@ struct ListsSettingsView: View {
             } label: {
                 Label("Delete", systemImage: "minus")
             }
+            // The mentions cannot be deleted, only switched off: there is
+            // nothing to recreate them from.
             .disabled(selected == nil)
 
             Spacer()
@@ -193,7 +196,26 @@ struct ListsSettingsView: View {
 
     @ViewBuilder
     private var editor: some View {
-        if let list = selected {
+        if model.selection == ListVisibility.mentionsKey {
+            // The mentions borrow the list editor for the two fields they
+            // do have. The rest is shown and disabled rather than hidden,
+            // so it is clear that this entry is the same kind of thing with
+            // less to set.
+            ListEditor(
+                list: SavedList(
+                    id: ListVisibility.mentionsKey,
+                    title: settings.mentionsTitle,
+                    query: "Unread notifications from GitHub, not a search.",
+                    content: .issues,
+                    symbolName: settings.mentionsSymbol
+                ),
+                searchable: false,
+                save: { list in
+                    settings.mentionsTitle = list.title
+                    settings.mentionsSymbol = list.symbol
+                }
+            )
+        } else if let list = selected {
             ListEditor(
                 list: list,
                 save: { settings.update($0) }
@@ -269,12 +291,16 @@ private final class DraftModel: ObservableObject {
 
 private struct ListEditor: View {
     let list: SavedList
+    /// False for the mentions, which have a name and an icon but no search
+    /// and no choice of what they show.
+    var searchable = true
     let save: (SavedList) -> Void
 
     @StateObject private var model: DraftModel
 
-    init(list: SavedList, save: @escaping (SavedList) -> Void) {
+    init(list: SavedList, searchable: Bool = true, save: @escaping (SavedList) -> Void) {
         self.list = list
+        self.searchable = searchable
         self.save = save
         _model = StateObject(wrappedValue: DraftModel(list))
     }
@@ -284,10 +310,17 @@ private struct ListEditor: View {
             Section {
                 TextField("Title", text: binding(\.title))
 
-                Picker("Shows", selection: binding(\.content)) {
-                    ForEach(ListContent.allCases, id: \.self) { content in
-                        Text(content.label).tag(content)
+                if searchable {
+                    Picker("Shows", selection: binding(\.content)) {
+                        ForEach(ListContent.allCases, id: \.self) { content in
+                            Text(content.label).tag(content)
+                        }
                     }
+                } else {
+                    // Not a disabled picker: the mentions show neither of
+                    // the two things it offers, and a greyed-out "Issues"
+                    // would be a wrong answer rather than an unavailable one.
+                    LabeledContent("Shows", value: "Notifications")
                 }
 
                 LabeledContent("Icon") {
@@ -299,22 +332,41 @@ private struct ListEditor: View {
                 TextEditor(text: binding(\.query))
                     .font(.system(.body, design: .monospaced))
                     .frame(minHeight: 60)
+                    .disabled(!searchable)
+                    .foregroundStyle(
+                        searchable
+                            ? Color(nsColor: .labelColor)
+                            : Color(nsColor: .secondaryLabelColor)
+                    )
 
-                Text("""
-                GitHub search syntax, one search per line; the results are \
-                merged. `@me` is you. `@myteams` runs the line once per team \
-                from the Account tab — which is how "requested from me or one \
-                of my teams" is two searches rather than one.
-                """)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                if !searchable {
+                    Text("""
+                    Which notifications count is set by reason in the Filters \
+                    tab, and how they are grouped by the control above the \
+                    list itself.
+                    """)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
 
-                Text("""
-                The repository filter from Filters is added to a line that \
-                names no `repo:`, `org:` or `user:` of its own.
-                """)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                if searchable {
+                    Text("""
+                    GitHub search syntax, one search per line; the results \
+                    are merged. `@me` is you. `@myteams` runs the line once \
+                    per team from the Account tab — which is how "requested \
+                    from me or one of my teams" is two searches rather than \
+                    one.
+                    """)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                    Text("""
+                    The repository filter from Filters is added to a line \
+                    that names no `repo:`, `org:` or `user:` of its own.
+                    """)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
             }
         }
         .formStyle(.grouped)
