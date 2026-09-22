@@ -85,6 +85,9 @@ public final class AppState {
     public var trends: TrendState = .unconfigured
     /// The same, for one's own pull requests rather than a repository's.
     public var myTrends: MyTrendState = .unconfigured
+    /// Who comments across a whole repository -- read only while that side
+    /// of the switch is showing, since it covers every pull request in it.
+    public var repositoryCommenters: CommenterState = .unconfigured
     /// Whether the content column is scrolled away from its top. The title
     /// bar band only needs a material once rows are passing behind it.
     public var isContentScrolled = false

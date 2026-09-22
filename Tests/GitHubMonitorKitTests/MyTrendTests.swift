@@ -402,3 +402,85 @@ struct TrendAxisTests {
         #expect(TrendAxis.decades([1e9], enabled: true).count <= 5)
     }
 }
+
+@Suite("Repository-wide commenters")
+struct CommenterDataTests {
+    private func period(_ from: String, _ to: String) -> DateInterval {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .iso8601)
+        formatter.timeZone = .current
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        return DateInterval(start: formatter.date(from: from)!, end: formatter.date(from: to)!)
+    }
+
+    private func facts(_ people: [String: Int], bots: [String: Int] = [:]) -> MyPullRequestFacts {
+        MyPullRequestFacts(
+            createdAt: .now,
+            commentsFromPeople: people.values.reduce(0, +),
+            commentsFromEveryone: people.values.reduce(0, +) + bots.values.reduce(0, +),
+            commentersFromPeople: people,
+            commentersFromEveryone: people.merging(bots) { left, _ in left }
+        )
+    }
+
+    /// The repository ranking covers every pull request in it, not just the
+    /// ones you opened.
+    @Test("The query is scoped to the repository, not to an author")
+    func query() {
+        let query = MyTrendQuery.repositoryQuery(
+            repository: "octo/platform",
+            period: period("2026-09-14 00:00", "2026-09-21 00:00")
+        )
+        #expect(query.contains("repo:octo/platform"))
+        #expect(!query.contains("author:"))
+        #expect(query.contains("created:2026-09-14..2026-09-20"))
+    }
+
+    @Test("Periods add up into one ranking")
+    func accumulates() {
+        var data = CommenterData(repository: "octo/platform", resolution: .weekly)
+        data.add([facts(["dara": 3]), facts(["mira": 1])])
+        data.add([facts(["dara": 2])])
+
+        #expect(data.periodsRead == 2)
+        #expect(data.ranking(includingBots: false).map(\.login) == ["dara", "mira"])
+        #expect(data.ranking(includingBots: false).first?.comments == 5)
+    }
+
+    @Test("Bots are kept apart here too")
+    func bots() {
+        var data = CommenterData(repository: "r", resolution: .weekly)
+        data.add([facts(["dara": 1], bots: ["ci": 40])])
+
+        #expect(data.ranking(includingBots: false).map(\.login) == ["dara"])
+        #expect(data.ranking(includingBots: true).first?.login == "ci")
+    }
+
+    @Test("A ranking is complete only once every period has been read")
+    func completeness() {
+        var data = CommenterData(repository: "r", resolution: .weekly)
+        #expect(!data.isComplete)
+        for _ in 0..<TrendResolution.weekly.bucketCount { data.add([]) }
+        #expect(data.isComplete)
+    }
+
+    @MainActor
+    @Test("The ranking is stored apart from the trend histories")
+    func cache() throws {
+        let directory = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("githubmonitor-tests-\(UUID().uuidString)")
+        let store = TrendStore(directory: directory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        var data = CommenterData(repository: "octo/platform", resolution: .weekly)
+        data.add([facts(["dara": 4])])
+        store.save(data)
+
+        let loaded = try #require(store.loadCommenters(repository: "octo/platform", resolution: .weekly))
+        #expect(loaded.ranking(includingBots: false).first?.comments == 4)
+        // The repository's own trend history must not be read as a ranking.
+        #expect(store.load(repository: "octo/platform", resolution: .weekly) == nil)
+        #expect(store.loadCommenters(repository: "octo/platform", resolution: .monthly) == nil)
+    }
+}

@@ -75,6 +75,12 @@ public final class Settings {
         didSet { store.set(trendsIncludeBots, forKey: Key.trendsIncludeBots) }
     }
 
+    /// Whether the commenter ranking covers your own pull requests or the
+    /// whole dashboard repository.
+    public var commenterScope: CommenterScope {
+        didSet { store.set(commenterScope.rawValue, forKey: Key.commenterScope) }
+    }
+
     public var launchAtLogin: Bool {
         didSet { store.set(launchAtLogin, forKey: Key.launchAtLogin) }
     }
@@ -126,6 +132,8 @@ public final class Settings {
         trendResolution =
             (store.string(forKey: Key.trendResolution).flatMap(TrendResolution.init(rawValue:))) ?? .weekly
         trendsIncludeBots = store.object(forKey: Key.trendsIncludeBots) as? Bool ?? false
+        commenterScope =
+            (store.string(forKey: Key.commenterScope).flatMap(CommenterScope.init(rawValue:))) ?? .mine
     }
 
     private enum Key {
@@ -143,5 +151,6 @@ public final class Settings {
         static let pullRequestSort = "pullRequestSort"
         static let trendResolution = "trendResolution"
         static let trendsIncludeBots = "trendsIncludeBots"
+        static let commenterScope = "commenterScope"
     }
 }

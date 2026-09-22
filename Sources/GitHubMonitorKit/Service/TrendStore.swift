@@ -73,6 +73,29 @@ public struct TrendStore: Sendable {
         return stored
     }
 
+    public func loadCommenters(repository: String, resolution: TrendResolution) -> CommenterData? {
+        guard
+            let data = try? Data(
+                contentsOf: url(repository: "comments-\(repository)", resolution: resolution)
+            )
+        else { return nil }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        guard let stored = try? decoder.decode(CommenterData.self, from: data) else { return nil }
+
+        guard
+            stored.schema == CommenterData.schema,
+            stored.repository == repository,
+            stored.resolution == resolution
+        else { return nil }
+        return stored
+    }
+
+    public func save(_ data: CommenterData) {
+        write(data, to: url(repository: "comments-\(data.repository)", resolution: data.resolution))
+    }
+
     public func save(_ data: MyTrendData) {
         write(data, to: url(repository: "@\(data.login)", resolution: data.resolution))
     }

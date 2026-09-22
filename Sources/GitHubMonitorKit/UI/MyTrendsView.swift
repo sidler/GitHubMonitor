@@ -54,6 +54,12 @@ struct MyTrendsView: View {
             }
         }
         .task(id: reloadKey) { load() }
+        .task(id: commenterKey) { loadCommentersIfNeeded() }
+    }
+
+    private var commenterKey: String {
+        "\(state.settings.commenterScope.rawValue)|\(state.settings.dashboardRepository)"
+            + "|\(state.settings.trendResolution.rawValue)|\(state.hasToken)"
     }
 
     private var reloadKey: String {
@@ -138,11 +144,16 @@ struct MyTrendsView: View {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(metric.title)
                     .font(.headline)
-                Text(metric.explanation)
+                Text(explanation(metric))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.tail)
+
+                if metric == .commenters {
+                    Spacer(minLength: 8)
+                    CommenterScopePicker(settings: state.settings)
+                }
             }
 
             switch metric {
@@ -347,14 +358,77 @@ struct MyTrendsView: View {
         .frame(height: 140)
     }
 
-    /// Who wrote on your pull requests, most first.
-    private func commenterChart(_ data: MyTrendData) -> some View {
-        let people = Array(
-            data.commenters(includingBots: state.settings.trendsIncludeBots)
-                .prefix(Self.topCommenters)
-        )
+    /// What the commenter section says it is about, which depends on the
+    /// switch beside it.
+    private func explanation(_ metric: MyTrendMetric) -> String {
+        guard metric == .commenters, state.settings.commenterScope == .repository else {
+            return metric.explanation
+        }
+        return "Who wrote on every pull request in \(state.settings.dashboardRepository), across the whole range."
+    }
 
-        return Group {
+    /// Who wrote on your pull requests -- or on the repository's, which is a
+    /// separate fetch and only made while that side of the switch is showing.
+    @ViewBuilder
+    private func commenterChart(_ data: MyTrendData) -> some View {
+        switch state.settings.commenterScope {
+        case .mine:
+            ranking(Array(
+                data.commenters(includingBots: state.settings.trendsIncludeBots)
+                    .prefix(Self.topCommenters)
+            ))
+        case .repository:
+            repositoryRanking
+        }
+    }
+
+    @ViewBuilder
+    private var repositoryRanking: some View {
+        switch state.repositoryCommenters {
+        case .unconfigured:
+            Text("Pick a repository in Workload to see who comments in it.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
+        case .failed(let message):
+            Label(message, systemImage: "exclamationmark.triangle")
+                .font(.callout)
+                .foregroundStyle(.orange)
+                .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
+        case .loading(nil):
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text("Reading the repository's conversations…")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
+        case .loading(.some(let data)), .loaded(let data):
+            VStack(alignment: .leading, spacing: 6) {
+                if state.repositoryCommenters.isLoading {
+                    HStack(spacing: 6) {
+                        ProgressView().controlSize(.small)
+                        Text("\(data.periodsRead) of \(data.resolution.bucketCount)")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                if let reason = data.truncationReason {
+                    Label(reason, systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+                ranking(Array(
+                    data.ranking(includingBots: state.settings.trendsIncludeBots)
+                        .prefix(Self.topCommenters)
+                ))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func ranking(_ people: [(login: String, comments: Int)]) -> some View {
+        Group {
             if people.isEmpty {
                 Text("Nobody commented in this range.")
                     .font(.callout)
@@ -387,6 +461,12 @@ struct MyTrendsView: View {
                 .frame(height: CGFloat(people.count) * 24 + 30)
             }
         }
+    }
+
+    /// The repository-wide ranking is fetched only while it is on screen.
+    private func loadCommentersIfNeeded() {
+        guard state.settings.commenterScope == .repository else { return }
+        Task { await controller.loadRepositoryCommenters() }
     }
 
     // MARK: - Hover
@@ -521,5 +601,24 @@ enum TrendAxis {
         if value >= 1 { return "\(Int(value.rounded()))" }
         let decimals = min(6, max(1, Int(ceil(-log10(value)))))
         return String(format: "%.\(decimals)f", value)
+    }
+}
+
+
+/// Whether the commenter ranking covers your pull requests or the whole
+/// repository. Its own view because `settings` is a let on the state.
+private struct CommenterScopePicker: View {
+    @Bindable var settings: Settings
+
+    var body: some View {
+        Picker("", selection: $settings.commenterScope) {
+            ForEach(CommenterScope.allCases, id: \.self) { scope in
+                Text(scope.label).tag(scope)
+            }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .fixedSize()
+        .help("The ranking covers either the pull requests you opened or every one in the repository.")
     }
 }

@@ -12,6 +12,7 @@ public final class RefreshController {
     /// call off the one still running.
     private var trendsTask: Task<Void, Never>?
     private var myTrendsTask: Task<Void, Never>?
+    private var commentersTask: Task<Void, Never>?
     /// Passed back as If-Modified-Since so unchanged polls cost no rate limit.
     private var lastModified: String?
     /// GitHub's requested minimum interval, which overrides a shorter setting.
@@ -416,6 +417,70 @@ public final class RefreshController {
 
         guard !Task.isCancelled else { return }
         state.myTrends = .loaded(fresh)
+        trendStore.save(fresh)
+    }
+
+    /// Reads who comments across the whole dashboard repository.
+    ///
+    /// Its own fetch, and only when that side of the switch is showing: it
+    /// covers every pull request in the repository rather than the handful
+    /// you opened, which is a different order of magnitude.
+    public func loadRepositoryCommenters(force: Bool = false) async {
+        commentersTask?.cancel()
+        let task = Task { await performCommentersLoad(force: force) }
+        commentersTask = task
+        await task.value
+    }
+
+    private func performCommentersLoad(force: Bool) async {
+        let repository = state.settings.dashboardRepository
+            .trimmingCharacters(in: .whitespaces)
+        guard !repository.isEmpty else {
+            state.repositoryCommenters = .unconfigured
+            return
+        }
+
+        let resolution = state.settings.trendResolution
+        let cached = trendStore.loadCommenters(repository: repository, resolution: resolution)
+        if let cached, !force, !cached.isStale, cached.isComplete {
+            state.repositoryCommenters = .loaded(cached)
+            return
+        }
+
+        guard let service else {
+            state.repositoryCommenters = .failed(GitHubError.noToken.localizedDescription)
+            return
+        }
+
+        state.repositoryCommenters = .loading(cached)
+
+        var fresh = CommenterData(repository: repository, resolution: resolution)
+        for period in TrendMath.periods(resolution) {
+            guard !Task.isCancelled else { return }
+            do {
+                let page = try await service.myPullRequests(
+                    matching: MyTrendQuery.repositoryQuery(repository: repository, period: period)
+                )
+                fresh.add(page.facts)
+                state.repositoryCommenters = .loading(fresh)
+
+                if let remaining = page.remainingQuota, remaining < Self.quotaFloor {
+                    fresh.truncationReason =
+                        "Stopped after \(fresh.periodsRead) periods: GitHub's hourly query budget was running low."
+                    break
+                }
+            } catch {
+                guard fresh.periodsRead > 0 else {
+                    state.repositoryCommenters = .failed(error.localizedDescription)
+                    return
+                }
+                fresh.truncationReason = error.localizedDescription
+                break
+            }
+        }
+
+        guard !Task.isCancelled else { return }
+        state.repositoryCommenters = .loaded(fresh)
         trendStore.save(fresh)
     }
 

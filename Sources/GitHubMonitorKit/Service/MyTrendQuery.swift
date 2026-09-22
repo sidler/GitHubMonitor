@@ -51,6 +51,12 @@ public enum MyTrendQuery {
             + PullRequestQuery.repositoryScope(repositoryFilters)
     }
 
+    /// Every pull request opened in one period of a repository, for the
+    /// ranking that covers more than your own work.
+    public static func repositoryQuery(repository: String, period: DateInterval) -> String {
+        "repo:\(repository) is:pr created:\(TrendQuery.range(period))"
+    }
+
     /// Conversation comments with who wrote them, and the reviews, which
     /// carry their own inline comments.
     ///

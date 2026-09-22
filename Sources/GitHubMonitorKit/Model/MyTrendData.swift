@@ -29,6 +29,109 @@ public enum MyTrendMetric: String, CaseIterable, Codable, Sendable {
     }
 }
 
+/// Whose pull requests the commenter ranking is about.
+public enum CommenterScope: String, CaseIterable, Codable, Sendable {
+    /// The pull requests you opened.
+    case mine
+    /// Every pull request in the dashboard repository.
+    case repository
+
+    public var label: String {
+        switch self {
+        case .mine: "My pull requests"
+        case .repository: "Whole repository"
+        }
+    }
+}
+
+/// Who commented in a repository, over the same range as the charts.
+///
+/// Its own fetch and its own file: it covers every pull request in the
+/// repository rather than the handful you opened, which is a different order
+/// of magnitude, and it is only worth paying for while it is on screen.
+public struct CommenterData: Codable, Hashable, Sendable {
+    /// Raised when a stored ranking stops meaning what it did.
+    public static let schema = 1
+
+    public let schema: Int
+    public let repository: String
+    public let resolution: TrendResolution
+    /// Login to comments written, bots kept apart.
+    public var fromPeople: [String: Int]
+    public var fromEveryone: [String: Int]
+    /// How many of the range's periods were read before it stopped.
+    public var periodsRead: Int
+    public var fetchedAt: Date
+    public var truncationReason: String?
+
+    public init(
+        repository: String,
+        resolution: TrendResolution,
+        fromPeople: [String: Int] = [:],
+        fromEveryone: [String: Int] = [:],
+        periodsRead: Int = 0,
+        fetchedAt: Date = .now,
+        truncationReason: String? = nil
+    ) {
+        self.schema = Self.schema
+        self.repository = repository
+        self.resolution = resolution
+        self.fromPeople = fromPeople
+        self.fromEveryone = fromEveryone
+        self.periodsRead = periodsRead
+        self.fetchedAt = fetchedAt
+        self.truncationReason = truncationReason
+    }
+
+    public var isStale: Bool { Date.now.timeIntervalSince(fetchedAt) > TrendData.maximumAge }
+    public var isComplete: Bool { periodsRead == resolution.bucketCount }
+
+    public func ranking(includingBots: Bool) -> [(login: String, comments: Int)] {
+        (includingBots ? fromEveryone : fromPeople)
+            .map { (login: $0.key, comments: $0.value) }
+            .sorted {
+                $0.comments == $1.comments
+                    ? $0.login.localizedStandardCompare($1.login) == .orderedAscending
+                    : $0.comments > $1.comments
+            }
+    }
+
+    /// Adds one period's worth.
+    public mutating func add(_ facts: [MyPullRequestFacts]) {
+        for item in facts {
+            for (login, count) in item.commentersFromPeople {
+                fromPeople[login, default: 0] += count
+            }
+            for (login, count) in item.commentersFromEveryone {
+                fromEveryone[login, default: 0] += count
+            }
+        }
+        periodsRead += 1
+        fetchedAt = .now
+    }
+}
+
+/// Lifecycle of the repository-wide commenter fetch.
+public enum CommenterState: Equatable, Sendable {
+    case unconfigured
+    case loading(CommenterData?)
+    case loaded(CommenterData)
+    case failed(String)
+
+    public var data: CommenterData? {
+        switch self {
+        case .loading(let data): data
+        case .loaded(let data): data
+        case .unconfigured, .failed: nil
+        }
+    }
+
+    public var isLoading: Bool {
+        if case .loading = self { return true }
+        return false
+    }
+}
+
 /// One period of one's own pull requests.
 ///
 /// Counted by the event each number is about: opened, comments and the hour
