@@ -339,10 +339,9 @@ struct ToolbarControls: View {
             switch state.sidebarSelection {
             case .list:
                 if let list = state.selectedList {
-                    GroupingPicker(
-                        selection: binding(list, \.grouping),
-                        options: list.content.groupings
-                    )
+                    // The grouping switch is a toolbar item group of its
+                    // own, built in AppKit: that is what the system draws as
+                    // a segmented control with its own container.
                     SortPicker(selection: binding(list, \.sort), options: list.content.sorts)
 
                     switch list.content {
@@ -363,13 +362,6 @@ struct ToolbarControls: View {
                     }
                 }
             case .mentions:
-                GroupingPicker(
-                    selection: Binding(
-                        get: { state.settings.notificationGrouping },
-                        set: { state.settings.notificationGrouping = $0 }
-                    ),
-                    options: ListGrouping.forNotifications
-                )
                 if !state.selectedNotifications.isEmpty {
                     Button("Mark all read") {
                         Task { await controller.markAllVisibleRead() }
@@ -494,29 +486,6 @@ private struct GroupedList<Item: Identifiable, Row: View>: View {
                 listRow(item)
             }
         }
-    }
-}
-
-/// The grouping switch, as a toolbar control.
-private struct GroupingPicker: View {
-    @Binding var selection: ListGrouping
-    let options: [ListGrouping]
-
-    var body: some View {
-        Picker("", selection: $selection) {
-            ForEach(options, id: \.self) { grouping in
-                Text(grouping.label).tag(grouping)
-            }
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-        // The large control size is what macOS 26 draws as a capsule with a
-        // capsule selection inside it -- the shape the system's own
-        // segmented controls have. At the default size the selection is a
-        // rounded rectangle, which sat inside the toolbar item's glass
-        // capsule with the two curves biting where they met.
-        .controlSize(.large)
-        .fixedSize()
     }
 }
 

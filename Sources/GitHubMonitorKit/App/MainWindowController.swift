@@ -28,6 +28,9 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     /// Width constraints on the toolbar's hosted views, kept so each one can
     /// be updated rather than stacking a new constraint on every switch.
     private var toolbarWidths: [NSToolbarItem.Identifier: NSLayoutConstraint] = [:]
+    /// The options the grouping group was last built with, so it is only
+    /// rebuilt when they actually change.
+    private var lastGroupingOptions: [ListGrouping] = []
 
     public init(state: AppState, controller: RefreshController) {
         self.state = state
@@ -203,6 +206,43 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         DispatchQueue.main.async { [weak self] in self?.resizeToolbarItems() }
     }
 
+    /// What the list on screen can be split by, and which of those it is
+    /// split by now.
+    private var groupingOptions: [ListGrouping] {
+        switch state.sidebarSelection {
+        case .list: state.selectedList?.content.groupings ?? []
+        case .mentions: ListGrouping.forNotifications
+        case .dashboard, .trends, .myTrends, .settings: []
+        }
+    }
+
+    private var selectedGroupingIndex: Int {
+        let current: ListGrouping? =
+            switch state.sidebarSelection {
+            case .list: state.selectedList?.grouping
+            case .mentions: state.settings.notificationGrouping
+            case .dashboard, .trends, .myTrends, .settings: nil
+            }
+        return groupingOptions.firstIndex(of: current ?? .flat) ?? 0
+    }
+
+    @objc private func groupingChanged(_ sender: NSToolbarItemGroup) {
+        let options = groupingOptions
+        guard options.indices.contains(sender.selectedIndex) else { return }
+        let grouping = options[sender.selectedIndex]
+
+        switch state.sidebarSelection {
+        case .list:
+            guard var list = state.selectedList else { return }
+            list.grouping = grouping
+            state.settings.update(list)
+        case .mentions:
+            state.settings.notificationGrouping = grouping
+        case .dashboard, .trends, .myTrends, .settings:
+            break
+        }
+    }
+
     /// Adds or removes the controls item, following whether the view on
     /// screen has any controls to put there.
     ///
@@ -210,6 +250,8 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     /// its own glass background, so one hosting nothing shows as a sliver of
     /// glass beside the title.
     private func syncToolbarControls() {
+        syncGroupingItem()
+
         guard let toolbar = window?.toolbar else { return }
         let index = toolbar.items.firstIndex { $0.itemIdentifier == Self.controlsItem }
 
@@ -230,6 +272,38 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             // constraint measured for the old one must not outlive it.
             toolbarWidths[Self.controlsItem] = nil
         }
+    }
+
+    /// Keeps the grouping group in step with the list on screen.
+    ///
+    /// Rebuilt rather than updated when the options change -- an issue list
+    /// can be split three ways and a pull request list two -- since a
+    /// group's subitems are what it was created with. When only the choice
+    /// has changed, the selection is moved and the group stays.
+    private func syncGroupingItem() {
+        guard let toolbar = window?.toolbar else { return }
+        let options = groupingOptions
+        let index = toolbar.items.firstIndex { $0.itemIdentifier == Self.groupingItem }
+
+        guard !options.isEmpty else {
+            if let index { toolbar.removeItem(at: index) }
+            lastGroupingOptions = []
+            return
+        }
+
+        if let index, options == lastGroupingOptions {
+            (toolbar.items[index] as? NSToolbarItemGroup)?.selectedIndex = selectedGroupingIndex
+            return
+        }
+
+        if let index { toolbar.removeItem(at: index) }
+        lastGroupingOptions = options
+        // Before the controls, which the delegate's own order also puts it.
+        let position = toolbar.items.firstIndex { $0.itemIdentifier == Self.controlsItem }
+        toolbar.insertItem(
+            withItemIdentifier: Self.groupingItem,
+            at: position ?? toolbar.items.count
+        )
     }
 
     /// Re-sizes the toolbar item that hosts SwiftUI views.
@@ -388,6 +462,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     // MARK: - Toolbar
 
     private static let controlsItem = NSToolbarItem.Identifier("controls")
+    private static let groupingItem = NSToolbarItem.Identifier("grouping")
 
     public func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         toolbarDefaultItemIdentifiers(toolbar) + [.inspectorTrackingSeparator]
@@ -400,7 +475,13 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         // comes and goes with the detail pane, since with no pane to track
         // it still takes a position in the toolbar and pushes the controls
         // away from the edge.
-        [.toggleSidebar, .sidebarTrackingSeparator, .flexibleSpace, Self.controlsItem]
+        [
+            .toggleSidebar,
+            .sidebarTrackingSeparator,
+            .flexibleSpace,
+            Self.groupingItem,
+            Self.controlsItem,
+        ]
     }
 
     public func toolbar(
@@ -411,6 +492,26 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         let item = NSToolbarItem(itemIdentifier: identifier)
 
         switch identifier {
+        case Self.groupingItem:
+            // A real toolbar item group, which is what the system draws as
+            // the segmented control it draws for itself -- a capsule with
+            // the selection inset inside it on every side. A hosted SwiftUI
+            // picker has no container of its own inside the item's glass, so
+            // its selection ran to the top and bottom edges.
+            // The titles initialiser is the one that builds a segmented
+            // control inside the group; assembling subitems by hand gives a
+            // row of separate buttons instead.
+            let options = groupingOptions
+            let group = NSToolbarItemGroup(
+                itemIdentifier: identifier,
+                titles: options.map(\.label),
+                selectionMode: .selectOne,
+                labels: options.map(\.label),
+                target: self,
+                action: #selector(groupingChanged(_:))
+            )
+            group.selectedIndex = selectedGroupingIndex
+            return group
         case Self.controlsItem:
             let hosting = NSHostingView(rootView: ToolbarControls(state: state, controller: controller))
             hosting.sizingOptions = [.intrinsicContentSize]
