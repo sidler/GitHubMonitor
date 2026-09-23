@@ -587,7 +587,7 @@ public final class RefreshController {
         case .mentions:
             if let next = Self.step(
                 state.inspectableNotifications,
-                from: state.expandedNotificationID,
+                from: state.inspectedNotificationID,
                 by: offset
             ) {
                 inspect(next)
@@ -631,7 +631,7 @@ public final class RefreshController {
     public func closeInspector() {
         state.inspectedPullRequestID = nil
         state.inspectedIssueID = nil
-        state.expandedNotificationID = nil
+        state.inspectedNotificationID = nil
         state.workloadSelection = nil
     }
 
@@ -721,22 +721,64 @@ public final class RefreshController {
 
     // MARK: - Notifications
 
-    /// Opens or closes a preview, fetching the comment body the first time.
+    /// Opens or closes a message inline in the popover.
     ///
-    /// Used where the message is shown inline -- the popover. The window
-    /// selects instead, so that opening one notification closes the last.
+    /// The popover has nowhere else to put it, so it expands the row; the
+    /// window has a pane and uses `inspect` instead. The two are kept apart
+    /// on purpose -- reading one in the popover should not rearrange a
+    /// window behind it.
     public func togglePreview(for item: NotificationItem) {
         guard state.expandedNotificationID != item.id else {
             state.expandedNotificationID = nil
             return
         }
-        inspect(item)
-    }
-
-    /// Shows a notification in the detail pane.
-    public func inspect(_ item: NotificationItem) {
         state.expandedNotificationID = item.id
         loadPreviewIfNeeded(for: item)
+    }
+
+    /// Shows a notification in the window's detail pane.
+    public func inspect(_ item: NotificationItem) {
+        state.inspectedNotificationID = item.id
+        loadPreviewIfNeeded(for: item)
+        loadThreadIfNeeded(for: item)
+    }
+
+    /// Fetches the conversation behind a notification unless it is already
+    /// there.
+    ///
+    /// Only for the window's pane: the popover expands a row to a few lines
+    /// and the single comment it already has is enough for that.
+    public func loadThreadIfNeeded(for item: NotificationItem) {
+        guard state.notificationThreads[item.id] == nil else { return }
+        guard let url = item.subjectAPIURL, ThreadQuery.subject(from: url) != nil else {
+            // A commit or a release has no conversation to read; the pane
+            // falls back to the message the notification carries.
+            state.notificationThreads[item.id] = .failed("No conversation to show")
+            return
+        }
+        guard let service else {
+            state.notificationThreads[item.id] = .failed(GitHubError.noToken.localizedDescription)
+            return
+        }
+
+        state.notificationThreads[item.id] = .loading
+        Task { [weak self] in
+            do {
+                let thread = try await service.thread(at: url)
+                self?.state.notificationThreads[item.id] = .loaded(thread)
+            } catch let error as GitHubError {
+                Log.api.error("thread failed: \(error.localizedDescription, privacy: .public)")
+                self?.state.notificationThreads[item.id] = .failed(error.localizedDescription)
+            } catch {
+                self?.state.notificationThreads[item.id] = .failed(error.localizedDescription)
+            }
+        }
+    }
+
+    /// Refetches a conversation, for the pane's reload button.
+    public func reloadThread(for item: NotificationItem) {
+        state.notificationThreads[item.id] = nil
+        loadThreadIfNeeded(for: item)
     }
 
     /// Fetches a notification's message unless it is already there.
@@ -822,8 +864,13 @@ public final class RefreshController {
             try await service.markRead(threadID: item.id)
             state.notifications.removeAll { $0.id == item.id }
             state.previews[item.id] = nil
+            state.notificationThreads[item.id] = nil
+            // Read where it was open, whichever of the two that was.
             if state.expandedNotificationID == item.id {
                 state.expandedNotificationID = nil
+            }
+            if state.inspectedNotificationID == item.id {
+                state.inspectedNotificationID = nil
             }
         } catch let error as GitHubError {
             state.loadState = .failed("Could not mark as read: \(error.localizedDescription)")

@@ -351,11 +351,38 @@ struct NotificationInspectionTests {
     func keyboard() {
         let (state, controller) = makeState()
         controller.moveInspection(by: 1)
-        #expect(state.expandedNotificationID == "n1")
+        #expect(state.inspectedNotificationID == "n1")
         controller.moveInspection(by: 1)
-        #expect(state.expandedNotificationID == "n2")
+        #expect(state.inspectedNotificationID == "n2")
         controller.moveInspection(by: -1)
+        #expect(state.inspectedNotificationID == "n1")
+    }
+
+    /// The popover expands a row in place and the window opens a pane; one
+    /// is not the other, and reading something in the popover should not
+    /// rearrange a window behind it.
+    @Test("The popover and the window open messages independently")
+    func independentOfEachOther() {
+        let (state, controller) = makeState()
+
+        controller.togglePreview(for: state.notifications[0])
         #expect(state.expandedNotificationID == "n1")
+        #expect(state.inspectedNotificationID == nil)
+
+        controller.inspect(state.notifications[1])
+        #expect(state.inspectedNotificationID == "n2")
+        #expect(state.expandedNotificationID == "n1")
+
+        // Closing the pane leaves the popover's row expanded.
+        controller.closeInspector()
+        #expect(state.inspectedNotificationID == nil)
+        #expect(state.expandedNotificationID == "n1")
+
+        // And closing the popover's row leaves the pane alone.
+        controller.inspect(state.notifications[1])
+        controller.togglePreview(for: state.notifications[0])
+        #expect(state.expandedNotificationID == nil)
+        #expect(state.inspectedNotificationID == "n2")
     }
 
     /// Grouped by type, the list draws the issues and the pull requests in
@@ -400,7 +427,7 @@ struct NotificationInspectionTests {
         controller.inspect(state.notifications[0])
         state.inspectedPullRequestID = "pr"
         controller.closeInspector()
-        #expect(state.expandedNotificationID == nil)
+        #expect(state.inspectedNotificationID == nil)
         #expect(state.inspectedPullRequestID == nil)
     }
 

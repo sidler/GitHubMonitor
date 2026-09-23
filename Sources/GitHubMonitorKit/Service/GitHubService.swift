@@ -99,6 +99,23 @@ public struct GitHubService: Sendable {
         )
     }
 
+    /// The description and the end of the conversation behind a
+    /// notification, for the pane that shows it.
+    public func thread(at subjectURL: URL) async throws -> IssueDetail {
+        guard let subject = ThreadQuery.subject(from: subjectURL) else {
+            throw GitHubError.decoding("not a conversation this app can read")
+        }
+        let payload = try await client.graphQL(
+            ThreadQuery.document,
+            variables: [
+                "owner": subject.owner,
+                "name": subject.name,
+                "number": subject.number,
+            ]
+        )
+        return try ThreadQuery.thread(from: payload)
+    }
+
     /// The newest comment on a thread, fetched only when the user opens it.
     public func comment(at url: URL) async throws -> CommentPreview {
         let (data, _) = try await client.get(url)

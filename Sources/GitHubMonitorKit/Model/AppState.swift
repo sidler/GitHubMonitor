@@ -62,9 +62,19 @@ public final class AppState {
     public var viewer: Viewer?
     /// Comment bodies, fetched only when a row is opened.
     public var previews: [String: PreviewState] = [:]
-    /// The notification whose message is open: in the window's detail pane,
-    /// and inline in the popover, which has nowhere else to put it.
+    /// The conversation behind a notification, fetched when its pane opens.
+    /// A mention lives in a comment, so the pane needs more than the one
+    /// message the notification points at.
+    public var notificationThreads: [String: IssueDetailState] = [:]
+    /// The notification expanded inline in the popover, which has nowhere
+    /// else to put a message.
+    ///
+    /// Separate from the window's, so opening one in the popover does not
+    /// open a detail pane in a window behind it -- and closing it there does
+    /// not close what is being read here.
     public var expandedNotificationID: String?
+    /// The notification the window's detail pane is describing.
+    public var inspectedNotificationID: String?
     /// The pull request shown in the detail pane, if it is open.
     public var inspectedPullRequestID: String?
     /// The issue shown in the detail pane, if it is open.
@@ -352,7 +362,7 @@ public final class AppState {
     /// The notification the detail pane is describing, if it is still
     /// unread -- marking it read, here or on GitHub, drops it.
     public var inspectedNotification: NotificationItem? {
-        guard let id = expandedNotificationID else { return nil }
+        guard let id = inspectedNotificationID else { return nil }
         return notifications.first { $0.id == id }
     }
 
@@ -564,6 +574,7 @@ public final class AppState {
             )
         )
         expandedNotificationID = "n1"
+        inspectedNotificationID = "n1"
         loadState = .loaded(.now)
     }
 }

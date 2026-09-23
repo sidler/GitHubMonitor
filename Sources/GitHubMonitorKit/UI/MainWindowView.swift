@@ -248,12 +248,12 @@ struct ContentColumn: View {
             grouping: state.settings.notificationGrouping,
             repository: \.repository,
             type: \.subjectTypeLabel,
-            selection: $state.expandedNotificationID
+            selection: $state.inspectedNotificationID
         ) { item in
             NotificationRow(
                 item: item,
                 preview: state.previews[item.id],
-                isExpanded: state.expandedNotificationID == item.id,
+                isExpanded: state.inspectedNotificationID == item.id,
                 // The message goes into the detail pane here; expanding the
                 // row in place would push the rest of the list down.
                 inlinePreview: false,
@@ -695,6 +695,9 @@ struct InspectorColumn: View {
             NotificationDetailView(
                 item: item,
                 preview: state.previews[item.id],
+                thread: state.notificationThreads[item.id],
+                viewer: state.viewer?.login,
+                reload: { controller.reloadThread(for: item) },
                 markRead: { Task { await controller.markRead(item) } },
                 close: { controller.closeInspector() }
             )

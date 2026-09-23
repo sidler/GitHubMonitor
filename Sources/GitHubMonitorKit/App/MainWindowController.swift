@@ -301,9 +301,10 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             _ = state.sidebarSelection
             _ = state.inspectedPullRequestID
             _ = state.inspectedIssueID
-            _ = state.expandedNotificationID
+            _ = state.inspectedNotificationID
             _ = state.pullRequestDetails
             _ = state.issueDetails
+            _ = state.notificationThreads
             // The workload chart's pane follows a bar rather than a row, and
             // a reload of the chart can take that bar away.
             _ = state.workloadSelection
@@ -353,6 +354,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         case .mentions:
             if let item = state.inspectedNotification {
                 controller.loadPreviewIfNeeded(for: item)
+                controller.loadThreadIfNeeded(for: item)
             }
         case .dashboard, .trends, .myTrends, .settings:
             break
