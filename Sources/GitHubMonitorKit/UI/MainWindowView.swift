@@ -380,11 +380,7 @@ struct ToolbarControls: View {
                 EmptyView()
             }
         }
-        // Room at the ends: macOS 26 draws the toolbar item as one glass
-        // capsule, and a segmented control sitting flush against it puts its
-        // own squarer selection corner inside the capsule's curve, where the
-        // two bite. This keeps the selection in the straight part.
-        .padding(.horizontal, 10)
+        .padding(.horizontal, 6)
         .fixedSize()
     }
 
@@ -514,6 +510,12 @@ private struct GroupingPicker: View {
         }
         .pickerStyle(.segmented)
         .labelsHidden()
+        // The large control size is what macOS 26 draws as a capsule with a
+        // capsule selection inside it -- the shape the system's own
+        // segmented controls have. At the default size the selection is a
+        // rounded rectangle, which sat inside the toolbar item's glass
+        // capsule with the two curves biting where they met.
+        .controlSize(.large)
         .fixedSize()
     }
 }
