@@ -489,6 +489,66 @@ private struct GroupedList<Item: Identifiable, Row: View>: View {
     }
 }
 
+/// The grouping switch, in a toolbar item of its own.
+///
+/// Its own item so the system draws a container around it and nothing else:
+/// sharing one with the menus made the item's glass the only container the
+/// selection had, and the selection then ran to its top and bottom edges.
+/// The large control size is the one macOS draws as a capsule inside a
+/// capsule, which is the shape its own segmented controls have.
+struct ToolbarGroupingPicker: View {
+    @Bindable var state: AppState
+
+    var body: some View {
+        if !options.isEmpty {
+            Picker("", selection: binding) {
+                ForEach(options, id: \.self) { grouping in
+                    Text(grouping.label).tag(grouping)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .controlSize(.large)
+            .padding(.vertical, 3)
+            .fixedSize()
+        }
+    }
+
+    /// What the view on screen can be split by. Only issues carry a type,
+    /// and the mentions group by what a notification is about.
+    private var options: [ListGrouping] {
+        switch state.sidebarSelection {
+        case .list: state.selectedList?.content.groupings ?? []
+        case .mentions: ListGrouping.forNotifications
+        case .dashboard, .trends, .myTrends, .settings: []
+        }
+    }
+
+    private var binding: Binding<ListGrouping> {
+        Binding(
+            get: {
+                switch state.sidebarSelection {
+                case .list: state.selectedList?.grouping ?? .flat
+                case .mentions: state.settings.notificationGrouping
+                case .dashboard, .trends, .myTrends, .settings: .flat
+                }
+            },
+            set: { grouping in
+                switch state.sidebarSelection {
+                case .list:
+                    guard var list = state.selectedList else { return }
+                    list.grouping = grouping
+                    state.settings.update(list)
+                case .mentions:
+                    state.settings.notificationGrouping = grouping
+                case .dashboard, .trends, .myTrends, .settings:
+                    break
+                }
+            }
+        )
+    }
+}
+
 /// What the list is ordered by.
 ///
 /// A menu rather than another segmented control: the toolbar already carries
