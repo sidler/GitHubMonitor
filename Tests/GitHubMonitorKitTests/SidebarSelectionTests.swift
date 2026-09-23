@@ -117,6 +117,19 @@ struct AppStateSelectionTests {
         #expect(state.repositories(in: reviews).first?.count == 2)
     }
 
+    /// The setting is about a row that says nothing, not about hiding
+    /// repositories: with two of them the rows are what tells them apart.
+    @Test("A lone repository row is dropped only when the setting asks")
+    func lonelyRepositoryRow() {
+        let one = [SidebarRepository(repository: "octo/platform", count: 3)]
+        let two = one + [SidebarRepository(repository: "octo/octo.de", count: 1)]
+
+        #expect(SidebarRepository.rows(one, collapsingSingle: true).isEmpty)
+        #expect(SidebarRepository.rows(one, collapsingSingle: false) == one)
+        #expect(SidebarRepository.rows(two, collapsingSingle: true) == two)
+        #expect(SidebarRepository.rows([], collapsingSingle: true).isEmpty)
+    }
+
     @Test("Mentions narrow independently of the lists")
     func mentionsNarrow() {
         let state = makeState()

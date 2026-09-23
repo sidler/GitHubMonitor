@@ -41,6 +41,16 @@ public final class Settings {
         didSet { store.set(includeDrafts, forKey: Key.includeDrafts) }
     }
 
+    /// Whether a section that covers a single repository drops its
+    /// repository row.
+    ///
+    /// The row would say what "All" above it has already said, and the
+    /// sidebar pays a line per section for it -- which is what makes it
+    /// worth a setting for the people whose lists live in one repository.
+    public var hidesSingleRepository: Bool {
+        didSet { store.set(hidesSingleRepository, forKey: Key.hidesSingleRepository) }
+    }
+
     /// The lists in the sidebar, in the order they appear there.
     ///
     /// Seeded on first launch with what the app used to hard-code, under
@@ -136,6 +146,9 @@ public final class Settings {
         storedRefreshInterval = saved > 0 ? max(Self.minimumRefreshInterval, saved) : 300
         repositoryFilters = store.stringArray(forKey: Key.repositoryFilters) ?? []
         includeDrafts = store.object(forKey: Key.includeDrafts) as? Bool ?? false
+        // bool(forKey:) rather than object(forKey:): there is nothing to
+        // tell apart here -- unset and off both mean the rows stay.
+        hidesSingleRepository = store.bool(forKey: Key.hidesSingleRepository)
         if let raw = store.stringArray(forKey: Key.notificationReasons) {
             notificationReasons = Set(raw.map(NotificationReason.init(apiValue:)))
         } else {
@@ -237,6 +250,7 @@ public final class Settings {
         static let refreshInterval = "refreshInterval"
         static let repositoryFilters = "repositoryFilters"
         static let includeDrafts = "includeDrafts"
+        static let hidesSingleRepository = "hidesSingleRepository"
         static let notificationReasons = "notificationReasons"
         static let hiddenLists = "hiddenLists"
         static let savedLists = "savedLists"

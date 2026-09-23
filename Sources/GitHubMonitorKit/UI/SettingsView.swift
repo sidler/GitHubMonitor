@@ -143,6 +143,15 @@ private struct GeneralSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("Sidebar") {
+                Toggle("Hide the repository row when a list has only one", isOn: $settings.hidesSingleRepository)
+                    .toggleStyle(.switch)
+
+                Text("A section covering a single repository names it in a row of its own, below a count that already covers everything. Switching this on gives that line back to the lists.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Refresh") {
                 Picker("Every", selection: $settings.refreshInterval) {
                     Text("1 minute").tag(TimeInterval(60))

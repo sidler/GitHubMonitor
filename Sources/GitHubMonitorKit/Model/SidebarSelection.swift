@@ -90,4 +90,15 @@ public struct SidebarRepository: Identifiable, Hashable, Sendable {
     public var id: String { repository }
     public let repository: String
     public let count: Int
+
+    /// The rows a sidebar section actually draws.
+    ///
+    /// One repository is the case the setting is for: the row repeats what
+    /// "All" above it already counts, and every section that has it costs a
+    /// line of a column that is narrow to begin with.
+    public static func rows(
+        _ repositories: [SidebarRepository], collapsingSingle: Bool
+    ) -> [SidebarRepository] {
+        collapsingSingle && repositories.count == 1 ? [] : repositories
+    }
 }

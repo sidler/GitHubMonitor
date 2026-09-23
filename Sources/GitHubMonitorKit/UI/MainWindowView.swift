@@ -24,7 +24,7 @@ struct SidebarColumn: View {
                                 .badge(state.count(of: list))
                                 .tag(SidebarSelection.list(id: list.id, repository: nil))
 
-                            ForEach(state.repositories(in: list)) { repository in
+                            ForEach(repositoryRows(state.repositories(in: list))) { repository in
                                 repositoryRow(repository)
                                     .tag(SidebarSelection.list(
                                         id: list.id, repository: repository.repository
@@ -37,7 +37,7 @@ struct SidebarColumn: View {
                                 .badge(state.visibleNotifications.count)
                                 .tag(SidebarSelection.mentions(repository: nil))
 
-                            ForEach(state.notificationRepositories) { repository in
+                            ForEach(repositoryRows(state.notificationRepositories)) { repository in
                                 repositoryRow(repository)
                                     .tag(SidebarSelection.mentions(
                                         repository: repository.repository
@@ -85,6 +85,12 @@ struct SidebarColumn: View {
 
     private func shown(_ key: String) -> Bool {
         state.settings.listVisibility.isShown(key, in: .window)
+    }
+
+    private func repositoryRows(_ repositories: [SidebarRepository]) -> [SidebarRepository] {
+        SidebarRepository.rows(
+            repositories, collapsingSingle: state.settings.hidesSingleRepository
+        )
     }
 
     private func repositoryRow(_ entry: SidebarRepository) -> some View {
@@ -189,7 +195,7 @@ struct ContentColumn: View {
                 inspect: { controller.inspect(item) },
                 isInspected: state.inspectedPullRequestID == item.id
             )
-            .padding(.vertical, 3)
+            .padding(.vertical, rowPadding)
         }
         // Escape puts the detail pane away, as it does everywhere else.
         .onExitCommand { controller.closeInspector() }
@@ -223,7 +229,7 @@ struct ContentColumn: View {
                 inspect: { controller.inspect(item) },
                 isInspected: state.inspectedIssueID == item.id
             )
-            .padding(.vertical, 3)
+            .padding(.vertical, rowPadding)
         }
         .onExitCommand { controller.closeInspector() }
         .overlay {
@@ -260,7 +266,7 @@ struct ContentColumn: View {
                 toggle: { controller.inspect(item) },
                 markRead: { Task { await controller.markRead(item) } }
             )
-            .padding(.vertical, 3)
+            .padding(.vertical, rowPadding)
         }
         .onExitCommand { controller.closeInspector() }
         .overlay {
@@ -392,6 +398,14 @@ struct ToolbarControls: View {
         )
     }
 }
+
+/// How much air a row gets above and below its content in the window.
+///
+/// More than the popover gives its own rows: that list has a fixed height,
+/// where every point spent on padding comes off the number of rows on
+/// screen. The window has the room, and with it the rows stop running
+/// into one another.
+private let rowPadding: CGFloat = 7
 
 // MARK: - Building blocks
 
