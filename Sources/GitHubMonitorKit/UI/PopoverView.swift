@@ -23,14 +23,14 @@ struct PopoverView: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 14) {
-                        if shownLists.isEmpty && !showsMentions {
+                        if shownEntries.isEmpty {
                             everythingHiddenNotice
                         }
-                        ForEach(shownLists) { list in
-                            section(for: list)
-                        }
-                        if showsMentions {
-                            mentionSection
+                        ForEach(shownEntries) { entry in
+                            switch entry {
+                            case .list(let list): section(for: list)
+                            case .mentions: mentionSection
+                            }
                         }
                     }
                     .padding(12)
@@ -52,13 +52,11 @@ struct PopoverView: View {
 
     // MARK: - Sections
 
-    /// The lists left switched on for this panel, in sidebar order.
-    private var shownLists: [SavedList] {
-        state.lists.filter { state.settings.listVisibility.isShown($0.id, in: .popover) }
-    }
-
-    private var showsMentions: Bool {
-        state.settings.listVisibility.isShown(ListVisibility.mentionsKey, in: .popover)
+    /// What is left switched on for this panel, in sidebar order.
+    private var shownEntries: [SidebarEntry] {
+        state.settings.entries.filter {
+            state.settings.listVisibility.isShown($0.id, in: .popover)
+        }
     }
 
     /// Switching every section off is a way of using the popover as a menu

@@ -213,24 +213,24 @@ public final class AppState {
 
     // MARK: - Counts per surface
 
-    /// The lists one surface shows, with their counts, in sidebar order and
-    /// with the mentions last.
+    /// What one surface shows, with their counts, in sidebar order.
     public func counts(in surface: DisplaySurface) -> [SurfaceCount] {
-        var result = lists
+        settings.entries
             .filter { settings.listVisibility.isShown($0.id, in: surface) }
-            .map { SurfaceCount(id: $0.id, title: $0.title, symbolName: $0.symbol, count: count(of: $0)) }
-
-        if settings.listVisibility.isShown(ListVisibility.mentionsKey, in: surface) {
-            result.append(
-                SurfaceCount(
-                    id: ListVisibility.mentionsKey,
-                    title: settings.mentionsTitle,
-                    symbolName: settings.mentionsSymbol,
-                    count: visibleNotifications.count
-                )
-            )
-        }
-        return result
+            .map { entry in
+                switch entry {
+                case .list(let list):
+                    SurfaceCount(
+                        id: list.id, title: list.title,
+                        symbolName: list.symbol, count: count(of: list)
+                    )
+                case .mentions:
+                    SurfaceCount(
+                        id: ListVisibility.mentionsKey, title: settings.mentionsTitle,
+                        symbolName: settings.mentionsSymbol, count: visibleNotifications.count
+                    )
+                }
+            }
     }
 
     /// Moves the sidebar off a list that is not shown in the window, or off

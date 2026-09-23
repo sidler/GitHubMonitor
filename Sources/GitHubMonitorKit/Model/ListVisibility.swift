@@ -96,3 +96,28 @@ public struct ListVisibility: Equatable, Sendable {
     /// Sorted, so the stored value does not churn with set ordering.
     public var storedKeys: [String] { hidden.sorted() }
 }
+
+/// One row of the sidebar, the popover and the settings table.
+///
+/// The mentions are not a saved list -- they come from the notifications API
+/// rather than a search -- but they are one of the things being watched, and
+/// being last for ever is not a property of that. So the order is over this
+/// rather than over the lists alone.
+public enum SidebarEntry: Identifiable, Hashable, Sendable {
+    case list(SavedList)
+    case mentions
+
+    public var id: String {
+        switch self {
+        case .list(let list): list.id
+        case .mentions: ListVisibility.mentionsKey
+        }
+    }
+
+    public var list: SavedList? {
+        if case .list(let list) = self { return list }
+        return nil
+    }
+
+    public var isMentions: Bool { self == .mentions }
+}

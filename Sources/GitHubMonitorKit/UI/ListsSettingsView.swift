@@ -45,19 +45,19 @@ struct ListsSettingsView: View {
         VStack(spacing: 0) {
             header
             List(selection: $model.selection) {
-                ForEach(settings.savedLists) { list in
-                    row(list).tag(list.id)
+                // The mentions are among the rows rather than pinned below
+                // them: they are not a saved list -- they come from the
+                // notifications API rather than a search -- but where they
+                // sit is as much a choice as where any list sits.
+                ForEach(settings.entries) { entry in
+                    switch entry {
+                    case .list(let list): row(list).tag(list.id)
+                    case .mentions: mentionsRow.tag(ListVisibility.mentionsKey)
+                    }
                 }
                 .onMove { indices, destination in
-                    settings.savedLists.move(fromOffsets: indices, toOffset: destination)
+                    settings.moveEntries(fromOffsets: indices, toOffset: destination)
                 }
-
-                // The mentions are not a saved list -- they come from the
-                // notifications API rather than a search -- but they take
-                // the same three switches, and their name and icon are as
-                // much theirs as any list's. Only the search is not a thing
-                // they have.
-                mentionsRow.tag(ListVisibility.mentionsKey)
             }
             .listStyle(.inset)
             .frame(minHeight: 180)

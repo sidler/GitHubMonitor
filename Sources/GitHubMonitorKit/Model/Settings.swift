@@ -110,6 +110,16 @@ public final class Settings {
         didSet { store.set(mentionsSymbol, forKey: Key.mentionsSymbol) }
     }
 
+    /// Where the mentions sit among the lists.
+    ///
+    /// Stored as a position rather than as an entry in the list array: they
+    /// are not a list, and giving them a fake one would mean every piece of
+    /// code that reads a list having to ask whether this one is real. Out of
+    /// range means last, which is where they start.
+    public var mentionsPosition: Int {
+        didSet { store.set(mentionsPosition, forKey: Key.mentionsPosition) }
+    }
+
     /// The mentions' grouping. Not part of a list: they are not a search,
     /// and they group by the kind of thing a notification is about.
     public var notificationGrouping: ListGrouping {
@@ -152,6 +162,7 @@ public final class Settings {
         launchAtLogin = store.object(forKey: Key.launchAtLogin) as? Bool ?? false
         notificationGrouping =
             (store.string(forKey: Key.notificationGrouping).flatMap(ListGrouping.init(rawValue:))) ?? .flat
+        mentionsPosition = store.object(forKey: Key.mentionsPosition) as? Int ?? .max
         mentionsTitle = store.string(forKey: Key.mentionsTitle) ?? "Mentions"
         mentionsSymbol = store.string(forKey: Key.mentionsSymbol)
             ?? StatusBarTitleBuilder.mentionSymbol
@@ -163,6 +174,25 @@ public final class Settings {
     }
 
     // MARK: - Lists
+
+    /// Everything the sidebar shows, in the order it shows it.
+    public var entries: [SidebarEntry] {
+        var entries = savedLists.map(SidebarEntry.list)
+        entries.insert(.mentions, at: min(max(0, mentionsPosition), entries.count))
+        return entries
+    }
+
+    /// Reorders them, whichever of them was dragged.
+    ///
+    /// The lists keep their array and the mentions keep their index: moving
+    /// either writes both back, so there is one order and it cannot come
+    /// apart.
+    public func moveEntries(fromOffsets offsets: IndexSet, toOffset destination: Int) {
+        var moved = entries
+        moved.move(fromOffsets: offsets, toOffset: destination)
+        savedLists = moved.compactMap(\.list)
+        mentionsPosition = moved.firstIndex(where: \.isMentions) ?? savedLists.count
+    }
 
     /// Replaces one list, by id. The array is rewritten wholesale so the
     /// stored value stays a single document.
@@ -217,6 +247,7 @@ public final class Settings {
         // became editable; never written again.
         static let listGrouping = "listGrouping"
         static let notificationGrouping = "notificationGrouping"
+        static let mentionsPosition = "mentionsPosition"
         static let mentionsTitle = "mentionsTitle"
         static let mentionsSymbol = "mentionsSymbol"
         static let pullRequestSort = "pullRequestSort"

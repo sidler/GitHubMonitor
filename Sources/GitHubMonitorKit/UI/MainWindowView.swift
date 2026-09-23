@@ -11,33 +11,39 @@ struct SidebarColumn: View {
 
     var body: some View {
         List(selection: $state.sidebarSelection) {
-            // One section per saved list, in the order they are kept in
-            // settings. Nothing here knows what a list is about any more:
-            // the title, the icon and the searches all come from the list.
-            ForEach(state.lists) { list in
-                if shown(list.id) {
-                    Section(list.title) {
-                        Label("All", systemImage: list.symbol)
-                            .badge(state.count(of: list))
-                            .tag(SidebarSelection.list(id: list.id, repository: nil))
+            // One section per entry, in the order they are kept in settings.
+            // Nothing here knows what a list is about any more: the title,
+            // the icon and the searches all come from the list -- and the
+            // mentions are one of the entries rather than a fixed last one.
+            ForEach(state.settings.entries) { entry in
+                if shown(entry.id) {
+                    switch entry {
+                    case .list(let list):
+                        Section(list.title) {
+                            Label("All", systemImage: list.symbol)
+                                .badge(state.count(of: list))
+                                .tag(SidebarSelection.list(id: list.id, repository: nil))
 
-                        ForEach(state.repositories(in: list)) { entry in
-                            repositoryRow(entry)
-                                .tag(SidebarSelection.list(id: list.id, repository: entry.repository))
+                            ForEach(state.repositories(in: list)) { repository in
+                                repositoryRow(repository)
+                                    .tag(SidebarSelection.list(
+                                        id: list.id, repository: repository.repository
+                                    ))
+                            }
                         }
-                    }
-                }
-            }
+                    case .mentions:
+                        Section(state.settings.mentionsTitle) {
+                            Label("All", systemImage: state.settings.mentionsSymbol)
+                                .badge(state.visibleNotifications.count)
+                                .tag(SidebarSelection.mentions(repository: nil))
 
-            if shown(ListVisibility.mentionsKey) {
-                Section(state.settings.mentionsTitle) {
-                    Label("All", systemImage: state.settings.mentionsSymbol)
-                        .badge(state.visibleNotifications.count)
-                        .tag(SidebarSelection.mentions(repository: nil))
-
-                    ForEach(state.notificationRepositories) { entry in
-                        repositoryRow(entry)
-                            .tag(SidebarSelection.mentions(repository: entry.repository))
+                            ForEach(state.notificationRepositories) { repository in
+                                repositoryRow(repository)
+                                    .tag(SidebarSelection.mentions(
+                                        repository: repository.repository
+                                    ))
+                            }
+                        }
                     }
                 }
             }
@@ -374,7 +380,11 @@ struct ToolbarControls: View {
                 EmptyView()
             }
         }
-        .padding(.horizontal, 4)
+        // Room at the ends: macOS 26 draws the toolbar item as one glass
+        // capsule, and a segmented control sitting flush against it puts its
+        // own squarer selection corner inside the capsule's curve, where the
+        // two bite. This keeps the selection in the straight part.
+        .padding(.horizontal, 10)
         .fixedSize()
     }
 
@@ -602,28 +612,36 @@ private struct IssueTypeFilter: View {
 
 /// Draft visibility.
 ///
-/// A button rather than a Toggle: a toolbar drops a toggle's label, leaving a
-/// bare switch that says nothing about what it switches. The button carries
-/// its state in its own wording.
+/// A menu, like the order beside it: the button said "Show 8 drafts" in
+/// full, which is a sentence's worth of toolbar for a switch that is used
+/// once a week. The count stays on the button, since that is the part worth
+/// seeing without opening anything.
 private struct DraftToggleControl: View {
     @Bindable var settings: Settings
     let draftCount: Int
 
     var body: some View {
-        Button {
-            settings.includeDrafts.toggle()
+        Menu {
+            Picker("Drafts", selection: $settings.includeDrafts) {
+                Label("Show drafts", systemImage: "eye").tag(true)
+                Label("Hide drafts", systemImage: "eye.slash").tag(false)
+            }
+            .pickerStyle(.inline)
         } label: {
             Label(
-                settings.includeDrafts
-                    ? "Hide drafts"
-                    : "Show \(draftCount) draft\(draftCount == 1 ? "" : "s")",
-                systemImage: settings.includeDrafts ? "eye.slash" : "eye"
+                "\(draftCount)",
+                systemImage: settings.includeDrafts ? "eye" : "eye.slash"
             )
-            // Toolbars show icons only unless told otherwise, and "8 drafts
-            // hidden" is the part worth reading.
             .labelStyle(.titleAndIcon)
+            .monospacedDigit()
         }
-        .help("Drafts are counted in the menu bar only while shown")
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help(
+            draftCount == 1
+                ? "1 draft in this list; drafts are counted in the menu bar only while shown"
+                : "\(draftCount) drafts in this list; drafts are counted in the menu bar only while shown"
+        )
     }
 }
 

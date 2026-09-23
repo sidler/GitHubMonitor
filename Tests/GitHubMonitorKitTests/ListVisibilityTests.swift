@@ -259,3 +259,88 @@ struct MentionsEntryTests {
         #expect(restored.mentionsSymbol == "tray.full")
     }
 }
+
+@MainActor
+@Suite("The order of the entries")
+struct SidebarOrderTests {
+    private func makeSettings() -> Settings {
+        let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
+        let settings = Settings(store: defaults)
+        settings.savedLists = [
+            SavedList(id: "a", title: "A", query: "is:pr", content: .pullRequests),
+            SavedList(id: "b", title: "B", query: "is:pr", content: .pullRequests),
+            SavedList(id: "c", title: "C", query: "is:issue", content: .issues),
+        ]
+        return settings
+    }
+
+    @Test("The mentions start last, after the lists")
+    func defaultOrder() {
+        #expect(makeSettings().entries.map(\.id) == ["a", "b", "c", ListVisibility.mentionsKey])
+    }
+
+    /// Being last for ever is not a property of the mentions; where they sit
+    /// is a choice like any list's.
+    @Test("They can be dragged to the front")
+    func moveMentionsUp() {
+        let settings = makeSettings()
+        settings.moveEntries(fromOffsets: IndexSet(integer: 3), toOffset: 0)
+
+        #expect(settings.entries.map(\.id) == [ListVisibility.mentionsKey, "a", "b", "c"])
+        // The lists keep their own order while the mentions move past them.
+        #expect(settings.savedLists.map(\.id) == ["a", "b", "c"])
+    }
+
+    @Test("A list can be dragged past them")
+    func moveListPastMentions() {
+        let settings = makeSettings()
+        settings.moveEntries(fromOffsets: IndexSet(integer: 0), toOffset: 4)
+
+        #expect(settings.entries.map(\.id) == ["b", "c", ListVisibility.mentionsKey, "a"])
+        #expect(settings.savedLists.map(\.id) == ["b", "c", "a"])
+    }
+
+    /// One order, written back to both places it is kept: the lists' array
+    /// and the mentions' index cannot come apart.
+    @Test("The order survives a restart")
+    func persisted() {
+        let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
+        let settings = Settings(store: defaults)
+        settings.savedLists = [
+            SavedList(id: "a", title: "A", query: "is:pr", content: .pullRequests),
+            SavedList(id: "b", title: "B", query: "is:pr", content: .pullRequests),
+        ]
+        settings.moveEntries(fromOffsets: IndexSet(integer: 2), toOffset: 1)
+        #expect(settings.entries.map(\.id) == ["a", ListVisibility.mentionsKey, "b"])
+
+        let restored = Settings(store: defaults)
+        #expect(restored.entries.map(\.id) == ["a", ListVisibility.mentionsKey, "b"])
+    }
+
+    /// A list deleted from under them must not push the mentions out of
+    /// range, and one added must not jump over them.
+    @Test("Adding and deleting lists leaves them where they were")
+    func survivesListChanges() {
+        let settings = makeSettings()
+        settings.moveEntries(fromOffsets: IndexSet(integer: 3), toOffset: 1)
+        #expect(settings.entries.map(\.id) == ["a", ListVisibility.mentionsKey, "b", "c"])
+
+        settings.savedLists.append(
+            SavedList(id: "d", title: "D", query: "is:pr", content: .pullRequests)
+        )
+        #expect(settings.entries.map(\.id) == ["a", ListVisibility.mentionsKey, "b", "c", "d"])
+
+        settings.savedLists.removeAll { $0.id != "a" }
+        #expect(settings.entries.map(\.id) == ["a", ListVisibility.mentionsKey])
+    }
+
+    /// The menu bar, the popover and the status bar read one order.
+    @Test("The counts follow it")
+    func countsFollowTheOrder() {
+        let settings = makeSettings()
+        settings.moveEntries(fromOffsets: IndexSet(integer: 3), toOffset: 0)
+
+        let state = AppState(settings: settings)
+        #expect(state.counts(in: .menuBar).map(\.id) == [ListVisibility.mentionsKey, "a", "b", "c"])
+    }
+}
