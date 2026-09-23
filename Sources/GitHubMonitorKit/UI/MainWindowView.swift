@@ -129,7 +129,7 @@ struct ContentColumn: View {
                     Color(nsColor: .textBackgroundColor).ignoresSafeArea()
                 }
                 .overlay(alignment: .top) {
-                    titleBarBand(height: proxy.safeAreaInsets.top)
+                    titleBarBand(height: proxy.safeAreaInsets.top, width: proxy.size.width)
                 }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     BottomBar { statusBar }
@@ -170,13 +170,51 @@ struct ContentColumn: View {
     /// NSTableView inside an NSScrollView — the same reason
     /// `onScrollGeometryChange` never fires for one. It was tried; the rows
     /// scrolled straight through the toolbar.
-    private func titleBarBand(height: CGFloat) -> some View {
-        Rectangle()
-            .fill(state.isContentScrolled ? AnyShapeStyle(.ultraThinMaterial) : AnyShapeStyle(.clear))
-            .frame(height: height)
-            .ignoresSafeArea(edges: .top)
-            .allowsHitTesting(false)
-            .animation(.easeOut(duration: 0.15), value: state.isContentScrolled)
+    private func titleBarBand(height: CGFloat, width: CGFloat) -> some View {
+        ZStack(alignment: .leading) {
+            Rectangle()
+                .fill(state.isContentScrolled ? AnyShapeStyle(.ultraThinMaterial) : AnyShapeStyle(.clear))
+                .animation(.easeOut(duration: 0.15), value: state.isContentScrolled)
+
+            windowTitle
+                .frame(maxWidth: max(80, width - reservedForControls), alignment: .leading)
+                .padding(.leading, titleInset)
+        }
+        .frame(height: height)
+        .ignoresSafeArea(edges: .top)
+        // The whole band, title included: a view that takes a click in the
+        // title bar is a place the window cannot be dragged from, which is
+        // what the native title itself was doing here.
+        .allowsHitTesting(false)
+    }
+
+    /// The window's title, drawn where AppKit would have drawn it.
+    private var windowTitle: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(state.selectionTitle)
+                .font(.system(size: 13, weight: .semibold))
+            if !state.selectionSubtitle.isEmpty {
+                Text(state.selectionSubtitle)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .lineLimit(1)
+        .truncationMode(.tail)
+    }
+
+    /// Where the title starts. Off the column's own edge normally; clear of
+    /// the traffic lights and the sidebar button once the sidebar is
+    /// collapsed and the column begins at the window's edge.
+    private var titleInset: CGFloat {
+        state.isSidebarCollapsed ? 140 : 16
+    }
+
+    /// Room kept free on the right for the toolbar's controls, which float
+    /// over this band. A margin on top of their measured width, since the
+    /// system sets them in from the window's edge.
+    private var reservedForControls: CGFloat {
+        state.toolbarControlsWidth + 40
     }
 
     // MARK: - Lists

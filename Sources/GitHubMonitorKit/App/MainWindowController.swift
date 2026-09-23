@@ -22,6 +22,10 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     private var splitViewController: NSSplitViewController?
     private var inspectorItem: NSSplitViewItem?
     private var contentController: NSViewController?
+    /// Kept so the collapse of the sidebar can be read back: the title is
+    /// drawn in the content column now, and has to step around the traffic
+    /// lights that land on top of it when the sidebar goes away.
+    private var sidebarItem: NSSplitViewItem?
     /// The selection the window last reacted to, so a change can be told
     /// from the other state the tracking closure watches.
     private var lastSelection: SidebarSelection?
@@ -87,6 +91,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         sidebar.minimumThickness = 200
         sidebar.maximumThickness = 320
         split.addSplitViewItem(sidebar)
+        sidebarItem = sidebar
 
         let contentController = NSHostingController(
             rootView: ContentColumn(state: state, controller: controller)
@@ -130,10 +135,40 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         syncToolbarControls()
         observeSelection()
         observeScrolling()
+        observeSidebarCollapse()
         // Something can already be open when the window is first built --
         // the popover selects as it loads -- and the tracking closure only
         // fires on the next change after that.
         syncInspector()
+    }
+
+    // MARK: - Sidebar
+
+    /// Follows the sidebar being collapsed, which moves the traffic lights
+    /// onto the content column -- and onto the title it draws there.
+    ///
+    /// The split view's own notification rather than KVO on the item: a
+    /// collapse is a resize, and a selector keeps the main actor out of the
+    /// sendability argument a closure would start.
+    private func observeSidebarCollapse() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(splitViewDidResize(_:)),
+            name: NSSplitView.didResizeSubviewsNotification,
+            object: splitViewController?.splitView
+        )
+        syncSidebarCollapse()
+    }
+
+    @objc private func splitViewDidResize(_ notification: Notification) {
+        syncSidebarCollapse()
+    }
+
+    private func syncSidebarCollapse() {
+        let collapsed = sidebarItem?.isCollapsed ?? false
+        if state.isSidebarCollapsed != collapsed {
+            state.isSidebarCollapsed = collapsed
+        }
     }
 
     // MARK: - Scrolling
@@ -175,18 +210,24 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     // MARK: - Title
 
     /// The window title is the list's name, and the section it belongs to is
-    /// the subtitle -- which AppKit draws in the unified toolbar, the native
-    /// equivalent of SwiftUI's navigationTitle.
+    /// the subtitle.
     ///
-    /// Drawn by AppKit again. It used to be a hosted SwiftUI view, because
-    /// the native title sat hard against the sidebar divider where Notes and
-    /// Mail inset theirs; macOS 26 insets it properly, and a hosted view in
-    /// a toolbar now comes with the glass background that belongs to
-    /// controls, which made a plain title look like a button.
+    /// Set on the window for the places that read it -- the Window menu,
+    /// Mission Control, the app switcher -- but not drawn by AppKit: with a
+    /// transparent title bar its label is a 500 point wide field that takes
+    /// every click in the band and moves the window for none of them, which
+    /// left the title bar draggable only over the sidebar. The content
+    /// column draws the title itself instead, in a band that does not take
+    /// clicks at all, so the whole strip drags the window again.
+    ///
+    /// A hosted toolbar item was the other way round, and was tried first:
+    /// on macOS 26 a view in the toolbar comes with the glass background
+    /// that belongs to controls, which made a plain title look like a
+    /// button.
     private func updateTitle() {
         window?.title = state.selectionTitle
         window?.subtitle = state.selectionSubtitle
-        window?.titleVisibility = .visible
+        window?.titleVisibility = .hidden
     }
 
     /// Resets what belongs to the list being left behind.
@@ -271,6 +312,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     /// it. Without this, coming back from a list with no controls left them
     /// running off the window's edge until it was resized.
     private func resizeToolbarItems() {
+        var total: CGFloat = 0
         for item in window?.toolbar?.items ?? [] {
             guard item.itemIdentifier == Self.controlsItem
                     || item.itemIdentifier == Self.groupingItem,
@@ -292,8 +334,14 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
                 constraint.isActive = true
                 toolbarWidths[item.itemIdentifier] = constraint
             }
+            total += width + Self.toolbarItemGap
         }
+        state.toolbarControlsWidth = total
     }
+
+    /// What the system leaves between two toolbar items, measured from the
+    /// gap between the grouping switch and the menus beside it.
+    private static let toolbarItemGap: CGFloat = 12
 
     /// `@Observable` has no publisher, so the tracking closure re-arms itself.
     private func observeSelection() {

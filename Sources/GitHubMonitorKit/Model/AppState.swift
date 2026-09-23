@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 import Observation
 
 /// A view the window can be opened on, for the menu bar's entry points and
@@ -103,6 +104,13 @@ public final class AppState {
     /// Whether the content column is scrolled away from its top. The title
     /// bar band only needs a material once rows are passing behind it.
     public var isContentScrolled = false
+    /// Whether the sidebar is collapsed. The content column draws the window
+    /// title, and when the sidebar goes the traffic lights land where that
+    /// title starts.
+    public var isSidebarCollapsed = false
+    /// How wide the toolbar's own controls are, so a long title truncates
+    /// before it runs under them rather than behind them.
+    public var toolbarControlsWidth: CGFloat = 0
 
     public init(settings: Settings) {
         self.settings = settings
