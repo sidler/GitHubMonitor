@@ -106,10 +106,12 @@ public enum PullRequestLegend {
         let checks = Set(items.map(\.checks))
         result += ChecksStatus.allCases.filter(checks.contains).map(LegendSymbol.checks)
 
-        // Unknown is left out: nothing is drawn for it, so a legend entry
-        // would explain a symbol that is not on screen.
-        let merges = Set(items.map(\.mergeStatus)).subtracting([.unknown])
-        result += MergeStatus.allCases.filter(merges.contains).map(LegendSymbol.merge)
+        // Only the conflict, because that is the only one the rows draw --
+        // a legend entry for "merges" would explain a symbol that is not on
+        // screen, which is the one thing this legend is built to avoid.
+        if items.contains(where: { $0.mergeStatus == .conflicting }) {
+            result.append(.merge(.conflicting))
+        }
 
         let tallies = Set(items.flatMap { $0.reviews.entries.map(\.kind) })
         result += ReviewTallyKind.allCases.filter(tallies.contains).map(LegendSymbol.reviewers)

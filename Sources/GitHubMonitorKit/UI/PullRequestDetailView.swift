@@ -91,13 +91,23 @@ struct PullRequestDetailView: View {
 
     // MARK: - Sections
 
+    /// A symbol in a column of its own, so the two lines of the branch
+    /// section start their text at the same place. Their glyphs are
+    /// different widths, and what the eye follows down the section is the
+    /// left edge of the words, not the symbols.
+    private func branchSymbol(_ name: String) -> some View {
+        Image(systemName: name)
+            .font(.callout)
+            .frame(width: 16, alignment: .center)
+    }
+
     @ViewBuilder
     private func branches(_ detail: PullRequestDetail) -> some View {
         if !detail.headBranch.isEmpty {
             Section {
                 VStack(alignment: .leading, spacing: 5) {
                     HStack(spacing: 5) {
-                        Image(systemName: "arrow.triangle.branch")
+                        branchSymbol("arrow.triangle.branch")
                             .foregroundStyle(.secondary)
                         Text(detail.headBranch)
                             .lineLimit(1)
@@ -117,13 +127,15 @@ struct PullRequestDetailView: View {
 
                     // Under the two branches, because that is what it is
                     // about: whether the one still goes into the other. In
-                    // words here -- a pane has the room the row did not.
+                    // words here -- a pane has the room the row did not --
+                    // and for both answers, where a list only reports the
+                    // conflict.
                     if detail.mergeStatus != .unknown {
-                        Label(
-                            detail.mergeStatus.label,
-                            systemImage: detail.mergeStatus.symbolName
-                        )
-                        .font(.caption)
+                        HStack(alignment: .firstTextBaseline, spacing: 5) {
+                            branchSymbol(detail.mergeStatus.symbolName)
+                            Text(detail.mergeStatus.label)
+                                .font(.caption)
+                        }
                         .foregroundStyle(detail.mergeStatus.tint)
                     }
                 }

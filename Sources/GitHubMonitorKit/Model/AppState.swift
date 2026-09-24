@@ -567,6 +567,16 @@ public final class AppState {
                 ]
             )
         )
+        pullRequestDetails["3"] = .loaded(
+            PullRequestDetail(
+                headBranch: "chore/php-8.4",
+                baseBranch: "main",
+                additions: 812, deletions: 806, changedFiles: 21, comments: 0,
+                mergeStatus: .mergeable,
+                checks: [CheckRun(name: "composer-audit", status: .pending)],
+                reviewers: []
+            )
+        )
         // Show one preview open, so the expanded layout is exercised too.
         // Written as the real ones are -- a bot's table, a details wrapper,
         // a code fence -- so the Markdown rendering is exercised as well.

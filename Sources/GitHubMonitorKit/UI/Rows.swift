@@ -49,10 +49,15 @@ struct PullRequestRow: View {
                         .foregroundStyle(item.checks.tint)
                         .help(item.checks.label)
 
-                    // Beside the checks, because it answers the same
-                    // question they do: whether this can go in as it
-                    // stands. Nothing while GitHub is still working it out.
-                    if item.mergeStatus != .unknown {
+                    // Only the conflict. Beside the checks, because it
+                    // answers the same question they do: whether this can go
+                    // in as it stands. A symbol on every row that merges
+                    // cleanly would be a column reporting the normal case,
+                    // and the two rows that are not normal would be harder
+                    // to find for it, not easier. The pane says it either
+                    // way, where there is one pull request and room for a
+                    // sentence.
+                    if item.mergeStatus == .conflicting {
                         Label(item.mergeStatus.label, systemImage: item.mergeStatus.symbolName)
                             .labelStyle(.iconOnly)
                             .font(.body)

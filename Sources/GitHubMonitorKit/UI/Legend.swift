@@ -33,9 +33,10 @@ extension ChecksStatus {
 extension MergeStatus {
     var tint: Color {
         switch self {
-        // Not green: merging cleanly is the state nearly every row is in,
-        // and a column of green would drown the two that are not.
-        case .mergeable: Color(nsColor: .secondaryLabelColor)
+        // Green is affordable here: only the detail pane draws this one,
+        // and there it is one line about one pull request. The lists draw
+        // the conflict and nothing else.
+        case .mergeable: .green
         case .conflicting: .red
         case .unknown: Color(nsColor: .tertiaryLabelColor)
         }
