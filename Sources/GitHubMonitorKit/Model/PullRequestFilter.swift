@@ -2,10 +2,11 @@ import Foundation
 
 /// Narrows the fetched items down to what the user wants counted.
 ///
-/// Drafts are filtered here rather than in the GitHub query so the toggle in
-/// the list takes effect immediately, without another round trip. The
-/// repository filter is applied here too, so the count in the menu bar can
-/// never disagree with the list below it.
+/// Applied here rather than written into the GitHub query, so the count in
+/// the menu bar can never disagree with the list below it -- and so a change
+/// takes effect without another round trip. Drafts are filtered the same way
+/// but against the list that holds them, which is where that switch now
+/// lives.
 public enum PullRequestFilter {
     /// Applies the repository filter only -- the population the draft toggle
     /// talks about.
@@ -26,14 +27,5 @@ public enum PullRequestFilter {
                 repository == filter || repository.hasPrefix(filter + "/")
             }
         }
-    }
-
-    public static func apply(
-        _ items: [PullRequestItem],
-        includeDrafts: Bool,
-        repositoryFilters: [String]
-    ) -> [PullRequestItem] {
-        let matching = matchingRepositories(items, repositoryFilters: repositoryFilters)
-        return includeDrafts ? matching : matching.filter { !$0.isDraft }
     }
 }

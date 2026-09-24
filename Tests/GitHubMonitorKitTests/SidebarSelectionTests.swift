@@ -233,13 +233,31 @@ struct DraftCountTests {
     @Test("The count is the same whether drafts are shown or not")
     func independentOfVisibility() {
         let state = makeState()
-        state.settings.includeDrafts = false
         #expect(state.selectedDraftCount == 3)
-        state.settings.includeDrafts = true
+        showDrafts(true, in: state)
         #expect(state.selectedDraftCount == 3)
         // What the list shows does change.
-        #expect(state.pullRequests(in: reviews).count == 4)
-        state.settings.includeDrafts = false
-        #expect(state.pullRequests(in: reviews).count == 1)
+        #expect(state.pullRequests(in: state.list(withID: reviews.id)!).count == 4)
+        showDrafts(false, in: state)
+        #expect(state.pullRequests(in: state.list(withID: reviews.id)!).count == 1)
+    }
+
+    /// Each list answers for itself: a queue of what to review wants drafts
+    /// out of the way while a list of one's own work is mostly drafts.
+    @Test("Drafts are shown per list, not per app")
+    func draftsPerList() {
+        let state = makeState()
+        showDrafts(true, in: state)
+        #expect(state.pullRequests(in: state.list(withID: reviews.id)!).count == 4)
+        // The other list was not asked to change with it, and still hides
+        // the draft it holds.
+        #expect(state.list(withID: mine.id)?.includeDrafts == false)
+        #expect(state.pullRequests(in: state.list(withID: mine.id)!).count == 1)
+    }
+
+    private func showDrafts(_ shown: Bool, in state: AppState) {
+        guard var list = state.list(withID: reviews.id) else { return }
+        list.includeDrafts = shown
+        state.settings.update(list)
     }
 }

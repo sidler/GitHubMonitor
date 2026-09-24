@@ -42,13 +42,10 @@ private struct FilterSettingsView: View {
     var body: some View {
         Group {
             Section("Pull requests") {
-                Toggle("Include drafts", isOn: $settings.includeDrafts)
-                    .toggleStyle(.switch)
-                // Only the pull request lists have anything to hide here, and
-                // the repository filter above applies to all three lists --
-                // saying so is what keeps this section from reading like the
-                // only filter there is.
-                Text("Drafts count in the menu bar only while they are shown. Issues have no draft state, so this leaves them alone.")
+                // No switch here any more: drafts are a property of a list,
+                // set where the list is on screen. Saying where keeps this
+                // from reading as though the setting had been dropped.
+                Text("Drafts are shown or hidden per list, from the eye in the window's toolbar or beside the list in the popover. They count in the menu bar only while shown.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

@@ -243,7 +243,7 @@ struct ContentColumn: View {
                     "Nothing in “\(list.title)”",
                     systemImage: list.symbol,
                     description: Text(
-                        state.selectedDraftCount > 0 && !state.settings.includeDrafts
+                        state.selectedDraftCount > 0 && !list.includeDrafts
                             ? "Only drafts match; switch them on above to see them."
                             : "No pull request matches this list's search."
                     )
@@ -392,7 +392,8 @@ struct ToolbarControls: View {
                     case .pullRequests:
                         if state.selectedDraftCount > 0 {
                             DraftToggleControl(
-                                settings: state.settings,
+                                state: state,
+                                list: list,
                                 draftCount: state.selectedDraftCount
                             )
                         }
@@ -700,12 +701,13 @@ private struct IssueTypeFilter: View {
 /// once a week. The count stays on the button, since that is the part worth
 /// seeing without opening anything.
 private struct DraftToggleControl: View {
-    @Bindable var settings: Settings
+    @Bindable var state: AppState
+    let list: SavedList
     let draftCount: Int
 
     var body: some View {
         Menu {
-            Picker("Drafts", selection: $settings.includeDrafts) {
+            Picker("Drafts", selection: binding) {
                 Label("Show drafts", systemImage: "eye").tag(true)
                 Label("Hide drafts", systemImage: "eye.slash").tag(false)
             }
@@ -713,7 +715,7 @@ private struct DraftToggleControl: View {
         } label: {
             Label(
                 "\(draftCount)",
-                systemImage: settings.includeDrafts ? "eye" : "eye.slash"
+                systemImage: list.includeDrafts ? "eye" : "eye.slash"
             )
             .labelStyle(.titleAndIcon)
             .monospacedDigit()
@@ -724,6 +726,20 @@ private struct DraftToggleControl: View {
             draftCount == 1
                 ? "1 draft in this list; drafts are counted in the menu bar only while shown"
                 : "\(draftCount) drafts in this list; drafts are counted in the menu bar only while shown"
+        )
+    }
+
+    /// Writes back to the list rather than to a setting: each list keeps its
+    /// own answer, so a review queue can hide drafts while the list of one's
+    /// own work shows them.
+    private var binding: Binding<Bool> {
+        Binding(
+            get: { list.includeDrafts },
+            set: { shown in
+                var changed = list
+                changed.includeDrafts = shown
+                state.settings.update(changed)
+            }
         )
     }
 }

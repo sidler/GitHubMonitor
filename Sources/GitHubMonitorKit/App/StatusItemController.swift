@@ -112,7 +112,6 @@ public final class StatusItemController {
             _ = state.loadState
             _ = state.settings.statusBarStyle
             _ = state.settings.listVisibility
-            _ = state.settings.includeDrafts
             _ = state.settings.repositoryFilters
             _ = state.settings.notificationReasons
         } onChange: { [weak self] in

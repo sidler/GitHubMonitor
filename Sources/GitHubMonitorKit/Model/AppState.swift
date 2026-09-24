@@ -142,7 +142,7 @@ public final class AppState {
     /// trip, and the issue types switched off for that list.
     public func pullRequests(in list: SavedList) -> [PullRequestItem] {
         let items = listPullRequests[list.id] ?? []
-        let shown = settings.includeDrafts ? items : items.filter { !$0.isDraft }
+        let shown = list.includeDrafts ? items : items.filter { !$0.isDraft }
         return sorted(shown, by: list.sort)
     }
 

@@ -216,6 +216,38 @@ struct ListMigrationTests {
         #expect(settings.listVisibility.isShown(issues.id, in: .window))
     }
 
+    /// Drafts were one switch for the whole app before they were a property
+    /// of a list. Someone who had them on keeps them on.
+    @Test("The old app-wide drafts switch is handed to the lists")
+    func draftsCarryOver() throws {
+        let defaults = store()
+        defaults.set(true, forKey: "includeDrafts")
+
+        let settings = Settings(store: defaults)
+        #expect(try #require(settings.list(withID: SavedList.Seed.reviews)).includeDrafts)
+        #expect(try #require(settings.list(withID: SavedList.Seed.authored)).includeDrafts)
+        // Issues have no draft state, so nothing was done to that list.
+        #expect(try #require(settings.list(withID: SavedList.Seed.issues)).includeDrafts == false)
+        // And the old key is gone, so a list switched back off stays off.
+        #expect(defaults.object(forKey: "includeDrafts") == nil)
+    }
+
+    /// A list stored before the field existed has to survive being read: a
+    /// failed decode reseeds the sidebar and would throw away lists someone
+    /// had made themselves.
+    @Test("A list saved without the newer fields still decodes")
+    func decodesOlderLists() throws {
+        let json = """
+        [{"id":"screening","title":"Screening","query":"is:pr is:open","content":"pullRequests"}]
+        """
+        let lists = try #require(Settings.decode(Data(json.utf8)))
+        #expect(lists.map(\.title) == ["Screening"])
+        #expect(lists[0].grouping == .flat)
+        #expect(lists[0].sort == .updated)
+        #expect(lists[0].hiddenTypes.isEmpty)
+        #expect(lists[0].includeDrafts == false)
+    }
+
     /// Seeding once is the point: a list deleted on purpose must not come
     /// back at the next launch.
     @Test("Lists are seeded once, not restored")

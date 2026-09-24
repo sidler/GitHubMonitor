@@ -60,22 +60,4 @@ struct PullRequestFilterTests {
         let result = PullRequestFilter.matchingRepositories(sample, repositoryFilters: ["", "   "])
         #expect(result.count == 4)
     }
-
-    @Test("Drafts are dropped unless included")
-    func draftFilter() {
-        let hidden = PullRequestFilter.apply(sample, includeDrafts: false, repositoryFilters: [])
-        #expect(hidden.count == 2)
-        #expect(hidden.allSatisfy { !$0.isDraft })
-
-        let shown = PullRequestFilter.apply(sample, includeDrafts: true, repositoryFilters: [])
-        #expect(shown.count == 4)
-    }
-
-    @Test("Both filters combine")
-    func combinedFilters() {
-        let result = PullRequestFilter.apply(
-            sample, includeDrafts: false, repositoryFilters: ["octo"]
-        )
-        #expect(result.map(\.repository) == ["octo/server"])
-    }
 }

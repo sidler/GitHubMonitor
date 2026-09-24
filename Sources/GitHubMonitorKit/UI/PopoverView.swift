@@ -325,13 +325,15 @@ private struct DraftToggle: View {
         // With no drafts around, the control would be a no-op.
         if draftCount > 0 {
             Button {
-                state.settings.includeDrafts.toggle()
+                var changed = list
+                changed.includeDrafts.toggle()
+                state.settings.update(changed)
             } label: {
                 Label(
-                    state.settings.includeDrafts
+                    list.includeDrafts
                         ? "Hide drafts"
                         : "Show \(draftCount) draft\(draftCount == 1 ? "" : "s")",
-                    systemImage: state.settings.includeDrafts ? "eye.slash" : "eye"
+                    systemImage: list.includeDrafts ? "eye.slash" : "eye"
                 )
                 .font(.caption)
             }

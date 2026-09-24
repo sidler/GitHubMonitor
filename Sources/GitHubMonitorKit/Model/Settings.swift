@@ -37,9 +37,6 @@ public final class Settings {
         didSet { store.set(repositoryFilters, forKey: Key.repositoryFilters) }
     }
 
-    public var includeDrafts: Bool {
-        didSet { store.set(includeDrafts, forKey: Key.includeDrafts) }
-    }
 
     /// Whether a section that covers a single repository drops its
     /// repository row.
@@ -145,7 +142,6 @@ public final class Settings {
         let saved = store.double(forKey: Key.refreshInterval)
         storedRefreshInterval = saved > 0 ? max(Self.minimumRefreshInterval, saved) : 300
         repositoryFilters = store.stringArray(forKey: Key.repositoryFilters) ?? []
-        includeDrafts = store.object(forKey: Key.includeDrafts) as? Bool ?? false
         // bool(forKey:) rather than object(forKey:): there is nothing to
         // tell apart here -- unset and off both mean the rows stay.
         hidesSingleRepository = store.bool(forKey: Key.hidesSingleRepository)
@@ -184,6 +180,22 @@ public final class Settings {
         trendsIncludeBots = store.object(forKey: Key.trendsIncludeBots) as? Bool ?? false
         commenterScope =
             (store.string(forKey: Key.commenterScope).flatMap(CommenterScope.init(rawValue:))) ?? .mine
+
+        // Drafts used to be one switch for the whole app and are a property
+        // of a list now. Hand the old value to the lists that can hold
+        // drafts, once, and drop the key so this cannot run twice.
+        if let wasIncluded = store.object(forKey: Key.includeDrafts) as? Bool {
+            if wasIncluded {
+                savedLists = savedLists.map { list in
+                    guard list.content == .pullRequests else { return list }
+                    var carried = list
+                    carried.includeDrafts = true
+                    return carried
+                }
+                store.set(Self.encode(savedLists), forKey: Key.savedLists)
+            }
+            store.removeObject(forKey: Key.includeDrafts)
+        }
     }
 
     // MARK: - Lists
@@ -249,6 +261,8 @@ public final class Settings {
         static let statusBarStyle = "statusBarStyle"
         static let refreshInterval = "refreshInterval"
         static let repositoryFilters = "repositoryFilters"
+        // Read once, to hand the old app-wide drafts switch to the lists;
+        // removed from the store as soon as it has been.
         static let includeDrafts = "includeDrafts"
         static let hidesSingleRepository = "hidesSingleRepository"
         static let notificationReasons = "notificationReasons"

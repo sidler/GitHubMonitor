@@ -106,6 +106,10 @@ public struct SavedList: Identifiable, Hashable, Codable, Sendable {
     public var sort: ListSort
     /// Issue types left out, by name. Only meaningful for issue lists.
     public var hiddenTypes: Set<String>
+    /// Whether draft pull requests are shown. Per list rather than per app:
+    /// a queue of what to review wants them out of the way, and a list of
+    /// one's own work is mostly drafts.
+    public var includeDrafts: Bool
 
     public init(
         id: String = UUID().uuidString,
@@ -115,7 +119,8 @@ public struct SavedList: Identifiable, Hashable, Codable, Sendable {
         symbolName: String? = nil,
         grouping: ListGrouping = .flat,
         sort: ListSort = .updated,
-        hiddenTypes: Set<String> = []
+        hiddenTypes: Set<String> = [],
+        includeDrafts: Bool = false
     ) {
         self.id = id
         self.title = title
@@ -125,6 +130,25 @@ public struct SavedList: Identifiable, Hashable, Codable, Sendable {
         self.grouping = grouping
         self.sort = sort
         self.hiddenTypes = hiddenTypes
+        self.includeDrafts = includeDrafts
+    }
+
+    /// Written by hand because the synthesised one throws on a key that is
+    /// not there, and every field past `content` was added after lists were
+    /// first stored. A list saved before a field existed would otherwise
+    /// fail to decode -- and a failed decode reseeds the sidebar, which
+    /// would throw away the lists someone had made.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        query = try container.decode(String.self, forKey: .query)
+        content = try container.decode(ListContent.self, forKey: .content)
+        symbolName = try container.decodeIfPresent(String.self, forKey: .symbolName)
+        grouping = try container.decodeIfPresent(ListGrouping.self, forKey: .grouping) ?? .flat
+        sort = try container.decodeIfPresent(ListSort.self, forKey: .sort) ?? .updated
+        hiddenTypes = try container.decodeIfPresent(Set<String>.self, forKey: .hiddenTypes) ?? []
+        includeDrafts = try container.decodeIfPresent(Bool.self, forKey: .includeDrafts) ?? false
     }
 
     public var symbol: String { symbolName ?? content.symbolName }
