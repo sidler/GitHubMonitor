@@ -7,7 +7,8 @@ struct PullRequestDetailQueryTests {
     private func payload(
         checks: [[String: Any]] = [],
         reviews: [[String: Any]] = [],
-        requests: [[String: Any]] = []
+        requests: [[String: Any]] = [],
+        mergeable: String = "MERGEABLE"
     ) -> [String: Any] {
         [
             "node": [
@@ -17,6 +18,7 @@ struct PullRequestDetailQueryTests {
                 "deletions": 45,
                 "changedFiles": 7,
                 "comments": ["totalCount": 3],
+                "mergeable": mergeable,
                 "commits": ["nodes": [["commit": [
                     "statusCheckRollup": ["contexts": ["nodes": checks]],
                 ]]]],
@@ -39,6 +41,21 @@ struct PullRequestDetailQueryTests {
         #expect(detail.deletions == 45)
         #expect(detail.changedFiles == 7)
         #expect(detail.comments == 3)
+    }
+
+    /// Asked again here rather than carried over from the row: by the time
+    /// a pane is opened GitHub has usually finished working it out.
+    @Test("The pane reads the merge state for itself")
+    func mergeStatus() throws {
+        #expect(try PullRequestDetailQuery.detail(from: payload()).mergeStatus == .mergeable)
+        #expect(
+            try PullRequestDetailQuery.detail(from: payload(mergeable: "CONFLICTING"))
+                .mergeStatus == .conflicting
+        )
+        #expect(
+            try PullRequestDetailQuery.detail(from: payload(mergeable: "UNKNOWN"))
+                .mergeStatus == .unknown
+        )
     }
 
     @Test("Branch names are read across")

@@ -95,24 +95,38 @@ struct PullRequestDetailView: View {
     private func branches(_ detail: PullRequestDetail) -> some View {
         if !detail.headBranch.isEmpty {
             Section {
-                HStack(spacing: 5) {
-                    Image(systemName: "arrow.triangle.branch")
-                        .foregroundStyle(.secondary)
-                    Text(detail.headBranch)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .textSelection(.enabled)
-                        .help(detail.headBranch)
-                    if !detail.baseBranch.isEmpty {
-                        Image(systemName: "arrow.right")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                        Text(detail.baseBranch)
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "arrow.triangle.branch")
                             .foregroundStyle(.secondary)
+                        Text(detail.headBranch)
                             .lineLimit(1)
+                            .truncationMode(.middle)
+                            .textSelection(.enabled)
+                            .help(detail.headBranch)
+                        if !detail.baseBranch.isEmpty {
+                            Image(systemName: "arrow.right")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                            Text(detail.baseBranch)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                    }
+                    .font(.callout)
+
+                    // Under the two branches, because that is what it is
+                    // about: whether the one still goes into the other. In
+                    // words here -- a pane has the room the row did not.
+                    if detail.mergeStatus != .unknown {
+                        Label(
+                            detail.mergeStatus.label,
+                            systemImage: detail.mergeStatus.symbolName
+                        )
+                        .font(.caption)
+                        .foregroundStyle(detail.mergeStatus.tint)
                     }
                 }
-                .font(.callout)
             } header: {
                 sectionTitle("Branch")
             }

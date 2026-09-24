@@ -550,6 +550,23 @@ public final class AppState {
                 subjectAPIURL: URL(string: "https://api.github.com/repos/octo/toolkit/pulls/1204")
             ),
         ]
+        // One detail pane filled in, so the section that reports whether a
+        // pull request still merges is exercised without a token.
+        pullRequestDetails["1"] = .loaded(
+            PullRequestDetail(
+                headBranch: "fix/session-handler-race",
+                baseBranch: "main",
+                additions: 64, deletions: 12, changedFiles: 3, comments: 4,
+                mergeStatus: .conflicting,
+                checks: [
+                    CheckRun(name: "phpunit", status: .success),
+                    CheckRun(name: "phpstan", status: .success),
+                ],
+                reviewers: [
+                    ReviewerStatus(name: "arun", avatarURL: nil, state: .pending, isTeam: false),
+                ]
+            )
+        )
         // Show one preview open, so the expanded layout is exercised too.
         // Written as the real ones are -- a bot's table, a details wrapper,
         // a code fence -- so the Markdown rendering is exercised as well.

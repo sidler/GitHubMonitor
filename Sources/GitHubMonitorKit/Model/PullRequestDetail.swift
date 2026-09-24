@@ -76,6 +76,10 @@ public struct PullRequestDetail: Hashable, Sendable {
     public let deletions: Int
     public let changedFiles: Int
     public let comments: Int
+    /// Read again here rather than taken from the row: GitHub works it out
+    /// in the background, so a pull request that was still unknown when the
+    /// list loaded usually has an answer by the time its pane is opened.
+    public let mergeStatus: MergeStatus
     public let checks: [CheckRun]
     public let reviewers: [ReviewerStatus]
 
@@ -86,6 +90,7 @@ public struct PullRequestDetail: Hashable, Sendable {
         deletions: Int,
         changedFiles: Int,
         comments: Int,
+        mergeStatus: MergeStatus = .unknown,
         checks: [CheckRun],
         reviewers: [ReviewerStatus]
     ) {
@@ -95,6 +100,7 @@ public struct PullRequestDetail: Hashable, Sendable {
         self.deletions = deletions
         self.changedFiles = changedFiles
         self.comments = comments
+        self.mergeStatus = mergeStatus
         self.checks = checks
         self.reviewers = reviewers
     }
