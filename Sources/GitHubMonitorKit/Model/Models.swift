@@ -28,6 +28,8 @@ public struct PullRequestItem: Identifiable, Hashable, Sendable, ListedItem {
     public let updatedAt: Date
     public let reviewDecision: ReviewDecision
     public let checks: ChecksStatus
+    /// Whether it still merges into its base branch.
+    public let mergeStatus: MergeStatus
     /// Where the reviewers stand, for the counts in the row.
     public let reviews: ReviewTally
 
@@ -44,6 +46,7 @@ public struct PullRequestItem: Identifiable, Hashable, Sendable, ListedItem {
         updatedAt: Date,
         reviewDecision: ReviewDecision,
         checks: ChecksStatus,
+        mergeStatus: MergeStatus = .unknown,
         reviews: ReviewTally = .none
     ) {
         self.id = id
@@ -60,6 +63,7 @@ public struct PullRequestItem: Identifiable, Hashable, Sendable, ListedItem {
         self.updatedAt = updatedAt
         self.reviewDecision = reviewDecision
         self.checks = checks
+        self.mergeStatus = mergeStatus
         self.reviews = reviews
     }
 
@@ -246,6 +250,38 @@ public enum ChecksStatus: String, Sendable, Hashable, CaseIterable {
         case .failure: "xmark.circle.fill"
         case .pending: "clock.fill"
         case .none: "minus.circle"
+        }
+    }
+}
+
+/// Whether a pull request still merges into the branch it targets.
+///
+/// `unknown` is not a failure. GitHub works the answer out in the background
+/// and reports it as unknown until it has, so a pull request opened moments
+/// ago arrives without one and picks it up on a later refresh. Nothing is
+/// drawn for it: a symbol meaning "ask again later" tells a reviewer less
+/// than an empty space does.
+public enum MergeStatus: String, Sendable, Hashable, CaseIterable {
+    case mergeable
+    case conflicting
+    case unknown
+
+    public var label: String {
+        switch self {
+        case .mergeable: "Merges cleanly"
+        case .conflicting: "Conflicts with its base branch"
+        case .unknown: "GitHub has not worked out whether it merges"
+        }
+    }
+
+    public var symbolName: String {
+        switch self {
+        case .mergeable: "arrow.triangle.merge"
+        // A different shape rather than the same one in red: conflicts are
+        // the state worth crossing the room for, and shape carries further
+        // than colour in a line of small symbols.
+        case .conflicting: "exclamationmark.triangle.fill"
+        case .unknown: "questionmark.circle"
         }
     }
 }

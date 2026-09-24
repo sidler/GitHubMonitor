@@ -223,4 +223,15 @@ struct ReviewTallyTests {
         #expect(ReviewTallyKind.accepted.sentence(count: 3) == "3 reviewers approved")
         #expect(ReviewTallyKind.pending.sentence(count: 1) == "1 review still outstanding")
     }
+
+    /// GitHub answers UNKNOWN while it is still working the merge out, and
+    /// the dashboard's own query does not ask for the field at all. Both
+    /// mean the same thing here: nothing to show yet.
+    @Test("Mergeability is read, and anything else is unknown")
+    func mergeStatus() {
+        #expect(PullRequestParser.mergeStatus("MERGEABLE") == .mergeable)
+        #expect(PullRequestParser.mergeStatus("CONFLICTING") == .conflicting)
+        #expect(PullRequestParser.mergeStatus("UNKNOWN") == .unknown)
+        #expect(PullRequestParser.mergeStatus(nil) == .unknown)
+    }
 }

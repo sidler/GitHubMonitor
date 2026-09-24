@@ -8,14 +8,34 @@ struct PullRequestLegendTests {
         id: String = UUID().uuidString,
         decision: ReviewDecision = .reviewRequired,
         checks: ChecksStatus = .success,
+        merge: MergeStatus = .unknown,
         reviews: ReviewTally = .none,
         draft: Bool = false
     ) -> PullRequestItem {
         PullRequestItem(
             id: id, number: 1, title: "t", repository: "octo/platform", author: "a",
             authorAvatarURL: nil, url: URL(string: "https://github.com")!, isDraft: draft,
-            updatedAt: .now, reviewDecision: decision, checks: checks, reviews: reviews
+            updatedAt: .now, reviewDecision: decision, checks: checks,
+            mergeStatus: merge, reviews: reviews
         )
+    }
+
+    /// The merge symbol sits with the checks in a row, and does the same in
+    /// the legend.
+    @Test("A conflicting pull request is explained after its checks")
+    func mergeEntry() {
+        let symbols = PullRequestLegend.symbols(for: [
+            item(decision: .approved, checks: .success, merge: .conflicting),
+        ])
+        #expect(symbols == [.review(.approved), .checks(.success), .merge(.conflicting)])
+    }
+
+    /// Nothing is drawn for a pull request GitHub has not judged yet, so
+    /// nothing is explained for one either.
+    @Test("An unknown merge state adds no entry")
+    func unknownMerge() {
+        let symbols = PullRequestLegend.symbols(for: [item(merge: .unknown)])
+        #expect(!symbols.contains { if case .merge = $0 { true } else { false } })
     }
 
     /// The legend explains the list below it, so a state nothing on screen is

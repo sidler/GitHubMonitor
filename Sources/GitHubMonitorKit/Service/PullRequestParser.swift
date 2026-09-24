@@ -49,6 +49,7 @@ public enum PullRequestParser {
             updatedAt: updatedAt,
             reviewDecision: reviewDecision(node["reviewDecision"] as? String),
             checks: checks(from: node),
+            mergeStatus: mergeStatus(node["mergeable"] as? String),
             reviews: reviewTally(from: node)
         )
     }
@@ -76,6 +77,16 @@ public enum PullRequestParser {
         case "CHANGES_REQUESTED": .changesRequested
         case "REVIEW_REQUIRED": .reviewRequired
         default: .none
+        }
+    }
+
+    /// Anything but the two answers -- including the field being absent,
+    /// which is how the dashboard's own query comes back -- is unknown.
+    static func mergeStatus(_ raw: String?) -> MergeStatus {
+        switch raw {
+        case "MERGEABLE": .mergeable
+        case "CONFLICTING": .conflicting
+        default: .unknown
         }
     }
 

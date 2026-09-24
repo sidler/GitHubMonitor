@@ -30,6 +30,18 @@ extension ChecksStatus {
     }
 }
 
+extension MergeStatus {
+    var tint: Color {
+        switch self {
+        // Not green: merging cleanly is the state nearly every row is in,
+        // and a column of green would drown the two that are not.
+        case .mergeable: Color(nsColor: .secondaryLabelColor)
+        case .conflicting: .red
+        case .unknown: Color(nsColor: .tertiaryLabelColor)
+        }
+    }
+}
+
 extension ReviewTallyKind {
     var tint: Color {
         switch self {
@@ -46,6 +58,7 @@ extension LegendSymbol {
         switch self {
         case .review(let decision): decision.tint
         case .checks(let status): status.tint
+        case .merge(let status): status.tint
         case .reviewers(let kind): kind.tint
         case .draft, .comments, .milestone: Color(nsColor: .secondaryLabelColor)
         }

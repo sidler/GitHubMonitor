@@ -84,6 +84,10 @@ public enum PullRequestQuery {
           updatedAt
           url
           reviewDecision
+          # Worked out in the background by GitHub: a pull request opened a
+          # moment ago answers UNKNOWN and carries a real answer on a later
+          # refresh, which is why nothing is drawn for that case.
+          mergeable
           repository { nameWithOwner }
           author { login avatarUrl }
           commits(last: 1) {

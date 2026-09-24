@@ -5,6 +5,8 @@ public enum LegendSymbol: Hashable, Sendable, Identifiable {
     /// The pull request's own review decision.
     case review(ReviewDecision)
     case checks(ChecksStatus)
+    /// Whether it still merges.
+    case merge(MergeStatus)
     /// One of the reviewer counts in a row.
     case reviewers(ReviewTallyKind)
     case draft
@@ -17,6 +19,7 @@ public enum LegendSymbol: Hashable, Sendable, Identifiable {
         switch self {
         case .review(let decision): "review.\(decision.rawValue)"
         case .checks(let status): "checks.\(status.rawValue)"
+        case .merge(let status): "merge.\(status.rawValue)"
         case .reviewers(let kind): "reviewers.\(kind.rawValue)"
         case .draft: "draft"
         case .comments: "comments"
@@ -30,6 +33,7 @@ public enum LegendSymbol: Hashable, Sendable, Identifiable {
         switch self {
         case .review(let decision): decision.symbolName
         case .checks(let status): status.symbolName
+        case .merge(let status): status.symbolName
         case .reviewers(let kind): kind.symbolName
         case .draft: nil
         case .comments: "bubble.left"
@@ -57,6 +61,12 @@ public enum LegendSymbol: Hashable, Sendable, Identifiable {
             case .pending: "running"
             case .none: "no checks"
             }
+        case .merge(let status):
+            switch status {
+            case .mergeable: "merges"
+            case .conflicting: "conflicts"
+            case .unknown: "merge unknown"
+            }
         case .reviewers(let kind): kind.legendLabel
         case .draft: "draft"
         case .comments: "comments"
@@ -70,6 +80,7 @@ public enum LegendSymbol: Hashable, Sendable, Identifiable {
         switch self {
         case .review(let decision): "The pull request as a whole: \(decision.label.lowercased())"
         case .checks(let status): status.label
+        case .merge(let status): status.label
         case .reviewers(let kind): kind.legendHelp
         case .draft: "Marked as a draft, so it is not asking for review yet"
         case .comments: "How many comments the issue has collected"
@@ -94,6 +105,11 @@ public enum PullRequestLegend {
 
         let checks = Set(items.map(\.checks))
         result += ChecksStatus.allCases.filter(checks.contains).map(LegendSymbol.checks)
+
+        // Unknown is left out: nothing is drawn for it, so a legend entry
+        // would explain a symbol that is not on screen.
+        let merges = Set(items.map(\.mergeStatus)).subtracting([.unknown])
+        result += MergeStatus.allCases.filter(merges.contains).map(LegendSymbol.merge)
 
         let tallies = Set(items.flatMap { $0.reviews.entries.map(\.kind) })
         result += ReviewTallyKind.allCases.filter(tallies.contains).map(LegendSymbol.reviewers)

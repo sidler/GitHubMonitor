@@ -49,6 +49,17 @@ struct PullRequestRow: View {
                         .foregroundStyle(item.checks.tint)
                         .help(item.checks.label)
 
+                    // Beside the checks, because it answers the same
+                    // question they do: whether this can go in as it
+                    // stands. Nothing while GitHub is still working it out.
+                    if item.mergeStatus != .unknown {
+                        Label(item.mergeStatus.label, systemImage: item.mergeStatus.symbolName)
+                            .labelStyle(.iconOnly)
+                            .font(.body)
+                            .foregroundStyle(item.mergeStatus.tint)
+                            .help(item.mergeStatus.label)
+                    }
+
                     // How far the review has got. The decision symbol before
                     // it says what the pull request still needs; these say
                     // how many people it is waiting on, which is the

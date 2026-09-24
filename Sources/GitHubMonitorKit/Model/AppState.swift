@@ -483,7 +483,8 @@ public final class AppState {
                 authorAvatarURL: URL(string: "https://avatars.githubusercontent.com/u/1?v=4"),
                 url: URL(string: "https://github.com")!, isDraft: false,
                 updatedAt: .now.addingTimeInterval(-3600),
-                reviewDecision: .reviewRequired, checks: .success
+                reviewDecision: .reviewRequired, checks: .success,
+                mergeStatus: .conflicting
             ),
             PullRequestItem(
                 id: "2", number: 77, title: "Add PSR-12 ruleset to CI",
@@ -499,7 +500,8 @@ public final class AppState {
                 authorAvatarURL: URL(string: "https://avatars.githubusercontent.com/u/3?v=4"),
                 url: URL(string: "https://github.com")!, isDraft: false,
                 updatedAt: .now.addingTimeInterval(-600),
-                reviewDecision: .reviewRequired, checks: .pending
+                reviewDecision: .reviewRequired, checks: .pending,
+                mergeStatus: .mergeable
             ),
         ]
         listIssues[SavedList.Seed.issues] = [
