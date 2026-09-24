@@ -86,12 +86,66 @@ struct MarkdownText: View {
         }
     }
 
-    /// A table as one labelled group per row.
+    /// A table.
     ///
-    /// A pane this narrow cannot hold five columns side by side; keying each
-    /// cell by its column heading keeps every value readable and its meaning
-    /// attached to it.
+    /// Drawn as a grid while it has few enough columns for the pane it sits
+    /// in, which is 280 to 400 points wide. Past that a grid gives every
+    /// column four or five characters and the table says nothing, so the
+    /// wide ones fall back to a group per row with each cell keyed by its
+    /// heading -- no longer a table to look at, but still readable.
+    @ViewBuilder
     private func table(header: [String], rows: [[String]]) -> some View {
+        let columns = max(header.count, rows.map(\.count).max() ?? 0)
+        if columns <= Self.griddableColumns {
+            grid(header: header, rows: rows, columns: columns)
+        } else {
+            keyedRows(header: header, rows: rows)
+        }
+    }
+
+    /// How many columns the detail pane can still show side by side.
+    private static let griddableColumns = 3
+
+    /// The cells carry no width of their own: a `Grid` then sizes each
+    /// column to what is in it, which is what keeps a column of numbers
+    /// narrow and gives the room to the column of prose beside it.
+    private func grid(header: [String], rows: [[String]], columns: Int) -> some View {
+        Grid(alignment: .topLeading, horizontalSpacing: 12, verticalSpacing: 5) {
+            if header.contains(where: { !$0.isEmpty }) {
+                GridRow {
+                    ForEach(0..<columns, id: \.self) { column in
+                        Text(inline(cell(header, column)))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+                    }
+                }
+                separator(columns)
+            }
+
+            ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+                GridRow {
+                    ForEach(0..<columns, id: \.self) { column in
+                        Text(inline(cell(row, column)))
+                            .font(.caption)
+                    }
+                }
+                if index < rows.count - 1 {
+                    separator(columns)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// A rule across the whole width. `gridCellUnsizedAxes` so a divider
+    /// does not ask for a width and stretch the columns around it.
+    private func separator(_ columns: Int) -> some View {
+        Divider()
+            .gridCellUnsizedAxes(.horizontal)
+            .gridCellColumns(columns)
+    }
+
+    private func keyedRows(header: [String], rows: [[String]]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                 VStack(alignment: .leading, spacing: 2) {
@@ -117,6 +171,12 @@ struct MarkdownText: View {
                 )
             }
         }
+    }
+
+    /// A row is only as long as its author made it; a short one leaves the
+    /// columns past its end empty rather than losing the grid a cell.
+    private func cell(_ row: [String], _ index: Int) -> String {
+        index < row.count ? row[index] : ""
     }
 
     private func heading(_ level: Int) -> Font {

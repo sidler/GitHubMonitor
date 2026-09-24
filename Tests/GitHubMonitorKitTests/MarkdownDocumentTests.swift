@@ -86,6 +86,55 @@ struct MarkdownDocumentTests {
         )
     }
 
+    /// GitHub renders a table whose rows have no outer pipes, and people
+    /// write them that way; this one used to come out as a paragraph.
+    @Test("A table without its outer pipes is still a table")
+    func bareTable() {
+        let source = """
+        Package | Change
+        ------- | ------
+        prettier | `3.9.8`
+        eslint | `9.2.0`
+        """
+        #expect(
+            MarkdownDocument.blocks(from: source) == [
+                .table(
+                    header: ["Package", "Change"],
+                    rows: [["prettier", "`3.9.8`"], ["eslint", "`9.2.0`"]]
+                )
+            ]
+        )
+    }
+
+    /// The rule underneath is what makes a header a header. Without it a
+    /// line with a pipe in it is a sentence, and stays one.
+    @Test("A sentence with a pipe in it is not a table")
+    func pipeInProse() {
+        let source = "Run `ls | wc -l` first.\nThen read the output."
+        #expect(MarkdownDocument.blocks(from: source) == [
+            .paragraph("Run `ls | wc -l` first.\nThen read the output.")
+        ])
+    }
+
+    /// A bare table ends where the pipes end, and what follows is prose
+    /// again rather than another row.
+    @Test("A bare table stops at the first line without a pipe")
+    func bareTableEnds() {
+        let source = """
+        Name | Value
+        --- | ---
+        a | 1
+
+        Some words after it.
+        """
+        #expect(
+            MarkdownDocument.blocks(from: source) == [
+                .table(header: ["Name", "Value"], rows: [["a", "1"]]),
+                .paragraph("Some words after it."),
+            ]
+        )
+    }
+
     @Test("Alignment markers do not make a row of content")
     func alignmentRow() {
         #expect(MarkdownDocument.isAlignmentRow([":---", "---:", ":-:"]))

@@ -72,11 +72,17 @@ public enum MarkdownDocument {
                 continue
             }
 
-            if isTableRow(trimmed) {
+            let bare = startsBareTable(trimmed, next: lines.first?.trimmingCharacters(in: .whitespaces))
+            if isTableRow(trimmed) || bare {
                 flushParagraph()
                 var rows = [trimmed]
-                while let next = lines.first, isTableRow(next.trimmingCharacters(in: .whitespaces)) {
-                    rows.append(next.trimmingCharacters(in: .whitespaces))
+                // A table that began without its outer pipes carries on
+                // without them; one that has them keeps them, so a sentence
+                // with a pipe in it below a table stays a sentence.
+                while let next = lines.first {
+                    let row = next.trimmingCharacters(in: .whitespaces)
+                    guard bare ? row.contains("|") : isTableRow(row) else { break }
+                    rows.append(row)
                     lines = lines.dropFirst()
                 }
                 blocks.append(table(from: rows))
@@ -194,6 +200,19 @@ public enum MarkdownDocument {
     }
 
     static func isTableRow(_ line: String) -> Bool { line.hasPrefix("|") }
+
+    /// Whether a line opens a table that leaves its outer pipes off, which
+    /// GitHub accepts and plenty of people write.
+    ///
+    /// Told apart by the rule underneath rather than by the pipes: a
+    /// sentence can hold a pipe, but only a table's header is followed by a
+    /// row of dashes and colons.
+    static func startsBareTable(_ line: String, next: String?) -> Bool {
+        guard !line.hasPrefix("|"), line.contains("|"), let next, next.contains("|") else {
+            return false
+        }
+        return isAlignmentRow(cells(in: next))
+    }
 
     static func bulletItem(_ line: String) -> String? {
         for marker in ["- ", "* ", "+ "] where line.hasPrefix(marker) {
