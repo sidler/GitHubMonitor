@@ -675,8 +675,40 @@ public final class AppState {
             """
             )
         )
+        myTrends = .loaded(Self.sampleTrends)
         expandedNotificationID = "n1"
         inspectedNotificationID = "n1"
         loadState = .loaded(.now)
+    }
+
+    /// A short history, so the personal charts can be looked at without a
+    /// token -- including the one about how long reviews wait on you, which
+    /// otherwise only exists once a real year has been fetched.
+    private static var sampleTrends: MyTrendData {
+        let calendar = Calendar(identifier: .gregorian)
+        var buckets: [MyTrendBucket] = []
+        let medians: [TimeInterval] = [2.5, 6, 3, 19, 4.5, 2, 8, 1.5].map { $0 * 3600 }
+
+        for (index, median) in medians.enumerated() {
+            let start = calendar.date(byAdding: .weekOfYear, value: -(medians.count - index), to: .now)!
+            buckets.append(MyTrendBucket(
+                start: start,
+                end: calendar.date(byAdding: .weekOfYear, value: 1, to: start)!,
+                opened: 3 + index % 4,
+                hours: [9: 1, 11: 2, 15: 1],
+                commentsFromPeople: TrendPoint(median: 3, fastest: 0, slowest: 9, samples: 4),
+                commentsFromEveryone: TrendPoint(median: 5, fastest: 1, slowest: 14, samples: 4),
+                commentersFromPeople: ["mira": 6, "arun": 3],
+                commentersFromEveryone: ["mira": 6, "arun": 3, "renovate": 9],
+                merge: TrendPoint(
+                    median: median * 6, fastest: median * 2, slowest: median * 18, samples: 5
+                ),
+                response: TrendPoint(
+                    median: median, fastest: median / 6, slowest: median * 9, samples: 7
+                )
+            ))
+        }
+
+        return MyTrendData(login: "sidler", resolution: .weekly, buckets: buckets)
     }
 }

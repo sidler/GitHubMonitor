@@ -368,7 +368,10 @@ public final class RefreshController {
 
     private func performMyTrendsLoad(force: Bool) async {
         guard let service else {
-            state.myTrends = .unconfigured
+            // A refresh that cannot run should not erase what is on screen.
+            // Everywhere else here follows the same rule: a 304 keeps the
+            // list, and a failed period keeps the ones already fetched.
+            if state.myTrends.data == nil { state.myTrends = .unconfigured }
             return
         }
 
@@ -414,21 +417,33 @@ public final class RefreshController {
                         period: period
                     )
                 )
+                async let answeredTask = service.reviewResponses(
+                    matching: MyTrendQuery.reviewedQuery(
+                        login: login,
+                        repositoryFilters: filters,
+                        period: period
+                    ),
+                    viewer: login
+                )
                 let opened = try await openedTask
                 let merged = try await mergedTask
+                let answered = try await answeredTask
 
                 fresh.buckets.append(
                     TrendMath.myBucket(
                         period: period,
                         opened: opened.facts,
-                        merged: merged.timings
+                        merged: merged.timings,
+                        responses: answered.responses
                     )
                 )
                 fresh.fetchedAt = .now
                 state.myTrends = .loading(fresh)
 
-                if let remaining = opened.remainingQuota ?? merged.remainingQuota,
-                   remaining < Self.quotaFloor {
+                let quota = [opened.remainingQuota, merged.remainingQuota, answered.remainingQuota]
+                    .compactMap { $0 }
+                    .min()
+                if let quota, quota < Self.quotaFloor {
                     fresh.truncationReason =
                         "Stopped after \(fresh.buckets.count) periods: GitHub's hourly query budget was running low."
                     break

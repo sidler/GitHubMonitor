@@ -162,6 +162,7 @@ struct MyTrendsView: View {
             case .comments: commentsChart(data)
             case .commenters: commenterChart(data)
             case .merge: mergeChart(data)
+            case .response: responseChart(data)
             }
         }
     }
@@ -224,6 +225,30 @@ struct MyTrendsView: View {
                 case TrendLine.fastest.label: bucket.merge.fastest
                 case TrendLine.slowest.label: bucket.merge.slowest
                 default: bucket.merge.median
+                }
+            },
+            unit: unit,
+            axisTitle: unit.axisLabel
+        )
+    }
+
+    /// How long you took over the reviews asked of you.
+    private func responseChart(_ data: MyTrendData) -> some View {
+        let values = data.buckets.compactMap(\.response.median)
+        let unit = TrendMath.unit(for: values)
+        return timeChart(
+            metric: .response,
+            data: data,
+            series: [
+                (TrendLine.median.label, .accentColor),
+                (TrendLine.fastest.label, .green),
+                (TrendLine.slowest.label, .orange),
+            ],
+            value: { bucket, series in
+                switch series {
+                case TrendLine.fastest.label: bucket.response.fastest
+                case TrendLine.slowest.label: bucket.response.slowest
+                default: bucket.response.median
                 }
             },
             unit: unit,
@@ -525,6 +550,11 @@ struct MyTrendsView: View {
                     line("Median", bucket.merge.median.map(TrendMath.describe))
                     line("Slowest", bucket.merge.slowest.map(TrendMath.describe))
                     samples(bucket.merge.samples, noun: "merged")
+                case .response:
+                    line("Fastest", bucket.response.fastest.map(TrendMath.describe))
+                    line("Median", bucket.response.median.map(TrendMath.describe))
+                    line("Slowest", bucket.response.slowest.map(TrendMath.describe))
+                    samples(bucket.response.samples, noun: "reviews")
                 case .hourOfDay, .commenters:
                     EmptyView()
                 }

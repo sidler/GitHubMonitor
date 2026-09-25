@@ -51,6 +51,48 @@ public enum MyTrendQuery {
             + PullRequestQuery.repositoryScope(repositoryFilters)
     }
 
+    /// Pull requests you reviewed, to measure how long you took over them.
+    ///
+    /// Searched by when they were opened rather than by when you answered:
+    /// GitHub has no qualifier for "review requested in this range", and a
+    /// request follows an opening by minutes in all but the drafts.
+    public static func reviewedQuery(
+        login: String,
+        repositoryFilters: [String],
+        period: DateInterval
+    ) -> String {
+        "is:pr reviewed-by:\(login) created:\(TrendQuery.range(period))"
+            + PullRequestQuery.repositoryScope(repositoryFilters)
+    }
+
+    /// When a review was asked of one person and when they answered.
+    ///
+    /// Both connections are small and the search is one point either way, so
+    /// this costs a page rather than a budget.
+    public static let responseDocument = """
+    query($query: String!, $cursor: String, $login: String!) {
+      rateLimit { remaining cost }
+      search(query: $query, type: ISSUE, first: \(pageSize), after: $cursor) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          ... on PullRequest {
+            timelineItems(last: 20, itemTypes: [REVIEW_REQUESTED_EVENT]) {
+              nodes {
+                ... on ReviewRequestedEvent {
+                  createdAt
+                  requestedReviewer { ... on User { login } }
+                }
+              }
+            }
+            # Including ones a later push dismissed: the question is when
+            # the answer came, not whether it still stands.
+            reviews(first: 20, author: $login) { nodes { submittedAt } }
+          }
+        }
+      }
+    }
+    """
+
     /// Every pull request opened in one period of a repository, for the
     /// ranking that covers more than your own work.
     public static func repositoryQuery(repository: String, period: DateInterval) -> String {
@@ -157,5 +199,35 @@ public enum MyTrendQuery {
             commentersFromPeople: byPeople,
             commentersFromEveryone: byEveryone
         )
+    }
+
+    /// One page of answered reviews.
+    public static func responsePage(
+        from payload: [String: Any], viewer: String
+    ) -> TrendQuery.Page<ReviewResponse> {
+        let search = payload["search"] as? [String: Any]
+        let nodes = search?["nodes"] as? [[String: Any]] ?? []
+        return TrendQuery.Page(
+            items: nodes.compactMap { response(from: $0, viewer: viewer) },
+            cursor: TrendQuery.cursor(from: search),
+            remainingQuota: TrendQuery.remainingQuota(from: payload)
+        )
+    }
+
+    static func response(from node: [String: Any], viewer: String) -> ReviewResponse? {
+        let timeline = node["timelineItems"] as? [String: Any]
+        let requests = (timeline?["nodes"] as? [[String: Any]] ?? []).compactMap { event -> Date? in
+            let reviewer = event["requestedReviewer"] as? [String: Any]
+            guard (reviewer?["login"] as? String)?.caseInsensitiveCompare(viewer) == .orderedSame
+            else { return nil }
+            return GitHubDate.optional(from: event["createdAt"] as? String)
+        }
+
+        let reviews = node["reviews"] as? [String: Any]
+        let answers = (reviews?["nodes"] as? [[String: Any]] ?? []).compactMap {
+            GitHubDate.optional(from: $0["submittedAt"] as? String)
+        }
+
+        return ReviewResponse.firstRound(requests: requests, reviews: answers)
     }
 }

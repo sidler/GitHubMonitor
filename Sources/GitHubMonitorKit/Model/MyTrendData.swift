@@ -7,6 +7,7 @@ public enum MyTrendMetric: String, CaseIterable, Codable, Sendable {
     case comments
     case commenters
     case merge
+    case response
 
     public var title: String {
         switch self {
@@ -15,6 +16,7 @@ public enum MyTrendMetric: String, CaseIterable, Codable, Sendable {
         case .comments: "Comments per pull request"
         case .commenters: "Who comments"
         case .merge: "Time to merge"
+        case .response: "How fast I answer"
         }
     }
 
@@ -25,6 +27,7 @@ public enum MyTrendMetric: String, CaseIterable, Codable, Sendable {
         case .comments: "What other people wrote on each pull request you opened; your own replies do not count."
         case .commenters: "Who wrote them, across the whole range."
         case .merge: "From ready for review to the merge, by the week it merged."
+        case .response: "From the review being asked of you to your first review of it. Only requests naming you, only the first round, and only ones you answered."
         }
     }
 }
@@ -154,6 +157,8 @@ public struct MyTrendBucket: Codable, Hashable, Sendable, Identifiable {
     public let commentersFromEveryone: [String: Int]
     /// Time from ready for review to the merge, for those merged here.
     public let merge: TrendPoint
+    /// Time from a review being asked of you to your first review of it.
+    public let response: TrendPoint
 
     public init(
         start: Date,
@@ -164,7 +169,8 @@ public struct MyTrendBucket: Codable, Hashable, Sendable, Identifiable {
         commentsFromEveryone: TrendPoint,
         commentersFromPeople: [String: Int],
         commentersFromEveryone: [String: Int],
-        merge: TrendPoint
+        merge: TrendPoint,
+        response: TrendPoint = .none
     ) {
         self.start = start
         self.end = end
@@ -175,6 +181,7 @@ public struct MyTrendBucket: Codable, Hashable, Sendable, Identifiable {
         self.commentersFromPeople = commentersFromPeople
         self.commentersFromEveryone = commentersFromEveryone
         self.merge = merge
+        self.response = response
     }
 
     public func comments(includingBots: Bool) -> TrendPoint {
@@ -189,8 +196,9 @@ public struct MyTrendBucket: Codable, Hashable, Sendable, Identifiable {
 /// One person's pull request history, as far as it has been read.
 public struct MyTrendData: Codable, Hashable, Sendable {
     /// Raised when a stored history stops meaning what it did -- at 2, the
-    /// counts stopped including one's own comments.
-    public static let schema = 2
+    /// counts stopped including one's own comments; at 3, the buckets gained
+    /// the time taken over a review, which an older history cannot supply.
+    public static let schema = 3
 
     public let schema: Int
     /// Whose pull requests these are.

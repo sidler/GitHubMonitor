@@ -177,6 +177,32 @@ public struct GitHubService: Sendable {
         return (timings, remaining)
     }
 
+    /// How long one person took over the reviews they were asked for.
+    public func reviewResponses(
+        matching query: String, viewer: String
+    ) async throws -> (responses: [ReviewResponse], remainingQuota: Int?) {
+        var responses: [ReviewResponse] = []
+        var cursor: String?
+        var remaining: Int?
+
+        repeat {
+            let payload = try await client.graphQL(
+                MyTrendQuery.responseDocument,
+                variables: [
+                    "query": query,
+                    "cursor": cursor as Any,
+                    "login": viewer,
+                ]
+            )
+            let page = MyTrendQuery.responsePage(from: payload, viewer: viewer)
+            responses += page.items
+            remaining = page.remainingQuota
+            cursor = page.cursor
+        } while cursor != nil
+
+        return (responses, remaining)
+    }
+
     /// How many pull requests were opened in one period, and how many of
     /// those a person opened.
     public func openedCounts(

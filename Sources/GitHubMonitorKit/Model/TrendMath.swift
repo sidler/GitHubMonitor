@@ -136,6 +136,7 @@ public enum TrendMath {
         period: DateInterval,
         opened: [MyPullRequestFacts],
         merged: [PullRequestTiming],
+        responses: [ReviewResponse] = [],
         calendar: Calendar = TrendMath.calendar
     ) -> MyTrendBucket {
         var hours: [Int: Int] = [:]
@@ -158,7 +159,8 @@ public enum TrendMath {
             commentsFromEveryone: point(opened.map { Double($0.commentsFromEveryone) }),
             commentersFromPeople: commenters(\.commentersFromPeople),
             commentersFromEveryone: commenters(\.commentersFromEveryone),
-            merge: point(merged.compactMap(\.timeToMerge))
+            merge: point(merged.compactMap(\.timeToMerge)),
+            response: point(responses.map(\.duration))
         )
     }
 
