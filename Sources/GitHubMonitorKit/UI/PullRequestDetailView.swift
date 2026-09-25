@@ -9,7 +9,7 @@ struct PullRequestDetailView: View {
     let reload: () -> Void
     let close: () -> Void
 
-    @StateObject private var expansion = PatchExpansion()
+    @StateObject private var presentation = DiffPresentation()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -47,6 +47,20 @@ struct PullRequestDetailView: View {
 
             footer
         }
+        // Presented from here, so the sheet belongs to the window and can be
+        // far wider than the pane it was opened from.
+        .sheet(isPresented: Binding(
+            get: { presentation.isOpen },
+            set: { if !$0 { presentation.close() } }
+        )) {
+            DiffSheet(files: loadedFiles, pullRequest: item.url, presentation: presentation)
+        }
+    }
+
+    /// The files behind the sheet, empty until they have arrived.
+    private var loadedFiles: [ChangedFile] {
+        if case .loaded(let files) = files { return files }
+        return []
     }
 
     // MARK: - Chrome
@@ -178,14 +192,15 @@ struct PullRequestDetailView: View {
         switch files {
         case .loaded(let files) where !files.isEmpty:
             Section {
-                VStack(alignment: .leading, spacing: 10) {
-                    ForEach(files.prefix(ChangedFilesQuery.pageSize)) { file in
-                        fileRow(file)
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(Array(files.enumerated()), id: \.element.id) { index, file in
+                        fileRow(file, at: index)
                     }
                     if files.count > ChangedFilesQuery.pageSize {
                         Text("and \(files.count - ChangedFilesQuery.pageSize) more")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .padding(.top, 4)
                     }
                 }
             } header: {
@@ -214,22 +229,22 @@ struct PullRequestDetailView: View {
         }
     }
 
-    private func fileRow(_ file: ChangedFile) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+    /// A row that opens the diff, rather than one that unfolds it.
+    ///
+    /// A pull request can touch thirty files, and thirty patches unfolded
+    /// into a column four inches wide is not something anyone reads. The
+    /// row is the index; the sheet is the reading.
+    private func fileRow(_ file: ChangedFile, at index: Int) -> some View {
+        Button {
+            presentation.open(index)
+        } label: {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Image(systemName: file.change.symbolName)
                     .foregroundStyle(.secondary)
-                    .help(file.change.label)
 
-                Button {
-                    if let url = file.url(pullRequest: item.url) { NSWorkspace.shared.open(url) }
-                } label: {
-                    Text(file.shortPath)
-                        .lineLimit(1)
-                        .truncationMode(.head)
-                }
-                .buttonStyle(.link)
-                .help(file.path)
+                Text(file.shortPath)
+                    .lineLimit(1)
+                    .truncationMode(.head)
 
                 Spacer(minLength: 4)
 
@@ -243,29 +258,15 @@ struct PullRequestDetailView: View {
                         .foregroundStyle(.red)
                         .monospacedDigit()
                 }
-
-                // Only where there is something to unfold. A file with no
-                // patch is binary or was too large for GitHub to send.
-                if file.patch != nil, !file.isSmall {
-                    Button {
-                        expansion.toggle(file.path)
-                    } label: {
-                        Image(systemName: expansion.isOpen(file.path) ? "chevron.down" : "chevron.right")
-                            .font(.caption2)
-                    }
-                    .buttonStyle(.accessoryBar)
-                    .help(expansion.isOpen(file.path) ? "Hide the diff" : "Show the diff")
-                }
             }
             .font(.caption)
-
-            // A small change is shown without being asked for: most pull
-            // requests here are one file and a few lines, and a row to click
-            // would be a step between someone and what they opened this for.
-            if let patch = file.patch, file.isSmall || expansion.isOpen(file.path) {
-                PatchView(patch: patch, language: file.language)
-            }
+            // The accessory style greys its label, which on a row of content
+            // reads as something switched off rather than something to click.
+            .foregroundStyle(Color(nsColor: .labelColor))
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.accessoryBar)
+        .help("\(file.change.label) \u{2014} \(file.path)")
     }
 
     private func statistic(_ value: String, caption: String, tint: Color) -> some View {

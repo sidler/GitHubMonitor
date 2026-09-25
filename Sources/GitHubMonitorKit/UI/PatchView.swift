@@ -1,27 +1,147 @@
 import Combine
 import SwiftUI
 
-/// Which patches the reader has unfolded.
+/// Which file's diff is open, by position in the list.
 ///
 /// View-local state without `@State`: its macro implementation ships only
 /// with Xcode, and this project builds against the Command Line Tools.
 @MainActor
-final class PatchExpansion: ObservableObject {
-    @Published private var open: Set<String> = []
+final class DiffPresentation: ObservableObject {
+    @Published var index: Int?
 
-    func isOpen(_ path: String) -> Bool { open.contains(path) }
+    var isOpen: Bool { index != nil }
 
-    func toggle(_ path: String) {
-        if open.contains(path) { open.remove(path) } else { open.insert(path) }
+    func open(_ index: Int) { self.index = index }
+    func close() { index = nil }
+
+    func step(_ offset: Int, within count: Int) {
+        guard let current = index, count > 0 else { return }
+        index = min(max(current + offset, 0), count - 1)
+    }
+}
+
+/// One file's diff, over the whole window.
+///
+/// A sheet rather than something inside the detail pane: the pane is 280 to
+/// 400 points wide, and a diff read three words at a time is not read. The
+/// pane lists the files; this is where one is actually looked at.
+struct DiffSheet: View {
+    let files: [ChangedFile]
+    let pullRequest: URL
+    @ObservedObject var presentation: DiffPresentation
+
+    private var file: ChangedFile? {
+        guard let index = presentation.index, files.indices.contains(index) else { return nil }
+        return files[index]
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            header
+            Divider()
+            body(for: file)
+        }
+        // Wider than it strictly needs to be: the point of leaving the pane
+        // is the room, and a diff is read across, not down.
+        .frame(minWidth: 880, idealWidth: 1100, minHeight: 560, idealHeight: 700)
+    }
+
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            if let file {
+                Image(systemName: file.change.symbolName)
+                    .foregroundStyle(.secondary)
+                    .help(file.change.label)
+                // The whole path here, where there is room for it: the list
+                // in the pane had to cut it down to the last two parts.
+                Text(file.path)
+                    .font(.headline)
+                    .lineLimit(1)
+                    .truncationMode(.head)
+                    .textSelection(.enabled)
+
+                if file.additions > 0 {
+                    Text(verbatim: "+\(file.additions)")
+                        .foregroundStyle(.green).monospacedDigit()
+                }
+                if file.deletions > 0 {
+                    Text(verbatim: "\u{2212}\(file.deletions)")
+                        .foregroundStyle(.red).monospacedDigit()
+                }
+            }
+
+            Spacer(minLength: 12)
+
+            // Only worth the room when there is somewhere to step to.
+            if files.count > 1 {
+                Text(verbatim: "\((presentation.index ?? 0) + 1) of \(files.count)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+
+                Button { presentation.step(-1, within: files.count) } label: {
+                    Image(systemName: "chevron.up")
+                }
+                .disabled(presentation.index == 0)
+                .help("Previous file")
+
+                Button { presentation.step(1, within: files.count) } label: {
+                    Image(systemName: "chevron.down")
+                }
+                .disabled(presentation.index == files.count - 1)
+                .help("Next file")
+            }
+
+            if let file, let url = file.url(pullRequest: pullRequest) {
+                Button { NSWorkspace.shared.open(url) } label: {
+                    Image(systemName: "arrow.up.forward.square")
+                }
+                .help("Open this file's diff on GitHub")
+            }
+
+            Button("Done") { presentation.close() }
+                .keyboardShortcut(.cancelAction)
+        }
+        .padding(12)
+    }
+
+    @ViewBuilder
+    private func body(for file: ChangedFile?) -> some View {
+        if let patch = file?.patch {
+            // The size of the scroll view, handed to what is inside it: a
+            // `ScrollView` centres content smaller than its viewport, so a
+            // ten-line diff floated in the middle of an empty page. Asking
+            // for at least the viewport's size anchors it to the corner,
+            // and a longer diff keeps its own size.
+            GeometryReader { proxy in
+                ScrollView([.vertical, .horizontal]) {
+                    PatchLines(patch: patch, language: file?.language)
+                        .padding(.vertical, 6)
+                        .frame(
+                            minWidth: proxy.size.width,
+                            minHeight: proxy.size.height,
+                            alignment: .topLeading
+                        )
+                }
+            }
+        } else {
+            ContentUnavailableView(
+                "No diff for this file",
+                systemImage: "doc.questionmark",
+                description: Text(
+                    "GitHub sends no patch for a binary file, or for one it judged too large."
+                )
+            )
+        }
     }
 }
 
 /// A unified diff, drawn line by line.
 ///
-/// Horizontally scrollable, like the code blocks in a comment: wrapping a
-/// diff line puts the continuation under the next line's marker, which is
-/// exactly the confusion a diff exists to avoid.
-struct PatchView: View {
+/// Never wrapped: a wrapped diff line puts its continuation under the next
+/// line's marker, which is exactly the confusion a diff exists to avoid. The
+/// sheet around it scrolls in both directions instead.
+struct PatchLines: View {
     let patch: String
     let language: CodeLanguage?
 
@@ -30,18 +150,12 @@ struct PatchView: View {
     }
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(lines) { line in
-                    row(line.text)
-                }
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(lines) { line in
+                row(line.text)
             }
-            .padding(.vertical, 4)
         }
-        .background(
-            Color(nsColor: .quaternaryLabelColor).opacity(0.25),
-            in: RoundedRectangle(cornerRadius: 6)
-        )
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func row(_ text: String) -> some View {
@@ -52,10 +166,10 @@ struct PatchView: View {
             // of every other line would have the highlighter reading `-` as
             // punctuation before a keyword. Colour the code, not the diff.
             language: kind == .hunk ? nil : language,
-            font: .caption2.monospaced()
+            font: .caption.monospaced()
         )
         .foregroundStyle(kind.textTint)
-        .padding(.horizontal, 8)
+        .padding(.horizontal, 12)
         .padding(.vertical, 1)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(kind.background)
@@ -88,7 +202,8 @@ struct PatchView: View {
             switch self {
             case .added: .green.opacity(0.14)
             case .removed: .red.opacity(0.14)
-            case .hunk, .context: .clear
+            case .hunk: Color(nsColor: .quaternaryLabelColor).opacity(0.35)
+            case .context: .clear
             }
         }
 

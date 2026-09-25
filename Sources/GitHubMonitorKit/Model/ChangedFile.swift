@@ -59,14 +59,6 @@ public struct ChangedFile: Identifiable, Hashable, Sendable {
 
     public var changedLines: Int { additions + deletions }
 
-    /// Whether the patch is short enough to be worth showing unasked.
-    ///
-    /// Most pull requests here touch one file by a few lines, and for those
-    /// the list alone would be a row to click through to reach what someone
-    /// opened the pane for.
-    public var isSmall: Bool { changedLines <= Self.smallChange }
-    public static let smallChange = 30
-
     /// The file's own place in the pull request's diff on GitHub, which
     /// anchors on the SHA-256 of the path.
     public func url(pullRequest: URL) -> URL? {

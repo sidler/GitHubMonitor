@@ -96,18 +96,6 @@ struct ChangedFilesTests {
         #expect(flat.shortPath == "README.md")
     }
 
-    /// A one-line fix should open with its diff already showing; a rewrite
-    /// should not unfold four hundred lines into the pane.
-    @Test("Small changes show themselves, big ones wait to be asked")
-    func smallness() {
-        func file(_ additions: Int, _ deletions: Int) -> ChangedFile {
-            ChangedFile(path: "a.php", additions: additions, deletions: deletions, change: .modified, patch: "x")
-        }
-        #expect(file(1, 1).isSmall)
-        #expect(file(15, 15).isSmall)
-        #expect(!file(20, 20).isSmall)
-    }
-
     @Test("A repository is split the way every item carries it")
     func repository() {
         let parts = ChangedFilesQuery.repository("octo/platform")
