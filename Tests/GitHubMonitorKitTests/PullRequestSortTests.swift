@@ -10,7 +10,7 @@ struct PullRequestSortTests {
     )
 
     private func makeState() -> AppState {
-        let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
+        let defaults = TestDefaults.make()
         let state = AppState(settings: Settings(store: defaults))
         state.settings.savedLists = [list]
         state.sidebarSelection = .list(id: list.id, repository: nil)
@@ -118,7 +118,7 @@ struct PullRequestSortTests {
 
     @Test("The choice survives a restart")
     func persisted() {
-        let suite = "githubmonitor.tests.\(UUID().uuidString)"
+        let suite = TestDefaults.reserveName()
         let defaults = UserDefaults(suiteName: suite)!
         var stored = list
         stored.sort = .created
@@ -140,7 +140,7 @@ struct PullRequestSortTests {
 @Suite("Moving the detail pane by keyboard")
 struct InspectionMovementTests {
     private func makeController() -> (AppState, RefreshController) {
-        let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
+        let defaults = TestDefaults.make()
         let state = AppState(settings: Settings(store: defaults))
         let list = SavedList(
             id: "l", title: "A list", query: "is:pr review-requested:@me", content: .pullRequests
@@ -254,7 +254,7 @@ struct InspectionMovementTests {
 @Suite("The keyboard walks the list as drawn")
 struct InspectionOrderTests {
     private func makeState() -> AppState {
-        let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
+        let defaults = TestDefaults.make()
         let state = AppState(settings: Settings(store: defaults))
         let list = SavedList(
             id: "l", title: "A list", query: "is:pr review-requested:@me", content: .pullRequests
@@ -316,7 +316,7 @@ struct InspectionOrderTests {
 @Suite("Notifications in the detail pane")
 struct NotificationInspectionTests {
     private func makeState() -> (AppState, RefreshController) {
-        let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
+        let defaults = TestDefaults.make()
         let state = AppState(settings: Settings(store: defaults))
         state.settings.notificationReasons = [.mention]
         state.notifications = (1...3).map { index in
@@ -447,7 +447,7 @@ struct NotificationInspectionTests {
 @Suite("Refresh interval")
 struct RefreshIntervalTests {
     private func settings() -> Settings {
-        Settings(store: UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!)
+        Settings(store: TestDefaults.make())
     }
 
     /// Assigning to a property from inside its own `didSet` re-enters the
@@ -472,7 +472,7 @@ struct RefreshIntervalTests {
 
     @Test("The interval survives a restart")
     func persisted() {
-        let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
+        let defaults = TestDefaults.make()
         Settings(store: defaults).refreshInterval = 900
         #expect(Settings(store: defaults).refreshInterval == 900)
     }
@@ -481,7 +481,7 @@ struct RefreshIntervalTests {
     /// floor either.
     @Test("A stored value below the floor is raised on load")
     func storedBelowFloor() {
-        let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
+        let defaults = TestDefaults.make()
         defaults.set(5.0, forKey: "refreshInterval")
         #expect(Settings(store: defaults).refreshInterval == Settings.minimumRefreshInterval)
     }
@@ -491,7 +491,7 @@ struct RefreshIntervalTests {
 @Suite("The sender of a notification")
 struct NotificationSenderTests {
     private func makeState(comments: Bool = true) -> (AppState, RefreshController) {
-        let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
+        let defaults = TestDefaults.make()
         let state = AppState(settings: Settings(store: defaults))
         state.settings.notificationReasons = [.mention]
         state.notifications = (1...3).map { index in

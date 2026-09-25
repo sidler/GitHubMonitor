@@ -84,7 +84,7 @@ struct ListVisibilityStateTests {
     )
 
     private func makeState() -> AppState {
-        let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
+        let defaults = TestDefaults.make()
         let state = AppState(settings: Settings(store: defaults))
         state.settings.savedLists = [reviews, issues]
         state.listPullRequests[reviews.id] = [pullRequest(id: "1")]
@@ -178,7 +178,7 @@ struct ListVisibilityStateTests {
     /// first thing shown must not be a list that is not in the sidebar.
     @Test("A fresh state never starts on a hidden list")
     func startsOnSomethingVisible() {
-        let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
+        let defaults = TestDefaults.make()
         let settings = Settings(store: defaults)
         settings.savedLists = [reviews, issues]
         var visibility = settings.listVisibility
@@ -206,7 +206,7 @@ struct ListVisibilityStateTests {
 @Suite("The mentions among the lists")
 struct MentionsEntryTests {
     private func makeState() -> AppState {
-        let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
+        let defaults = TestDefaults.make()
         let state = AppState(settings: Settings(store: defaults))
         state.settings.savedLists = []
         state.notifications = [
@@ -249,7 +249,7 @@ struct MentionsEntryTests {
 
     @Test("The choice survives a restart")
     func persisted() {
-        let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
+        let defaults = TestDefaults.make()
         let settings = Settings(store: defaults)
         settings.mentionsTitle = "Inbox"
         settings.mentionsSymbol = "tray.full"
@@ -264,7 +264,7 @@ struct MentionsEntryTests {
 @Suite("The order of the entries")
 struct SidebarOrderTests {
     private func makeSettings() -> Settings {
-        let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
+        let defaults = TestDefaults.make()
         let settings = Settings(store: defaults)
         settings.savedLists = [
             SavedList(id: "a", title: "A", query: "is:pr", content: .pullRequests),
@@ -304,7 +304,7 @@ struct SidebarOrderTests {
     /// and the mentions' index cannot come apart.
     @Test("The order survives a restart")
     func persisted() {
-        let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
+        let defaults = TestDefaults.make()
         let settings = Settings(store: defaults)
         settings.savedLists = [
             SavedList(id: "a", title: "A", query: "is:pr", content: .pullRequests),

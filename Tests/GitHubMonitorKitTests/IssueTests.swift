@@ -170,7 +170,7 @@ struct IssueListTests {
     )
 
     private func makeState() -> AppState {
-        let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
+        let defaults = TestDefaults.make()
         let state = AppState(settings: Settings(store: defaults))
         state.settings.savedLists = [list]
         state.sidebarSelection = .list(id: list.id, repository: nil)
@@ -379,7 +379,7 @@ struct IssueTypeListTests {
     )
 
     private func makeState() -> AppState {
-        let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
+        let defaults = TestDefaults.make()
         let state = AppState(settings: Settings(store: defaults))
         state.settings.savedLists = [list]
         state.sidebarSelection = .list(id: list.id, repository: nil)

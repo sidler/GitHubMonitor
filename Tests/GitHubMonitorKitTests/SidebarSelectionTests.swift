@@ -52,7 +52,7 @@ struct AppStateSelectionTests {
 
     private func makeState() -> AppState {
         // An isolated defaults suite, so tests never touch the real settings.
-        let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
+        let defaults = TestDefaults.make()
         let state = AppState(settings: Settings(store: defaults))
         state.settings.savedLists = [reviews]
         state.sidebarSelection = .list(id: reviews.id, repository: nil)
@@ -168,7 +168,7 @@ struct DraftCountTests {
     )
 
     private func makeState() -> AppState {
-        let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
+        let defaults = TestDefaults.make()
         let state = AppState(settings: Settings(store: defaults))
         state.settings.savedLists = [reviews, mine]
         state.listPullRequests[reviews.id] = [

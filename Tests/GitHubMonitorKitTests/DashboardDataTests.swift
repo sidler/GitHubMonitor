@@ -291,7 +291,7 @@ struct WorkloadSelectionTests {
 @Suite("Clicking a workload bar")
 struct WorkloadInspectorTests {
     private func makeState() -> AppState {
-        let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
+        let defaults = TestDefaults.make()
         let state = AppState(settings: Settings(store: defaults))
         state.sidebarSelection = .dashboard
         state.settings.dashboardRepository = "octo/platform"

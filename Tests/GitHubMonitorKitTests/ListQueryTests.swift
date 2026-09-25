@@ -181,7 +181,7 @@ struct SavedListTests {
 @Suite("Lists on first launch")
 struct ListMigrationTests {
     private func store() -> UserDefaults {
-        UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
+        TestDefaults.make()
     }
 
     @Test("A fresh install starts with the three lists the app had")
@@ -352,7 +352,7 @@ struct TeamPlaceholderMigrationTests {
     /// already covers what it asked for.
     @Test("The line is dropped from stored lists")
     func dropsTheLine() throws {
-        let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
+        let defaults = TestDefaults.make()
         let stored = [
             SavedList(
                 id: "reviews", title: "Reviews Requested",
@@ -372,7 +372,7 @@ struct TeamPlaceholderMigrationTests {
     /// A list that never used it must come back exactly as it was.
     @Test("Everything else is left alone")
     func leavesOthersAlone() throws {
-        let defaults = UserDefaults(suiteName: "githubmonitor.tests.\(UUID().uuidString)")!
+        let defaults = TestDefaults.make()
         let stored = [
             SavedList(id: "a", title: "A", query: "is:pr author:@me", content: .pullRequests),
         ]
