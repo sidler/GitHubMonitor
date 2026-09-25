@@ -5,6 +5,10 @@ struct PullRequestRow: View {
     /// Which order the list is in, so the row prints the date it is
     /// ordered on.
     var sort: ListSort = .updated
+    /// How long a review may wait before the timestamp says so. Nil leaves
+    /// every row in the ordinary colour -- the popover takes it that way,
+    /// where there is no room for a second meaning.
+    var aging: (agingDays: Int, overdueDays: Int)?
     var compact: Bool = false
     /// Nil in the popover, where there is no detail pane to open.
     var inspect: (() -> Void)?
@@ -26,13 +30,12 @@ struct PullRequestRow: View {
                     // 35442 as "35.442" on a German system.
                     Text(verbatim: "\(item.repository) #\(item.number)")
                     Text("by \(item.author)")
+                    // Coloured by how long the review has been waiting,
+                    // so the date answers two questions at once: when
+                    // something last moved, and whether it is on you.
                     Text(timestamp)
-                        .help(
-                            """
-                            Opened \(RelativeTime.absolute(item.createdAt)) · \
-                            updated \(RelativeTime.absolute(item.updatedAt))
-                            """
-                        )
+                        .foregroundStyle(age?.tint ?? Color.rowDetail)
+                        .help(waitingHelp)
 
                     // A step larger than the caption text around them: at
                     // caption size the review and check results are the first
@@ -108,6 +111,25 @@ struct PullRequestRow: View {
         // the click the list needs to change that selection -- which would
         // take the keyboard's place in the list away with it.
         .modifier(OpenOnTap(url: item.url, enabled: inspect == nil))
+    }
+
+    private var age: WaitingAge? {
+        guard let aging, let age = WaitingAge.of(
+            item, agingDays: aging.agingDays, overdueDays: aging.overdueDays
+        ) else { return nil }
+        // Nothing is said about a review that has only just been asked for.
+        return age == .fresh ? nil : age
+    }
+
+    private var waitingHelp: String {
+        let dates = "Opened \(RelativeTime.absolute(item.createdAt))"
+            + " \u{00b7} updated \(RelativeTime.absolute(item.updatedAt))"
+        guard let aging, let waiting = item.waiting(),
+              let age = WaitingAge.of(
+                  item, agingDays: aging.agingDays, overdueDays: aging.overdueDays
+              )
+        else { return dates }
+        return age.sentence(days: Int(waiting / 86_400)) + "\n" + dates
     }
 
     /// The date the list is sorted on.

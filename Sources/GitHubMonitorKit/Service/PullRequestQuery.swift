@@ -103,6 +103,20 @@ public enum PullRequestQuery {
           }
           # Outstanding requests are a plain count, which costs nothing.
           reviewRequests { totalCount }
+          # When the review was asked of this person, which is the only
+          # honest answer to "how long has this been waiting on me". The
+          # last ten: a pull request re-requested more often than that has
+          # other problems. Measured against the API, this connection adds
+          # nothing to the cost -- a search is one point whatever it
+          # carries back per node.
+          timelineItems(last: 10, itemTypes: [REVIEW_REQUESTED_EVENT]) {
+            nodes {
+              ... on ReviewRequestedEvent {
+                createdAt
+                requestedReviewer { ... on User { login } }
+              }
+            }
+          }
         }
       }
     }

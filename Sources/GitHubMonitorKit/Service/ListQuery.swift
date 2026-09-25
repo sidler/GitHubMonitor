@@ -120,7 +120,9 @@ public enum ListParser {
     ///
     /// Lists do overlap by design: a pull request can be requested from
     /// someone personally and through a team, and it is one row either way.
-    public static func results(from payload: [String: Any], searches: [ListSearch]) -> ListResults {
+    public static func results(
+        from payload: [String: Any], searches: [ListSearch], viewer: String? = nil
+    ) -> ListResults {
         var results = ListResults()
         var seen: [String: Set<String>] = [:]
 
@@ -132,7 +134,7 @@ public enum ListParser {
 
             switch search.content {
             case .pullRequests:
-                for item in nodes.compactMap(PullRequestParser.pullRequest(from:)) {
+                for item in nodes.compactMap({ PullRequestParser.pullRequest(from: $0, requestedOf: viewer) }) {
                     guard seen[search.listID, default: []].insert(item.id).inserted else { continue }
                     results.pullRequests[search.listID, default: []].append(item)
                 }

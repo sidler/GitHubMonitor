@@ -30,6 +30,18 @@ extension ChecksStatus {
     }
 }
 
+extension WaitingAge {
+    /// Orange, then red: the two steps the checks and the review decision
+    /// already use, so a colour keeps meaning roughly what it did.
+    var tint: Color {
+        switch self {
+        case .fresh: Color.rowDetail
+        case .aging: .orange
+        case .overdue: .red
+        }
+    }
+}
+
 extension MergeStatus {
     var tint: Color {
         switch self {

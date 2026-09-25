@@ -140,6 +140,23 @@ private struct GeneralSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("Waiting reviews") {
+                Picker("Mark after", selection: $settings.agingDays) {
+                    ForEach([1, 2, 3, 5, 7], id: \.self) { days in
+                        Text(days == 1 ? "1 day" : "\(days) days").tag(days)
+                    }
+                }
+                Picker("Call it overdue after", selection: $settings.overdueDays) {
+                    ForEach([3, 5, 7, 10, 14], id: \.self) { days in
+                        Text("\(days) days").tag(days)
+                    }
+                }
+
+                Text("The date in a pull request row turns orange, then red, once your review has been waiting that long. Only a review asked of you by name carries a clock \u{2014} a request made of a team names the team, not you.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Sidebar") {
                 Toggle("Hide the repository row when a list has only one", isOn: $settings.hidesSingleRepository)
                     .toggleStyle(.switch)

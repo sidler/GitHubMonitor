@@ -240,10 +240,10 @@ public struct GitHubService: Sendable {
 
     /// Every list in one request: whatever searches the saved lists come to,
     /// each under its own alias.
-    public func lists(_ searches: [ListSearch]) async throws -> ListResults {
+    public func lists(_ searches: [ListSearch], viewer: String? = nil) async throws -> ListResults {
         guard !searches.isEmpty else { return ListResults() }
         let payload = try await client.graphQL(ListQuery.document(searches))
-        return ListParser.results(from: payload, searches: searches)
+        return ListParser.results(from: payload, searches: searches, viewer: viewer)
     }
 
     /// The text and the end of the thread behind one issue, fetched when its

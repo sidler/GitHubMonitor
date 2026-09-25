@@ -21,7 +21,9 @@ public enum PullRequestParser {
         }
     }
 
-    static func pullRequest(from node: [String: Any]) -> PullRequestItem? {
+    static func pullRequest(
+        from node: [String: Any], requestedOf viewer: String? = nil
+    ) -> PullRequestItem? {
         // An empty object appears for search hits that are not pull requests.
         guard
             let id = node["id"] as? String,
@@ -50,6 +52,7 @@ public enum PullRequestParser {
             reviewDecision: reviewDecision(node["reviewDecision"] as? String),
             checks: checks(from: node),
             mergeStatus: mergeStatus(node["mergeable"] as? String),
+            reviewRequestedAt: reviewRequested(from: node, of: viewer),
             reviews: reviewTally(from: node)
         )
     }
@@ -69,6 +72,32 @@ public enum PullRequestParser {
             declined: states.count { $0 == "CHANGES_REQUESTED" },
             pending: (node["reviewRequests"] as? [String: Any])?["totalCount"] as? Int ?? 0
         )
+    }
+
+    /// When this person was first asked to review.
+    ///
+    /// Only events that name them. A request made of a team names the team,
+    /// and treating that as a request of everyone in it would put a clock on
+    /// pull requests nobody was personally asked about -- the earliest
+    /// reading would then be the team's, not theirs.
+    ///
+    /// The earliest such event rather than the latest: the question is how
+    /// long this has been sitting, and a second request does not restart it.
+    static func reviewRequested(from node: [String: Any], of viewer: String?) -> Date? {
+        guard let viewer, !viewer.isEmpty else { return nil }
+        guard
+            let timeline = node["timelineItems"] as? [String: Any],
+            let nodes = timeline["nodes"] as? [[String: Any]]
+        else { return nil }
+
+        return nodes.compactMap { event -> Date? in
+            let reviewer = event["requestedReviewer"] as? [String: Any]
+            guard (reviewer?["login"] as? String)?.caseInsensitiveCompare(viewer) == .orderedSame,
+                  let raw = event["createdAt"] as? String
+            else { return nil }
+            return GitHubDate.date(from: raw)
+        }
+        .min()
     }
 
     static func reviewDecision(_ raw: String?) -> ReviewDecision {

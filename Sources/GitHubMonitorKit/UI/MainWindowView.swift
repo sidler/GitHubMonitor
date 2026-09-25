@@ -230,6 +230,7 @@ struct ContentColumn: View {
             PullRequestRow(
                 item: item,
                 sort: list.sort,
+                aging: (state.settings.agingDays, state.settings.overdueDays),
                 inspect: { controller.inspect(item) },
                 isInspected: state.inspectedPullRequestID == item.id
             )

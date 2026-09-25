@@ -198,11 +198,10 @@ public final class RefreshController {
                 state.viewer = viewer
             }
 
-            // The viewer is resolved for the teams and for `@me` to mean
-            // something to GitHub, not to be pasted into the queries.
-            _ = viewer
-
-            let results = try await service.lists(searches())
+            // Not pasted into the queries -- `@me` means something to
+            // GitHub already -- but the review requests come back naming
+            // people, and only the login says which of them is this person.
+            let results = try await service.lists(searches(), viewer: viewer.login)
             state.listPullRequests = results.pullRequests
             state.listIssues = results.issues
 
@@ -212,6 +211,7 @@ public final class RefreshController {
             state.pullRequestDetails = state.pullRequestDetails.filter {
                 livePullRequests.contains($0.key)
             }
+            state.changedFiles = state.changedFiles.filter { livePullRequests.contains($0.key) }
             if let inspected = state.inspectedPullRequestID, !livePullRequests.contains(inspected) {
                 state.inspectedPullRequestID = nil
             }

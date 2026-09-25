@@ -172,7 +172,8 @@ public final class AppState {
     /// instant: the data is already in hand, and a refetch to reverse a list
     /// would spend a request on something arithmetic.
     private func sorted(_ items: [PullRequestItem], by sort: ListSort) -> [PullRequestItem] {
-        items.sorted { lhs, rhs in
+        guard sort != .waiting else { return byWaiting(items) }
+        return items.sorted { lhs, rhs in
             let left = lhs.date(for: sort.date)
             let right = rhs.date(for: sort.date)
             // Timestamps do collide -- a batch opened by a bot shares a
@@ -180,6 +181,24 @@ public final class AppState {
             // on every refresh.
             return left == right ? lhs.id > rhs.id : left > right
         }
+    }
+
+    /// Longest-waiting first, and everything nobody asked of you after it.
+    ///
+    /// The tail keeps its usual order rather than being dropped: a list is
+    /// still a list of what it searched for, and a pull request with no
+    /// request naming this person -- their own, or one asked of a team --
+    /// has no place in the ordering the sort is about.
+    private func byWaiting(_ items: [PullRequestItem]) -> [PullRequestItem] {
+        let waiting = items
+            .filter { $0.reviewRequestedAt != nil }
+            .sorted { lhs, rhs in
+                let left = lhs.reviewRequestedAt!
+                let right = rhs.reviewRequestedAt!
+                return left == right ? lhs.id > rhs.id : left < right
+            }
+        let rest = sorted(items.filter { $0.reviewRequestedAt == nil }, by: .updated)
+        return waiting + rest
     }
 
     /// The same, narrowed to the repository the sidebar points at.
@@ -494,7 +513,9 @@ public final class AppState {
                 url: URL(string: "https://github.com")!, isDraft: false,
                 updatedAt: .now.addingTimeInterval(-3600),
                 reviewDecision: .reviewRequired, checks: .success,
-                mergeStatus: .conflicting
+                mergeStatus: .conflicting,
+                // Long enough to be called overdue under any sane threshold.
+                reviewRequestedAt: .now.addingTimeInterval(-86400 * 9)
             ),
             PullRequestItem(
                 id: "2", number: 77, title: "Add PSR-12 ruleset to CI",
@@ -511,7 +532,8 @@ public final class AppState {
                 url: URL(string: "https://github.com")!, isDraft: false,
                 updatedAt: .now.addingTimeInterval(-600),
                 reviewDecision: .reviewRequired, checks: .pending,
-                mergeStatus: .mergeable
+                mergeStatus: .mergeable,
+                reviewRequestedAt: .now.addingTimeInterval(-86400 * 4)
             ),
         ]
         listIssues[SavedList.Seed.issues] = [

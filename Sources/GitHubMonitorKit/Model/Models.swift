@@ -30,6 +30,14 @@ public struct PullRequestItem: Identifiable, Hashable, Sendable, ListedItem {
     public let checks: ChecksStatus
     /// Whether it still merges into its base branch.
     public let mergeStatus: MergeStatus
+    /// When the review was asked of the signed-in person.
+    ///
+    /// Nil where no request names them: a request made of a team names the
+    /// team, and the author's own pull requests were never requested of
+    /// them at all. Nothing is drawn for those -- a colour that meant
+    /// "waiting too long on you" in one list and something else in another
+    /// would mean nothing in both.
+    public let reviewRequestedAt: Date?
     /// Where the reviewers stand, for the counts in the row.
     public let reviews: ReviewTally
 
@@ -47,6 +55,7 @@ public struct PullRequestItem: Identifiable, Hashable, Sendable, ListedItem {
         reviewDecision: ReviewDecision,
         checks: ChecksStatus,
         mergeStatus: MergeStatus = .unknown,
+        reviewRequestedAt: Date? = nil,
         reviews: ReviewTally = .none
     ) {
         self.id = id
@@ -64,7 +73,13 @@ public struct PullRequestItem: Identifiable, Hashable, Sendable, ListedItem {
         self.reviewDecision = reviewDecision
         self.checks = checks
         self.mergeStatus = mergeStatus
+        self.reviewRequestedAt = reviewRequestedAt
         self.reviews = reviews
+    }
+
+    /// How long the review has been waiting, as of now.
+    public func waiting(asOf now: Date = .now) -> TimeInterval? {
+        reviewRequestedAt.map { now.timeIntervalSince($0) }
     }
 
     /// The timestamp the list is ordered on.

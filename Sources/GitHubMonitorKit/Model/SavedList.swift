@@ -9,12 +9,15 @@ public enum ListSort: String, CaseIterable, Codable, Sendable {
     case updated
     case created
     case type
+    /// Longest since the review was asked of you, first.
+    case waiting
 
     public var label: String {
         switch self {
         case .updated: "Last updated"
         case .created: "Date opened"
         case .type: "Type"
+        case .waiting: "Waiting longest"
         }
     }
 
@@ -23,11 +26,13 @@ public enum ListSort: String, CaseIterable, Codable, Sendable {
         case .updated: "clock.arrow.circlepath"
         case .created: "calendar"
         case .type: "tag"
+        case .waiting: "hourglass"
         }
     }
 
-    /// Which date a row prints under this order. Ordering by type still
-    /// leaves rows to date-stamp, and the last activity is the useful one.
+    /// Which date a row prints under this order. Ordering by type or by how
+    /// long something has waited still leaves rows to date-stamp, and the
+    /// last activity is the useful one.
     public var date: PullRequestSort {
         self == .created ? .created : .updated
     }
@@ -66,8 +71,9 @@ public enum ListContent: String, CaseIterable, Codable, Sendable {
     /// The orders this kind can be put in. Only issues carry a type.
     public var sorts: [ListSort] {
         switch self {
-        case .pullRequests: [.updated, .created]
-        case .issues: ListSort.allCases
+        case .pullRequests: [.updated, .created, .waiting]
+        // An issue is not requested of anyone, so it never waits on you.
+        case .issues: [.updated, .created, .type]
         }
     }
 
@@ -145,8 +151,11 @@ public struct SavedList: Identifiable, Hashable, Codable, Sendable {
         query = try container.decode(String.self, forKey: .query)
         content = try container.decode(ListContent.self, forKey: .content)
         symbolName = try container.decodeIfPresent(String.self, forKey: .symbolName)
-        grouping = try container.decodeIfPresent(ListGrouping.self, forKey: .grouping) ?? .flat
-        sort = try container.decodeIfPresent(ListSort.self, forKey: .sort) ?? .updated
+        // `try?` rather than `try`: an unknown value -- a sort a later
+        // version of the app wrote -- would otherwise fail the whole list,
+        // and a failed list reseeds the sidebar.
+        grouping = (try? container.decodeIfPresent(ListGrouping.self, forKey: .grouping)) ?? .flat
+        sort = (try? container.decodeIfPresent(ListSort.self, forKey: .sort)) ?? .updated
         hiddenTypes = try container.decodeIfPresent(Set<String>.self, forKey: .hiddenTypes) ?? []
         includeDrafts = try container.decodeIfPresent(Bool.self, forKey: .includeDrafts) ?? false
     }

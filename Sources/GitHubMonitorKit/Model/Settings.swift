@@ -38,6 +38,20 @@ public final class Settings {
     }
 
 
+    /// How many days a review may wait before its row is marked, and how
+    /// many before it is marked louder.
+    ///
+    /// One pair for the whole app rather than one per list: this is a
+    /// person's own tolerance, and four places to adjust it would be three
+    /// too many.
+    public var agingDays: Int {
+        didSet { store.set(agingDays, forKey: Key.agingDays) }
+    }
+
+    public var overdueDays: Int {
+        didSet { store.set(overdueDays, forKey: Key.overdueDays) }
+    }
+
     /// Whether a section that covers a single repository drops its
     /// repository row.
     ///
@@ -145,6 +159,8 @@ public final class Settings {
         // bool(forKey:) rather than object(forKey:): there is nothing to
         // tell apart here -- unset and off both mean the rows stay.
         hidesSingleRepository = store.bool(forKey: Key.hidesSingleRepository)
+        agingDays = store.object(forKey: Key.agingDays) as? Int ?? 3
+        overdueDays = store.object(forKey: Key.overdueDays) as? Int ?? 7
         if let raw = store.stringArray(forKey: Key.notificationReasons) {
             notificationReasons = Set(raw.map(NotificationReason.init(apiValue:)))
         } else {
@@ -265,6 +281,8 @@ public final class Settings {
         // removed from the store as soon as it has been.
         static let includeDrafts = "includeDrafts"
         static let hidesSingleRepository = "hidesSingleRepository"
+        static let agingDays = "agingDays"
+        static let overdueDays = "overdueDays"
         static let notificationReasons = "notificationReasons"
         static let hiddenLists = "hiddenLists"
         static let savedLists = "savedLists"
