@@ -193,8 +193,8 @@ struct PullRequestDetailView: View {
         case .loaded(let files) where !files.isEmpty:
             Section {
                 VStack(alignment: .leading, spacing: 2) {
-                    ForEach(Array(files.enumerated()), id: \.element.id) { index, file in
-                        fileRow(file, at: index)
+                    ForEach(files) { file in
+                        fileRow(file)
                     }
                     if files.count > ChangedFilesQuery.pageSize {
                         Text("and \(files.count - ChangedFilesQuery.pageSize) more")
@@ -234,9 +234,9 @@ struct PullRequestDetailView: View {
     /// A pull request can touch thirty files, and thirty patches unfolded
     /// into a column four inches wide is not something anyone reads. The
     /// row is the index; the sheet is the reading.
-    private func fileRow(_ file: ChangedFile, at index: Int) -> some View {
+    private func fileRow(_ file: ChangedFile) -> some View {
         Button {
-            presentation.open(index)
+            presentation.open(file.path)
         } label: {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Image(systemName: file.change.symbolName)

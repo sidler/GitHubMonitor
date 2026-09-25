@@ -1,103 +1,71 @@
 import Combine
 import SwiftUI
 
-/// Which file's diff is open, by position in the list.
+/// Whether the diff sheet is open, and which file it is looking at.
 ///
 /// View-local state without `@State`: its macro implementation ships only
 /// with Xcode, and this project builds against the Command Line Tools.
 @MainActor
 final class DiffPresentation: ObservableObject {
-    @Published var index: Int?
+    @Published var isOpen = false
+    /// The file at the top of the diff, by path. Written by scrolling and by
+    /// the list on the left, which is what makes the two follow each other.
+    @Published var current: String?
 
-    var isOpen: Bool { index != nil }
-
-    func open(_ index: Int) { self.index = index }
-    func close() { index = nil }
-
-    func step(_ offset: Int, within count: Int) {
-        guard let current = index, count > 0 else { return }
-        index = min(max(current + offset, 0), count - 1)
+    func open(_ path: String) {
+        current = path
+        isOpen = true
     }
+
+    func close() { isOpen = false }
 }
 
-/// One file's diff, over the whole window.
+/// Every file a pull request touches, one after another, over the window.
 ///
 /// A sheet rather than something inside the detail pane: the pane is 280 to
 /// 400 points wide, and a diff read three words at a time is not read. The
-/// pane lists the files; this is where one is actually looked at.
+/// pane lists the files; this is where they are actually looked at.
+///
+/// Scrolled rather than paged. A review is read from top to bottom, and the
+/// list on the left is a way to jump, not the only way to move: it follows
+/// the scrolling as well as driving it.
 struct DiffSheet: View {
     let files: [ChangedFile]
     let pullRequest: URL
     @ObservedObject var presentation: DiffPresentation
 
-    private var file: ChangedFile? {
-        guard let index = presentation.index, files.indices.contains(index) else { return nil }
-        return files[index]
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(spacing: 0) {
             header
             Divider()
-            body(for: file)
+            HStack(spacing: 0) {
+                index
+                Divider()
+                diffs
+            }
         }
         // Wider than it strictly needs to be: the point of leaving the pane
         // is the room, and a diff is read across, not down.
-        .frame(minWidth: 880, idealWidth: 1100, minHeight: 560, idealHeight: 700)
+        .frame(minWidth: 900, idealWidth: 1140, minHeight: 560, idealHeight: 720)
     }
 
     private var header: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
-            if let file {
-                Image(systemName: file.change.symbolName)
-                    .foregroundStyle(.secondary)
-                    .help(file.change.label)
-                // The whole path here, where there is room for it: the list
-                // in the pane had to cut it down to the last two parts.
-                Text(file.path)
-                    .font(.headline)
-                    .lineLimit(1)
-                    .truncationMode(.head)
-                    .textSelection(.enabled)
-
-                if file.additions > 0 {
-                    Text(verbatim: "+\(file.additions)")
-                        .foregroundStyle(.green).monospacedDigit()
-                }
-                if file.deletions > 0 {
-                    Text(verbatim: "\u{2212}\(file.deletions)")
-                        .foregroundStyle(.red).monospacedDigit()
-                }
+        HStack(spacing: 10) {
+            Text("\(files.count) file\(files.count == 1 ? "" : "s") changed")
+                .font(.headline)
+            if additions > 0 {
+                Text(verbatim: "+\(additions)").foregroundStyle(.green).monospacedDigit()
+            }
+            if deletions > 0 {
+                Text(verbatim: "\u{2212}\(deletions)").foregroundStyle(.red).monospacedDigit()
             }
 
             Spacer(minLength: 12)
 
-            // Only worth the room when there is somewhere to step to.
-            if files.count > 1 {
-                Text(verbatim: "\((presentation.index ?? 0) + 1) of \(files.count)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-
-                Button { presentation.step(-1, within: files.count) } label: {
-                    Image(systemName: "chevron.up")
-                }
-                .disabled(presentation.index == 0)
-                .help("Previous file")
-
-                Button { presentation.step(1, within: files.count) } label: {
-                    Image(systemName: "chevron.down")
-                }
-                .disabled(presentation.index == files.count - 1)
-                .help("Next file")
+            Button { NSWorkspace.shared.open(pullRequest.appendingPathComponent("files")) } label: {
+                Label("All files on GitHub", systemImage: "arrow.up.forward.square")
             }
-
-            if let file, let url = file.url(pullRequest: pullRequest) {
-                Button { NSWorkspace.shared.open(url) } label: {
-                    Image(systemName: "arrow.up.forward.square")
-                }
-                .help("Open this file's diff on GitHub")
-            }
+            .buttonStyle(.accessoryBar)
 
             Button("Done") { presentation.close() }
                 .keyboardShortcut(.cancelAction)
@@ -105,33 +73,93 @@ struct DiffSheet: View {
         .padding(12)
     }
 
-    @ViewBuilder
-    private func body(for file: ChangedFile?) -> some View {
-        if let patch = file?.patch {
-            // The size of the scroll view, handed to what is inside it: a
-            // `ScrollView` centres content smaller than its viewport, so a
-            // ten-line diff floated in the middle of an empty page. Asking
-            // for at least the viewport's size anchors it to the corner,
-            // and a longer diff keeps its own size.
-            GeometryReader { proxy in
-                ScrollView([.vertical, .horizontal]) {
-                    PatchLines(patch: patch, language: file?.language)
-                        .padding(.vertical, 6)
-                        .frame(
-                            minWidth: proxy.size.width,
-                            minHeight: proxy.size.height,
-                            alignment: .topLeading
-                        )
+    private var additions: Int { files.reduce(0) { $0 + $1.additions } }
+    private var deletions: Int { files.reduce(0) { $0 + $1.deletions } }
+
+    /// The list on the left. Bound to the same value the scroll position
+    /// writes, so clicking jumps and scrolling moves the highlight.
+    private var index: some View {
+        List(selection: $presentation.current) {
+            ForEach(files) { file in
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Image(systemName: file.change.symbolName)
+                        .foregroundStyle(.secondary)
+                    Text(file.shortPath)
+                        .lineLimit(1)
+                        .truncationMode(.head)
+                    Spacer(minLength: 4)
+                    if file.additions > 0 {
+                        Text(verbatim: "+\(file.additions)")
+                            .foregroundStyle(.green).monospacedDigit()
+                    }
+                    if file.deletions > 0 {
+                        Text(verbatim: "\u{2212}\(file.deletions)")
+                            .foregroundStyle(.red).monospacedDigit()
+                    }
+                }
+                .font(.caption)
+                .help(file.path)
+                .tag(file.path)
+            }
+        }
+        .listStyle(.sidebar)
+        .frame(width: 260)
+    }
+
+    private var diffs: some View {
+        ScrollView(.vertical) {
+            LazyVStack(alignment: .leading, spacing: 18) {
+                ForEach(files) { file in
+                    fileSection(file)
+                        .id(file.path)
                 }
             }
-        } else {
-            ContentUnavailableView(
-                "No diff for this file",
-                systemImage: "doc.questionmark",
-                description: Text(
-                    "GitHub sends no patch for a binary file, or for one it judged too large."
-                )
-            )
+            .scrollTargetLayout()
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .scrollPosition(id: $presentation.current, anchor: .top)
+    }
+
+    private func fileSection(_ file: ChangedFile) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Image(systemName: file.change.symbolName)
+                    .foregroundStyle(.secondary)
+                    .help(file.change.label)
+                // The whole path here, where there is room for it: the list
+                // beside it has to cut it down to the last two parts.
+                Text(file.path)
+                    .font(.callout.weight(.medium))
+                    .lineLimit(1)
+                    .truncationMode(.head)
+                    .textSelection(.enabled)
+
+                if let url = file.url(pullRequest: pullRequest) {
+                    Button { NSWorkspace.shared.open(url) } label: {
+                        Image(systemName: "arrow.up.forward.square")
+                    }
+                    .buttonStyle(.accessoryBar)
+                    .help("Open this file's diff on GitHub")
+                }
+
+                Spacer(minLength: 8)
+            }
+            .padding(.horizontal, 12)
+
+            if let patch = file.patch {
+                // Its own horizontal scroll, so a long line moves without
+                // dragging the file above it sideways too.
+                ScrollView(.horizontal, showsIndicators: false) {
+                    PatchLines(patch: patch, language: file.language)
+                        .padding(.vertical, 6)
+                }
+            } else {
+                Text("GitHub sends no diff for this file \u{2014} it is binary, or too large.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 12)
+            }
         }
     }
 }
