@@ -1,40 +1,46 @@
 import Combine
 import SwiftUI
 
-/// Whether the diff sheet is open, and which file it is looking at.
-///
-/// View-local state without `@State`: its macro implementation ships only
-/// with Xcode, and this project builds against the Command Line Tools.
-@MainActor
-final class DiffPresentation: ObservableObject {
-    @Published var isOpen = false
-    /// The file at the top of the diff, by path. Written by scrolling and by
-    /// the list on the left, which is what makes the two follow each other.
-    @Published var current: String?
-
-    func open(_ path: String) {
-        current = path
-        isOpen = true
-    }
-
-    func close() { isOpen = false }
-}
-
 /// Every file a pull request touches, one after another, over the window.
 ///
-/// A sheet rather than something inside the detail pane: the pane is 280 to
+/// Over the window rather than inside the detail pane: the pane is 280 to
 /// 400 points wide, and a diff read three words at a time is not read. The
 /// pane lists the files; this is where they are actually looked at.
 ///
 /// Scrolled rather than paged. A review is read from top to bottom, and the
 /// list on the left is a way to jump, not the only way to move: it follows
 /// the scrolling as well as driving it.
-struct DiffSheet: View {
+struct DiffOverlay: View {
     let files: [ChangedFile]
     let pullRequest: URL
-    @ObservedObject var presentation: DiffPresentation
+    @Binding var path: String?
+    let close: () -> Void
 
     var body: some View {
+        ZStack {
+            // The dimmed ground is part of the control: clicking beside a
+            // window that covers what you were reading should put it away,
+            // and reaching for the button is the long way round.
+            Color.black.opacity(0.28)
+                .ignoresSafeArea()
+                .onTapGesture(perform: close)
+
+            card
+                .background(.background, in: RoundedRectangle(cornerRadius: 10))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10).strokeBorder(.quaternary, lineWidth: 1)
+                )
+                .shadow(color: .black.opacity(0.25), radius: 24, y: 8)
+                // Capped, so a large window leaves a border of ground worth
+                // aiming at rather than a hairline. A small one still gets
+                // everything it has.
+                .frame(maxWidth: 1500, maxHeight: 1100)
+                .padding(36)
+        }
+        .onExitCommand(perform: close)
+    }
+
+    private var card: some View {
         VStack(spacing: 0) {
             header
             Divider()
@@ -44,9 +50,7 @@ struct DiffSheet: View {
                 diffs
             }
         }
-        // Wider than it strictly needs to be: the point of leaving the pane
-        // is the room, and a diff is read across, not down.
-        .frame(minWidth: 900, idealWidth: 1140, minHeight: 560, idealHeight: 720)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
     private var header: some View {
@@ -67,7 +71,7 @@ struct DiffSheet: View {
             }
             .buttonStyle(.accessoryBar)
 
-            Button("Done") { presentation.close() }
+            Button("Done", action: close)
                 .keyboardShortcut(.cancelAction)
         }
         .padding(12)
@@ -79,7 +83,7 @@ struct DiffSheet: View {
     /// The list on the left. Bound to the same value the scroll position
     /// writes, so clicking jumps and scrolling moves the highlight.
     private var index: some View {
-        List(selection: $presentation.current) {
+        List(selection: $path) {
             ForEach(files) { file in
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Image(systemName: file.change.symbolName)
@@ -118,7 +122,7 @@ struct DiffSheet: View {
             .padding(.vertical, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .scrollPosition(id: $presentation.current, anchor: .top)
+        .scrollPosition(id: $path, anchor: .top)
     }
 
     private func fileSection(_ file: ChangedFile) -> some View {

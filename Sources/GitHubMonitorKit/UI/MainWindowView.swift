@@ -807,7 +807,10 @@ struct InspectorColumn: View {
                 detail: state.pullRequestDetails[item.id],
                 files: state.changedFiles[item.id],
                 reload: { controller.reloadDetail(for: item.id) },
-                close: { controller.closeInspector() }
+                close: { controller.closeInspector() },
+                openDiff: { file in
+                    state.openedDiff = OpenedDiff(pullRequestID: item.id, path: file.path)
+                }
             )
         } else {
             // Kept in the hierarchy while the pane is closing, so nothing is

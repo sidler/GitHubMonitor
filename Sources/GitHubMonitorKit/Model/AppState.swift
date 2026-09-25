@@ -35,6 +35,23 @@ public enum SettingsTab: String, Hashable, CaseIterable, Sendable {
     case general
 }
 
+/// A pull request's diff, open over the window.
+///
+/// In the app's state rather than the pane's, because the overlay is put up
+/// by the window itself: the pane is 400 points wide and an overlay inside
+/// it could never be anything else.
+public struct OpenedDiff: Equatable, Sendable {
+    public let pullRequestID: String
+    /// The file at the top of the overlay. Written both by scrolling it and
+    /// by the list beside it, which is what makes the two follow each other.
+    public var path: String?
+
+    public init(pullRequestID: String, path: String?) {
+        self.pullRequestID = pullRequestID
+        self.path = path
+    }
+}
+
 public enum LoadState: Equatable, Sendable {
     case idle
     /// Refreshing has stopped until GitHub restores the allowance.
@@ -114,6 +131,9 @@ public final class AppState {
             .filter { $0.isRunnable && settings.listVisibility.isShownAnywhere($0.id) }
             .reduce(0) { $0 + $1.queryLines.count }
     }
+
+    /// The diff being read over the window, if any.
+    public var openedDiff: OpenedDiff?
 
     /// What is left of GitHub's two hourly allowances, as last reported.
     public var budgets = RateBudgets()

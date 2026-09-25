@@ -8,8 +8,9 @@ struct PullRequestDetailView: View {
     let files: ChangedFilesState?
     let reload: () -> Void
     let close: () -> Void
-
-    @StateObject private var presentation = DiffPresentation()
+    /// Opens one file's diff over the window. The pane cannot do it itself:
+    /// anything it puts up is bounded by its own 400 points.
+    var openDiff: (ChangedFile) -> Void = { _ in }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -47,20 +48,6 @@ struct PullRequestDetailView: View {
 
             footer
         }
-        // Presented from here, so the sheet belongs to the window and can be
-        // far wider than the pane it was opened from.
-        .sheet(isPresented: Binding(
-            get: { presentation.isOpen },
-            set: { if !$0 { presentation.close() } }
-        )) {
-            DiffSheet(files: loadedFiles, pullRequest: item.url, presentation: presentation)
-        }
-    }
-
-    /// The files behind the sheet, empty until they have arrived.
-    private var loadedFiles: [ChangedFile] {
-        if case .loaded(let files) = files { return files }
-        return []
     }
 
     // MARK: - Chrome
@@ -241,7 +228,7 @@ struct PullRequestDetailView: View {
     /// the pane. The colour says it can be clicked instead.
     private func fileRow(_ file: ChangedFile) -> some View {
         Button {
-            presentation.open(file.path)
+            openDiff(file)
         } label: {
             HStack(alignment: .firstTextBaseline, spacing: 7) {
                 Image(systemName: file.change.symbolName)

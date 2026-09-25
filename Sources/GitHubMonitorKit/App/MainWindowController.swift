@@ -22,6 +22,10 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     private var splitViewController: NSSplitViewController?
     private var inspectorItem: NSSplitViewItem?
     private var contentController: NSViewController?
+    /// The diff put up over the whole window, while one is open.
+    private var diffOverlay: NSView?
+    /// Whatever had the keyboard before the overlay took it.
+    private weak var responderBeforeDiff: NSResponder?
     /// Kept so the collapse of the sidebar can be read back: the title is
     /// drawn in the content column now, and has to step around the traffic
     /// lights that land on top of it when the sidebar goes away.
@@ -172,6 +176,62 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             if let found = firstTable(in: subview) { return found }
         }
         return nil
+    }
+
+    // MARK: - The diff
+
+    /// Puts the diff over the window, or takes it away.
+    ///
+    /// A view over the split view rather than a sheet: a sheet's dimmed
+    /// ground belongs to the system, so clicking beside it does nothing --
+    /// and clicking beside something that covers what you were reading is
+    /// the ordinary way to put it away. Over the split rather than inside
+    /// the detail pane, because the pane is 400 points wide.
+    private func syncDiffOverlay() {
+        guard let split = splitViewController?.view else { return }
+
+        guard let opened = state.openedDiff, let files = loadedFiles(for: opened) else {
+            guard let overlay = diffOverlay else { return }
+            overlay.removeFromSuperview()
+            diffOverlay = nil
+            if let previous = responderBeforeDiff { window?.makeFirstResponder(previous) }
+            responderBeforeDiff = nil
+            return
+        }
+
+        guard diffOverlay == nil else { return }
+
+        let view = NSHostingView(rootView: overlayContent(files: files, opened: opened))
+        view.translatesAutoresizingMaskIntoConstraints = false
+        split.addSubview(view)
+        NSLayoutConstraint.activate([
+            view.leadingAnchor.constraint(equalTo: split.leadingAnchor),
+            view.trailingAnchor.constraint(equalTo: split.trailingAnchor),
+            view.topAnchor.constraint(equalTo: split.topAnchor),
+            view.bottomAnchor.constraint(equalTo: split.bottomAnchor),
+        ])
+        diffOverlay = view
+        responderBeforeDiff = window?.firstResponder
+        window?.makeFirstResponder(view)
+    }
+
+    private func overlayContent(files: [ChangedFile], opened: OpenedDiff) -> some View {
+        DiffOverlay(
+            files: files,
+            pullRequest: state.pullRequest(withID: opened.pullRequestID)?.url
+                ?? URL(string: "https://github.com")!,
+            path: Binding(
+                get: { [weak state] in state?.openedDiff?.path },
+                set: { [weak state] path in state?.openedDiff?.path = path }
+            ),
+            close: { [weak state] in state?.openedDiff = nil }
+        )
+    }
+
+    private func loadedFiles(for opened: OpenedDiff) -> [ChangedFile]? {
+        guard case .loaded(let files) = state.changedFiles[opened.pullRequestID], !files.isEmpty
+        else { return nil }
+        return files
     }
 
     // MARK: - Sidebar
@@ -382,6 +442,10 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             _ = state.inspectedPullRequestID
             _ = state.inspectedIssueID
             _ = state.inspectedNotificationID
+            _ = state.openedDiff
+            // The overlay is opened from a row that already has the files,
+            // but a reload can replace them underneath it.
+            _ = state.changedFiles
             _ = state.pullRequestDetails
             _ = state.issueDetails
             _ = state.notificationThreads
@@ -403,6 +467,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
                 self.selectionDidChange()
                 self.updateTitle()
                 self.syncInspector()
+                self.syncDiffOverlay()
                 self.observeSelection()
             }
         }
