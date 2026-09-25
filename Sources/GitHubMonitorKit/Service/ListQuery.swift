@@ -54,17 +54,31 @@ public enum ListQuery {
 
     // MARK: - Document
 
-    public static let pageSize = 50
+    /// GitHub's most per page. It used to ask for fifty and stop there,
+    /// which quietly cut a review queue of a hundred and nine in half --
+    /// and the badge and the menu bar counted the half.
+    public static let pageSize = 100
+
+    /// How many a single search will page through before it gives up and
+    /// says how many are left. A list this long is one to narrow rather
+    /// than one to scroll, and every page is another request on every
+    /// refresh.
+    public static let maximumItems = 300
 
     /// Every search in one request, each under its own alias.
     ///
     /// One document rather than one per list: a refresh that fired a request
     /// per list would take as long as the slowest sum of them, and the menu
     /// bar would count lists from different moments.
-    public static func document(_ searches: [ListSearch]) -> String {
+    public static func document(
+        _ searches: [ListSearch], cursors: [Int: String] = [:]
+    ) -> String {
         let aliases = searches.enumerated().map { index, search in
-            """
-                \(alias(index)): search(query: \(PullRequestQuery.jsonString(search.query)), type: ISSUE, first: \(pageSize)) {
+            let after = cursors[index].map { ", after: \(PullRequestQuery.jsonString($0))" } ?? ""
+            return """
+                \(alias(index)): search(query: \(PullRequestQuery.jsonString(search.query)), type: ISSUE, first: \(pageSize)\(after)) {
+                  issueCount
+                  pageInfo { hasNextPage endCursor }
                   ...\(fragmentName(for: search.content))
                 }
             """
@@ -105,13 +119,49 @@ public enum ListQuery {
 public struct ListResults: Sendable {
     public var pullRequests: [String: [PullRequestItem]]
     public var issues: [String: [IssueItem]]
+    /// How many GitHub says match, per list, whatever was actually read.
+    /// The difference is what a list has to admit to rather than hide.
+    public var totals: [String: Int]
 
     public init(
         pullRequests: [String: [PullRequestItem]] = [:],
-        issues: [String: [IssueItem]] = [:]
+        issues: [String: [IssueItem]] = [:],
+        totals: [String: Int] = [:]
     ) {
         self.pullRequests = pullRequests
         self.issues = issues
+        self.totals = totals
+    }
+
+    /// How many rows one list has collected so far.
+    public func count(in listID: String) -> Int {
+        (pullRequests[listID]?.count ?? 0) + (issues[listID]?.count ?? 0)
+    }
+
+    /// Takes in another page, keeping the order it arrived in and dropping
+    /// anything already held: two searches feeding one list will return the
+    /// same pull request, and so will a page that overlaps the one before.
+    public mutating func absorb(_ page: ListResults) {
+        for (listID, items) in page.pullRequests {
+            var seen = Set(pullRequests[listID]?.map(\.id) ?? [])
+            pullRequests[listID, default: []] += items.filter { seen.insert($0.id).inserted }
+        }
+        for (listID, items) in page.issues {
+            var seen = Set(issues[listID]?.map(\.id) ?? [])
+            issues[listID, default: []] += items.filter { seen.insert($0.id).inserted }
+        }
+    }
+}
+
+/// Where one search stands after a page: what is left to ask for, and how
+/// many there are altogether.
+public struct ListPage: Sendable {
+    public let cursor: String?
+    public let total: Int
+
+    public init(cursor: String?, total: Int) {
+        self.cursor = cursor
+        self.total = total
     }
 }
 
@@ -133,6 +183,12 @@ public enum ListParser {
                 let node = payload[ListQuery.alias(index)] as? [String: Any],
                 let nodes = node["nodes"] as? [[String: Any]]
             else { continue }
+
+            // Several searches can feed one list, so the totals add up the
+            // way the rows do.
+            if let total = node["issueCount"] as? Int {
+                results.totals[search.listID, default: 0] += total
+            }
 
             switch search.content {
             case .pullRequests:
@@ -160,6 +216,24 @@ public enum ListParser {
         }
 
         return results
+    }
+
+    /// Where each search stands: the cursor to carry on from, and how many
+    /// there are in total.
+    public static func pages(
+        from payload: [String: Any], searches: [ListSearch]
+    ) -> [Int: ListPage] {
+        var pages: [Int: ListPage] = [:]
+        for index in searches.indices {
+            guard let node = payload[ListQuery.alias(index)] as? [String: Any] else { continue }
+            let info = node["pageInfo"] as? [String: Any]
+            let more = info?["hasNextPage"] as? Bool ?? false
+            pages[index] = ListPage(
+                cursor: more ? info?["endCursor"] as? String : nil,
+                total: node["issueCount"] as? Int ?? 0
+            )
+        }
+        return pages
     }
 
     /// What GitHub said was left, as it travels with every list refresh.

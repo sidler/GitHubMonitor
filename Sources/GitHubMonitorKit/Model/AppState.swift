@@ -132,6 +132,10 @@ public final class AppState {
             .reduce(0) { $0 + $1.queryLines.count }
     }
 
+    /// How many GitHub says match each list, whatever was read of them.
+    /// Only different from what is held when a list runs past the cap.
+    public var listTotals: [String: Int] = [:]
+
     /// The diff being read over the window, if any.
     public var openedDiff: OpenedDiff?
 
@@ -191,6 +195,14 @@ public final class AppState {
 
     /// What the sidebar, the status bar and the menu bar all count for one
     /// list. One definition, so they cannot drift apart.
+    /// How many a list is not showing, because it ran past what the app
+    /// will page through. Zero for every list that fits.
+    public func unshown(in list: SavedList) -> Int {
+        guard let total = listTotals[list.id] else { return 0 }
+        let held = (listPullRequests[list.id]?.count ?? 0) + (listIssues[list.id]?.count ?? 0)
+        return max(0, total - held)
+    }
+
     public func count(of list: SavedList) -> Int {
         switch list.content {
         case .pullRequests: pullRequests(in: list).count

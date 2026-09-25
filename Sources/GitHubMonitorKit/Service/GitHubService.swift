@@ -274,15 +274,48 @@ public struct GitHubService: Sendable {
 
     /// Every list in one request: whatever searches the saved lists come to,
     /// each under its own alias.
+    /// Every list's rows, paged until GitHub runs out or the cap is reached.
+    ///
+    /// The first request covers all the searches at once; only the ones with
+    /// more to give are asked again, together, so a queue of a hundred and
+    /// nine costs two requests rather than two per list.
     public func lists(
         _ searches: [ListSearch], viewer: String? = nil
     ) async throws -> (results: ListResults, budget: RateBudget?) {
         guard !searches.isEmpty else { return (ListResults(), nil) }
-        let payload = try await client.graphQL(ListQuery.document(searches))
-        return (
-            ListParser.results(from: payload, searches: searches, viewer: viewer),
-            ListParser.budget(from: payload)
-        )
+
+        var results = ListResults()
+        var budget: RateBudget?
+        var round: [(search: ListSearch, cursor: String?)] = searches.map { ($0, nil) }
+        var isFirstRound = true
+
+        while !round.isEmpty {
+            let batch = round.map(\.search)
+            var cursors: [Int: String] = [:]
+            for (position, entry) in round.enumerated() where entry.cursor != nil {
+                cursors[position] = entry.cursor
+            }
+
+            let payload = try await client.graphQL(ListQuery.document(batch, cursors: cursors))
+            let page = ListParser.results(from: payload, searches: batch, viewer: viewer)
+            budget = ListParser.budget(from: payload) ?? budget
+
+            // Totals from the first round only: every page repeats them, and
+            // only the first round covers every search.
+            if isFirstRound { results.totals = page.totals }
+            isFirstRound = false
+            results.absorb(page)
+
+            let stops = ListParser.pages(from: payload, searches: batch)
+            round = round.enumerated().compactMap { position, entry in
+                guard results.count(in: entry.search.listID) < ListQuery.maximumItems,
+                      let cursor = stops[position]?.cursor
+                else { return nil }
+                return (entry.search, cursor)
+            }
+        }
+
+        return (results, budget)
     }
 
     /// The text and the end of the thread behind one issue, fetched when its

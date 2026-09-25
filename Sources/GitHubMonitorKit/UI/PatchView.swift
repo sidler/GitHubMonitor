@@ -107,7 +107,11 @@ struct DiffOverlay: View {
                 .tag(file.path)
             }
         }
-        .listStyle(.sidebar)
+        // Inset rather than sidebar: the sidebar style draws an edge
+        // shadow down its trailing side, which fell across the first
+        // fifteen points of every diff beside it.
+        .listStyle(.inset)
+        .scrollContentBackground(.hidden)
         .frame(width: 260)
     }
 

@@ -225,7 +225,8 @@ struct ContentColumn: View {
             items: items,
             grouping: list.grouping,
             repository: \.repository,
-            selection: $state.inspectedPullRequestID
+            selection: $state.inspectedPullRequestID,
+            unshown: state.unshown(in: list)
         ) { item in
             PullRequestRow(
                 item: item,
@@ -260,7 +261,8 @@ struct ContentColumn: View {
             grouping: list.grouping,
             repository: \.repository,
             type: \.typeName,
-            selection: $state.inspectedIssueID
+            selection: $state.inspectedIssueID,
+            unshown: state.unshown(in: list)
         ) { item in
             IssueRow(
                 item: item,
@@ -482,6 +484,9 @@ private struct GroupedList<Item: Identifiable, Row: View>: View {
     /// the list gets the arrow keys for free -- that is what moves the detail
     /// pane from the keyboard.
     var selection: Binding<Item.ID?>?
+    /// How many the search found beyond what was fetched. A list says so at
+    /// its end rather than pretending the rest is not there.
+    var unshown: Int = 0
     @ViewBuilder var row: (Item) -> Row
 
     private var groupKey: ((Item) -> String)? {
@@ -557,6 +562,14 @@ private struct GroupedList<Item: Identifiable, Row: View>: View {
             ForEach(items) { item in
                 listRow(item)
             }
+        }
+
+        if unshown > 0 {
+            Text("\(unshown) more match this search than the app reads at once. Narrow it to see them.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .listRowBackground(Color(nsColor: .textBackgroundColor))
+                .padding(.vertical, 6)
         }
     }
 }

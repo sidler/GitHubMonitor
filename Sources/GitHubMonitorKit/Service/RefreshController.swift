@@ -215,6 +215,7 @@ public final class RefreshController {
             if let budget = fetched.budget { state.budgets.graphQL = budget }
             state.listPullRequests = results.pullRequests
             state.listIssues = results.issues
+            state.listTotals = results.totals
 
             // A row that is gone takes its detail with it -- and the pane
             // describing it, which would otherwise sit there for good.
