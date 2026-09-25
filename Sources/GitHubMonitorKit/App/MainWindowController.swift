@@ -339,10 +339,15 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     /// Whether the view on screen can be split at all -- the charts and the
     /// settings cannot, and an empty item would be a sliver of glass.
     private var groupingOptions: [ListGrouping] {
+        // Nothing while a diff is over the window: the toolbar is drawn in
+        // the title bar, above anything the content view can put up, so a
+        // control left there would float on top of the overlay and change
+        // the list nobody can see.
+        guard state.openedDiff == nil else { return [] }
         switch state.sidebarSelection {
-        case .list: state.selectedList?.content.groupings ?? []
-        case .mentions: ListGrouping.forNotifications
-        case .dashboard, .trends, .myTrends, .settings: []
+        case .list: return state.selectedList?.content.groupings ?? []
+        case .mentions: return ListGrouping.forNotifications
+        case .dashboard, .trends, .myTrends, .settings: return []
         }
     }
 
@@ -358,7 +363,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         guard let toolbar = window?.toolbar else { return }
         let index = toolbar.items.firstIndex { $0.itemIdentifier == Self.controlsItem }
 
-        if state.sidebarSelection.hasToolbarControls {
+        if state.sidebarSelection.hasToolbarControls, state.openedDiff == nil {
             guard index == nil else { return }
             // Before the inspector's separator, which is what holds the
             // controls over the list rather than over the detail pane.
@@ -468,6 +473,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
                 self.updateTitle()
                 self.syncInspector()
                 self.syncDiffOverlay()
+                self.syncToolbarControls()
                 self.observeSelection()
             }
         }

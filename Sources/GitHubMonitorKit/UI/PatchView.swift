@@ -111,21 +111,27 @@ struct DiffOverlay: View {
     }
 
     private var diffs: some View {
-        ScrollView(.vertical) {
-            LazyVStack(alignment: .leading, spacing: 18) {
-                ForEach(files) { file in
-                    fileSection(file)
-                        .id(file.path)
+        // The width is measured and handed down: inside a horizontal scroll
+        // view `maxWidth: .infinity` resolves to the content's own width, so
+        // every band stopped at the end of its longest line and a diff of
+        // short lines sat in a narrow column of colour.
+        GeometryReader { proxy in
+            ScrollView(.vertical) {
+                LazyVStack(alignment: .leading, spacing: 18) {
+                    ForEach(files) { file in
+                        fileSection(file, width: proxy.size.width)
+                            .id(file.path)
+                    }
                 }
+                .scrollTargetLayout()
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .scrollTargetLayout()
-            .padding(.vertical, 12)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .scrollPosition(id: $path, anchor: .top)
         }
-        .scrollPosition(id: $path, anchor: .top)
     }
 
-    private func fileSection(_ file: ChangedFile) -> some View {
+    private func fileSection(_ file: ChangedFile, width: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 Image(systemName: file.change.symbolName)
@@ -157,6 +163,10 @@ struct DiffOverlay: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     PatchLines(patch: patch, language: file.language)
                         .padding(.vertical, 6)
+                        // At least the width of the column, so the added and
+                        // removed bands run the whole way across; a longer
+                        // line still makes it wider and scrolls.
+                        .frame(minWidth: width, alignment: .leading)
                 }
             } else {
                 Text("GitHub sends no diff for this file \u{2014} it is binary, or too large.")
