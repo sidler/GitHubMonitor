@@ -67,6 +67,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
+        focusList()
 
         // Development aid: report the window number so screenshots can be
         // taken with `screencapture -l` instead of guessing at crop rects.
@@ -140,6 +141,37 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         // the popover selects as it loads -- and the tracking closure only
         // fires on the next change after that.
         syncInspector()
+    }
+
+    /// Puts the keyboard in the list of rows rather than in the sidebar.
+    ///
+    /// Without this a freshly opened window answers the arrow keys by moving
+    /// the sidebar's own selection, so someone pressing down to walk the
+    /// pull requests narrows them to a repository instead. The rows are what
+    /// the window is for; the sidebar is reached with Tab.
+    ///
+    /// Only when the window opens. Taking focus back on every change would
+    /// make the sidebar unusable from the keyboard.
+    private func focusList() {
+        // After a turn of the run loop: SwiftUI has not built the table
+        // behind the list yet when the window is first ordered front.
+        DispatchQueue.main.async { [weak self] in
+            guard
+                let self,
+                let window = self.window,
+                let root = self.contentController?.view,
+                let table = Self.firstTable(in: root)
+            else { return }
+            window.makeFirstResponder(table)
+        }
+    }
+
+    private static func firstTable(in view: NSView) -> NSTableView? {
+        if let table = view as? NSTableView { return table }
+        for subview in view.subviews {
+            if let found = firstTable(in: subview) { return found }
+        }
+        return nil
     }
 
     // MARK: - Sidebar

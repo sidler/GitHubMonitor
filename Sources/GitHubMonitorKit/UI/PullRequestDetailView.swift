@@ -233,16 +233,22 @@ struct PullRequestDetailView: View {
     ///
     /// A pull request can touch thirty files, and thirty patches unfolded
     /// into a column four inches wide is not something anyone reads. The
-    /// row is the index; the sheet is the reading.
+    /// row is the index; the overlay is the reading.
+    ///
+    /// A plain button rather than the accessory style the other controls
+    /// here use: that style sets its label in by a few points of its own,
+    /// which left this column's file names indented past every other row in
+    /// the pane. The colour says it can be clicked instead.
     private func fileRow(_ file: ChangedFile) -> some View {
         Button {
             presentation.open(file.path)
         } label: {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 7) {
                 Image(systemName: file.change.symbolName)
                     .foregroundStyle(.secondary)
 
                 Text(file.shortPath)
+                    .foregroundStyle(Color.accentColor)
                     .lineLimit(1)
                     .truncationMode(.head)
 
@@ -260,12 +266,9 @@ struct PullRequestDetailView: View {
                 }
             }
             .font(.caption)
-            // The accessory style greys its label, which on a row of content
-            // reads as something switched off rather than something to click.
-            .foregroundStyle(Color(nsColor: .labelColor))
             .contentShape(Rectangle())
         }
-        .buttonStyle(.accessoryBar)
+        .buttonStyle(.plain)
         .help("\(file.change.label) \u{2014} \(file.path)")
     }
 
