@@ -786,6 +786,7 @@ struct InspectorColumn: View {
             PullRequestDetailView(
                 item: item,
                 detail: state.pullRequestDetails[item.id],
+                files: state.changedFiles[item.id],
                 reload: { controller.reloadDetail(for: item.id) },
                 close: { controller.closeInspector() }
             )

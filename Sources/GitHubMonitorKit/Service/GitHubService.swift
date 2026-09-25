@@ -101,6 +101,18 @@ public struct GitHubService: Sendable {
 
     /// The description and the end of the conversation behind a
     /// notification, for the pane that shows it.
+    /// The files one pull request touches, with their patches.
+    public func changedFiles(repository: String, number: Int) async throws -> [ChangedFile] {
+        guard
+            let parts = ChangedFilesQuery.repository(repository),
+            let url = ChangedFilesQuery.url(owner: parts.owner, name: parts.name, number: number)
+        else {
+            throw GitHubError.decoding("not a repository this app can read")
+        }
+        let (data, _) = try await client.get(url)
+        return try ChangedFilesQuery.files(from: data)
+    }
+
     public func thread(at subjectURL: URL) async throws -> IssueDetail {
         guard let subject = ThreadQuery.subject(from: subjectURL) else {
             throw GitHubError.decoding("not a conversation this app can read")

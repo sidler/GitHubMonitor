@@ -648,6 +648,7 @@ public final class RefreshController {
     /// Refetches even when a detail is cached, for the pane's reload button.
     public func reloadDetail(for id: String) {
         state.pullRequestDetails[id] = nil
+        state.changedFiles[id] = nil
         loadDetailIfNeeded(for: id)
     }
 
@@ -674,6 +675,33 @@ public final class RefreshController {
                 self?.state.pullRequestDetails[id] = .failed(error.localizedDescription)
             } catch {
                 self?.state.pullRequestDetails[id] = .failed(error.localizedDescription)
+            }
+        }
+
+        loadFilesIfNeeded(for: id)
+    }
+
+    /// The files a pull request touches, fetched beside its detail.
+    ///
+    /// Its own request and its own state: it goes to the REST API, which has
+    /// an hourly budget of its own, and it is the slower of the two -- the
+    /// rest of the pane should not wait behind a diff.
+    public func loadFilesIfNeeded(for id: String) {
+        guard state.changedFiles[id] == nil else { return }
+        guard let service, let item = state.pullRequest(withID: id) else { return }
+
+        state.changedFiles[id] = .loading
+        Task { [weak self] in
+            do {
+                let files = try await service.changedFiles(
+                    repository: item.repository, number: item.number
+                )
+                self?.state.changedFiles[id] = .loaded(files)
+            } catch let error as GitHubError {
+                Log.api.error("files failed: \(error.localizedDescription, privacy: .public)")
+                self?.state.changedFiles[id] = .failed(error.localizedDescription)
+            } catch {
+                self?.state.changedFiles[id] = .failed(error.localizedDescription)
             }
         }
     }

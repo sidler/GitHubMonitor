@@ -4,8 +4,12 @@ import SwiftUI
 struct PullRequestDetailView: View {
     let item: PullRequestItem
     let detail: DetailState?
+    /// Fetched separately from the rest, so it arrives on its own schedule.
+    let files: ChangedFilesState?
     let reload: () -> Void
     let close: () -> Void
+
+    @StateObject private var expansion = PatchExpansion()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -24,6 +28,7 @@ struct PullRequestDetailView: View {
                     case .loaded(let detail):
                         branches(detail)
                         changes(detail)
+                        changedFiles
                         checks(detail)
                         reviewers(detail)
                     case .failed(let message):
@@ -163,6 +168,103 @@ struct PullRequestDetailView: View {
             }
         } header: {
             sectionTitle("Changes")
+        }
+    }
+
+    // MARK: - The files
+
+    @ViewBuilder
+    private var changedFiles: some View {
+        switch files {
+        case .loaded(let files) where !files.isEmpty:
+            Section {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(files.prefix(ChangedFilesQuery.pageSize)) { file in
+                        fileRow(file)
+                    }
+                    if files.count > ChangedFilesQuery.pageSize {
+                        Text("and \(files.count - ChangedFilesQuery.pageSize) more")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } header: {
+                sectionTitle("Files")
+            }
+        case .loading:
+            Section {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text("Loading the diff\u{2026}").foregroundStyle(.secondary)
+                }
+                .font(.caption)
+            } header: {
+                sectionTitle("Files")
+            }
+        case .failed(let message):
+            Section {
+                Label(message, systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            } header: {
+                sectionTitle("Files")
+            }
+        case .loaded, nil:
+            EmptyView()
+        }
+    }
+
+    private func fileRow(_ file: ChangedFile) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Image(systemName: file.change.symbolName)
+                    .foregroundStyle(.secondary)
+                    .help(file.change.label)
+
+                Button {
+                    if let url = file.url(pullRequest: item.url) { NSWorkspace.shared.open(url) }
+                } label: {
+                    Text(file.shortPath)
+                        .lineLimit(1)
+                        .truncationMode(.head)
+                }
+                .buttonStyle(.link)
+                .help(file.path)
+
+                Spacer(minLength: 4)
+
+                if file.additions > 0 {
+                    Text(verbatim: "+\(file.additions)")
+                        .foregroundStyle(.green)
+                        .monospacedDigit()
+                }
+                if file.deletions > 0 {
+                    Text(verbatim: "\u{2212}\(file.deletions)")
+                        .foregroundStyle(.red)
+                        .monospacedDigit()
+                }
+
+                // Only where there is something to unfold. A file with no
+                // patch is binary or was too large for GitHub to send.
+                if file.patch != nil, !file.isSmall {
+                    Button {
+                        expansion.toggle(file.path)
+                    } label: {
+                        Image(systemName: expansion.isOpen(file.path) ? "chevron.down" : "chevron.right")
+                            .font(.caption2)
+                    }
+                    .buttonStyle(.accessoryBar)
+                    .help(expansion.isOpen(file.path) ? "Hide the diff" : "Show the diff")
+                }
+            }
+            .font(.caption)
+
+            // A small change is shown without being asked for: most pull
+            // requests here are one file and a few lines, and a row to click
+            // would be a step between someone and what they opened this for.
+            if let patch = file.patch, file.isSmall || expansion.isOpen(file.path) {
+                PatchView(patch: patch, language: file.language)
+            }
         }
     }
 

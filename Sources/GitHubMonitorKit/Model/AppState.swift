@@ -84,6 +84,10 @@ public final class AppState {
     public var issueDetails: [String: IssueDetailState] = [:]
     /// Detail payloads, fetched per pull request when its pane is opened.
     public var pullRequestDetails: [String: DetailState] = [:]
+    /// The files each opened pull request touches. Kept beside the detail
+    /// rather than inside it: it is a second request, to a different API,
+    /// and one arriving should not wait on the other.
+    public var changedFiles: [String: ChangedFilesState] = [:]
     /// Set to whatever the first visible list is at launch; the fallback
     /// only matters until `normaliseSelection()` runs in `init`.
     public var sidebarSelection: SidebarSelection = .dashboard
@@ -196,6 +200,12 @@ public final class AppState {
         }
         return RepositoryGrouping.group(repositories, by: { $0 })
             .map { SidebarRepository(repository: $0.repository, count: $0.items.count) }
+    }
+
+    /// One pull request by id, wherever it was fetched into. The file list
+    /// is asked for by repository and number, which only the item carries.
+    public func pullRequest(withID id: String) -> PullRequestItem? {
+        allPullRequests.first { $0.id == id }
     }
 
     /// Everything every list holds, for the places that are about the data
@@ -556,7 +566,7 @@ public final class AppState {
             PullRequestDetail(
                 headBranch: "fix/session-handler-race",
                 baseBranch: "main",
-                additions: 64, deletions: 12, changedFiles: 3, comments: 4,
+                additions: 148, deletions: 62, changedFiles: 3, comments: 4,
                 mergeStatus: .conflicting,
                 checks: [
                     CheckRun(name: "phpunit", status: .success),
@@ -567,6 +577,38 @@ public final class AppState {
                 ]
             )
         )
+        // One small patch, shown without asking, and one large enough to
+        // stay folded -- both sides of the rule the pane follows.
+        changedFiles["1"] = .loaded([
+            ChangedFile(
+                path: "core/module_system/src/Session/SessionHandler.php",
+                additions: 6, deletions: 2, change: .modified,
+                patch: """
+                @@ -118,8 +118,12 @@ class SessionHandler implements SessionHandlerInterface
+                     public function write(string $id, string $data): bool
+                     {
+                -        $this->connection->insert(self::TABLE, ['id' => $id]);
+                -        return true;
+                +        // The unique index fails on rows written before 8.3.
+                +        if ($this->connection->has(self::TABLE, $id)) {
+                +            return $this->connection->update(self::TABLE, ['data' => $data]);
+                +        }
+                +
+                +        return $this->connection->insert(self::TABLE, ['id' => $id, 'data' => $data]);
+                     }
+                """
+            ),
+            ChangedFile(
+                path: "core/module_system/config/migrations.yml",
+                additions: 2, deletions: 0, change: .modified,
+                patch: "@@ -4,2 +4,4 @@\n order:\n   - Migration20260901120000\n+  - Migration20260901123000\n+  # runs after the column exists\n"
+            ),
+            ChangedFile(
+                path: "core/module_system/tests/SessionHandlerTest.php",
+                additions: 140, deletions: 60, change: .modified,
+                patch: "@@ -1,200 +1,280 @@\n" + Array(repeating: "+        $this->assertTrue(true);", count: 40).joined(separator: "\n")
+            ),
+        ])
         pullRequestDetails["3"] = .loaded(
             PullRequestDetail(
                 headBranch: "chore/php-8.4",
