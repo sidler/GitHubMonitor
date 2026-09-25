@@ -11,8 +11,10 @@ public enum MarkdownBlock: Hashable, Sendable {
     case bullets([String])
     case numbered([String])
     case quote(String)
-    /// Verbatim, with its fence removed.
-    case code(String)
+    /// Verbatim, with its fence removed, and whatever the fence called it.
+    /// Nil where the fence named nothing, or named something the
+    /// highlighter does not know.
+    case code(String, language: CodeLanguage? = nil)
     /// Rows keyed by the table's header, which is how a five-column table
     /// fits into a pane four inches wide.
     case table(header: [String], rows: [[String]])
@@ -47,7 +49,6 @@ public enum MarkdownDocument {
             }
 
             if let fence = fenceLanguage(trimmed) {
-                _ = fence
                 flushParagraph()
                 var body: [String] = []
                 while let next = lines.first, !isFence(next.trimmingCharacters(in: .whitespaces)) {
@@ -56,7 +57,9 @@ public enum MarkdownDocument {
                 }
                 // Drop the closing fence, if the author wrote one.
                 if lines.first != nil { lines = lines.dropFirst() }
-                blocks.append(.code(body.joined(separator: "\n")))
+                blocks.append(.code(
+                    body.joined(separator: "\n"), language: CodeLanguage.named(fence)
+                ))
                 continue
             }
 

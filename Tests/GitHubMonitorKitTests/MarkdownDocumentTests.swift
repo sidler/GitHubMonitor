@@ -67,6 +67,20 @@ struct MarkdownDocumentTests {
         #expect(MarkdownDocument.blocks(from: "```\nx") == [.code("x")])
     }
 
+    /// The word after the fence is what tells the highlighter which language
+    /// it is looking at; it used to be read and thrown away.
+    @Test("A fence hands its language to the block")
+    func fenceLanguage() {
+        #expect(MarkdownDocument.blocks(from: "```php\n$a = 1;\n```") == [
+            .code("$a = 1;", language: .php),
+        ])
+        #expect(MarkdownDocument.blocks(from: "```\nplain\n```") == [.code("plain")])
+        // A fence naming something nobody here writes is still a code block.
+        #expect(MarkdownDocument.blocks(from: "```cobol\nSTOP RUN.\n```") == [
+            .code("STOP RUN."),
+        ])
+    }
+
     @Test("Rules are their own block")
     func rules() {
         #expect(MarkdownDocument.blocks(from: "a\n\n---\n\nb") == [.paragraph("a"), .rule, .paragraph("b")])

@@ -63,11 +63,10 @@ struct MarkdownText: View {
             }
             .fixedSize(horizontal: false, vertical: true)
 
-        case .code(let text):
+        case .code(let text, let language):
             // Horizontally scrollable: wrapping code changes what it says.
             ScrollView(.horizontal, showsIndicators: false) {
-                Text(text)
-                    .font(.caption.monospaced())
+                CodeText(source: text, language: language)
                     .padding(8)
             }
             .background(

@@ -599,8 +599,9 @@ public final class AppState {
 
             ### What I ran
 
-            ```sh
-            bin/console migration:run --dry-run
+            ```php
+            // the order the runner picked
+            $runner->run(['Migration20260901120000', 'Migration20260901123000']);
             ```
 
             - the dry run is clean
