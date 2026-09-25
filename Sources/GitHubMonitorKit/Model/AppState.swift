@@ -188,9 +188,10 @@ public final class AppState {
             .reduce(0) { $0 + $1.queryLines.count }
     }
 
-    /// How many GitHub says match each list, whatever was read of them.
-    /// Only different from what is held when a list runs past the cap.
-    public var listTotals: [String: Int] = [:]
+    /// How many rows each list is not showing, where paging was cut short.
+    /// Empty for every list that was read to the end, which is nearly all
+    /// of them.
+    public var listUnread: [String: Int] = [:]
 
     /// Where an approval stands, for the one pull request being approved.
     public var approval: ApprovalState = .idle
@@ -257,9 +258,7 @@ public final class AppState {
     /// How many a list is not showing, because it ran past what the app
     /// will page through. Zero for every list that fits.
     public func unshown(in list: SavedList) -> Int {
-        guard let total = listTotals[list.id] else { return 0 }
-        let held = (listPullRequests[list.id]?.count ?? 0) + (listIssues[list.id]?.count ?? 0)
-        return max(0, total - held)
+        listUnread[list.id] ?? 0
     }
 
     public func count(of list: SavedList) -> Int {

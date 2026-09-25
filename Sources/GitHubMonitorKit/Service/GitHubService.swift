@@ -65,8 +65,13 @@ public struct GitHubService: Sendable {
         var total = 0
         var budget: RateBudget?
         var stoppedEarly = false
+        // A page that reports another page while yielding nothing parsable
+        // would otherwise keep this going for ever: the row cap never trips
+        // if no rows arrive.
+        var pagesLeft = PullRequestQuery.dashboardLimit / PullRequestQuery.pageSize + 1
 
         repeat {
+            pagesLeft -= 1
             let payload = try await client.graphQL(
                 PullRequestQuery.repositoryDocument(repository, cursor: cursor)
             )
@@ -75,7 +80,7 @@ public struct GitHubService: Sendable {
             if total == 0 { total = page.total }
             budget = ListParser.budget(from: payload) ?? budget
 
-            if entries.count >= PullRequestQuery.dashboardLimit {
+            if entries.count >= PullRequestQuery.dashboardLimit || pagesLeft <= 0 {
                 stoppedEarly = page.cursor != nil
                 cursor = nil
             } else {
@@ -163,15 +168,34 @@ public struct GitHubService: Sendable {
     }
 
     /// The files one pull request touches, with their patches.
+    ///
+    /// Paged: asking for one page of a hundred and stopping meant a pull
+    /// request touching three hundred files showed a hundred of them, with
+    /// the count above the list saying three hundred.
     public func changedFiles(repository: String, number: Int) async throws -> [ChangedFile] {
-        guard
-            let parts = ChangedFilesQuery.repository(repository),
-            let url = ChangedFilesQuery.url(owner: parts.owner, name: parts.name, number: number)
-        else {
+        guard let parts = ChangedFilesQuery.repository(repository) else {
             throw GitHubError.decoding("not a repository this app can read")
         }
-        let (data, _) = try await client.get(url)
-        return try ChangedFilesQuery.files(from: data)
+
+        var files: [ChangedFile] = []
+        var page = 1
+        while files.count < ChangedFilesQuery.maximumFiles {
+            guard let url = ChangedFilesQuery.url(
+                owner: parts.owner, name: parts.name, number: number, page: page
+            ) else {
+                throw GitHubError.decoding("not a repository this app can read")
+            }
+            let (data, _) = try await client.get(url)
+            let read = try ChangedFilesQuery.files(from: data)
+            files += read
+            // A short page is the last one. REST says so by giving back
+            // fewer than asked for, which is also what stops this where a
+            // page repeats itself or comes back empty.
+            guard read.count == ChangedFilesQuery.pageSize else { break }
+            page += 1
+        }
+
+        return ChangedFilesQuery.ordered(files)
     }
 
     public func thread(at subjectURL: URL) async throws -> IssueDetail {
@@ -334,15 +358,22 @@ public struct GitHubService: Sendable {
     /// nine costs two requests rather than two per list.
     public func lists(
         _ searches: [ListSearch], viewer: String? = nil
-    ) async throws -> (results: ListResults, budget: RateBudget?) {
-        guard !searches.isEmpty else { return (ListResults(), nil) }
+    ) async throws -> (results: ListResults, unread: [String: Int], budget: RateBudget?) {
+        guard !searches.isEmpty else { return (ListResults(), [:], nil) }
 
         var results = ListResults()
         var budget: RateBudget?
         var round: [(search: ListSearch, cursor: String?)] = searches.map { ($0, nil) }
         var isFirstRound = true
+        /// Lists that still had pages when the cap stopped them, which is
+        /// the only case where anything can honestly be called missing.
+        var stoppedAtCap: Set<String> = []
+        // A page that reports another page while yielding no new rows would
+        // otherwise keep this going; the cap counts rows, not requests.
+        var roundsLeft = ListQuery.maximumItems / ListQuery.pageSize + 1
 
-        while !round.isEmpty {
+        while !round.isEmpty, roundsLeft > 0 {
+            roundsLeft -= 1
             let batch = round.map(\.search)
             var cursors: [Int: String] = [:]
             for (position, entry) in round.enumerated() where entry.cursor != nil {
@@ -361,14 +392,20 @@ public struct GitHubService: Sendable {
 
             let stops = ListParser.pages(from: payload, searches: batch)
             round = round.enumerated().compactMap { position, entry in
-                guard results.count(in: entry.search.listID) < ListQuery.maximumItems,
-                      let cursor = stops[position]?.cursor
-                else { return nil }
+                guard let cursor = stops[position]?.cursor else { return nil }
+                guard results.count(in: entry.search.listID) < ListQuery.maximumItems else {
+                    stoppedAtCap.insert(entry.search.listID)
+                    return nil
+                }
                 return (entry.search, cursor)
             }
         }
 
-        return (results, budget)
+        // Anything still asking for pages when the rounds ran out was cut
+        // short as surely as one that hit the row cap.
+        for entry in round { stoppedAtCap.insert(entry.search.listID) }
+
+        return (results, results.unread(stoppedAt: stoppedAtCap), budget)
     }
 
     /// The text and the end of the thread behind one issue, fetched when its

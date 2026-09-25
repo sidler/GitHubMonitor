@@ -134,19 +134,51 @@ public final class RefreshController {
         }
     }
 
+    /// Forgets the token and everything it fetched.
+    ///
+    /// All of it, not just the lists: a diff left open belongs to a private
+    /// repository, and so do the details, previews and charts behind it.
+    /// Signing out has to leave nothing of the account on screen or in
+    /// memory.
     public func signOut() {
         try? Keychain.deleteToken()
         stop()
         service = nil
+        approvedByViewer = [:]
+        lastModified = nil
+
         state.viewer = nil
         state.hasToken = false
         state.listPullRequests = [:]
         state.listIssues = [:]
+        state.listUnread = [:]
         state.notifications = []
+        state.previews = [:]
+        state.notificationThreads = [:]
+        state.pullRequestDetails = [:]
+        state.issueDetails = [:]
+        state.changedFiles = [:]
+        state.openedDiff = nil
+        state.approval = .idle
+        state.inspectedPullRequestID = nil
+        state.inspectedIssueID = nil
+        state.inspectedNotificationID = nil
+        state.expandedNotificationID = nil
+        state.workloadSelection = nil
+        state.dashboard = .unconfigured
+        state.trends = .unconfigured
+        state.myTrends = .unconfigured
+        state.repositoryCommenters = .unconfigured
+        state.budgets = RateBudgets()
         state.loadState = .idle
     }
 
     // MARK: - Refresh
+
+    /// Pull requests this person approved from here, and when. Kept until
+    /// GitHub's own answers show the approval, because until then a refresh
+    /// would put the row back the way it was before it.
+    private var approvedByViewer: [String: Date] = [:]
 
     /// Coalesces concurrent calls: a manual refresh during a scheduled one
     /// joins it rather than issuing a second set of requests.
@@ -204,6 +236,7 @@ public final class RefreshController {
                 viewer = known
             } else {
                 viewer = try await service.viewer()
+                guard !Task.isCancelled else { return }
                 state.viewer = viewer
             }
 
@@ -211,11 +244,17 @@ public final class RefreshController {
             // GitHub already -- but the review requests come back naming
             // people, and only the login says which of them is this person.
             let fetched = try await service.lists(searches(), viewer: viewer.login)
+            // Cancelled means the token is going or the app is closing.
+            // Writing what came back would put a signed-out account's rows
+            // back on screen, so nothing is written past this point.
+            guard !Task.isCancelled else { return }
+
             let results = fetched.results
             if let budget = fetched.budget { state.budgets.graphQL = budget }
             state.listPullRequests = results.pullRequests
             state.listIssues = results.issues
-            state.listTotals = results.totals
+            state.listUnread = fetched.unread
+            applyOwnApprovals()
 
             // A row that is gone takes its detail with it -- and the pane
             // describing it, which would otherwise sit there for good.
@@ -235,6 +274,7 @@ public final class RefreshController {
             }
 
             let fetch = try await service.notifications(since: lastModified)
+            guard !Task.isCancelled else { return }
             lastModified = fetch.lastModified
             githubPollInterval = fetch.pollInterval
             if let budget = fetch.budget { state.budgets.rest = budget }
@@ -703,6 +743,9 @@ public final class RefreshController {
             do {
                 let detail = try await service.pullRequestDetail(id: id)
                 self?.state.pullRequestDetails[id] = .loaded(detail)
+                // A detail fetched moments after approving can still answer
+                // with the review set from before it.
+                self?.applyOwnApprovals()
             } catch let error as GitHubError {
                 Log.api.error("detail failed: \(error.localizedDescription, privacy: .public)")
                 self?.state.pullRequestDetails[id] = .failed(error.localizedDescription)
@@ -809,28 +852,65 @@ public final class RefreshController {
     }
 
     private func countApproval(of item: PullRequestItem) {
+        approvedByViewer[item.id] = .now
+        applyOwnApprovals()
+    }
+
+    /// Re-applies what this person has approved but GitHub has not admitted
+    /// to yet.
+    ///
+    /// A refresh replaces the rows wholesale, and the rows come from a
+    /// search -- the most lagged index GitHub has, routinely a minute or
+    /// more behind a write. Without this the approval appears, the refresh
+    /// lands, and it vanishes again until the index catches up, which is
+    /// exactly what the optimistic count was there to prevent.
+    private func applyOwnApprovals() {
+        guard !approvedByViewer.isEmpty else { return }
+        forgetSettledApprovals()
+
         for (listID, items) in state.listPullRequests {
-            guard let index = items.firstIndex(where: { $0.id == item.id }) else { continue }
-            let row = items[index]
-            state.listPullRequests[listID]?[index] = row.countingViewerApproval()
+            for (index, row) in items.enumerated() where approvedByViewer[row.id] != nil {
+                guard row.viewerReview?.state != .approved else { continue }
+                state.listPullRequests[listID]?[index] = row.countingViewerApproval()
+            }
         }
 
-        // The pane shows the reviewers, and it is open behind the diff that
-        // was just approved from. Leaving it on the state the approval
-        // replaced is the one thing it must not do.
-        if case .loaded(let detail) = state.pullRequestDetails[item.id], let viewer = state.viewer {
-            state.pullRequestDetails[item.id] = .loaded(
+        // The pane lists the reviewers, and it is open behind the diff that
+        // was approved from.
+        guard let viewer = state.viewer else { return }
+        for id in approvedByViewer.keys {
+            guard case .loaded(let detail) = state.pullRequestDetails[id] else { continue }
+            guard !detail.reviewers.contains(where: {
+                !$0.isTeam && $0.state == .approved
+                    && $0.name.caseInsensitiveCompare(viewer.login) == .orderedSame
+            }) else { continue }
+            state.pullRequestDetails[id] = .loaded(
                 detail.countingApproval(by: viewer.login, avatarURL: viewer.avatarURL)
             )
         }
     }
 
+    /// Drops what GitHub has caught up on, and what has waited long enough
+    /// that carrying it further would be asserting rather than covering.
+    private func forgetSettledApprovals() {
+        for (id, approvedAt) in approvedByViewer {
+            let settled = state.pullRequest(withID: id)?.viewerReview?.state == .approved
+            if settled || Date.now.timeIntervalSince(approvedAt) > Self.approvalGrace {
+                approvedByViewer[id] = nil
+            }
+        }
+    }
+
+    /// How long an approval of ours outlives GitHub's silence about it.
+    static let approvalGrace: TimeInterval = 600
+
     /// Fetches the list and this one pull request again, so GitHub's own
-    /// account replaces the guess without waiting for the next refresh.
+    /// account replaces the guess as soon as it has one.
     ///
     /// The list first: it decides whether the pull request is still there at
     /// all, and a detail reloaded before that would be thrown away by the
-    /// pruning that follows it.
+    /// pruning that follows it. Whatever the refresh brings back, the
+    /// approval is put back on top of it until GitHub reports it too.
     private func refreshApproved(_ item: PullRequestItem) async {
         await refresh()
         guard state.pullRequest(withID: item.id) != nil else { return }

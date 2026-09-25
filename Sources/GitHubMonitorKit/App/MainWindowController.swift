@@ -196,6 +196,11 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             diffOverlay = nil
             if let previous = responderBeforeDiff { window?.makeFirstResponder(previous) }
             responderBeforeDiff = nil
+            // Nothing of the last approval outlives the overlay. A question
+            // left unanswered -- the check came back after someone pressed
+            // Escape -- would otherwise raise itself unprompted the next
+            // time a diff was opened, one Return from approving.
+            if !state.approval.isBusy { state.approval = .idle }
             return
         }
 

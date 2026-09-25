@@ -7,12 +7,19 @@ import Foundation
 /// draws on a separate hourly budget from everything else the app asks for,
 /// which is the reason this can be fetched whenever a pane opens.
 public enum ChangedFilesQuery {
-    /// One page is all that is read. A pull request past this is one nobody
-    /// reviews from a side pane anyway, and the list says how many are left.
+    /// GitHub's most per page.
     public static let pageSize = 100
 
-    public static func url(owner: String, name: String, number: Int) -> URL? {
-        URL(string: "https://api.github.com/repos/\(owner)/\(name)/pulls/\(number)/files?per_page=\(pageSize)")
+    /// How many files are read before the overlay stops and says there are
+    /// more. A pull request past this is not one anybody reviews from a
+    /// side pane, and every page is another request.
+    public static let maximumFiles = 300
+
+    public static func url(owner: String, name: String, number: Int, page: Int = 1) -> URL? {
+        URL(
+            string: "https://api.github.com/repos/\(owner)/\(name)/pulls/\(number)/files"
+                + "?per_page=\(pageSize)&page=\(page)"
+        )
     }
 
     /// Splits "owner/name" the way every item in the app carries it.
@@ -27,10 +34,17 @@ public enum ChangedFilesQuery {
             throw GitHubError.decoding("the file list was not an array")
         }
 
-        return array.compactMap(file(from:)).sorted { lhs, rhs in
-            // Biggest first: in a narrow pane the useful question is where
-            // the work is, and the file with four hundred changed lines is
-            // not the one to make someone scroll for.
+        return array.compactMap(file(from:))
+    }
+
+    /// Biggest first: in a narrow pane the useful question is where the work
+    /// is, and the file with four hundred changed lines is not the one to
+    /// make someone scroll for.
+    ///
+    /// Applied to the whole set rather than page by page, or the second page
+    /// would start over at the largest again.
+    public static func ordered(_ files: [ChangedFile]) -> [ChangedFile] {
+        files.sorted { lhs, rhs in
             lhs.changedLines == rhs.changedLines
                 ? lhs.path.localizedStandardCompare(rhs.path) == .orderedAscending
                 : lhs.changedLines > rhs.changedLines

@@ -21,23 +21,26 @@ struct ChangedFilesTests {
 
     /// In a narrow pane the useful question is where the work is, so the
     /// file with four hundred changed lines does not make anyone scroll.
+    ///
+    /// Ordered as the service orders it -- over the whole set rather than
+    /// page by page, or the second page would start over at the largest.
     @Test("The biggest change comes first")
     func order() throws {
-        let files = try ChangedFilesQuery.files(from: payload([
+        let files = try ChangedFilesQuery.ordered(ChangedFilesQuery.files(from: payload([
             file("small.php", additions: 1, deletions: 0),
             file("huge.php", additions: 300, deletions: 100),
             file("middle.php", additions: 10, deletions: 10),
-        ]))
+        ])))
         #expect(files.map(\.path) == ["huge.php", "middle.php", "small.php"])
         #expect(files.first?.changedLines == 400)
     }
 
     @Test("Files of equal size are ordered by path")
     func tie() throws {
-        let files = try ChangedFilesQuery.files(from: payload([
+        let files = try ChangedFilesQuery.ordered(ChangedFilesQuery.files(from: payload([
             file("b.php", additions: 2, deletions: 0),
             file("a.php", additions: 1, deletions: 1),
-        ]))
+        ])))
         #expect(files.map(\.path) == ["a.php", "b.php"])
     }
 

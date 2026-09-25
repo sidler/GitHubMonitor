@@ -183,8 +183,12 @@ struct PullRequestDetailView: View {
                     ForEach(files) { file in
                         fileRow(file)
                     }
-                    if files.count > ChangedFilesQuery.pageSize {
-                        Text("and \(files.count - ChangedFilesQuery.pageSize) more")
+                    // Against the count GitHub gave for the pull request,
+                    // not against the page size: the rows can never exceed
+                    // the page size, so comparing the two meant this never
+                    // appeared and a long diff was cut without a word.
+                    if unreadFiles(besides: files) > 0 {
+                        Text("and \(unreadFiles(besides: files)) more not read")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .padding(.top, 4)
@@ -226,6 +230,15 @@ struct PullRequestDetailView: View {
     /// here use: that style sets its label in by a few points of its own,
     /// which left this column's file names indented past every other row in
     /// the pane. The colour says it can be clicked instead.
+    /// How many files the pull request touches that were not read.
+    ///
+    /// The total comes from the detail, which GitHub counts itself; the rows
+    /// come from a paged REST call that stops at a few hundred.
+    private func unreadFiles(besides read: [ChangedFile]) -> Int {
+        guard case .loaded(let detail) = detail else { return 0 }
+        return max(0, detail.changedFiles - read.count)
+    }
+
     private func fileRow(_ file: ChangedFile) -> some View {
         Button {
             openDiff(file)

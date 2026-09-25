@@ -119,8 +119,10 @@ public enum ListQuery {
 public struct ListResults: Sendable {
     public var pullRequests: [String: [PullRequestItem]]
     public var issues: [String: [IssueItem]]
-    /// How many GitHub says match, per list, whatever was actually read.
-    /// The difference is what a list has to admit to rather than hide.
+    /// How many GitHub says match, per list. Summed across a list's
+    /// searches, so where two of them overlap this is above the number of
+    /// rows -- which is why it is not on its own a measure of what is
+    /// missing. See `unread(stoppedAt:)`.
     public var totals: [String: Int]
 
     public init(
@@ -136,6 +138,24 @@ public struct ListResults: Sendable {
     /// How many rows one list has collected so far.
     public func count(in listID: String) -> Int {
         (pullRequests[listID]?.count ?? 0) + (issues[listID]?.count ?? 0)
+    }
+
+    /// How many rows a list is not showing, per list.
+    ///
+    /// Only for lists where paging stopped at the cap. Two things make the
+    /// arithmetic alone a lie: several searches can feed one list and their
+    /// counts add up while their rows are de-duplicated, and GitHub counts
+    /// at the moment it is asked, so a pull request merged between the count
+    /// and the page leaves the total one above what arrived. Either would
+    /// have a complete list announce rows that are not missing.
+    public func unread(stoppedAt caps: Set<String>) -> [String: Int] {
+        var unread: [String: Int] = [:]
+        for listID in caps {
+            guard let total = totals[listID] else { continue }
+            let missing = total - count(in: listID)
+            if missing > 0 { unread[listID] = missing }
+        }
+        return unread
     }
 
     /// Takes in another page, keeping the order it arrived in and dropping

@@ -110,34 +110,56 @@ struct UnshownTests {
         content: .pullRequests
     )
 
-    private func state(held: Int, total: Int?) -> AppState {
+    private func state(unread: Int?) -> AppState {
         let state = AppState(settings: Settings(store: TestDefaults.make()))
         state.settings.savedLists = [list]
-        state.listPullRequests[list.id] = (0..<held).map { index in
+        if let unread { state.listUnread[list.id] = unread }
+        return state
+    }
+
+    @Test("A list that was read to the end hides nothing")
+    func fits() {
+        #expect(state(unread: nil).unshown(in: list) == 0)
+    }
+
+    @Test("A list cut short says how many are left")
+    func capped() {
+        #expect(state(unread: 512).unshown(in: list) == 512)
+    }
+
+    /// Two searches feeding one list return the same pull request, and their
+    /// counts add up while their rows do not. Subtracting one from the other
+    /// would have a complete list announce rows that are not missing -- so
+    /// only a list that actually stopped at the cap reports anything.
+    @Test("Only a list that stopped at the cap reports anything")
+    func onlyWhatWasCutShort() {
+        var results = ListResults()
+        results.totals["reviews"] = 149
+        results.pullRequests["reviews"] = (0..<120).map { index in
             PullRequestItem(
                 id: "\(index)", number: index, title: "t", repository: "octo/platform",
                 author: "a", authorAvatarURL: nil, url: URL(string: "https://github.com")!,
                 isDraft: false, updatedAt: .now, reviewDecision: .none, checks: .none
             )
         }
-        if let total { state.listTotals[list.id] = total }
-        return state
+
+        // Read to the end, overlapping searches: nothing is missing.
+        #expect(results.unread(stoppedAt: []).isEmpty)
+        // Stopped at the cap: what is left is worth saying.
+        #expect(results.unread(stoppedAt: ["reviews"])["reviews"] == 29)
     }
 
-    @Test("A list that fits hides nothing")
-    func fits() {
-        #expect(state(held: 109, total: 109).unshown(in: list) == 0)
-    }
+    /// GitHub counts at the moment it is asked, so a row merged between the
+    /// count and the page leaves the total below what arrived.
+    @Test("A total below the rows is not a negative remainder")
+    func drift() {
+        var results = ListResults()
+        results.totals["reviews"] = 9
+        results.issues["reviews"] = []
+        #expect(results.unread(stoppedAt: ["reviews"])["reviews"] == 9)
 
-    @Test("A list past the cap says how many are left")
-    func capped() {
-        #expect(state(held: 300, total: 812).unshown(in: list) == 512)
-    }
-
-    /// Before the first refresh there is no total, and guessing one would
-    /// put a number on the screen that nobody measured.
-    @Test("Without a total nothing is claimed")
-    func noTotal() {
-        #expect(state(held: 4, total: nil).unshown(in: list) == 0)
+        var complete = ListResults()
+        complete.totals["reviews"] = 0
+        #expect(complete.unread(stoppedAt: ["reviews"]).isEmpty)
     }
 }

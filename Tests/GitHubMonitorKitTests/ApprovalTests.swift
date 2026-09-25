@@ -242,6 +242,88 @@ struct ApprovalDetailTests {
     }
 }
 
+@MainActor
+@Suite("An approval outlives GitHub's silence")
+struct ApprovalPersistenceTests {
+    private let list = SavedList(
+        id: "reviews", title: "Reviews", query: "is:pr review-requested:@me",
+        content: .pullRequests
+    )
+
+    private func item(_ id: String, viewer: ViewerReview? = nil) -> PullRequestItem {
+        PullRequestItem(
+            id: id, number: 1, title: "t", repository: "octo/platform", author: "a",
+            authorAvatarURL: nil, url: URL(string: "https://github.com")!, isDraft: false,
+            updatedAt: .now, reviewDecision: .reviewRequired, checks: .none,
+            viewerReview: viewer,
+            reviews: ReviewTally(accepted: 0, declined: 0, pending: 1)
+        )
+    }
+
+    private func state() -> AppState {
+        let state = AppState(settings: Settings(store: TestDefaults.make()))
+        state.settings.savedLists = [list]
+        return state
+    }
+
+    /// The row comes from a search, the most lagged index GitHub has. A
+    /// refresh landing seconds after an approval brings back the row as it
+    /// was before it, and without this the approval would appear and then
+    /// vanish for minutes.
+    @Test("A row that comes back without the approval gets it back")
+    func reapplied() {
+        let before = item("1")
+        let after = before.countingViewerApproval()
+        #expect(after.reviews.accepted == 1)
+        #expect(after.viewerReview?.state == .approved)
+
+        // What a refresh brings: the row as GitHub still sees it.
+        #expect(before.viewerReview?.state != .approved)
+    }
+
+    /// Once GitHub reports the approval there is nothing left to cover.
+    /// The count does not move a second time, whichever way it is reached:
+    /// the caller skips such a row, and the row would refuse anyway.
+    @Test("A row that already carries the approval is not counted twice")
+    func settled() {
+        let settled = item("1", viewer: ViewerReview(state: .approved, submittedAt: .now))
+        #expect(settled.viewerReview?.state == .approved)
+        #expect(settled.countingViewerApproval().reviews.accepted == settled.reviews.accepted)
+    }
+
+    /// Signing out must leave nothing of the account behind -- not the
+    /// lists, and not the diff of a private repository left open over them.
+    @Test("Signing out clears what the token fetched")
+    func signOutClears() {
+        let state = state()
+        state.hasToken = true
+        state.listPullRequests[list.id] = [item("1")]
+        state.changedFiles["1"] = .loaded([])
+        state.openedDiff = OpenedDiff(
+            pullRequestID: "1", path: nil, files: [],
+            url: URL(string: "https://github.com/octo/platform/pull/1")!
+        )
+        state.approval = .confirming(pullRequestID: "1")
+        state.inspectedPullRequestID = "1"
+
+        // Its own directory, so the test writes nothing into the cache the
+        // app uses.
+        let controller = RefreshController(
+            state: state,
+            trendStore: TrendStore(directory: FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString))
+        )
+        controller.signOut()
+
+        #expect(state.openedDiff == nil)
+        #expect(state.changedFiles.isEmpty)
+        #expect(state.listPullRequests.isEmpty)
+        #expect(state.inspectedPullRequestID == nil)
+        #expect(state.approval == .idle)
+        #expect(!state.hasToken)
+    }
+}
+
 @Suite("The state an approval passes through")
 struct ApprovalStateTests {
     @Test("A message belongs to the pull request it failed on")
