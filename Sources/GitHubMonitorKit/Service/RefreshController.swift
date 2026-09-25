@@ -734,6 +734,91 @@ public final class RefreshController {
         }
     }
 
+    // MARK: - Approving
+
+    /// Looks at the head commit, and puts the question up if it still
+    /// matches the diff that was read.
+    ///
+    /// The check comes before the question rather than after: confirming
+    /// something that then turns out not to have happened is worse than a
+    /// moment's wait.
+    public func askToApprove(_ item: PullRequestItem) async {
+        guard let service else {
+            state.approval = .failed(
+                pullRequestID: item.id,
+                message: GitHubError.noToken.localizedDescription
+            )
+            return
+        }
+
+        state.approval = .checking(pullRequestID: item.id)
+        do {
+            let head = try await service.head(of: item.id)
+            if let refusal = ApprovalQuery.refusal(comparing: head, against: item.headCommit) {
+                state.approval = .failed(
+                    pullRequestID: item.id,
+                    message: refusal.localizedDescription
+                )
+                return
+            }
+            state.approval = .confirming(pullRequestID: item.id)
+        } catch {
+            state.approval = .failed(pullRequestID: item.id, message: error.localizedDescription)
+        }
+    }
+
+    /// Puts the question away without writing anything.
+    public func cancelApproval() {
+        if case .confirming = state.approval { state.approval = .idle }
+    }
+
+    /// Sends the approval, bound to the commit whose diff was on screen.
+    ///
+    /// Returns whether GitHub took it, so the caller can put the diff away
+    /// only when something actually happened.
+    @discardableResult
+    public func approve(_ item: PullRequestItem) async -> Bool {
+        guard let service, let commit = item.headCommit else {
+            state.approval = .failed(
+                pullRequestID: item.id,
+                message: "This pull request has not been read since the app learned to approve. Refresh and try again."
+            )
+            return false
+        }
+
+        state.approval = .sending(pullRequestID: item.id)
+        do {
+            try await service.approve(pullRequestID: item.id, commit: commit)
+            state.approval = .idle
+            // One more approval, counted straight away. Not the pull
+            // request's own decision: two may be required, and GitHub is the
+            // only one who knows.
+            countApproval(of: item)
+            await refreshApproved(item)
+            return true
+        } catch {
+            Log.api.error("approve failed: \(error.localizedDescription, privacy: .public)")
+            state.approval = .failed(pullRequestID: item.id, message: error.localizedDescription)
+            return false
+        }
+    }
+
+    private func countApproval(of item: PullRequestItem) {
+        for (listID, items) in state.listPullRequests {
+            guard let index = items.firstIndex(where: { $0.id == item.id }) else { continue }
+            let row = items[index]
+            state.listPullRequests[listID]?[index] = row.countingViewerApproval()
+        }
+    }
+
+    /// Fetches this one pull request again, so the real state replaces the
+    /// guess without waiting for the next refresh of everything.
+    private func refreshApproved(_ item: PullRequestItem) async {
+        state.pullRequestDetails[item.id] = nil
+        loadDetailIfNeeded(for: item.id)
+        await refresh()
+    }
+
     // MARK: - Issues
 
     /// Opens the detail pane for an issue, fetching its body the first time.

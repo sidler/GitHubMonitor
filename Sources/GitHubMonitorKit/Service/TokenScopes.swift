@@ -22,9 +22,20 @@ public struct TokenScopes: Equatable, Sendable {
         )
     }
 
-    /// What this app needs, and why, for the settings screen to explain itself.
+    /// What this app needs, and why, for the settings screen to explain
+    /// itself.
+    ///
+    /// `repo` is written as what it is. GitHub's classic scope has no
+    /// read-only half: it grants write across every repository the account
+    /// can reach, and the description used to say "read", which was already
+    /// misleading before the app approved anything.
     public static let required: [(scope: String, purpose: String)] = [
-        ("repo", "read pull requests and issues, including in private repositories"),
+        (
+            "repo",
+            "full access to repositories, including private ones. The app reads pull "
+                + "requests and issues with it, and writes exactly one thing: the approval "
+                + "you confirm in the diff."
+        ),
         ("notifications", "read notifications and mark them read"),
     ]
 

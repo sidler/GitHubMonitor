@@ -88,6 +88,13 @@ public enum PullRequestQuery {
           # moment ago answers UNKNOWN and carries a real answer on a later
           # refresh, which is why nothing is drawn for that case.
           mergeable
+          # What approving from here needs to know before it offers to.
+          # All four are plain fields on the pull request, so the search
+          # still costs one point.
+          headRefOid
+          viewerDidAuthor
+          viewerLatestReview { state submittedAt }
+          autoMergeRequest { enabledAt }
           repository { nameWithOwner }
           author { login avatarUrl }
           commits(last: 1) {

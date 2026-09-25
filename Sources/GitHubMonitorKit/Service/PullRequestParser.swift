@@ -52,6 +52,10 @@ public enum PullRequestParser {
             reviewDecision: reviewDecision(node["reviewDecision"] as? String),
             checks: checks(from: node),
             mergeStatus: mergeStatus(node["mergeable"] as? String),
+            headCommit: node["headRefOid"] as? String,
+            viewerDidAuthor: node["viewerDidAuthor"] as? Bool ?? false,
+            viewerReview: viewerReview(from: node),
+            isAutoMergeArmed: (node["autoMergeRequest"] as? [String: Any]) != nil,
             reviewRequestedAt: reviewRequested(from: node, of: viewer),
             reviews: reviewTally(from: node)
         )
@@ -98,6 +102,19 @@ public enum PullRequestParser {
             return GitHubDate.date(from: raw)
         }
         .min()
+    }
+
+    /// Absent where they have not reviewed it, which is the ordinary case
+    /// for something still waiting on them.
+    static func viewerReview(from node: [String: Any]) -> ViewerReview? {
+        guard
+            let review = node["viewerLatestReview"] as? [String: Any],
+            let raw = review["state"] as? String
+        else { return nil }
+        return ViewerReview(
+            state: ReviewState(apiValue: raw),
+            submittedAt: GitHubDate.optional(from: review["submittedAt"] as? String)
+        )
     }
 
     static func reviewDecision(_ raw: String?) -> ReviewDecision {

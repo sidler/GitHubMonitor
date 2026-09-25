@@ -23,7 +23,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     private var inspectorItem: NSSplitViewItem?
     private var contentController: NSViewController?
     /// The diff put up over the whole window, while one is open.
-    private var diffOverlay: NSView?
+    private var diffOverlay: DiffOverlayView<DiffOverlay>?
     /// Whatever had the keyboard before the overlay took it.
     private weak var responderBeforeDiff: NSResponder?
     /// Kept so the collapse of the sidebar can be read back: the title is
@@ -199,7 +199,12 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             return
         }
 
-        guard diffOverlay == nil else { return }
+        // Already up: hand it the current state rather than leaving it with
+        // the one it was built from, or a refusal would never reach it.
+        if let overlay = diffOverlay {
+            overlay.rootView = overlayContent(files: files, opened: opened)
+            return
+        }
 
         let view = DiffOverlayView(rootView: overlayContent(files: files, opened: opened))
         view.onCancel = { [weak state] in state?.openedDiff = nil }
@@ -216,16 +221,35 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         window?.makeFirstResponder(view)
     }
 
-    private func overlayContent(files: [ChangedFile], opened: OpenedDiff) -> some View {
-        DiffOverlay(
+    private func overlayContent(files: [ChangedFile], opened: OpenedDiff) -> DiffOverlay {
+        let item = state.pullRequest(withID: opened.pullRequestID)
+        return DiffOverlay(
             files: files,
-            pullRequest: state.pullRequest(withID: opened.pullRequestID)?.url
-                ?? URL(string: "https://github.com")!,
+            pullRequest: item?.url ?? URL(string: "https://github.com")!,
             path: Binding(
                 get: { [weak state] in state?.openedDiff?.path },
                 set: { [weak state] path in state?.openedDiff?.path = path }
             ),
-            close: { [weak state] in state?.openedDiff = nil }
+            close: { [weak state] in state?.openedDiff = nil },
+            review: item.map(reviewActions(for:))
+        )
+    }
+
+    /// What the overlay may do with this pull request, and how.
+    private func reviewActions(for item: PullRequestItem) -> ReviewActions {
+        ReviewActions(
+            title: item.title,
+            repository: item.repository,
+            number: item.number,
+            didAuthor: item.viewerDidAuthor,
+            viewerState: item.viewerReview?.state,
+            isAutoMergeArmed: item.isAutoMergeArmed,
+            isBusy: state.approval.isBusy,
+            isConfirming: state.approval.isConfirming(item.id),
+            failure: state.approval.message(for: item.id),
+            ask: { [controller] in await controller.askToApprove(item) },
+            cancel: { [controller] in controller.cancelApproval() },
+            approve: { [controller] in await controller.approve(item) }
         )
     }
 
@@ -413,6 +437,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             // The overlay is opened from a row that already has the files,
             // but a reload can replace them underneath it.
             _ = state.changedFiles
+            _ = state.approval
             _ = state.pullRequestDetails
             _ = state.issueDetails
             _ = state.notificationThreads

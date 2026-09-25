@@ -109,6 +109,22 @@ public struct GitHubService: Sendable {
 
     /// The description and the end of the conversation behind a
     /// notification, for the pane that shows it.
+    /// Where the pull request's head is right now.
+    public func head(of pullRequestID: String) async throws -> ApprovalQuery.HeadState {
+        let payload = try await client.graphQL(
+            ApprovalQuery.headDocument, variables: ["id": pullRequestID]
+        )
+        return try ApprovalQuery.head(from: payload)
+    }
+
+    /// Approves a pull request, bound to one commit.
+    public func approve(pullRequestID: String, commit: String) async throws {
+        _ = try await client.graphQL(
+            ApprovalQuery.approveDocument,
+            variables: ["id": pullRequestID, "commit": commit]
+        )
+    }
+
     /// The files one pull request touches, with their patches.
     public func changedFiles(repository: String, number: Int) async throws -> [ChangedFile] {
         guard

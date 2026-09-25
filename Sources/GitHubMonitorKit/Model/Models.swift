@@ -30,6 +30,15 @@ public struct PullRequestItem: Identifiable, Hashable, Sendable, ListedItem {
     public let checks: ChecksStatus
     /// Whether it still merges into its base branch.
     public let mergeStatus: MergeStatus
+    /// What approving from inside the app needs to know: which commit the
+    /// diff on screen belongs to, whether this is the viewer's own work,
+    /// where their own review stands, and whether a merge is already armed
+    /// and waiting for one more yes.
+    public let headCommit: String?
+    public let viewerDidAuthor: Bool
+    public let viewerReview: ViewerReview?
+    public let isAutoMergeArmed: Bool
+
     /// When the review was asked of the signed-in person.
     ///
     /// Nil where no request names them: a request made of a team names the
@@ -55,6 +64,10 @@ public struct PullRequestItem: Identifiable, Hashable, Sendable, ListedItem {
         reviewDecision: ReviewDecision,
         checks: ChecksStatus,
         mergeStatus: MergeStatus = .unknown,
+        headCommit: String? = nil,
+        viewerDidAuthor: Bool = false,
+        viewerReview: ViewerReview? = nil,
+        isAutoMergeArmed: Bool = false,
         reviewRequestedAt: Date? = nil,
         reviews: ReviewTally = .none
     ) {
@@ -73,8 +86,31 @@ public struct PullRequestItem: Identifiable, Hashable, Sendable, ListedItem {
         self.reviewDecision = reviewDecision
         self.checks = checks
         self.mergeStatus = mergeStatus
+        self.headCommit = headCommit
+        self.viewerDidAuthor = viewerDidAuthor
+        self.viewerReview = viewerReview
+        self.isAutoMergeArmed = isAutoMergeArmed
         self.reviewRequestedAt = reviewRequestedAt
         self.reviews = reviews
+    }
+
+    /// The same pull request with this person's approval counted.
+    ///
+    /// The tally and their own review move; `reviewDecision` does not. That
+    /// field is the pull request's verdict, and one approval does not settle
+    /// it where two are required -- the next refresh brings GitHub's answer.
+    public func countingViewerApproval(at moment: Date = .now) -> PullRequestItem {
+        PullRequestItem(
+            id: id, number: number, title: title, repository: repository, author: author,
+            authorAvatarURL: authorAvatarURL, url: url, isDraft: isDraft,
+            createdAt: createdAt, updatedAt: updatedAt,
+            reviewDecision: reviewDecision, checks: checks, mergeStatus: mergeStatus,
+            headCommit: headCommit, viewerDidAuthor: viewerDidAuthor,
+            viewerReview: ViewerReview(state: .approved, submittedAt: moment),
+            isAutoMergeArmed: isAutoMergeArmed,
+            reviewRequestedAt: reviewRequestedAt,
+            reviews: reviews.countingApproval(replacing: viewerReview?.state)
+        )
     }
 
     /// How long the review has been waiting, as of now.
@@ -158,6 +194,17 @@ public struct ReviewTally: Hashable, Sendable {
         ReviewTallyKind.allCases
             .map { ($0, count(of: $0)) }
             .filter { $0.1 > 0 }
+    }
+
+    /// One more approval, and one fewer of whatever this person's previous
+    /// review was -- an approval that supersedes their own request for
+    /// changes must not leave both standing.
+    public func countingApproval(replacing previous: ReviewState?) -> ReviewTally {
+        ReviewTally(
+            accepted: accepted + (previous == .approved ? 0 : 1),
+            declined: max(0, declined - (previous == .changesRequested ? 1 : 0)),
+            pending: max(0, pending - 1)
+        )
     }
 
     public func count(of kind: ReviewTallyKind) -> Int {
@@ -266,6 +313,21 @@ public enum ChecksStatus: String, Sendable, Hashable, CaseIterable {
         case .pending: "clock.fill"
         case .none: "minus.circle"
         }
+    }
+}
+
+/// The signed-in person's own last review of a pull request.
+///
+/// Their own, not the pull request's: a single approval does not make a pull
+/// request approved where two are required, and confusing the two would have
+/// the app claiming things GitHub has not said.
+public struct ViewerReview: Hashable, Sendable {
+    public let state: ReviewState
+    public let submittedAt: Date?
+
+    public init(state: ReviewState, submittedAt: Date?) {
+        self.state = state
+        self.submittedAt = submittedAt
     }
 }
 

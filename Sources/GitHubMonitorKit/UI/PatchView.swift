@@ -15,6 +15,9 @@ struct DiffOverlay: View {
     let pullRequest: URL
     @Binding var path: String?
     let close: () -> Void
+    /// The pull request being read, where one is known. Nil leaves the
+    /// overlay a reader and nothing more.
+    var review: ReviewActions?
 
     @StateObject private var open = OpenFolders()
 
@@ -76,6 +79,11 @@ struct DiffOverlay: View {
 
             Spacer(minLength: 12)
 
+            if let review {
+                reviewControls(review)
+                Divider().frame(height: 14)
+            }
+
             Button { NSWorkspace.shared.open(pullRequest.appendingPathComponent("files")) } label: {
                 Label("All files on GitHub", systemImage: "arrow.up.forward.square")
             }
@@ -85,6 +93,75 @@ struct DiffOverlay: View {
                 .keyboardShortcut(.cancelAction)
         }
         .padding(12)
+        .alert(
+            "Approve \u{201c}\(review?.title ?? "")\u{201d}?",
+            isPresented: Binding(
+                get: { review?.isConfirming ?? false },
+                set: { if !$0 { review?.cancel() } }
+            )
+        ) {
+            Button("Approve") { Task { await submit() } }
+            Button("Cancel", role: .cancel) { review?.cancel() }
+        } message: {
+            Text(confirmation)
+        }
+    }
+
+    // MARK: - Reviewing
+
+    /// What the header offers, which depends on where this person already
+    /// stands on the pull request.
+    @ViewBuilder
+    private func reviewControls(_ review: ReviewActions) -> some View {
+        if let message = review.failure {
+            // Nothing was written; say why, and leave the button usable.
+            Label(message, systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+                .font(.caption)
+                .lineLimit(2)
+                .frame(maxWidth: 320, alignment: .trailing)
+        }
+
+        if review.didAuthor {
+            // GitHub refuses it, so the button would be a button that never
+            // works. Saying why is more use than a disabled control.
+            Text("Your own pull request")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } else if review.viewerState == .approved {
+            Label("Approved", systemImage: "checkmark.seal.fill")
+                .foregroundStyle(.green)
+                .font(.caption)
+        } else {
+            if review.viewerState == .changesRequested {
+                // The button still works, and this says what it will undo.
+                Text("You asked for changes")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+
+            Button("Request changes\u{2026}") {
+                NSWorkspace.shared.open(pullRequest.appendingPathComponent("files"))
+            }
+            .help("Opens the pull request on GitHub, where a review can be written against the lines")
+
+            Button("Approve") { Task { await review.ask() } }
+                .disabled(review.isBusy)
+        }
+    }
+
+    private var confirmation: String {
+        guard let review else { return "" }
+        return ApprovalQuery.confirmation(
+            repository: review.repository,
+            number: review.number,
+            isAutoMergeArmed: review.isAutoMergeArmed
+        )
+    }
+
+    private func submit() async {
+        guard let review else { return }
+        if await review.approve() { close() }
     }
 
     private var additions: Int { files.reduce(0) { $0 + $1.additions } }
@@ -338,4 +415,29 @@ struct FileTreeRows: View {
         .foregroundStyle(.secondary)
         .help(folder.path)
     }
+}
+
+/// What the diff overlay may do with the pull request it is showing.
+///
+/// A plain description rather than the app's state, so the overlay stays a
+/// view: it asks whether it may offer the button, and hands the two verbs
+/// back to whoever built it.
+struct ReviewActions {
+    let title: String
+    let repository: String
+    let number: Int
+    let didAuthor: Bool
+    let viewerState: ReviewState?
+    let isAutoMergeArmed: Bool
+    let isBusy: Bool
+    /// Whether the question is on screen for this pull request.
+    let isConfirming: Bool
+    /// Why the last attempt wrote nothing, if there was one.
+    let failure: String?
+    /// Looks at the head commit and, if it still matches, raises the
+    /// question. Writes nothing either way.
+    let ask: () async -> Void
+    let cancel: () -> Void
+    /// True when GitHub took the approval.
+    let approve: () async -> Bool
 }

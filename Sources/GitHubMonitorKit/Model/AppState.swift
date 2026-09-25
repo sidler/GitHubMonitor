@@ -52,6 +52,49 @@ public struct OpenedDiff: Equatable, Sendable {
     }
 }
 
+/// An approval, from the click to whatever GitHub answered.
+public enum ApprovalState: Equatable, Sendable {
+    case idle
+    /// Looking at the head commit, before anything is written.
+    case checking(pullRequestID: String)
+    /// The check passed and the question is on screen.
+    ///
+    /// Part of the app's state rather than the overlay's: every step here
+    /// rebuilds the overlay, and a question that lived inside it was thrown
+    /// away by the very change that was supposed to raise it.
+    case confirming(pullRequestID: String)
+    /// Waiting for the mutation.
+    case sending(pullRequestID: String)
+    /// Refused before it was sent, or rejected by GitHub. Either way
+    /// nothing was written.
+    case failed(pullRequestID: String, message: String)
+
+    public var pullRequestID: String? {
+        switch self {
+        case .idle: nil
+        case .checking(let id), .confirming(let id), .sending(let id): id
+        case .failed(let id, _): id
+        }
+    }
+
+    public var isBusy: Bool {
+        switch self {
+        case .checking, .sending: true
+        case .idle, .confirming, .failed: false
+        }
+    }
+
+    public func isConfirming(_ pullRequestID: String) -> Bool {
+        if case .confirming(let id) = self { return id == pullRequestID }
+        return false
+    }
+
+    public func message(for pullRequestID: String) -> String? {
+        guard case .failed(let id, let message) = self, id == pullRequestID else { return nil }
+        return message
+    }
+}
+
 public enum LoadState: Equatable, Sendable {
     case idle
     /// Refreshing has stopped until GitHub restores the allowance.
@@ -135,6 +178,9 @@ public final class AppState {
     /// How many GitHub says match each list, whatever was read of them.
     /// Only different from what is held when a list runs past the cap.
     public var listTotals: [String: Int] = [:]
+
+    /// Where an approval stands, for the one pull request being approved.
+    public var approval: ApprovalState = .idle
 
     /// The diff being read over the window, if any.
     public var openedDiff: OpenedDiff?
@@ -564,6 +610,8 @@ public final class AppState {
                 updatedAt: .now.addingTimeInterval(-3600),
                 reviewDecision: .reviewRequired, checks: .success,
                 mergeStatus: .conflicting,
+                headCommit: "22da5a177503201b9cbbe78802da6353299f74df",
+                isAutoMergeArmed: true,
                 // Long enough to be called overdue under any sane threshold.
                 reviewRequestedAt: .now.addingTimeInterval(-86400 * 9)
             ),
