@@ -1,12 +1,41 @@
 import Combine
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// View-local state without `@State`: its macro implementation ships only
 /// with Xcode, and this project builds against the Command Line Tools.
 @MainActor
 private final class ListEditorModel: ObservableObject {
     @Published var selection: String?
-    @Published var pendingDeletion: SavedList?
+    @Published var prompt: Prompt?
+}
+
+/// Whatever the view is currently asking about.
+///
+/// One case rather than one `@Published` per question: SwiftUI presents a
+/// single alert per view, so three `.alert` modifiers on the same view meant
+/// two of them silently never appeared.
+enum Prompt: Identifiable {
+    case delete(SavedList)
+    case importing(PendingImport)
+    case problem(String)
+
+    var id: String {
+        switch self {
+        case .delete(let list): "delete.\(list.id)"
+        case .importing(let pending): "import.\(pending.id)"
+        case .problem(let message): "problem.\(message)"
+        }
+    }
+}
+
+/// An import that has been read and worked out, waiting to be confirmed.
+struct PendingImport {
+    let id = UUID()
+    let lists: [SavedList]
+    let plan: ListExchange.Plan
+    /// Where it came from, so the question can name it.
+    let source: String
 }
 
 /// The lists in the sidebar: what they are called, what they search for, and
@@ -29,14 +58,125 @@ struct ListsSettingsView: View {
         // running once the typing stops -- so the refresh waits for the tab
         // to be left rather than firing on every keystroke.
         .onDisappear { Task { await controller.refresh() } }
-        .alert(item: $model.pendingDeletion) { list in
-            Alert(
-                title: Text("Delete “\(list.title)”?"),
-                message: Text("The list and its query are removed. Nothing on GitHub changes."),
-                primaryButton: .destructive(Text("Delete")) { delete(list) },
-                secondaryButton: .cancel()
-            )
+        .alert(item: $model.prompt) { prompt in
+            switch prompt {
+            case .delete(let list):
+                Alert(
+                    title: Text("Delete “\(list.title)”?"),
+                    message: Text("The list and its query are removed. Nothing on GitHub changes."),
+                    primaryButton: .destructive(Text("Delete")) { delete(list) },
+                    secondaryButton: .cancel()
+                )
+            case .importing(let pending):
+                // Asked before anything is written: an imported list keeps
+                // the id it was saved under, and the lists the app seeds
+                // carry the same ids for everyone -- so a colleague's file
+                // lands on your own "Reviews Requested" unless you are told.
+                Alert(
+                    title: Text("Import \(pending.plan.count) list\(pending.plan.count == 1 ? "" : "s") from \(pending.source)?"),
+                    message: Text(description(of: pending.plan)),
+                    primaryButton: .default(Text("Import")) { apply(pending) },
+                    secondaryButton: .cancel()
+                )
+            case .problem(let message):
+                Alert(title: Text("Nothing was imported"), message: Text(message))
+            }
         }
+    }
+
+    // MARK: - Passing lists around
+
+    private var exchangeMenu: some View {
+        Menu {
+            Section("Export") {
+                Button("Save to a File…", action: exportToFile)
+                Button("Copy", action: copyToClipboard)
+            }
+            Section("Import") {
+                Button("Open a File…", action: importFromFile)
+                Button("Paste", action: pasteFromClipboard)
+            }
+        } label: {
+            Label("Share", systemImage: "square.and.arrow.up")
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("Pass these lists to another machine, or take someone else's")
+    }
+
+    private var exported: Data? {
+        try? ListExchange.encode(settings.savedLists)
+    }
+
+    private func exportToFile() {
+        guard let data = exported else { return }
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "GitHub Monitor Lists.json"
+        panel.allowedContentTypes = [.json]
+        panel.message = "The lists only — not the token, the filters or which of them you show where."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try data.write(to: url)
+        } catch {
+            model.prompt = .problem(error.localizedDescription)
+        }
+    }
+
+    private func copyToClipboard() {
+        guard let data = exported, let text = String(data: data, encoding: .utf8) else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+    }
+
+    private func importFromFile() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let data = try? Data(contentsOf: url) else {
+            model.prompt = .problem("That file could not be read.")
+            return
+        }
+        propose(data, from: url.lastPathComponent)
+    }
+
+    private func pasteFromClipboard() {
+        guard let text = NSPasteboard.general.string(forType: .string) else {
+            model.prompt = .problem("The clipboard holds no text.")
+            return
+        }
+        propose(Data(text.utf8), from: "the clipboard")
+    }
+
+    private func propose(_ data: Data, from source: String) {
+        do {
+            let lists = try ListExchange.decode(data)
+            model.prompt = .importing(PendingImport(
+                lists: lists,
+                plan: ListExchange.plan(importing: lists, into: settings.savedLists),
+                source: source
+            ))
+        } catch {
+            model.prompt = .problem(error.localizedDescription)
+        }
+    }
+
+    private func apply(_ pending: PendingImport) {
+        settings.savedLists = ListExchange.apply(pending.lists, to: settings.savedLists)
+        state.normaliseSelection()
+    }
+
+    private func description(of plan: ListExchange.Plan) -> String {
+        var lines: [String] = []
+        if !plan.replacing.isEmpty {
+            let names = plan.replacing.map { "“\($0.existingTitle)”" }.joined(separator: ", ")
+            lines.append("Replaces what you have under the same name: \(names).")
+        }
+        if !plan.adding.isEmpty {
+            let names = plan.adding.map { "“\($0.title)”" }.joined(separator: ", ")
+            lines.append("Adds: \(names).")
+        }
+        return lines.joined(separator: "\n\n")
     }
 
     // MARK: - The table
@@ -173,13 +313,15 @@ struct ListsSettingsView: View {
             .fixedSize()
 
             Button {
-                if let list = selected { model.pendingDeletion = list }
+                if let list = selected { model.prompt = .delete(list) }
             } label: {
                 Label("Delete", systemImage: "minus")
             }
             // The mentions cannot be deleted, only switched off: there is
             // nothing to recreate them from.
             .disabled(selected == nil)
+
+            exchangeMenu
 
             Spacer()
 
