@@ -37,7 +37,8 @@ struct DiffOverlay: View {
                 .frame(maxWidth: 1500, maxHeight: 1100)
                 .padding(36)
         }
-        .onExitCommand(perform: close)
+        // Escape is handled by the view that hosts this, so that it stops
+        // here instead of reaching the list behind it.
     }
 
     private var card: some View {

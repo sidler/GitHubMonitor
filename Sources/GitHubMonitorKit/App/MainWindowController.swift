@@ -201,7 +201,8 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
 
         guard diffOverlay == nil else { return }
 
-        let view = NSHostingView(rootView: overlayContent(files: files, opened: opened))
+        let view = DiffOverlayView(rootView: overlayContent(files: files, opened: opened))
+        view.onCancel = { [weak state] in state?.openedDiff = nil }
         view.translatesAutoresizingMaskIntoConstraints = false
         split.addSubview(view)
         NSLayoutConstraint.activate([
@@ -393,8 +394,14 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             if let index { toolbar.removeItem(at: index) }
         } else if index == nil {
             // Before the controls, which is where the delegate's own order
-            // puts it too.
+            // puts it too -- and failing that before the inspector's
+            // separator rather than at the end. Both items are taken away
+            // while a diff covers the window, and putting them back leaves
+            // neither for the other to aim at: the grouping went past the
+            // separator, the controls landed in front of it, and the two
+            // came back the wrong way round.
             let position = toolbar.items.firstIndex { $0.itemIdentifier == Self.controlsItem }
+                ?? toolbar.items.firstIndex { $0.itemIdentifier == .inspectorTrackingSeparator }
             toolbar.insertItem(
                 withItemIdentifier: Self.groupingItem,
                 at: position ?? toolbar.items.count
@@ -635,4 +642,27 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             NSApp.setActivationPolicy(.accessory)
         }
     }
+
+/// Hosts the diff overlay, and stops Escape at it.
+///
+/// Without this the key travels on up the responder chain to the list
+/// underneath, which answers it by closing the detail pane -- so one press
+/// put away two things, and the diff took the pane behind it with it.
+private final class DiffOverlayView<Content: View>: NSHostingView<Content> {
+    var onCancel: (() -> Void)?
+
+    override var acceptsFirstResponder: Bool { true }
+
+    override func cancelOperation(_ sender: Any?) {
+        onCancel?()
+    }
+
+    @MainActor required init(rootView: Content) {
+        super.init(rootView: rootView)
+    }
+
+    @MainActor required dynamic init?(coder: NSCoder) {
+        fatalError("not loaded from a nib")
+    }
+}
 }
