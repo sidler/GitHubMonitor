@@ -638,7 +638,7 @@ public final class AppState {
             PullRequestDetail(
                 headBranch: "fix/session-handler-race",
                 baseBranch: "main",
-                additions: 148, deletions: 62, changedFiles: 3, comments: 4,
+                additions: 154, deletions: 64, changedFiles: 6, comments: 4,
                 mergeStatus: .conflicting,
                 checks: [
                     CheckRun(name: "phpunit", status: .success),
@@ -674,6 +674,21 @@ public final class AppState {
                 path: "core/module_system/config/migrations.yml",
                 additions: 2, deletions: 0, change: .modified,
                 patch: "@@ -4,2 +4,4 @@\n order:\n   - Migration20260901120000\n+  - Migration20260901123000\n+  # runs after the column exists\n"
+            ),
+            ChangedFile(
+                path: "core/module_system/src/Filter/SessionFilter.php",
+                additions: 3, deletions: 1, change: .modified,
+                patch: "@@ -12,3 +12,5 @@\n class SessionFilter\n-    public $id;\n+    public string $id = '';\n+    public string $data = '';\n"
+            ),
+            ChangedFile(
+                path: "core/module_system/src/Filter/UserFilter.php",
+                additions: 1, deletions: 1, change: .modified,
+                patch: "@@ -8,1 +8,1 @@\n-#[ModuleId('_system_module_id_')]\n+#[ModuleId(_system_module_id_)]\n"
+            ),
+            ChangedFile(
+                path: "README.md",
+                additions: 2, deletions: 0, change: .modified,
+                patch: "@@ -1,2 +1,4 @@\n # Core\n+\n+Requires PHP 8.4.\n"
             ),
             ChangedFile(
                 path: "core/module_system/tests/SessionHandlerTest.php",

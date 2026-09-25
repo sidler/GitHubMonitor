@@ -16,6 +16,8 @@ struct DiffOverlay: View {
     @Binding var path: String?
     let close: () -> Void
 
+    @StateObject private var open = OpenFolders()
+
     var body: some View {
         ZStack {
             // The dimmed ground is part of the control: clicking beside a
@@ -26,11 +28,18 @@ struct DiffOverlay: View {
                 .onTapGesture(perform: close)
 
             card
-                .background(.background, in: RoundedRectangle(cornerRadius: 10))
+                // The shadow belongs to the shape behind the card, not to
+                // the card: `.shadow` on the content shadows everything
+                // drawn in it, so the divider between the file list and the
+                // diff was casting one across the first inch of every patch.
+                .background {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(.background)
+                        .shadow(color: .black.opacity(0.25), radius: 24, y: 8)
+                }
                 .overlay(
                     RoundedRectangle(cornerRadius: 10).strokeBorder(.quaternary, lineWidth: 1)
                 )
-                .shadow(color: .black.opacity(0.25), radius: 24, y: 8)
                 // Capped, so a large window leaves a border of ground worth
                 // aiming at rather than a hairline. A small one still gets
                 // everything it has.
@@ -81,35 +90,16 @@ struct DiffOverlay: View {
     private var additions: Int { files.reduce(0) { $0 + $1.additions } }
     private var deletions: Int { files.reduce(0) { $0 + $1.deletions } }
 
-    /// The list on the left. Bound to the same value the scroll position
-    /// writes, so clicking jumps and scrolling moves the highlight.
+    /// The list on the left, as the directories the files live in.
+    ///
+    /// Bound to the same value the scroll position writes, so clicking jumps
+    /// and scrolling moves the highlight.
     private var index: some View {
         List(selection: $path) {
-            ForEach(files) { file in
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Image(systemName: file.change.symbolName)
-                        .foregroundStyle(.secondary)
-                    Text(file.shortPath)
-                        .lineLimit(1)
-                        .truncationMode(.head)
-                    Spacer(minLength: 4)
-                    if file.additions > 0 {
-                        Text(verbatim: "+\(file.additions)")
-                            .foregroundStyle(.green).monospacedDigit()
-                    }
-                    if file.deletions > 0 {
-                        Text(verbatim: "\u{2212}\(file.deletions)")
-                            .foregroundStyle(.red).monospacedDigit()
-                    }
-                }
-                .font(.caption)
-                .help(file.path)
-                .tag(file.path)
-            }
+            FileTreeRows(nodes: FileTree.build(files), open: open)
         }
-        // Inset rather than sidebar: the sidebar style draws an edge
-        // shadow down its trailing side, which fell across the first
-        // fifteen points of every diff beside it.
+        // Inset rather than sidebar: the sidebar style draws an edge shadow
+        // down its trailing side, which fell across the diff beside it.
         .listStyle(.inset)
         .scrollContentBackground(.hidden)
         .frame(width: 260)
@@ -219,7 +209,10 @@ struct PatchLines: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 1)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(kind.background)
+        // In a plain rectangle: a bare colour background rounds its
+        // corners on this system, which made every added and removed line
+        // look like a pill.
+        .background(kind.background, in: Rectangle())
     }
 
     private struct Line: Identifiable {
@@ -263,5 +256,86 @@ struct PatchLines: View {
             case .added, .removed, .context: Color(nsColor: .labelColor)
             }
         }
+    }
+}
+
+/// Which folders in the diff's file tree are open.
+///
+/// Everything is open to begin with: a diff is read rather than explored,
+/// and a tree that arrives shut is a tree to click open before it says
+/// anything. A folder closed by hand stays closed while the overlay is up.
+@MainActor
+final class OpenFolders: ObservableObject {
+    @Published private var closed: Set<String> = []
+
+    func binding(for path: String) -> Binding<Bool> {
+        Binding(
+            get: { [weak self] in !(self?.closed.contains(path) ?? false) },
+            set: { [weak self] isOpen in
+                if isOpen { self?.closed.remove(path) } else { self?.closed.insert(path) }
+            }
+        )
+    }
+}
+
+/// One level of the file tree, and the levels under it.
+///
+/// `AnyView` around the recursion: a `some View` body that mentions its own
+/// type is a type that contains itself, which the compiler will not build.
+struct FileTreeRows: View {
+    let nodes: [FileTree.Node]
+    @ObservedObject var open: OpenFolders
+
+    var body: some View {
+        ForEach(nodes) { node in
+            switch node {
+            case .file(let file):
+                fileRow(file).tag(file.path)
+            case .folder(let folder):
+                DisclosureGroup(isExpanded: open.binding(for: folder.path)) {
+                    AnyView(FileTreeRows(nodes: folder.children, open: open))
+                } label: {
+                    folderRow(folder)
+                }
+            }
+        }
+    }
+
+    private func fileRow(_ file: ChangedFile) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Image(systemName: file.change.symbolName)
+                .foregroundStyle(.secondary)
+            // The name only: the folders above it carry the rest, which is
+            // the whole point of the tree.
+            Text((file.path as NSString).lastPathComponent)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer(minLength: 4)
+            if file.additions > 0 {
+                Text(verbatim: "+\(file.additions)")
+                    .foregroundStyle(.green).monospacedDigit()
+            }
+            if file.deletions > 0 {
+                Text(verbatim: "\u{2212}\(file.deletions)")
+                    .foregroundStyle(.red).monospacedDigit()
+            }
+        }
+        .font(.caption)
+        .help(file.path)
+    }
+
+    private func folderRow(_ folder: FileTree.Folder) -> some View {
+        HStack(spacing: 6) {
+            Text(folder.name)
+                .lineLimit(1)
+                .truncationMode(.head)
+            Spacer(minLength: 4)
+            Text(verbatim: "\(folder.files.count)")
+                .monospacedDigit()
+                .foregroundStyle(.tertiary)
+        }
+        .font(.caption.weight(.medium))
+        .foregroundStyle(.secondary)
+        .help(folder.path)
     }
 }
