@@ -190,7 +190,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     private func syncDiffOverlay() {
         guard let split = splitViewController?.view else { return }
 
-        guard let opened = state.openedDiff, let files = loadedFiles(for: opened) else {
+        guard let opened = state.openedDiff else {
             guard let overlay = diffOverlay else { return }
             overlay.removeFromSuperview()
             diffOverlay = nil
@@ -202,11 +202,11 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         // Already up: hand it the current state rather than leaving it with
         // the one it was built from, or a refusal would never reach it.
         if let overlay = diffOverlay {
-            overlay.rootView = overlayContent(files: files, opened: opened)
+            overlay.rootView = overlayContent(opened)
             return
         }
 
-        let view = DiffOverlayView(rootView: overlayContent(files: files, opened: opened))
+        let view = DiffOverlayView(rootView: overlayContent(opened))
         view.onCancel = { [weak state] in state?.openedDiff = nil }
         view.translatesAutoresizingMaskIntoConstraints = false
         split.addSubview(view)
@@ -221,11 +221,11 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         window?.makeFirstResponder(view)
     }
 
-    private func overlayContent(files: [ChangedFile], opened: OpenedDiff) -> DiffOverlay {
+    private func overlayContent(_ opened: OpenedDiff) -> DiffOverlay {
         let item = state.pullRequest(withID: opened.pullRequestID)
         return DiffOverlay(
-            files: files,
-            pullRequest: item?.url ?? URL(string: "https://github.com")!,
+            files: opened.files,
+            pullRequest: opened.url,
             path: Binding(
                 get: { [weak state] in state?.openedDiff?.path },
                 set: { [weak state] path in state?.openedDiff?.path = path }
@@ -251,12 +251,6 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             cancel: { [controller] in controller.cancelApproval() },
             approve: { [controller] in await controller.approve(item) }
         )
-    }
-
-    private func loadedFiles(for opened: OpenedDiff) -> [ChangedFile]? {
-        guard case .loaded(let files) = state.changedFiles[opened.pullRequestID], !files.isEmpty
-        else { return nil }
-        return files
     }
 
     // MARK: - Sidebar

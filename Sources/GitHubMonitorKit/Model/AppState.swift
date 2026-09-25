@@ -45,10 +45,23 @@ public struct OpenedDiff: Equatable, Sendable {
     /// The file at the top of the overlay. Written both by scrolling it and
     /// by the list beside it, which is what makes the two follow each other.
     public var path: String?
+    /// The diff itself, taken when it was opened.
+    ///
+    /// Carried here rather than read from `changedFiles` as it goes: that
+    /// dictionary is rebuilt by every refresh, and a refresh arriving while
+    /// someone reads a diff would take the diff away from under them. What
+    /// is on screen is one diff at one commit, and it stays that until it
+    /// is closed -- the same reason the approval is bound to a commit.
+    public let files: [ChangedFile]
+    /// Kept here for the same reason: the links in the overlay must still
+    /// work for a pull request that has left the lists while it was open.
+    public let url: URL
 
-    public init(pullRequestID: String, path: String?) {
+    public init(pullRequestID: String, path: String?, files: [ChangedFile], url: URL) {
         self.pullRequestID = pullRequestID
         self.path = path
+        self.files = files
+        self.url = url
     }
 }
 

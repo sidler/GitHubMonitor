@@ -104,3 +104,58 @@ struct ChangedFilesTests {
         #expect(ChangedFilesQuery.repository("octo") == nil)
     }
 }
+
+@MainActor
+@Suite("A diff that is open stays open")
+struct OpenedDiffTests {
+    private let list = SavedList(
+        id: "reviews", title: "Reviews", query: "is:pr review-requested:@me",
+        content: .pullRequests
+    )
+
+    private func item(_ id: String) -> PullRequestItem {
+        PullRequestItem(
+            id: id, number: 1, title: "t", repository: "octo/platform", author: "a",
+            authorAvatarURL: nil, url: URL(string: "https://github.com/octo/platform/pull/1")!,
+            isDraft: false, updatedAt: .now, reviewDecision: .none, checks: .none
+        )
+    }
+
+    private func file(_ path: String) -> ChangedFile {
+        ChangedFile(path: path, additions: 1, deletions: 0, change: .modified, patch: "@@")
+    }
+
+    private func state() -> AppState {
+        let state = AppState(settings: Settings(store: TestDefaults.make()))
+        state.settings.savedLists = [list]
+        state.listPullRequests[list.id] = [item("1")]
+        state.changedFiles["1"] = .loaded([file("a.php"), file("b.php")])
+        return state
+    }
+
+    /// The bug this guards: the overlay used to read its files out of
+    /// `changedFiles`, which every refresh rebuilds -- so a refresh arriving
+    /// while someone read a diff took the diff away from under them.
+    @Test("A refresh rebuilding the file cache does not touch an open diff")
+    func survivesRefresh() {
+        let state = state()
+        guard case .loaded(let files) = state.changedFiles["1"] else {
+            Issue.record("expected files")
+            return
+        }
+        state.openedDiff = OpenedDiff(
+            pullRequestID: "1", path: "a.php", files: files,
+            url: URL(string: "https://github.com/octo/platform/pull/1")!
+        )
+
+        // What a refresh does to that dictionary, in both the shapes it
+        // takes: replaced wholesale, and pruned of a row that has gone.
+        state.changedFiles = [:]
+        #expect(state.openedDiff?.files.count == 2)
+
+        state.listPullRequests[list.id] = []
+        #expect(state.openedDiff?.files.count == 2)
+        // And the links still work, though the row is gone.
+        #expect(state.openedDiff?.url.lastPathComponent == "1")
+    }
+}

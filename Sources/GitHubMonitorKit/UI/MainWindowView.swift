@@ -806,7 +806,10 @@ struct InspectorColumn: View {
                 reload: { controller.reloadDetail(for: item.id) },
                 close: { controller.closeInspector() },
                 openDiff: { file in
-                    state.openedDiff = OpenedDiff(pullRequestID: item.id, path: file.path)
+                    guard case .loaded(let files) = state.changedFiles[item.id] else { return }
+                    state.openedDiff = OpenedDiff(
+                        pullRequestID: item.id, path: file.path, files: files, url: item.url
+                    )
                 }
             )
         } else {
