@@ -183,20 +183,6 @@ public enum PullRequestDetailQuery {
             }
         }
 
-        return result.sorted { lhs, rhs in
-            lhs.state == rhs.state
-                ? lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
-                : reviewPriority(lhs.state) < reviewPriority(rhs.state)
-        }
-    }
-
-    private static func reviewPriority(_ state: ReviewState) -> Int {
-        switch state {
-        case .changesRequested: 0
-        case .pending: 1
-        case .commented: 2
-        case .approved: 3
-        case .dismissed: 4
-        }
+        return ReviewerStatus.ordered(result)
     }
 }

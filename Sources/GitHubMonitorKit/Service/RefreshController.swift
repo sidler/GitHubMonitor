@@ -790,9 +790,9 @@ public final class RefreshController {
         do {
             try await service.approve(pullRequestID: item.id, commit: commit)
             state.approval = .idle
-            // One more approval, counted straight away. Not the pull
-            // request's own decision: two may be required, and GitHub is the
-            // only one who knows.
+            // Counted straight away, in the row and in the pane beside it.
+            // Not the pull request's own decision: two approvals may be
+            // required, and GitHub is the only one who knows.
             countApproval(of: item)
             await refreshApproved(item)
             return true
@@ -809,14 +809,28 @@ public final class RefreshController {
             let row = items[index]
             state.listPullRequests[listID]?[index] = row.countingViewerApproval()
         }
+
+        // The pane shows the reviewers, and it is open behind the diff that
+        // was just approved from. Leaving it on the state the approval
+        // replaced is the one thing it must not do.
+        if case .loaded(let detail) = state.pullRequestDetails[item.id], let viewer = state.viewer {
+            state.pullRequestDetails[item.id] = .loaded(
+                detail.countingApproval(by: viewer.login, avatarURL: viewer.avatarURL)
+            )
+        }
     }
 
-    /// Fetches this one pull request again, so the real state replaces the
-    /// guess without waiting for the next refresh of everything.
+    /// Fetches the list and this one pull request again, so GitHub's own
+    /// account replaces the guess without waiting for the next refresh.
+    ///
+    /// The list first: it decides whether the pull request is still there at
+    /// all, and a detail reloaded before that would be thrown away by the
+    /// pruning that follows it.
     private func refreshApproved(_ item: PullRequestItem) async {
+        await refresh()
+        guard state.pullRequest(withID: item.id) != nil else { return }
         state.pullRequestDetails[item.id] = nil
         loadDetailIfNeeded(for: item.id)
-        await refresh()
     }
 
     // MARK: - Issues

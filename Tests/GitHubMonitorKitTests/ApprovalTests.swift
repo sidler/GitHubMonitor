@@ -163,6 +163,85 @@ struct ApprovalTallyTests {
     }
 }
 
+@Suite("What the pane says after approving")
+struct ApprovalDetailTests {
+    private func detail(reviewers: [ReviewerStatus]) -> PullRequestDetail {
+        PullRequestDetail(
+            headBranch: "fix/thing", baseBranch: "main",
+            additions: 1, deletions: 1, changedFiles: 1, comments: 0,
+            checks: [], reviewers: reviewers
+        )
+    }
+
+    private func reviewer(
+        _ name: String, _ state: ReviewState, isTeam: Bool = false
+    ) -> ReviewerStatus {
+        ReviewerStatus(name: name, avatarURL: nil, state: state, isTeam: isTeam)
+    }
+
+    /// The pane is open behind the diff that was just approved from, and a
+    /// detail fetched in the moment after the mutation can still answer with
+    /// the review set from before it.
+    @Test("The approver appears without waiting for GitHub")
+    func appears() {
+        let after = detail(reviewers: [reviewer("chriskapp", .pending)])
+            .countingApproval(by: "sidler", avatarURL: nil)
+        #expect(after.reviewers.map(\.name).contains("sidler"))
+        #expect(after.reviewers.first { $0.name == "sidler" }?.state == .approved)
+    }
+
+    /// Their own earlier review is replaced, not joined: nobody stands in
+    /// the list twice, least of all with two different opinions.
+    @Test("An earlier review by the same person is replaced")
+    func replacesOwn() {
+        let after = detail(reviewers: [
+            reviewer("sidler", .changesRequested),
+            reviewer("chriskapp", .pending),
+        ]).countingApproval(by: "sidler", avatarURL: nil)
+
+        #expect(after.reviewers.filter { $0.name == "sidler" }.count == 1)
+        #expect(after.reviewers.first { $0.name == "sidler" }?.state == .approved)
+    }
+
+    /// A team that was asked is not this person, even where the names match.
+    @Test("A team of the same name is left alone")
+    func teamsUntouched() {
+        let after = detail(reviewers: [reviewer("sidler", .pending, isTeam: true)])
+            .countingApproval(by: "sidler", avatarURL: nil)
+        #expect(after.reviewers.count == 2)
+        #expect(after.reviewers.contains { $0.isTeam && $0.state == .pending })
+    }
+
+    @Test("A login differing only in case is still the same person")
+    func caseInsensitive() {
+        let after = detail(reviewers: [reviewer("Sidler", .commented)])
+            .countingApproval(by: "sidler", avatarURL: nil)
+        #expect(after.reviewers.count == 1)
+        #expect(after.reviewers.first?.state == .approved)
+    }
+
+    /// Assembled here and fetched from GitHub must come out in the same
+    /// order, or the list visibly reshuffles when the fetch lands.
+    @Test("What is blocking stays first, what is settled stays last")
+    func ordering() {
+        let after = detail(reviewers: [
+            reviewer("anna", .approved),
+            reviewer("bea", .changesRequested),
+        ]).countingApproval(by: "sidler", avatarURL: nil)
+        #expect(after.reviewers.map(\.name) == ["bea", "anna", "sidler"])
+    }
+
+    @Test("Nothing else about the pull request is touched")
+    func onlyReviewers() {
+        let before = detail(reviewers: [])
+        let after = before.countingApproval(by: "sidler", avatarURL: nil)
+        #expect(after.headBranch == before.headBranch)
+        #expect(after.additions == before.additions)
+        #expect(after.changedFiles == before.changedFiles)
+        #expect(after.mergeStatus == before.mergeStatus)
+    }
+}
+
 @Suite("The state an approval passes through")
 struct ApprovalStateTests {
     @Test("A message belongs to the pull request it failed on")

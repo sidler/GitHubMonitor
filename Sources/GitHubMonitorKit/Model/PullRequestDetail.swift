@@ -65,6 +65,29 @@ public struct ReviewerStatus: Identifiable, Hashable, Sendable {
         self.state = state
         self.isTeam = isTeam
     }
+
+    /// What is blocking first, what is settled last.
+    ///
+    /// Shared, so a list assembled here and one assembled from a fetch are
+    /// in the same order -- otherwise the reviewers would visibly reshuffle
+    /// the moment the fetch came back.
+    public static func ordered(_ reviewers: [ReviewerStatus]) -> [ReviewerStatus] {
+        reviewers.sorted { lhs, rhs in
+            lhs.state == rhs.state
+                ? lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
+                : priority(lhs.state) < priority(rhs.state)
+        }
+    }
+
+    static func priority(_ state: ReviewState) -> Int {
+        switch state {
+        case .changesRequested: 0
+        case .pending: 1
+        case .commented: 2
+        case .approved: 3
+        case .dismissed: 4
+        }
+    }
 }
 
 /// Everything the detail pane shows, fetched for one pull request at a time.
@@ -103,6 +126,33 @@ public struct PullRequestDetail: Hashable, Sendable {
         self.mergeStatus = mergeStatus
         self.checks = checks
         self.reviewers = reviewers
+    }
+
+    /// The same detail with this person shown as having approved.
+    ///
+    /// Written from what GitHub just confirmed rather than waited for: a
+    /// detail fetched in the moment after the mutation can still answer with
+    /// the review set from before it, and the pane would then show the state
+    /// the approval just left behind. The fetch that follows replaces this
+    /// with GitHub's own account of it.
+    public func countingApproval(by login: String, avatarURL: URL?) -> PullRequestDetail {
+        let others = reviewers.filter {
+            $0.isTeam || $0.name.caseInsensitiveCompare(login) != .orderedSame
+        }
+        let approved = ReviewerStatus(
+            name: login, avatarURL: avatarURL, state: .approved, isTeam: false
+        )
+        return PullRequestDetail(
+            headBranch: headBranch,
+            baseBranch: baseBranch,
+            additions: additions,
+            deletions: deletions,
+            changedFiles: changedFiles,
+            comments: comments,
+            mergeStatus: mergeStatus,
+            checks: checks,
+            reviewers: ReviewerStatus.ordered(others + [approved])
+        )
     }
 
     public var failingChecks: [CheckRun] { checks.filter { $0.status == .failure } }
