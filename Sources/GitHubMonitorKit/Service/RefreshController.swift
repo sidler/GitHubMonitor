@@ -186,6 +186,15 @@ public final class RefreshController {
             return
         }
 
+        // Sit a refresh out rather than run into the wall: every list would
+        // fail at once, and the last known state is worth more than a screen
+        // of errors. The charts already stop short of this for the same
+        // reason, one threshold higher.
+        if state.budgets.shouldPause() {
+            state.loadState = .paused(until: state.budgets.graphQL?.resetAt)
+            return
+        }
+
         state.loadState = .loading
         do {
             // The login is needed for the search qualifiers; resolve it once
@@ -201,7 +210,9 @@ public final class RefreshController {
             // Not pasted into the queries -- `@me` means something to
             // GitHub already -- but the review requests come back naming
             // people, and only the login says which of them is this person.
-            let results = try await service.lists(searches(), viewer: viewer.login)
+            let fetched = try await service.lists(searches(), viewer: viewer.login)
+            let results = fetched.results
+            if let budget = fetched.budget { state.budgets.graphQL = budget }
             state.listPullRequests = results.pullRequests
             state.listIssues = results.issues
 
@@ -225,6 +236,7 @@ public final class RefreshController {
             let fetch = try await service.notifications(since: lastModified)
             lastModified = fetch.lastModified
             githubPollInterval = fetch.pollInterval
+            if let budget = fetch.budget { state.budgets.rest = budget }
             // A 304 means nothing changed; keeping the current list is the
             // point of asking conditionally.
             if let items = fetch.items {

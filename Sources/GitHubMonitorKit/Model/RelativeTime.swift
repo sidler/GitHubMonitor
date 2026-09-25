@@ -38,4 +38,16 @@ public enum RelativeTime {
     public static func absolute(_ date: Date) -> String {
         absoluteFormatter.string(from: date)
     }
+
+    /// Wall clock only, for something that happens within the hour.
+    static let clockFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US")
+        formatter.dateFormat = "HH:mm"
+        return formatter
+    }()
+
+    public static func clock(_ date: Date) -> String {
+        clockFormatter.string(from: date)
+    }
 }

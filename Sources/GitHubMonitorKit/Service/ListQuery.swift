@@ -82,6 +82,8 @@ public enum ListQuery {
 
         return """
         query {
+          # Free: asking for the allowance does not spend any of it.
+          rateLimit { limit remaining resetAt }
         \(aliases.joined(separator: "\n"))
         }
 
@@ -158,5 +160,19 @@ public enum ListParser {
         }
 
         return results
+    }
+
+    /// What GitHub said was left, as it travels with every list refresh.
+    public static func budget(from payload: [String: Any]) -> RateBudget? {
+        guard
+            let node = payload["rateLimit"] as? [String: Any],
+            let remaining = node["remaining"] as? Int,
+            let limit = node["limit"] as? Int
+        else { return nil }
+        return RateBudget(
+            remaining: remaining,
+            limit: limit,
+            resetAt: GitHubDate.optional(from: node["resetAt"] as? String)
+        )
     }
 }

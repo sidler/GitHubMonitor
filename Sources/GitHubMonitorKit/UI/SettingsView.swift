@@ -179,6 +179,22 @@ private struct GeneralSettingsView: View {
                 Text("GitHub asks clients not to poll faster than its own suggested interval; the app never goes below that, even at 1 minute.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                Text(RefreshCost.sentence(
+                    searchLines: state.runningSearchCount,
+                    interval: settings.refreshInterval
+                ))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+
+            Section("GitHub's hourly budget") {
+                budgetRow("Queries (lists, charts)", budget: state.budgets.graphQL)
+                budgetRow("Notifications", budget: state.budgets.rest)
+
+                Text("Two separate allowances, read from GitHub's own answers. Refreshing stops on its own below \(RateBudget.pauseFloor) query points and picks up again when they are restored.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Startup") {
@@ -198,6 +214,27 @@ private struct GeneralSettingsView: View {
         }
         .formStyle(.grouped)
         .task { loginItem.syncFromSystem(into: settings) }
+    }
+
+    @ViewBuilder
+    private func budgetRow(_ name: String, budget: RateBudget?) -> some View {
+        LabeledContent(name) {
+            if let budget, !budget.isStale() {
+                HStack(spacing: 8) {
+                    Text(verbatim: "\(budget.remaining) of \(budget.limit)")
+                        .monospacedDigit()
+                        .foregroundStyle(budget.isLow ? Color.orange : Color(nsColor: .labelColor))
+                    if let reset = budget.resetAt {
+                        Text("resets \(RelativeTime.clock(reset))")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } else {
+                // Either nothing has been fetched yet, or the hour has turned
+                // and what we knew is worth nothing.
+                Text("not measured since the last reset").foregroundStyle(.secondary)
+            }
+        }
     }
 
     private var loginItemBinding: Binding<Bool> {

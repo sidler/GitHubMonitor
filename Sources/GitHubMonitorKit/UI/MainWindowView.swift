@@ -325,6 +325,11 @@ struct ContentColumn: View {
 
     // MARK: - Status bar
 
+    private func budgetHelp(_ budget: RateBudget) -> String {
+        let reset = budget.resetAt.map { ", restored at \(RelativeTime.clock($0))" } ?? ""
+        return "\(budget.remaining) of GitHub's \(budget.limit) hourly points left\(reset)"
+    }
+
     /// The symbols the rows on screen are using. Empty for the lists that
     /// have none, which is what keeps the bar quiet elsewhere.
     private var legendSymbols: [LegendSymbol] {
@@ -354,6 +359,19 @@ struct ContentColumn: View {
             }
 
             Spacer(minLength: 8)
+
+            // Only once it means something. At a normal refresh rate this
+            // sits at a percent or two an hour and would be a number nobody
+            // ever needs to read.
+            if let pressing = state.budgets.pressing() {
+                Label(
+                    "\(pressing.remaining) left",
+                    systemImage: "gauge.with.dots.needle.33percent"
+                )
+                .foregroundStyle(pressing.isExhausted ? .red : .orange)
+                .help(budgetHelp(pressing))
+                Divider().frame(height: 11)
+            }
 
             if state.loadState == .loading {
                 ProgressView().controlSize(.small)

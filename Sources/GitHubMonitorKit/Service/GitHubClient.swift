@@ -153,6 +153,15 @@ public struct GitHubClient: Sendable {
         }
     }
 
+    /// What the REST headers say is left of the hourly allowance.
+    static func budget(from response: HTTPURLResponse) -> RateBudget? {
+        guard
+            let remaining = response.value(forHTTPHeaderField: "X-RateLimit-Remaining").flatMap(Int.init),
+            let limit = response.value(forHTTPHeaderField: "X-RateLimit-Limit").flatMap(Int.init)
+        else { return nil }
+        return RateBudget(remaining: remaining, limit: limit, resetAt: rateLimitReset(from: response))
+    }
+
     static func rateLimitReset(from response: HTTPURLResponse) -> Date? {
         guard
             let raw = response.value(forHTTPHeaderField: "X-RateLimit-Reset"),

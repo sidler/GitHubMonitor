@@ -14,6 +14,9 @@ public struct NotificationFetch: Sendable {
     public let lastModified: String?
     /// GitHub's own minimum seconds between polls.
     public let pollInterval: TimeInterval?
+    /// What is left of the REST allowance, which this request reports on
+    /// every call including a 304.
+    public let budget: RateBudget?
 }
 
 /// Coordinates the API calls the app makes.
@@ -83,19 +86,24 @@ public struct GitHubService: Sendable {
         let (data, response) = try await client.get(components.url!, headers: headers)
         let pollInterval = (response.value(forHTTPHeaderField: "X-Poll-Interval"))
             .flatMap(TimeInterval.init)
+        // The REST allowance is its own, and this is the request that spends
+        // most of it -- it runs on every refresh, conditional or not.
+        let budget = GitHubClient.budget(from: response)
 
         guard response.statusCode != 304 else {
             return NotificationFetch(
                 items: nil,
                 lastModified: lastModified,
-                pollInterval: pollInterval
+                pollInterval: pollInterval,
+                budget: budget
             )
         }
 
         return NotificationFetch(
             items: try NotificationParser.notifications(from: data),
             lastModified: response.value(forHTTPHeaderField: "Last-Modified") ?? lastModified,
-            pollInterval: pollInterval
+            pollInterval: pollInterval,
+            budget: budget
         )
     }
 
@@ -266,10 +274,15 @@ public struct GitHubService: Sendable {
 
     /// Every list in one request: whatever searches the saved lists come to,
     /// each under its own alias.
-    public func lists(_ searches: [ListSearch], viewer: String? = nil) async throws -> ListResults {
-        guard !searches.isEmpty else { return ListResults() }
+    public func lists(
+        _ searches: [ListSearch], viewer: String? = nil
+    ) async throws -> (results: ListResults, budget: RateBudget?) {
+        guard !searches.isEmpty else { return (ListResults(), nil) }
         let payload = try await client.graphQL(ListQuery.document(searches))
-        return ListParser.results(from: payload, searches: searches, viewer: viewer)
+        return (
+            ListParser.results(from: payload, searches: searches, viewer: viewer),
+            ListParser.budget(from: payload)
+        )
     }
 
     /// The text and the end of the thread behind one issue, fetched when its

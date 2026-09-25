@@ -37,6 +37,8 @@ public enum SettingsTab: String, Hashable, CaseIterable, Sendable {
 
 public enum LoadState: Equatable, Sendable {
     case idle
+    /// Refreshing has stopped until GitHub restores the allowance.
+    case paused(until: Date?)
     case loading
     case loaded(Date)
     case failed(String)
@@ -105,6 +107,16 @@ public final class AppState {
     /// Who comments across a whole repository -- read only while that side
     /// of the switch is showing, since it covers every pull request in it.
     public var repositoryCommenters: CommenterState = .unconfigured
+    /// How many searches a refresh runs: one per line of every list that is
+    /// shown somewhere. What the cost of keeping up to date is measured in.
+    public var runningSearchCount: Int {
+        settings.savedLists
+            .filter { $0.isRunnable && settings.listVisibility.isShownAnywhere($0.id) }
+            .reduce(0) { $0 + $1.queryLines.count }
+    }
+
+    /// What is left of GitHub's two hourly allowances, as last reported.
+    public var budgets = RateBudgets()
     /// Whether the content column is scrolled away from its top. The title
     /// bar band only needs a material once rows are passing behind it.
     public var isContentScrolled = false
@@ -498,6 +510,12 @@ public final class AppState {
         case .loading: "Refreshing…"
         case .loaded(let date): "Updated \(RelativeTime.string(for: date))"
         case .failed(let message): message
+        case .paused(let until):
+            if let until {
+                "Paused \u{2014} GitHub's budget resets at \(RelativeTime.clock(until))"
+            } else {
+                "Paused \u{2014} GitHub's hourly budget is spent"
+            }
         }
     }
 
@@ -674,6 +692,10 @@ public final class AppState {
             > Could you check the ordering?
             """
             )
+        )
+        budgets = RateBudgets(
+            graphQL: RateBudget(remaining: 4712, limit: 5000, resetAt: .now.addingTimeInterval(1500)),
+            rest: RateBudget(remaining: 4871, limit: 5000, resetAt: .now.addingTimeInterval(2100))
         )
         myTrends = .loaded(Self.sampleTrends)
         expandedNotificationID = "n1"
