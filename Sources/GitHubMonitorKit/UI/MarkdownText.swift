@@ -8,13 +8,25 @@ import SwiftUI
 /// `AttributedString`, which parses emphasis, code spans and links.
 struct MarkdownText: View {
     let source: String
+    /// How many blocks to draw before stopping. Nil reads the whole body;
+    /// the popover sets a few, because it is a glance at a message rather
+    /// than a place to read one.
+    var blockLimit: Int?
 
     private var blocks: [MarkdownBlock] { MarkdownDocument.blocks(from: source) }
 
     var body: some View {
+        let blocks = self.blocks
+        let shown = blockLimit.map { Array(blocks.prefix($0)) } ?? blocks
+
         VStack(alignment: .leading, spacing: 10) {
-            ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
+            ForEach(Array(shown.enumerated()), id: \.offset) { _, block in
                 view(for: block)
+            }
+            if shown.count < blocks.count {
+                Text("More in the window")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

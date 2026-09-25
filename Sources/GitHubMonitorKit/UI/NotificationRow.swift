@@ -81,11 +81,11 @@ struct NotificationRow: View {
                 }
             case .loaded(let loaded):
                 if let body = loaded.body {
-                    // Comment bodies are Markdown and can be long; the
-                    // popover is a preview, not a reader.
-                    Text(body)
-                        .lineLimit(compact ? 6 : 12)
-                        .textSelection(.enabled)
+                    // Rendered, not raw: a body written by a bot is mostly
+                    // pipes and asterisks as source. Cut after a few blocks
+                    // -- the popover is a glance, and the window has the
+                    // whole conversation.
+                    MarkdownText(source: body, blockLimit: compact ? 2 : 3)
                 } else {
                     Text("This notification has no message body.")
                         .foregroundStyle(.secondary)
