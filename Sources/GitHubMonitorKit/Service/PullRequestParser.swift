@@ -10,15 +10,30 @@ public enum PullRequestParser {
     /// Reuses the detail parser's reviewer logic, which already merges
     /// outstanding requests with reviews already left.
     public static func repositoryLoad(from payload: [String: Any]) -> [(item: PullRequestItem, reviewers: [ReviewerStatus])] {
+        repositoryPage(from: payload).entries
+    }
+
+    /// One page of the dashboard's search: its rows, how many there are
+    /// altogether, and where to carry on from.
+    public static func repositoryPage(
+        from payload: [String: Any]
+    ) -> (entries: [(item: PullRequestItem, reviewers: [ReviewerStatus])], total: Int, cursor: String?) {
         guard
             let search = payload["d0"] as? [String: Any],
             let nodes = search["nodes"] as? [[String: Any]]
-        else { return [] }
+        else { return ([], 0, nil) }
 
-        return nodes.compactMap { node in
-            guard let item = pullRequest(from: node) else { return nil }
-            return (item, PullRequestDetailQuery.reviewers(from: node))
-        }
+        let info = search["pageInfo"] as? [String: Any]
+        let more = info?["hasNextPage"] as? Bool ?? false
+
+        return (
+            nodes.compactMap { node in
+                guard let item = pullRequest(from: node) else { return nil }
+                return (item, PullRequestDetailQuery.reviewers(from: node))
+            },
+            search["issueCount"] as? Int ?? 0,
+            more ? info?["endCursor"] as? String : nil
+        )
     }
 
     static func pullRequest(

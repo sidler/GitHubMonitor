@@ -20,10 +20,36 @@ public enum PullRequestQuery {
     /// Carries reviewer fields the other lists do not need. They are nested
     /// connections, so putting them in the shared fragment would make every
     /// refresh pay for data only this view reads.
-    public static func repositoryDocument(_ repository: String) -> String {
-        """
+    /// GitHub's most per page.
+    public static let pageSize = 100
+
+    /// How many the chart will page through before it stops and says what
+    /// it is not counting. A repository past this is one where the chart
+    /// answers a different question than the one it was opened for.
+    public static let dashboardLimit = 1000
+
+    /// How many the chart is not counting.
+    ///
+    /// Only what was deliberately left, never the difference between the
+    /// count and the rows: GitHub counts at the moment it is asked, and a
+    /// pull request merged between two pages leaves the count one above what
+    /// arrived. Reading that as a missing page would put a warning on a
+    /// complete chart.
+    public static func unread(total: Int, read: Int, stoppedEarly: Bool) -> Int {
+        guard stoppedEarly else { return 0 }
+        return max(0, total - read)
+    }
+
+    public static func repositoryDocument(
+        _ repository: String, cursor: String? = nil
+    ) -> String {
+        let after = cursor.map { ", after: \(jsonString($0))" } ?? ""
+        return """
         query {
-          d0: search(query: \(jsonString(repositoryQuery(repository))), type: ISSUE, first: 100) {
+          rateLimit { limit remaining resetAt }
+          d0: search(query: \(jsonString(repositoryQuery(repository))), type: ISSUE, first: \(pageSize)\(after)) {
+            issueCount
+            pageInfo { hasNextPage endCursor }
             nodes {
               ... on PullRequest {
                 id

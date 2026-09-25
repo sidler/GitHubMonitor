@@ -144,12 +144,18 @@ struct DashboardView: View {
     }
 
     private func summaryLine(_ data: DashboardData) -> String {
+        let counted: String
         switch state.settings.dashboardGrouping {
         case .author:
-            "\(data.total) open · \(data.totalReady) ready · \(data.totalDrafts) draft"
+            counted = "\(data.total) open · \(data.totalReady) ready · \(data.totalDrafts) draft"
         case .reviewer:
-            "\(data.totalOutstandingReviews) reviews owed by \(data.reviewers.count) reviewers"
+            counted = "\(data.totalOutstandingReviews) reviews owed by \(data.reviewers.count) reviewers"
         }
+        // A chart adds its data up, so anything it could not read is a bar
+        // that is too short rather than a row nobody scrolled to. Where that
+        // happens it has to be said, next to the numbers it affects.
+        guard data.unread > 0 else { return counted }
+        return counted + " · \(data.unread) more not counted"
     }
 
     private var suggestions: [String] {

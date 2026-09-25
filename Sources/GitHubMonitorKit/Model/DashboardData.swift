@@ -91,11 +91,22 @@ public struct DashboardData: Equatable, Sendable {
     public let repository: String
     public let authors: [AuthorLoad]
     public let reviewers: [ReviewerLoad]
+    /// How many open pull requests the repository has, against however many
+    /// were read. A chart is an addition: a page that never arrived is not a
+    /// row nobody scrolled to, it is a bar that is too short -- so where the
+    /// two differ the chart has to say so rather than look complete.
+    public let unread: Int
 
-    public init(repository: String, authors: [AuthorLoad], reviewers: [ReviewerLoad] = []) {
+    public init(
+        repository: String,
+        authors: [AuthorLoad],
+        reviewers: [ReviewerLoad] = [],
+        unread: Int = 0
+    ) {
         self.repository = repository
         self.authors = authors
         self.reviewers = reviewers
+        self.unread = unread
     }
 
     public var totalOutstandingReviews: Int { reviewers.reduce(0) { $0 + $1.outstanding } }
@@ -152,7 +163,8 @@ public struct DashboardData: Equatable, Sendable {
     /// dropped, so a quiet bar can be told from an absent one.
     public static func summarise(
         _ entries: [(item: PullRequestItem, reviewers: [ReviewerStatus])],
-        repository: String
+        repository: String,
+        unread: Int = 0
     ) -> DashboardData {
         let authored = summarise(entries.map(\.item), repository: repository)
 
@@ -203,7 +215,8 @@ public struct DashboardData: Equatable, Sendable {
         return DashboardData(
             repository: repository,
             authors: authored.authors,
-            reviewers: reviewers
+            reviewers: reviewers,
+            unread: unread
         )
     }
 

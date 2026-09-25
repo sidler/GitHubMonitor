@@ -564,8 +564,13 @@ public final class RefreshController {
 
         state.dashboard = .loading
         do {
-            let entries = try await service.repositoryPullRequests(repository)
-            state.dashboard = .loaded(DashboardData.summarise(entries, repository: repository))
+            let fetched = try await service.repositoryPullRequests(repository)
+            if let budget = fetched.budget { state.budgets.graphQL = budget }
+            state.dashboard = .loaded(DashboardData.summarise(
+                fetched.entries,
+                repository: repository,
+                unread: fetched.unread
+            ))
         } catch let error as GitHubError {
             Log.api.error("dashboard failed: \(error.localizedDescription, privacy: .public)")
             state.dashboard = .failed(error.localizedDescription)

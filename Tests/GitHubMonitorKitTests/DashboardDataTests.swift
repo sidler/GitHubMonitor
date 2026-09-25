@@ -391,3 +391,71 @@ struct WorkloadInspectorTests {
         #expect(state.inspectableWorkload.isEmpty)
     }
 }
+
+@Suite("The chart admits what it did not read")
+struct DashboardTruncationTests {
+    private func page(nodes: Int, total: Int, cursor: String?) -> [String: Any] {
+        [
+            "d0": [
+                "issueCount": total,
+                "pageInfo": ["hasNextPage": cursor != nil, "endCursor": cursor as Any],
+                "nodes": (0..<nodes).map { index in
+                    [
+                        "id": "\(index)", "number": index, "title": "t",
+                        "url": "https://github.com/a/b/pull/\(index)",
+                        "updatedAt": "2026-09-20T10:00:00Z",
+                        "repository": ["nameWithOwner": "octo/platform"],
+                        "author": ["login": "mira"],
+                    ] as [String: Any]
+                },
+            ],
+        ]
+    }
+
+    /// The chart used to ask for one page of a hundred and add it up as
+    /// though it were everything. Measured on the repository this was
+    /// written for: 210 open pull requests.
+    @Test("A page says how many there are and where to carry on")
+    func pageReading() {
+        let read = PullRequestParser.repositoryPage(from: page(nodes: 100, total: 210, cursor: "next"))
+        #expect(read.entries.count == 100)
+        #expect(read.total == 210)
+        #expect(read.cursor == "next")
+
+        let last = PullRequestParser.repositoryPage(from: page(nodes: 10, total: 210, cursor: nil))
+        #expect(last.cursor == nil)
+    }
+
+    @Test("What was not read is what the chart is missing")
+    func unread() {
+        let complete = DashboardData(repository: "a/b", authors: [], unread: 0)
+        #expect(complete.unread == 0)
+
+        let short = DashboardData(repository: "a/b", authors: [], unread: 512)
+        #expect(short.unread == 512)
+    }
+
+    /// GitHub counts at the moment it is asked, and a pull request merged
+    /// between two pages leaves the count one above the rows. Reading that
+    /// as "one not counted" would put a warning on a complete chart --
+    /// measured while writing this: 210 on the first page, 209 rows.
+    @Test("A count that drifts while paging is not a missing page")
+    func drift() {
+        #expect(PullRequestQuery.unread(total: 210, read: 209, stoppedEarly: false) == 0)
+    }
+
+    @Test("Stopping at the cap is what gets reported")
+    func stoppedAtTheCap() {
+        #expect(PullRequestQuery.unread(total: 1500, read: 1000, stoppedEarly: true) == 500)
+        // Never below nothing, however the count drifted.
+        #expect(PullRequestQuery.unread(total: 900, read: 1000, stoppedEarly: true) == 0)
+    }
+
+    @Test("A response that is not a search is empty, not a crash")
+    func malformed() {
+        let read = PullRequestParser.repositoryPage(from: [:])
+        #expect(read.entries.isEmpty)
+        #expect(read.total == 0)
+        #expect(read.cursor == nil)
+    }
+}

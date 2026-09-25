@@ -48,11 +48,48 @@ public struct GitHubService: Sendable {
     }
 
     /// Every open pull request in one repository, summarised per author.
+    /// Every open pull request in one repository, paged.
+    ///
+    /// The chart adds these up, so a page that never arrives is not a row
+    /// nobody scrolled to -- it is a bar that is too short. Measured on the
+    /// repository this was written for: 210 open, where one page is 100.
     public func repositoryPullRequests(
         _ repository: String
-    ) async throws -> [(item: PullRequestItem, reviewers: [ReviewerStatus])] {
-        let payload = try await client.graphQL(PullRequestQuery.repositoryDocument(repository))
-        return PullRequestParser.repositoryLoad(from: payload)
+    ) async throws -> (
+        entries: [(item: PullRequestItem, reviewers: [ReviewerStatus])],
+        unread: Int,
+        budget: RateBudget?
+    ) {
+        var entries: [(item: PullRequestItem, reviewers: [ReviewerStatus])] = []
+        var cursor: String?
+        var total = 0
+        var budget: RateBudget?
+        var stoppedEarly = false
+
+        repeat {
+            let payload = try await client.graphQL(
+                PullRequestQuery.repositoryDocument(repository, cursor: cursor)
+            )
+            let page = PullRequestParser.repositoryPage(from: payload)
+            entries += page.entries
+            if total == 0 { total = page.total }
+            budget = ListParser.budget(from: payload) ?? budget
+
+            if entries.count >= PullRequestQuery.dashboardLimit {
+                stoppedEarly = page.cursor != nil
+                cursor = nil
+            } else {
+                cursor = page.cursor
+            }
+        } while cursor != nil
+
+        return (
+            entries,
+            PullRequestQuery.unread(
+                total: total, read: entries.count, stoppedEarly: stoppedEarly
+            ),
+            budget
+        )
     }
 
     /// The extra detail behind one pull request, fetched when its row is
