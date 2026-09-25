@@ -404,9 +404,10 @@ struct ToolbarControls: View {
             switch state.sidebarSelection {
             case .list:
                 if let list = state.selectedList {
-                    // The grouping switch is a toolbar item group of its
-                    // own, built in AppKit: that is what the system draws as
-                    // a segmented control with its own container.
+                    GroupingPicker(
+                        selection: binding(list, \.grouping),
+                        options: list.content.groupings
+                    )
                     SortPicker(selection: binding(list, \.sort), options: list.content.sorts)
 
                     switch list.content {
@@ -428,6 +429,15 @@ struct ToolbarControls: View {
                     }
                 }
             case .mentions:
+                GroupingPicker(
+                    // The mentions are not a list, so their grouping lives
+                    // in settings rather than on one.
+                    selection: Binding(
+                        get: { state.settings.notificationGrouping },
+                        set: { state.settings.notificationGrouping = $0 }
+                    ),
+                    options: ListGrouping.forNotifications
+                )
                 if !state.selectedNotifications.isEmpty {
                     Button("Mark all read") {
                         Task { await controller.markAllVisibleRead() }
@@ -574,72 +584,46 @@ private struct GroupedList<Item: Identifiable, Row: View>: View {
     }
 }
 
-/// The grouping switch, in a toolbar item of its own.
-///
-/// Its own item so the system draws a container around it and nothing else:
-/// sharing one with the menus made the item's glass the only container the
-/// selection had, and the selection then ran to its top and bottom edges.
-/// The large control size is the one macOS draws as a capsule inside a
-/// capsule, which is the shape its own segmented controls have.
-struct ToolbarGroupingPicker: View {
-    @Bindable var state: AppState
-
-    var body: some View {
-        if !options.isEmpty {
-            Picker("", selection: binding) {
-                ForEach(options, id: \.self) { grouping in
-                    Text(grouping.label).tag(grouping)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .controlSize(.large)
-            .padding(.vertical, 3)
-            .fixedSize()
-        }
-    }
-
-    /// What the view on screen can be split by. Only issues carry a type,
-    /// and the mentions group by what a notification is about.
-    private var options: [ListGrouping] {
-        switch state.sidebarSelection {
-        case .list: state.selectedList?.content.groupings ?? []
-        case .mentions: ListGrouping.forNotifications
-        case .dashboard, .trends, .myTrends, .settings: []
-        }
-    }
-
-    private var binding: Binding<ListGrouping> {
-        Binding(
-            get: {
-                switch state.sidebarSelection {
-                case .list: state.selectedList?.grouping ?? .flat
-                case .mentions: state.settings.notificationGrouping
-                case .dashboard, .trends, .myTrends, .settings: .flat
-                }
-            },
-            set: { grouping in
-                switch state.sidebarSelection {
-                case .list:
-                    guard var list = state.selectedList else { return }
-                    list.grouping = grouping
-                    state.settings.update(list)
-                case .mentions:
-                    state.settings.notificationGrouping = grouping
-                case .dashboard, .trends, .myTrends, .settings:
-                    break
-                }
-            }
-        )
-    }
-}
-
 /// What the list is ordered by.
 ///
 /// A menu rather than another segmented control: the toolbar already carries
 /// one, and the chosen order reads better as a sentence than as a pressed
 /// segment. Which orders are offered comes from the list: only issues carry
 /// a type.
+/// How the list on screen is split into sections.
+///
+/// A menu like the order and the drafts beside it, rather than the segmented
+/// control it used to be. Three controls in a toolbar, each a different
+/// shape, made a row that had to be read rather than glanced at -- and the
+/// segments cost the width of every option at once, whether or not anybody
+/// was choosing between them.
+private struct GroupingPicker: View {
+    @Binding var selection: ListGrouping
+    let options: [ListGrouping]
+
+    var body: some View {
+        // Nothing to choose between is nothing to show.
+        if options.count > 1 {
+            Menu {
+                Picker("Group by", selection: $selection) {
+                    ForEach(options, id: \.self) { grouping in
+                        Text(grouping.label).tag(grouping)
+                    }
+                }
+                .pickerStyle(.inline)
+            } label: {
+                Label(selection.label, systemImage: "rectangle.grid.1x2")
+                    // The button says which grouping is in force; a bare
+                    // icon would hide the setting until the menu opens.
+                    .labelStyle(.titleAndIcon)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("Split the list into sections, or leave it flat")
+        }
+    }
+}
+
 private struct SortPicker: View {
     @Binding var selection: ListSort
     let options: [ListSort]

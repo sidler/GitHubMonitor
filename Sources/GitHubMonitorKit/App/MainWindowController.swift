@@ -337,21 +337,6 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         DispatchQueue.main.async { [weak self] in self?.resizeToolbarItems() }
     }
 
-    /// Whether the view on screen can be split at all -- the charts and the
-    /// settings cannot, and an empty item would be a sliver of glass.
-    private var groupingOptions: [ListGrouping] {
-        // Nothing while a diff is over the window: the toolbar is drawn in
-        // the title bar, above anything the content view can put up, so a
-        // control left there would float on top of the overlay and change
-        // the list nobody can see.
-        guard state.openedDiff == nil else { return [] }
-        switch state.sidebarSelection {
-        case .list: return state.selectedList?.content.groupings ?? []
-        case .mentions: return ListGrouping.forNotifications
-        case .dashboard, .trends, .myTrends, .settings: return []
-        }
-    }
-
     /// Adds or removes the controls item, following whether the view on
     /// screen has any controls to put there.
     ///
@@ -359,8 +344,6 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     /// its own glass background, so one hosting nothing shows as a sliver of
     /// glass beside the title.
     private func syncToolbarControls() {
-        syncGroupingItem()
-
         guard let toolbar = window?.toolbar else { return }
         let index = toolbar.items.firstIndex { $0.itemIdentifier == Self.controlsItem }
 
@@ -383,32 +366,6 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         }
     }
 
-    /// Adds or removes the grouping item, following whether the view on
-    /// screen can be split at all. The picker inside it follows the list by
-    /// itself.
-    private func syncGroupingItem() {
-        guard let toolbar = window?.toolbar else { return }
-        let index = toolbar.items.firstIndex { $0.itemIdentifier == Self.groupingItem }
-
-        if groupingOptions.isEmpty {
-            if let index { toolbar.removeItem(at: index) }
-        } else if index == nil {
-            // Before the controls, which is where the delegate's own order
-            // puts it too -- and failing that before the inspector's
-            // separator rather than at the end. Both items are taken away
-            // while a diff covers the window, and putting them back leaves
-            // neither for the other to aim at: the grouping went past the
-            // separator, the controls landed in front of it, and the two
-            // came back the wrong way round.
-            let position = toolbar.items.firstIndex { $0.itemIdentifier == Self.controlsItem }
-                ?? toolbar.items.firstIndex { $0.itemIdentifier == .inspectorTrackingSeparator }
-            toolbar.insertItem(
-                withItemIdentifier: Self.groupingItem,
-                at: position ?? toolbar.items.count
-            )
-        }
-    }
-
     /// Re-sizes the toolbar item that hosts SwiftUI views.
     ///
     /// A view-based toolbar item keeps the width it was given when the
@@ -418,9 +375,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     private func resizeToolbarItems() {
         var total: CGFloat = 0
         for item in window?.toolbar?.items ?? [] {
-            guard item.itemIdentifier == Self.controlsItem
-                    || item.itemIdentifier == Self.groupingItem,
-                  let view = item.view
+            guard item.itemIdentifier == Self.controlsItem, let view = item.view
             else { continue }
 
             view.invalidateIntrinsicContentSize()
@@ -582,7 +537,6 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     // MARK: - Toolbar
 
     private static let controlsItem = NSToolbarItem.Identifier("controls")
-    private static let groupingItem = NSToolbarItem.Identifier("grouping")
 
     public func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         toolbarDefaultItemIdentifiers(toolbar) + [.inspectorTrackingSeparator]
@@ -599,7 +553,6 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             .toggleSidebar,
             .sidebarTrackingSeparator,
             .flexibleSpace,
-            Self.groupingItem,
             Self.controlsItem,
         ]
     }
@@ -612,12 +565,6 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         let item = NSToolbarItem(itemIdentifier: identifier)
 
         switch identifier {
-        case Self.groupingItem:
-            let hosting = NSHostingView(rootView: ToolbarGroupingPicker(state: state))
-            hosting.sizingOptions = [.intrinsicContentSize]
-            item.view = hosting
-            item.visibilityPriority = .high
-            return item
         case Self.controlsItem:
             let hosting = NSHostingView(rootView: ToolbarControls(state: state, controller: controller))
             hosting.sizingOptions = [.intrinsicContentSize]
