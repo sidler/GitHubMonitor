@@ -255,13 +255,29 @@ struct SampleDataTests {
     }
 
     /// Nothing in here should name a real repository or a real person.
-    @Test("The sample content is fiction")
+    ///
+    /// Put as what the content *is* rather than what it must not contain: a
+    /// list of forbidden words would have to spell out the very names the
+    /// fixtures exist to keep out of the repository.
+    @Test("The sample content names nobody outside its own cast")
     func isFiction() {
-        let text = (SampleData.reviewsRequested() + SampleData.myPullRequests())
-            .map { "\($0.repository) \($0.author) \($0.title)" }
-            .joined(separator: " ")
-            + SampleData.issues().map { "\($0.repository) \($0.author)" }.joined()
-            + SampleData.description
-        #expect(text.contains("octo/"))
+        let rows = SampleData.reviewsRequested() + SampleData.myPullRequests()
+        let cast: Set<String> = ["mira", "arun", "dara", "noor", SampleData.viewer]
+        let repositories: Set<String> = [
+            SampleData.Repository.platform, SampleData.Repository.server,
+            SampleData.Repository.toolkit, SampleData.Repository.website,
+        ]
+
+        for row in rows {
+            #expect(cast.contains(row.author), "\(row.author) is not one of the made-up people")
+            #expect(repositories.contains(row.repository))
+        }
+        for issue in SampleData.issues() {
+            #expect(cast.contains(issue.author), "\(issue.author) is not one of the made-up people")
+            #expect(repositories.contains(issue.repository))
+        }
+        // Every repository named in the fixtures sits under the one owner
+        // the fixtures invent, so a real one cannot slip in unnoticed.
+        #expect(repositories.allSatisfy { $0.hasPrefix("octo/") })
     }
 }
