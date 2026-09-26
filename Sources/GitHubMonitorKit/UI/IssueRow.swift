@@ -14,6 +14,9 @@ struct IssueRow: View {
     var compact: Bool = false
     /// Nil in the popover, where there is no detail pane to open.
     var inspect: (() -> Void)?
+    /// Nil in the menu bar panel: there is no room, and a panel over a
+    /// panel is not something to offer.
+    var linked: LinkedPanelContext?
     var isInspected: Bool = false
 
     var body: some View {
@@ -60,6 +63,17 @@ struct IssueRow: View {
                             Text(milestone).lineLimit(1)
                         }
                         .help("Milestone \(milestone)")
+                    }
+
+                    // Before the labels, which are what gets truncated:
+                    // the pull request answering an issue should not be the
+                    // thing that falls off the end of the line.
+                    if let linked {
+                        LinkBadge(
+                            context: linked,
+                            links: item.links,
+                            unshown: linked.state.unshownLinks(of: item)
+                        )
                     }
 
                     if !item.labels.isEmpty {

@@ -159,6 +159,22 @@ public struct GitHubService: Sendable {
         return try ApprovalQuery.head(from: payload)
     }
 
+    /// Looks up linked issues and pull requests by number.
+    ///
+    /// One request for the lot: this costs a point whatever it carries
+    /// back, exactly as a search does, so asking for eight links one at a
+    /// time would cost eight times what asking together does.
+    public func linkedItems(
+        _ references: [ItemReference]
+    ) async throws -> (summaries: [ItemReference: LinkedSummaryState], budget: RateBudget?) {
+        guard let document = LinkedItemQuery.document(for: references) else { return ([:], nil) }
+        let payload = try await client.graphQL(document)
+        return (
+            LinkedItemQuery.summaries(from: payload, asked: references),
+            ListParser.budget(from: payload)
+        )
+    }
+
     /// Approves a pull request, bound to one commit.
     public func approve(pullRequestID: String, commit: String) async throws {
         _ = try await client.graphQL(

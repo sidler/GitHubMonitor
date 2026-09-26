@@ -226,6 +226,24 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         window?.makeFirstResponder(view)
     }
 
+    /// What the overlay's own panel shows: the pull request being read and
+    /// the issues it answers.
+    ///
+    /// Built from what is already held rather than fetched. The detail is
+    /// loaded beside the diff, so by the time anybody asks, the description
+    /// is usually there -- and where it is not, the panel says the heading
+    /// facts and fills in.
+    private func subject(for item: PullRequestItem) -> LinkedSubject {
+        var detail: PullRequestDetail?
+        if case .loaded(let loaded) = state.pullRequestDetails[item.id] { detail = loaded }
+        return LinkedSubject(
+            context: LinkedPanelContext(state: state, controller: controller),
+            summary: .local(item, detail: detail),
+            links: state.links(of: item),
+            unshown: state.unshownLinks(of: item)
+        )
+    }
+
     private func overlayContent(_ opened: OpenedDiff) -> DiffOverlay {
         let item = state.pullRequest(withID: opened.pullRequestID)
         return DiffOverlay(
@@ -236,7 +254,8 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
                 set: { [weak state] path in state?.openedDiff?.path = path }
             ),
             close: { [weak state] in state?.openedDiff = nil },
-            review: item.map(reviewActions(for:))
+            review: item.map(reviewActions(for:)),
+            subject: item.map(subject(for:))
         )
     }
 

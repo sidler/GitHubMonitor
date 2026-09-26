@@ -102,6 +102,13 @@ public struct IssueItem: Identifiable, Hashable, Sendable, ListedItem {
     public let milestone: String?
     /// Nil where the organisation has no types, or none was set on this one.
     public let type: IssueType?
+    /// The pull requests that answer this issue, as GitHub links them --
+    /// including the closed and merged ones, because a merged pull request
+    /// is usually the one being looked for.
+    public let links: [ItemLink]
+    /// How many pull requests GitHub links, of which at most five are in
+    /// `links`.
+    public let linkedTotal: Int
 
     public init(
         id: String,
@@ -116,7 +123,9 @@ public struct IssueItem: Identifiable, Hashable, Sendable, ListedItem {
         comments: Int = 0,
         labels: [IssueLabel] = [],
         milestone: String? = nil,
-        type: IssueType? = nil
+        type: IssueType? = nil,
+        links: [ItemLink] = [],
+        linkedTotal: Int? = nil
     ) {
         self.id = id
         self.number = number
@@ -131,6 +140,8 @@ public struct IssueItem: Identifiable, Hashable, Sendable, ListedItem {
         self.labels = labels
         self.milestone = milestone
         self.type = type
+        self.links = links
+        self.linkedTotal = linkedTotal ?? links.count
     }
 
     /// The heading this issue sits under when the list is grouped by type,

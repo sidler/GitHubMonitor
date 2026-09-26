@@ -11,6 +11,8 @@ struct PullRequestDetailView: View {
     /// Opens one file's diff over the window. The pane cannot do it itself:
     /// anything it puts up is bounded by its own 400 points.
     var openDiff: (ChangedFile) -> Void = { _ in }
+    /// What the linked-issue panel needs. Nil leaves the pane without one.
+    var linked: LinkedPanelContext?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -74,6 +76,18 @@ struct PullRequestDetailView: View {
             }
             .font(.caption)
             .foregroundStyle(.secondary)
+
+            // Directly under who opened it: what a pull request is for is
+            // read before what it changes. Drawn only when there is one, so
+            // the head of the pane does not grow for the many that have
+            // none.
+            if let linked {
+                LinkChipRow(
+                    context: linked,
+                    links: linked.state.links(of: item),
+                    unshown: linked.state.unshownLinks(of: item)
+                )
+            }
         }
         .padding(14)
     }

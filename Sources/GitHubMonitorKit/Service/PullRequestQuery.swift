@@ -136,6 +136,19 @@ public enum PullRequestQuery {
           }
           # Outstanding requests are a plain count, which costs nothing.
           reviewRequests { totalCount }
+          # The issues GitHub itself says this closes -- the "Closes #12"
+          # line and anything linked by hand in the sidebar. Five: a pull
+          # request answering more than that is a sweep, and the rest are
+          # reported as a count.
+          closingIssuesReferences(first: \(ItemReferences.limit)) {
+            totalCount
+            nodes {
+              number
+              title
+              url
+              repository { nameWithOwner }
+            }
+          }
           # When the review was asked of this person, which is the only
           # honest answer to "how long has this been waiting on me". The
           # last ten: a pull request re-requested more often than that has

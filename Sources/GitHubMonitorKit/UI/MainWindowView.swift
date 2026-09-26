@@ -233,6 +233,7 @@ struct ContentColumn: View {
                 sort: list.sort,
                 aging: (state.settings.agingDays, state.settings.overdueDays),
                 inspect: { controller.inspect(item) },
+                linked: LinkedPanelContext(state: state, controller: controller),
                 isInspected: state.inspectedPullRequestID == item.id
             )
             .padding(.vertical, rowPadding)
@@ -268,6 +269,7 @@ struct ContentColumn: View {
                 item: item,
                 sort: list.sort,
                 inspect: { controller.inspect(item) },
+                linked: LinkedPanelContext(state: state, controller: controller),
                 isInspected: state.inspectedIssueID == item.id
             )
             .padding(.vertical, rowPadding)
@@ -790,7 +792,8 @@ struct InspectorColumn: View {
                 item: item,
                 detail: state.issueDetails[item.id],
                 reload: { controller.reloadIssueDetail(for: item.id) },
-                close: { controller.closeInspector() }
+                close: { controller.closeInspector() },
+                linked: LinkedPanelContext(state: state, controller: controller)
             )
         } else if case .dashboard = state.sidebarSelection, let detail = state.inspectedWorkload {
             WorkloadDetailView(
@@ -810,7 +813,8 @@ struct InspectorColumn: View {
                     state.openedDiff = OpenedDiff(
                         pullRequestID: item.id, path: file.path, files: files, url: item.url
                     )
-                }
+                },
+                linked: LinkedPanelContext(state: state, controller: controller)
             )
         } else {
             // Kept in the hierarchy while the pane is closing, so nothing is

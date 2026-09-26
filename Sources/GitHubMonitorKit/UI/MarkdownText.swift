@@ -12,6 +12,10 @@ struct MarkdownText: View {
     /// the popover sets a few, because it is a glance at a message rather
     /// than a place to read one.
     var blockLimit: Int?
+    /// What is said where the text was cut. The default is written for the
+    /// menu bar panel, whose "more" really is in the window; a summary of
+    /// somebody else's issue has its rest on GitHub instead.
+    var overflowNote: LocalizedStringKey = "More in the window"
 
     private var blocks: [MarkdownBlock] { MarkdownDocument.blocks(from: source) }
 
@@ -24,7 +28,7 @@ struct MarkdownText: View {
                 view(for: block)
             }
             if shown.count < blocks.count {
-                Text("More in the window")
+                Text(overflowNote)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }

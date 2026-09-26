@@ -7,6 +7,9 @@ struct IssueDetailView: View {
     let detail: IssueDetailState?
     let reload: () -> Void
     let close: () -> Void
+    /// What the linked-pull-request panel needs. Nil leaves the pane
+    /// without one.
+    var linked: LinkedPanelContext?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -69,6 +72,17 @@ struct IssueDetailView: View {
             }
             .font(.caption)
             .foregroundStyle(.secondary)
+
+            // Above the labels rather than below: the pull request that
+            // answers an issue is a bigger fact about it than what it is
+            // tagged with.
+            if let linked {
+                LinkChipRow(
+                    context: linked,
+                    links: linked.state.links(of: item),
+                    unshown: linked.state.unshownLinks(of: item)
+                )
+            }
 
             if item.type != nil || !item.labels.isEmpty || item.milestone != nil {
                 // Wrapping, unlike the row's single line: here there is room

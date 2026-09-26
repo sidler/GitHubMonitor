@@ -18,6 +18,9 @@ struct DiffOverlay: View {
     /// The pull request being read, where one is known. Nil leaves the
     /// overlay a reader and nothing more.
     var review: ReviewActions?
+    /// The pull request itself and what it answers, for the panel in the
+    /// header. Nil where the overlay was opened without one.
+    var subject: LinkedSubject?
 
     @StateObject private var open = OpenFolders()
 
@@ -75,6 +78,13 @@ struct DiffOverlay: View {
             }
             if deletions > 0 {
                 Text(verbatim: "\u{2212}\(deletions)").foregroundStyle(.red).monospacedDigit()
+            }
+
+            if let subject {
+                Divider().frame(height: 14)
+                // Beside the counts rather than beside Done: it belongs to
+                // what is being read, not to the controls for leaving.
+                LinkedSubjectButton(subject: subject)
             }
 
             Spacer(minLength: 12)

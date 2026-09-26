@@ -33,6 +33,20 @@ public enum IssueQuery {
           # where none is set, and where the organisation defines none.
           issueType { name color }
           labels(first: \(labelLimit)) { nodes { name color } }
+          # The pull requests that answer it. Closed and merged ones
+          # included on purpose: GitHub leaves them out by default, and the
+          # merged one is usually the one being looked for.
+          closedByPullRequestsReferences(
+            first: \(ItemReferences.limit), includeClosedPrs: true
+          ) {
+            totalCount
+            nodes {
+              number
+              title
+              url
+              repository { nameWithOwner }
+            }
+          }
         }
       }
     }
@@ -106,12 +120,20 @@ public enum IssueParser {
         else { return nil }
 
         let author = node["author"] as? [String: Any]
+        let repository = (node["repository"] as? [String: Any])?["nameWithOwner"] as? String ?? "?"
+
+        // Only what GitHub links. An issue title does not carry a pull
+        // request number the way a pull request title carries an issue's,
+        // so there is nothing to read off the front of it.
+        let recorded = ItemLinkParser.links(
+            from: node, key: "closedByPullRequestsReferences", fallbackRepository: repository
+        )
 
         return IssueItem(
             id: id,
             number: number,
             title: title,
-            repository: (node["repository"] as? [String: Any])?["nameWithOwner"] as? String ?? "?",
+            repository: repository,
             author: author?["login"] as? String ?? "ghost",
             authorAvatarURL: (author?["avatarUrl"] as? String).flatMap(URL.init(string:)),
             url: url,
@@ -120,7 +142,9 @@ public enum IssueParser {
             comments: (node["comments"] as? [String: Any])?["totalCount"] as? Int ?? 0,
             labels: labels(from: node),
             milestone: (node["milestone"] as? [String: Any])?["title"] as? String,
-            type: type(from: node)
+            type: type(from: node),
+            links: recorded.links,
+            linkedTotal: recorded.total
         )
     }
 

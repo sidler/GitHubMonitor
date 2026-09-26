@@ -52,6 +52,16 @@ public enum PullRequestParser {
         let author = node["author"] as? [String: Any]
         let updatedAt = GitHubDate.date(from: node["updatedAt"] as? String)
 
+        // GitHub's own answer first, so it keeps its title where the same
+        // number was also read off the front of the title.
+        let recorded = ItemLinkParser.links(
+            from: node, key: "closingIssuesReferences", fallbackRepository: repository
+        )
+        let links = ItemLink.merge([
+            recorded.links,
+            ItemReferences.inTitle(title, repository: repository),
+        ])
+
         return PullRequestItem(
             id: id,
             number: number,
@@ -72,7 +82,11 @@ public enum PullRequestParser {
             viewerReview: viewerReview(from: node),
             isAutoMergeArmed: (node["autoMergeRequest"] as? [String: Any]) != nil,
             reviewRequestedAt: reviewRequested(from: node, of: viewer),
-            reviews: reviewTally(from: node)
+            reviews: reviewTally(from: node),
+            links: links,
+            // What GitHub counted, plus anything the title named that it
+            // did not: both are links this pull request has.
+            linkedTotal: max(recorded.total, links.count { $0.kind == .closes })
         )
     }
 

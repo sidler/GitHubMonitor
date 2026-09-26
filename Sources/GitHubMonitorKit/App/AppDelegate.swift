@@ -27,7 +27,22 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         return arguments[next]
     }
 
+    /// How long the pointer has to rest before a tooltip appears, in
+    /// milliseconds.
+    ///
+    /// The system waits far longer, which is right for a word processor and
+    /// wrong for a row of status symbols: every one of them has a tooltip
+    /// that is the only place its meaning is written down, and waiting out
+    /// the system delay for each is how somebody stops asking.
+    ///
+    /// Registered rather than written: this is a default AppKit reads on
+    /// the way past, and the app has no business leaving it in the user's
+    /// own preferences.
+    static let toolTipDelay = 300
+
     public func applicationDidFinishLaunching(_ notification: Notification) {
+        UserDefaults.standard.register(defaults: ["NSInitialToolTipDelay": Self.toolTipDelay])
+
         let refresh = RefreshController(state: state)
         refreshController = refresh
 

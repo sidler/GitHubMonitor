@@ -49,6 +49,16 @@ public struct PullRequestItem: Identifiable, Hashable, Sendable, ListedItem {
     public let reviewRequestedAt: Date?
     /// Where the reviewers stand, for the counts in the row.
     public let reviews: ReviewTally
+    /// The issues this pull request answers.
+    ///
+    /// What a row can know without paying for it: GitHub's own links and a
+    /// number at the head of the title. Whatever else the description names
+    /// is found when the description is loaded, which is not here.
+    public let links: [ItemLink]
+    /// How many issues GitHub says this closes, of which at most five are
+    /// in `links`. Said rather than shown, so a sweep does not look like
+    /// five issues.
+    public let linkedTotal: Int
 
     public init(
         id: String,
@@ -69,7 +79,9 @@ public struct PullRequestItem: Identifiable, Hashable, Sendable, ListedItem {
         viewerReview: ViewerReview? = nil,
         isAutoMergeArmed: Bool = false,
         reviewRequestedAt: Date? = nil,
-        reviews: ReviewTally = .none
+        reviews: ReviewTally = .none,
+        links: [ItemLink] = [],
+        linkedTotal: Int? = nil
     ) {
         self.id = id
         self.number = number
@@ -92,6 +104,8 @@ public struct PullRequestItem: Identifiable, Hashable, Sendable, ListedItem {
         self.isAutoMergeArmed = isAutoMergeArmed
         self.reviewRequestedAt = reviewRequestedAt
         self.reviews = reviews
+        self.links = links
+        self.linkedTotal = linkedTotal ?? links.count
     }
 
     /// The same pull request with this person's approval counted.
@@ -109,7 +123,9 @@ public struct PullRequestItem: Identifiable, Hashable, Sendable, ListedItem {
             viewerReview: ViewerReview(state: .approved, submittedAt: moment),
             isAutoMergeArmed: isAutoMergeArmed,
             reviewRequestedAt: reviewRequestedAt,
-            reviews: reviews.countingApproval(replacing: viewerReview?.state)
+            reviews: reviews.countingApproval(replacing: viewerReview?.state),
+            links: links,
+            linkedTotal: linkedTotal
         )
     }
 

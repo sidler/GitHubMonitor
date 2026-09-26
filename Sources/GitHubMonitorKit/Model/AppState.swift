@@ -138,6 +138,13 @@ public final class AppState {
     public var viewer: Viewer?
     /// Comment bodies, fetched only when a row is opened.
     public var previews: [String: PreviewState] = [:]
+    /// Linked issues and pull requests that have been looked up, keyed by
+    /// "owner/name#number".
+    ///
+    /// Kept for the run: a summary is opened to answer a question, and
+    /// asking GitHub again every time the same panel is opened would spend
+    /// the budget on an answer that has not changed.
+    public var linkedSummaries: [String: LinkedSummaryState] = [:]
     /// The conversation behind a notification, fetched when its pane opens.
     /// A mention lives in a comment, so the pane needs more than the one
     /// message the notification points at.
@@ -625,7 +632,16 @@ public final class AppState {
                 headCommit: "22da5a177503201b9cbbe78802da6353299f74df",
                 isAutoMergeArmed: true,
                 // Long enough to be called overdue under any sane threshold.
-                reviewRequestedAt: .now.addingTimeInterval(-86400 * 9)
+                reviewRequestedAt: .now.addingTimeInterval(-86400 * 9),
+                links: [
+                    ItemLink(
+                        reference: ItemReference(repository: "octo/server", number: 318),
+                        kind: .closes,
+                        title: "Session table migration order is ambiguous",
+                        url: URL(string: "https://github.com")
+                    ),
+                ],
+                linkedTotal: 2
             ),
             PullRequestItem(
                 id: "2", number: 77, title: "Add PSR-12 ruleset to CI",
@@ -659,7 +675,15 @@ public final class AppState {
                     IssueLabel(name: "bug", color: "d73a4a"),
                     IssueLabel(name: "needs decision", color: "fbca04"),
                 ],
-                milestone: "8.3"
+                milestone: "8.3",
+                links: [
+                    ItemLink(
+                        reference: ItemReference(repository: "octo/server", number: 482),
+                        kind: .closes,
+                        title: "Fix race condition in session handler",
+                        url: URL(string: "https://github.com")
+                    ),
+                ]
             ),
             IssueItem(
                 id: "i2", number: 91, title: "Document the release checklist",
@@ -714,6 +738,8 @@ public final class AppState {
                 - [x] Covered by `SessionHandlerTest`
                 - [ ] Needs the migration to have run
                 - Ticked and plain in one list, which is what GitHub does
+
+                Related to #4712, and blocked by #9999 until that is decided.
                 """,
                 mergeStatus: .conflicting,
                 checks: [
@@ -782,6 +808,51 @@ public final class AppState {
                 reviewers: []
             )
         )
+        // Two links looked up and one number that turned out to be
+        // nothing, so both sides of the panel are exercised: what a
+        // summary looks like, and that a wrong guess draws nothing.
+        linkedSummaries["octo/server#318"] = .loaded(
+            LinkedSummary(
+                reference: ItemReference(repository: "octo/server", number: 318),
+                kind: .issue,
+                state: .open,
+                title: "Session table migration order is ambiguous",
+                author: "mira",
+                url: URL(string: "https://github.com")!,
+                createdAt: .now.addingTimeInterval(-86400 * 9),
+                updatedAt: .now.addingTimeInterval(-5400),
+                body: """
+                The two migrations can run in either order, and one of them
+                assumes the other has already added the column.
+
+                We need to decide whether the order is declared or derived.
+                """,
+                comments: 7,
+                labels: [
+                    IssueLabel(name: "bug", color: "d73a4a"),
+                    IssueLabel(name: "needs decision", color: "fbca04"),
+                ]
+            )
+        )
+        linkedSummaries["octo/server#4712"] = .loaded(
+            LinkedSummary(
+                reference: ItemReference(repository: "octo/server", number: 4712),
+                kind: .pullRequest,
+                state: .merged,
+                title: "Introduce the migration registry",
+                author: "arun",
+                url: URL(string: "https://github.com")!,
+                createdAt: .now.addingTimeInterval(-86400 * 40),
+                updatedAt: .now.addingTimeInterval(-86400 * 20),
+                body: "Groundwork this one builds on.",
+                comments: 2,
+                checks: .success,
+                reviewDecision: .approved,
+                changedFiles: 14, additions: 220, deletions: 31
+            )
+        )
+        linkedSummaries["octo/server#9999"] = .missing
+
         // Show one preview open, so the expanded layout is exercised too.
         // Written as the real ones are -- a bot's table, a details wrapper,
         // a code fence -- so the Markdown rendering is exercised as well.
@@ -855,5 +926,107 @@ public final class AppState {
         }
 
         return MyTrendData(login: "sidler", resolution: .weekly, buckets: buckets)
+    }
+}
+
+// MARK: - Links
+
+extension AppState {
+    /// Everything a pull request points at, as far as is known here.
+    ///
+    /// The row's own links always; the numbers in the description as well,
+    /// once the description has been loaded. The panel that shows these is
+    /// only ever opened somewhere the description is on its way, so the
+    /// list fills in rather than staying short.
+    public func links(of item: PullRequestItem) -> [ItemLink] {
+        var groups = [item.links]
+        if case .loaded(let detail) = pullRequestDetails[item.id] {
+            groups.append(ItemReferences.inBody(detail.body, repository: item.repository))
+        }
+        return without(itself: item.reference, in: ItemLink.merge(groups))
+    }
+
+    public func links(of item: IssueItem) -> [ItemLink] {
+        var groups = [item.links]
+        if case .loaded(let detail) = issueDetails[item.id] {
+            groups.append(ItemReferences.inBody(detail.body, repository: item.repository))
+        }
+        return without(itself: item.reference, in: ItemLink.merge(groups))
+    }
+
+    /// A description that names its own number is talking about itself, and
+    /// a panel offering to show you what you are already looking at is a
+    /// panel nobody wants.
+    private func without(itself: ItemReference, in links: [ItemLink]) -> [ItemLink] {
+        links.filter { $0.reference != itself }
+    }
+
+    /// How many links GitHub counted that are not in the list.
+    public func unshownLinks(of item: PullRequestItem) -> Int {
+        max(0, item.linkedTotal - item.links.count { $0.kind == .closes })
+    }
+
+    public func unshownLinks(of item: IssueItem) -> Int {
+        max(0, item.linkedTotal - item.links.count { $0.kind == .closes })
+    }
+}
+
+extension PullRequestItem {
+    /// This pull request, as something other items can point at.
+    public var reference: ItemReference {
+        ItemReference(repository: repository, number: number)
+    }
+}
+
+extension IssueItem {
+    public var reference: ItemReference {
+        ItemReference(repository: repository, number: number)
+    }
+}
+
+extension AppState {
+    /// Whether one of the lists on screen holds this item.
+    public func canReveal(_ reference: ItemReference) -> Bool {
+        located(reference) != nil
+    }
+
+    /// Selects the list holding it and opens its detail pane.
+    @discardableResult
+    public func reveal(_ reference: ItemReference) -> Bool {
+        guard let found = located(reference) else { return false }
+        // Whatever was being read is not what is being gone to. A diff left
+        // open over the list would cover the row this just selected.
+        openedDiff = nil
+        // Off any repository narrowing: the item may well be in a
+        // repository the sidebar is not currently filtered to, and landing
+        // on a list that does not show it would look like nothing happened.
+        sidebarSelection = .list(id: found.listID, repository: nil)
+        switch found.kind {
+        case .pullRequests:
+            inspectedPullRequestID = found.itemID
+            inspectedIssueID = nil
+        case .issues:
+            inspectedIssueID = found.itemID
+            inspectedPullRequestID = nil
+        }
+        return true
+    }
+
+    private func located(
+        _ reference: ItemReference
+    ) -> (listID: String, itemID: String, kind: ListContent)? {
+        for list in settings.savedLists {
+            switch list.content {
+            case .pullRequests:
+                if let match = listPullRequests[list.id]?.first(where: { $0.reference == reference }) {
+                    return (list.id, match.id, .pullRequests)
+                }
+            case .issues:
+                if let match = listIssues[list.id]?.first(where: { $0.reference == reference }) {
+                    return (list.id, match.id, .issues)
+                }
+            }
+        }
+        return nil
     }
 }

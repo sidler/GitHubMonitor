@@ -1,0 +1,456 @@
+import SwiftUI
+
+/// What an item points at, and what those things are about.
+///
+/// One panel for every place that asks the question -- the pull request
+/// list, the issue list, both detail panes and the diff being read. The
+/// point of it is that none of them has to be left: the diff especially,
+/// where "what was this issue again" is the question that otherwise sends
+/// somebody to the browser and loses the review.
+struct LinkedItemsPanel: View {
+    @Bindable var state: AppState
+    let controller: RefreshController
+    /// Shown first, above the links. Set where the panel is opened from
+    /// something that is itself worth summarising -- the diff overlay,
+    /// where the pull request being read is the first question.
+    var lead: LinkedSummary?
+    let links: [ItemLink]
+    /// How many more GitHub counted than are listed here.
+    var unshown: Int = 0
+    let close: () -> Void
+
+    private var closes: [ItemLink] { links.filter { $0.kind == .closes } }
+    private var mentions: [ItemLink] { links.filter { $0.kind == .mentions } }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                if let lead {
+                    LinkedSummaryCard(
+                        state: state, controller: controller, summary: lead,
+                        showsReveal: false, close: close
+                    )
+                }
+
+                if !closes.isEmpty {
+                    group(lead == nil ? "Linked" : "Closes", links: closes)
+                }
+                if !mentions.isEmpty {
+                    group("Mentioned", links: mentions)
+                }
+
+                if unshown > 0 {
+                    Text("and \(unshown) more linked on GitHub")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                if links.isEmpty && lead == nil {
+                    Text("Nothing is linked to this one.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        // A popover inherits the environment of what it springs from, and
+        // what this springs from is a row that truncates everything to one
+        // line. Without this the summary was a single clipped sentence.
+        .lineLimit(nil)
+        .frame(width: 420)
+        // Tall enough for a summary and a linked issue, short enough that
+        // the panel stays a panel rather than a second window over the
+        // diff it is explaining.
+        .frame(maxHeight: 520)
+        .task(id: links.map(\.id).joined()) {
+            controller.loadLinksIfNeeded(links.map(\.reference))
+        }
+    }
+
+    @ViewBuilder
+    private func group(_ title: String, links: [ItemLink]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            ForEach(links) { link in
+                LinkedRow(state: state, controller: controller, link: link, close: close)
+            }
+        }
+    }
+}
+
+/// One link, in whatever state its lookup is in.
+private struct LinkedRow: View {
+    @Bindable var state: AppState
+    let controller: RefreshController
+    let link: ItemLink
+    let close: () -> Void
+
+    var body: some View {
+        switch state.linkedSummaries[link.reference.id] {
+        case .loaded(let summary):
+            LinkedSummaryCard(state: state, controller: controller, summary: summary, close: close)
+        case .loading, nil:
+            HStack(spacing: 7) {
+                ProgressView().controlSize(.small)
+                // The number is known before anything else is, so the row
+                // says which one it is waiting for.
+                Text(verbatim: link.reference.id)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        case .failed(let message):
+            HStack(spacing: 7) {
+                Label(message, systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .lineLimit(2)
+                Button("Try again") { controller.reloadLink(link.reference) }
+                    .buttonStyle(.accessoryBar)
+                    .font(.caption)
+            }
+        // A number in a sentence that turned out not to be an issue. It was
+        // a guess; a wrong guess is not worth a line of its own.
+        case .missing:
+            EmptyView()
+        }
+    }
+}
+
+/// The summary itself: what it is, where it stands, and enough of what it
+/// says to answer the question that opened the panel.
+private struct LinkedSummaryCard: View {
+    @Bindable var state: AppState
+    let controller: RefreshController
+    let summary: LinkedSummary
+    /// False for the item the panel is already about: offering to show
+    /// somebody what they are looking at is not an offer.
+    var showsReveal = true
+    let close: () -> Void
+
+    /// How much of the text is shown. Four blocks is a heading and a
+    /// paragraph or two -- what an issue is about, not the whole case.
+    private static let blockLimit = 4
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            header
+
+            if !summary.labels.isEmpty {
+                FlowRow(spacing: 4) {
+                    ForEach(summary.labels) { LabelChip(label: $0) }
+                }
+            }
+
+            facts
+
+            if summary.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text("Opened with a title only.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                MarkdownText(
+                    source: summary.body,
+                    blockLimit: Self.blockLimit,
+                    overflowNote: "Shortened"
+                )
+            }
+
+            actions
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(nsColor: .quaternaryLabelColor).opacity(0.25), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Image(systemName: summary.state.symbolName)
+                .foregroundStyle(tint)
+                .help(summary.state.label)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(summary.title)
+                    .font(.callout.weight(.medium))
+                    .lineLimit(3)
+                Text(verbatim: "\(summary.reference.id) \u{00b7} \(summary.state.label)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    /// The short facts, chosen by kind: what an issue is judged by is who
+    /// is talking about it, what a pull request is judged by is whether it
+    /// passes and how big it is.
+    private var facts: some View {
+        HStack(spacing: 10) {
+            Label("by \(summary.author)", systemImage: "person")
+                .labelStyle(.titleOnly)
+            Text(RelativeTime.string(for: summary.updatedAt))
+                .help(RelativeTime.absolute(summary.updatedAt))
+            if summary.comments > 0 {
+                Label("\(summary.comments)", systemImage: "bubble.left")
+            }
+            if let checks = summary.checks, checks != .none {
+                Image(systemName: checks.symbolName)
+                    .foregroundStyle(checks.tint)
+                    .help(checks.label)
+            }
+            if let additions = summary.additions, let deletions = summary.deletions {
+                Text(verbatim: "+\(additions)").foregroundStyle(.green).monospacedDigit()
+                Text(verbatim: "\u{2212}\(deletions)").foregroundStyle(.red).monospacedDigit()
+            }
+            Spacer(minLength: 0)
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
+    }
+
+    private var actions: some View {
+        HStack(spacing: 8) {
+            // Only where it is actually in one of the lists. The pane shows
+            // what a list holds, and an issue from a repository nobody
+            // follows is not in one.
+            if showsReveal, state.canReveal(summary.reference) {
+                Button("Show in list") {
+                    state.reveal(summary.reference)
+                    close()
+                }
+            }
+            Button {
+                NSWorkspace.shared.open(summary.url)
+            } label: {
+                Label("Open on GitHub", systemImage: "arrow.up.forward.square")
+            }
+            Spacer(minLength: 0)
+            Button {
+                controller.reloadLink(summary.reference)
+            } label: {
+                Image(systemName: "arrow.clockwise")
+            }
+            .help("Read it again")
+        }
+        .buttonStyle(.accessoryBar)
+        .font(.caption)
+    }
+
+    private var tint: Color {
+        switch summary.state {
+        case .open: .green
+        case .draft: .secondary
+        case .merged: .purple
+        case .closed: .secondary
+        case .notPlanned: .secondary
+        }
+    }
+}
+
+extension LinkedSummary {
+    /// A pull request already on screen, summarised from what is known
+    /// about it here.
+    ///
+    /// Built rather than fetched: the diff overlay is opened from a row
+    /// whose detail is loading beside it, and asking GitHub again for what
+    /// is already in hand would spend a point to learn nothing.
+    static func local(_ item: PullRequestItem, detail: PullRequestDetail?) -> LinkedSummary {
+        LinkedSummary(
+            reference: item.reference,
+            kind: .pullRequest,
+            state: item.isDraft ? .draft : .open,
+            title: item.title,
+            author: item.author,
+            authorAvatarURL: item.authorAvatarURL,
+            url: item.url,
+            createdAt: item.createdAt,
+            updatedAt: item.updatedAt,
+            body: detail?.body ?? "",
+            comments: detail?.comments ?? 0,
+            checks: item.checks,
+            reviewDecision: item.reviewDecision,
+            changedFiles: detail?.changedFiles,
+            additions: detail?.additions,
+            deletions: detail?.deletions
+        )
+    }
+}
+
+/// What a row needs to be able to open the panel.
+///
+/// Passed as one value because a row that cannot open it -- the menu bar
+/// panel's rows, which have nothing to open a panel over -- should be able
+/// to say so by leaving one thing out rather than several.
+struct LinkedPanelContext {
+    let state: AppState
+    let controller: RefreshController
+}
+
+/// View-local state without `@State`: its macro implementation ships only
+/// with Xcode, and this project builds against the Command Line Tools.
+@MainActor
+final class ViewFlag: ObservableObject {
+    @Published var isOn = false
+}
+
+/// The chain in a row: that there is a linked issue, and which one.
+///
+/// Only the strong kind. A number somebody wrote in a sentence is not worth
+/// a symbol in a list of forty rows, and the row has not read the
+/// description anyway.
+struct LinkBadge: View {
+    let context: LinkedPanelContext
+    let links: [ItemLink]
+    let unshown: Int
+
+    @StateObject private var panel = ViewFlag()
+
+    var body: some View {
+        if let first = links.first {
+            Button {
+                panel.isOn = true
+            } label: {
+                HStack(spacing: 2) {
+                    Image(systemName: "link")
+                    Text(verbatim: "\(first.reference.number)")
+                        .monospacedDigit()
+                    if links.count + unshown > 1 {
+                        Text(verbatim: "+\(links.count + unshown - 1)")
+                            .monospacedDigit()
+                    }
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(helpText)
+            .popover(isPresented: $panel.isOn, arrowEdge: .bottom) {
+                LinkedItemsPanel(
+                    state: context.state,
+                    controller: context.controller,
+                    links: links,
+                    unshown: unshown,
+                    close: { panel.isOn = false }
+                )
+            }
+        }
+    }
+
+    private var helpText: String {
+        let names = links.map(\.reference.id).joined(separator: ", ")
+        guard unshown > 0 else { return "Linked to \(names)" }
+        return "Linked to \(names) and \(unshown) more"
+    }
+}
+
+/// The links written out, for a pane with room for them.
+///
+/// A chip each rather than one symbol: in a pane the useful thing is seeing
+/// which issues without opening anything. Any of them opens the panel, and
+/// the panel holds them all -- two ways of narrowing the same list would be
+/// two things to learn.
+struct LinkChipRow: View {
+    let context: LinkedPanelContext
+    let links: [ItemLink]
+    var unshown: Int = 0
+
+    @StateObject private var panel = ViewFlag()
+
+    /// A number that turned out to be nothing is dropped -- but only once
+    /// that is known. Nothing is looked up until somebody opens the panel,
+    /// so a guess is shown until it has been asked about, and then never
+    /// again for the rest of the run.
+    private var shown: [ItemLink] {
+        links.filter { context.state.linkedSummaries[$0.reference.id] != .missing }
+    }
+
+    var body: some View {
+        if !shown.isEmpty {
+            FlowRow(spacing: 4) {
+                ForEach(shown) { link in
+                    Button { panel.isOn = true } label: { chip(link) }
+                        .buttonStyle(.plain)
+                        .help(link.title ?? link.reference.id)
+                }
+                if unshown > 0 {
+                    Text("+\(unshown)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .popover(isPresented: $panel.isOn, arrowEdge: .bottom) {
+                LinkedItemsPanel(
+                    state: context.state,
+                    controller: context.controller,
+                    links: shown,
+                    unshown: unshown,
+                    close: { panel.isOn = false }
+                )
+            }
+        }
+    }
+
+    private func chip(_ link: ItemLink) -> some View {
+        HStack(spacing: 3) {
+            Image(systemName: link.kind == .closes ? "link" : "text.quote")
+            Text(verbatim: "\(link.reference.number)")
+                .monospacedDigit()
+            if let title = link.title {
+                Text(title).lineLimit(1)
+            }
+        }
+        .font(.caption)
+        .foregroundStyle(Color.accentColor)
+        .padding(.horizontal, 5)
+        .padding(.vertical, 1)
+        .background(Color.accentColor.opacity(0.12), in: Capsule())
+        .contentShape(Capsule())
+    }
+}
+
+/// An item and what it points at, for the one place that leads with the
+/// item itself: the diff, where "what is this pull request even for" is the
+/// question that otherwise sends somebody to the browser.
+struct LinkedSubject {
+    let context: LinkedPanelContext
+    let summary: LinkedSummary
+    let links: [ItemLink]
+    var unshown: Int = 0
+}
+
+/// The button that opens it, wearing the item's own title.
+struct LinkedSubjectButton: View {
+    let subject: LinkedSubject
+
+    @StateObject private var panel = ViewFlag()
+
+    var body: some View {
+        Button {
+            panel.isOn = true
+        } label: {
+            Label {
+                Text(subject.summary.title)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    // Enough to recognise it by, not enough to push the
+                    // controls beside it off the bar.
+                    .frame(maxWidth: 280, alignment: .leading)
+            } icon: {
+                Image(systemName: "info.circle")
+            }
+        }
+        .buttonStyle(.accessoryBar)
+        .help("What this pull request is for, and the issues it answers")
+        .popover(isPresented: $panel.isOn, arrowEdge: .bottom) {
+            LinkedItemsPanel(
+                state: subject.context.state,
+                controller: subject.context.controller,
+                lead: subject.summary,
+                links: subject.links,
+                unshown: subject.unshown,
+                close: { panel.isOn = false }
+            )
+        }
+    }
+}

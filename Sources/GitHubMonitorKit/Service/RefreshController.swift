@@ -154,6 +154,7 @@ public final class RefreshController {
         state.listUnread = [:]
         state.notifications = []
         state.previews = [:]
+        state.linkedSummaries = [:]
         state.notificationThreads = [:]
         state.pullRequestDetails = [:]
         state.issueDetails = [:]
@@ -780,6 +781,53 @@ public final class RefreshController {
                 self?.state.changedFiles[id] = .failed(error.localizedDescription)
             }
         }
+    }
+
+    // MARK: - Links
+
+    /// Looks up the issues and pull requests named by an item, once.
+    ///
+    /// Only what is not already known, and only when a panel actually asks:
+    /// a link nobody opens costs nothing. What comes back is kept for the
+    /// run -- what an issue is about does not change between two glances at
+    /// the same diff.
+    public func loadLinksIfNeeded(_ references: [ItemReference]) {
+        let wanted = references.filter { state.linkedSummaries[$0.id] == nil }
+        guard !wanted.isEmpty else { return }
+        guard let service else {
+            for reference in wanted {
+                state.linkedSummaries[reference.id] = .failed(
+                    GitHubError.noToken.localizedDescription
+                )
+            }
+            return
+        }
+
+        for reference in wanted { state.linkedSummaries[reference.id] = .loading }
+
+        Task { [weak self] in
+            do {
+                let fetched = try await service.linkedItems(wanted)
+                guard let self else { return }
+                for reference in wanted {
+                    // Absent from the answer means the request came back
+                    // without it, which is the same as not there.
+                    state.linkedSummaries[reference.id] = fetched.summaries[reference] ?? .missing
+                }
+                if let budget = fetched.budget { state.budgets.graphQL = budget }
+            } catch {
+                Log.api.error("links failed: \(error.localizedDescription, privacy: .public)")
+                for reference in wanted {
+                    self?.state.linkedSummaries[reference.id] = .failed(error.localizedDescription)
+                }
+            }
+        }
+    }
+
+    /// Asks again for one link, after a failure or because it is stale.
+    public func reloadLink(_ reference: ItemReference) {
+        state.linkedSummaries[reference.id] = nil
+        loadLinksIfNeeded([reference])
     }
 
     // MARK: - Approving

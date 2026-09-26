@@ -305,6 +305,7 @@ struct ApprovalPersistenceTests {
         )
         state.approval = .confirming(pullRequestID: "1")
         state.inspectedPullRequestID = "1"
+        state.linkedSummaries["octo/platform#9"] = .missing
 
         // Its own directory, so the test writes nothing into the cache the
         // app uses.
@@ -320,6 +321,8 @@ struct ApprovalPersistenceTests {
         #expect(state.listPullRequests.isEmpty)
         #expect(state.inspectedPullRequestID == nil)
         #expect(state.approval == .idle)
+        // Titles of issues in private repositories, like everything else.
+        #expect(state.linkedSummaries.isEmpty)
         #expect(!state.hasToken)
     }
 }

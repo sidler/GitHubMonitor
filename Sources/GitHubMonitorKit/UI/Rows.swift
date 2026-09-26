@@ -12,6 +12,9 @@ struct PullRequestRow: View {
     var compact: Bool = false
     /// Nil in the popover, where there is no detail pane to open.
     var inspect: (() -> Void)?
+    /// Nil in the menu bar panel: there is no room, and a panel over a
+    /// panel is not something to offer.
+    var linked: LinkedPanelContext?
     var isInspected: Bool = false
 
     var body: some View {
@@ -88,6 +91,16 @@ struct PullRequestRow: View {
                     // review and check results beside it.
                     if item.isDraft {
                         DraftBadge()
+                    }
+
+                    // Last, because it is the only one that answers a
+                    // question about something other than this row.
+                    if let linked {
+                        LinkBadge(
+                            context: linked,
+                            links: item.links.filter { $0.kind == .closes },
+                            unshown: linked.state.unshownLinks(of: item)
+                        )
                     }
                 }
                 .font(.caption)
