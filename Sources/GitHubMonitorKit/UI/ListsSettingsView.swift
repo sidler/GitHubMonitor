@@ -572,6 +572,7 @@ private struct SymbolPicker: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .pointerStyle(.link)
         .popover(isPresented: $model.isOpen, arrowEdge: .bottom) {
             VStack(alignment: .leading, spacing: 10) {
                 LazyVGrid(columns: columns, spacing: 4) {

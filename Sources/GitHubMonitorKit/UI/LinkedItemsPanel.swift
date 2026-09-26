@@ -341,6 +341,9 @@ struct LinkBadge: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            // Drawn as text among other text, so nothing about it says it
+            // can be pressed until the pointer says so.
+            .pointerStyle(.link)
             .help(helpText)
             .popover(isPresented: $panel.isOn, arrowEdge: .bottom) {
                 LinkedItemsPanel(
@@ -388,6 +391,7 @@ struct LinkChipRow: View {
                 ForEach(shown) { link in
                     Button { panel.isOn = true } label: { chip(link) }
                         .buttonStyle(.plain)
+                        .pointerStyle(.link)
                         .help(link.title ?? link.reference.id)
                 }
                 if unshown > 0 {
@@ -458,6 +462,7 @@ struct LinkedSubjectButton: View {
             }
         }
         .buttonStyle(.accessoryBar)
+        .pointerStyle(.link)
         .help("What this pull request is for, and the issues it answers")
         .popover(isPresented: $panel.isOn, arrowEdge: .bottom) {
             LinkedItemsPanel(

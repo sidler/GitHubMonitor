@@ -899,7 +899,12 @@ public final class RefreshController {
             // Not the pull request's own decision: two approvals may be
             // required, and GitHub is the only one who knows.
             countApproval(of: item)
-            await refreshApproved(item)
+            // Not awaited. The diff closes on this returning, and the
+            // refresh that replaces the guess with GitHub's own account
+            // takes seconds -- holding a window open over a review that is
+            // finished, to wait for a confirmation of something already
+            // confirmed. The row and the pane already show the approval.
+            Task { [weak self] in await self?.refreshApproved(item) }
             return true
         } catch {
             Log.api.error("approve failed: \(error.localizedDescription, privacy: .public)")
