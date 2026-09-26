@@ -72,6 +72,7 @@ public enum PullRequestParser {
             authorAvatarURL: (author?["avatarUrl"] as? String).flatMap(URL.init(string:)),
             url: url,
             isDraft: node["isDraft"] as? Bool ?? false,
+            state: PullRequestState(apiValue: node["state"] as? String),
             createdAt: GitHubDate.date(from: node["createdAt"] as? String),
             updatedAt: updatedAt,
             reviewDecision: reviewDecision(node["reviewDecision"] as? String),

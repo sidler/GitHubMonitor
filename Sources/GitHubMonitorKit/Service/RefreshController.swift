@@ -155,6 +155,8 @@ public final class RefreshController {
         state.notifications = []
         state.previews = [:]
         state.linkedSummaries = [:]
+        state.bodyLinks.clear()
+        linksInFlight = []
         state.notificationThreads = [:]
         state.pullRequestDetails = [:]
         state.issueDetails = [:]
@@ -276,6 +278,9 @@ public final class RefreshController {
             if let inspected = state.inspectedPullRequestID, !livePullRequests.contains(inspected) {
                 state.inspectedPullRequestID = nil
             }
+
+            // Descriptions already read for numbers go with their rows.
+            state.bodyLinks.keep(livePullRequests.union(Set(state.allIssues.map(\.id))))
 
             let liveIssues = Set(state.allIssues.map(\.id))
             state.issueDetails = state.issueDetails.filter { liveIssues.contains($0.key) }
@@ -794,6 +799,10 @@ public final class RefreshController {
 
     // MARK: - Links
 
+    /// References a request is already out for, so a second panel opening
+    /// on the same link does not start a race with the first.
+    private var linksInFlight: Set<String> = []
+
     /// Looks up the issues and pull requests named by an item, once.
     ///
     /// Only what is not already known, and only when a panel actually asks:
@@ -801,9 +810,13 @@ public final class RefreshController {
     /// run -- what an issue is about does not change between two glances at
     /// the same diff.
     public func loadLinksIfNeeded(_ references: [ItemReference]) {
-        let wanted = references.filter { state.linkedSummaries[$0.id] == nil }
+        let wanted = references.filter(needsLookup)
         guard !wanted.isEmpty else { return }
         guard let service else {
+            // Said rather than left spinning -- but `needsLookup` treats a
+            // failure as worth another try, so a panel opened in the moment
+            // before `start()` has read the keychain answers itself the
+            // next time it is opened.
             for reference in wanted {
                 state.linkedSummaries[reference.id] = .failed(
                     GitHubError.noToken.localizedDescription
@@ -812,29 +825,55 @@ public final class RefreshController {
             return
         }
 
-        for reference in wanted { state.linkedSummaries[reference.id] = .loading }
+        for reference in wanted {
+            state.linkedSummaries[reference.id] = .loading
+            linksInFlight.insert(reference.id)
+        }
 
         Task { [weak self] in
-            do {
-                let fetched = try await service.linkedItems(wanted)
-                guard let self else { return }
-                for reference in wanted {
-                    // Absent from the answer means the request came back
-                    // without it, which is the same as not there.
-                    state.linkedSummaries[reference.id] = fetched.summaries[reference] ?? .missing
-                }
-                if let budget = fetched.budget { state.budgets.graphQL = budget }
-            } catch {
-                Log.api.error("links failed: \(error.localizedDescription, privacy: .public)")
-                for reference in wanted {
-                    self?.state.linkedSummaries[reference.id] = .failed(error.localizedDescription)
+            // One request per batch, in turn rather than at once: each is
+            // charged, and the budget reading that comes back with the last
+            // one should be the last word.
+            for batch in LinkedItemQuery.batches(wanted) {
+                do {
+                    let fetched = try await service.linkedItems(batch)
+                    guard let self else { return }
+                    for reference in batch {
+                        // Absent from an answer that did ask for it is the
+                        // same as not there.
+                        state.linkedSummaries[reference.id] =
+                            fetched.summaries[reference] ?? .missing
+                        linksInFlight.remove(reference.id)
+                    }
+                    if let budget = fetched.budget { state.budgets.graphQL = budget }
+                } catch {
+                    Log.api.error("links failed: \(error.localizedDescription, privacy: .public)")
+                    guard let self else { return }
+                    for reference in batch {
+                        state.linkedSummaries[reference.id] = .failed(error.localizedDescription)
+                        linksInFlight.remove(reference.id)
+                    }
                 }
             }
         }
     }
 
+    /// Whether this one is worth asking about now.
+    ///
+    /// A failure is worth another try -- the token may have arrived since,
+    /// or the network come back -- but only when nothing is already on its
+    /// way for it, or the older answer would land on top of the newer one.
+    private func needsLookup(_ reference: ItemReference) -> Bool {
+        guard !linksInFlight.contains(reference.id) else { return false }
+        switch state.linkedSummaries[reference.id] {
+        case nil, .failed: return true
+        case .loading, .loaded, .missing: return false
+        }
+    }
+
     /// Asks again for one link, after a failure or because it is stale.
     public func reloadLink(_ reference: ItemReference) {
+        guard !linksInFlight.contains(reference.id) else { return }
         state.linkedSummaries[reference.id] = nil
         loadLinksIfNeeded([reference])
     }

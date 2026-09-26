@@ -33,15 +33,6 @@ public struct LinkedSummary: Hashable, Sendable, Identifiable {
             }
         }
 
-        public var symbolName: String {
-            switch self {
-            case .open: "circle"
-            case .draft: "circle.dashed"
-            case .merged: "arrow.triangle.merge"
-            case .closed: "checkmark.circle.fill"
-            case .notPlanned: "slash.circle"
-            }
-        }
     }
 
     public let reference: ItemReference
@@ -66,6 +57,26 @@ public struct LinkedSummary: Hashable, Sendable, Identifiable {
     public let deletions: Int?
 
     public var id: String { reference.id }
+
+    /// The glyph for what this is and where it stands.
+    ///
+    /// Both at once, because neither answers alone: a closed issue and a
+    /// closed pull request are different news, and GitHub draws them
+    /// differently for that reason.
+    public var symbolName: String {
+        switch (kind, state) {
+        case (.issue, .open): "circle"
+        case (.issue, .closed): "checkmark.circle.fill"
+        case (.issue, .notPlanned): "slash.circle"
+        case (.pullRequest, .merged): "arrow.triangle.merge"
+        case (.pullRequest, .closed): "xmark.circle.fill"
+        case (.pullRequest, .draft): "circle.dashed"
+        case (.pullRequest, .open): "arrow.triangle.pull"
+        // A pull request is never "not planned" and an issue is never a
+        // draft or merged, but the switch has to say something.
+        default: "circle"
+        }
+    }
 
     public init(
         reference: ItemReference,

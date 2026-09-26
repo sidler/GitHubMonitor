@@ -100,9 +100,10 @@ struct RateBudgetTests {
         #expect(text.contains("156"))
 
         #expect(RefreshCost.sentence(lastRefreshCost: 1, interval: 600).contains("1 point"))
+        // Zero means GitHub did not say, not that the lists are idle.
         #expect(
             RefreshCost.sentence(lastRefreshCost: 0, interval: 300)
-                .contains("nothing is being spent")
+                .contains("did not say")
         )
     }
 

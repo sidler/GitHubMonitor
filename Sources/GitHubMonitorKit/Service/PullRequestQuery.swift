@@ -106,6 +106,7 @@ public enum PullRequestQuery {
           number
           title
           isDraft
+          state
           createdAt
           updatedAt
           url
@@ -140,7 +141,7 @@ public enum PullRequestQuery {
           # line and anything linked by hand in the sidebar. Five: a pull
           # request answering more than that is a sweep, and the rest are
           # reported as a count.
-          closingIssuesReferences(first: \(ItemReferences.limit)) {
+          closingIssuesReferences(first: \(ItemLinkParser.limit)) {
             totalCount
             nodes {
               number

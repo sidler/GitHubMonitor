@@ -5,7 +5,7 @@ import Foundation
 /// Number and repository rather than a node id: a number read out of a
 /// title or a sentence is all there is to go on, and it is enough to ask
 /// GitHub for the rest.
-public struct ItemReference: Hashable, Sendable, Identifiable, Comparable {
+public struct ItemReference: Hashable, Sendable, Identifiable {
     /// "owner/name"
     public let repository: String
     public let number: Int
@@ -15,12 +15,6 @@ public struct ItemReference: Hashable, Sendable, Identifiable, Comparable {
     public init(repository: String, number: Int) {
         self.repository = repository
         self.number = number
-    }
-
-    public static func < (lhs: Self, rhs: Self) -> Bool {
-        lhs.repository == rhs.repository
-            ? lhs.number < rhs.number
-            : lhs.repository.localizedStandardCompare(rhs.repository) == .orderedAscending
     }
 }
 
@@ -33,9 +27,19 @@ public struct ItemReference: Hashable, Sendable, Identifiable, Comparable {
 /// #4711". Showing them in one list would put the question and an aside
 /// side by side as equals.
 public struct ItemLink: Hashable, Sendable, Identifiable {
-    public enum Kind: Hashable, Sendable, Comparable {
+    public enum Kind: Hashable, Sendable {
         case closes
         case mentions
+
+        /// Which of two answers about the same item to keep.
+        ///
+        /// Written out rather than left to `Comparable` on the declaration
+        /// order: reordering the cases would otherwise invert the rule
+        /// silently, and GitHub's own links would start losing to numbers
+        /// guessed out of sentences.
+        static func stronger(_ one: Kind, _ other: Kind) -> Kind {
+            one == .closes || other == .closes ? .closes : .mentions
+        }
     }
 
     public let reference: ItemReference
@@ -72,7 +76,7 @@ public struct ItemLink: Hashable, Sendable, Identifiable {
                     let held = result[index]
                     result[index] = ItemLink(
                         reference: held.reference,
-                        kind: min(held.kind, link.kind),
+                        kind: Kind.stronger(held.kind, link.kind),
                         title: held.title ?? link.title,
                         url: held.url ?? link.url
                     )

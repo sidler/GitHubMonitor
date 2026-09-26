@@ -37,7 +37,7 @@ public enum IssueQuery {
           # included on purpose: GitHub leaves them out by default, and the
           # merged one is usually the one being looked for.
           closedByPullRequestsReferences(
-            first: \(ItemReferences.limit), includeClosedPrs: true
+            first: \(ItemLinkParser.limit), includeClosedPrs: true
           ) {
             totalCount
             nodes {

@@ -11,6 +11,21 @@ public protocol ListedItem: Identifiable, Sendable where ID == String {
     func date(for sort: PullRequestSort) -> Date
 }
 
+/// Where a pull request stands, as GitHub's own enum has it.
+public enum PullRequestState: String, Hashable, Sendable {
+    case open
+    case closed
+    case merged
+
+    public init(apiValue: String?) {
+        switch apiValue {
+        case "MERGED": self = .merged
+        case "CLOSED": self = .closed
+        default: self = .open
+        }
+    }
+}
+
 /// A pull request that is waiting for the user's review.
 public struct PullRequestItem: Identifiable, Hashable, Sendable, ListedItem {
     public let id: String
@@ -23,6 +38,10 @@ public struct PullRequestItem: Identifiable, Hashable, Sendable, ListedItem {
     public let authorAvatarURL: URL?
     public let url: URL
     public let isDraft: Bool
+    /// Open, closed or merged. Read rather than assumed: a list can be
+    /// written with `is:merged`, and a pull request can be merged by
+    /// somebody else between two refreshes.
+    public let state: PullRequestState
     /// When the pull request was opened, and when it last saw activity.
     public let createdAt: Date
     public let updatedAt: Date
@@ -69,6 +88,7 @@ public struct PullRequestItem: Identifiable, Hashable, Sendable, ListedItem {
         authorAvatarURL: URL?,
         url: URL,
         isDraft: Bool,
+        state: PullRequestState = .open,
         createdAt: Date? = nil,
         updatedAt: Date,
         reviewDecision: ReviewDecision,
@@ -91,6 +111,7 @@ public struct PullRequestItem: Identifiable, Hashable, Sendable, ListedItem {
         self.authorAvatarURL = authorAvatarURL
         self.url = url
         self.isDraft = isDraft
+        self.state = state
         // Older payloads and callers that only care about activity leave it
         // out; falling back keeps a row sortable either way.
         self.createdAt = createdAt ?? updatedAt
@@ -116,7 +137,7 @@ public struct PullRequestItem: Identifiable, Hashable, Sendable, ListedItem {
     public func countingViewerApproval(at moment: Date = .now) -> PullRequestItem {
         PullRequestItem(
             id: id, number: number, title: title, repository: repository, author: author,
-            authorAvatarURL: authorAvatarURL, url: url, isDraft: isDraft,
+            authorAvatarURL: authorAvatarURL, url: url, isDraft: isDraft, state: state,
             createdAt: createdAt, updatedAt: updatedAt,
             reviewDecision: reviewDecision, checks: checks, mergeStatus: mergeStatus,
             headCommit: headCommit, viewerDidAuthor: viewerDidAuthor,

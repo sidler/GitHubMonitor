@@ -511,7 +511,19 @@ private struct GroupedList<Item: Identifiable, Row: View>: View {
 
     var body: some View {
         if let selection {
-            List(selection: selection) { content }
+            // A selection set from anywhere but a click -- the arrow keys,
+            // the menu, "Show in list" in a linked panel -- moves the
+            // detail pane without moving the list, and in a list of forty
+            // rows the selected one is then off screen with nothing to
+            // show for it. No anchor, so a row already in view stays where
+            // it is and a click does not jerk the list.
+            ScrollViewReader { proxy in
+                List(selection: selection) { content }
+                    .onChange(of: selection.wrappedValue) { _, id in
+                        guard let id else { return }
+                        proxy.scrollTo(id)
+                    }
+            }
         } else {
             List { content }
         }

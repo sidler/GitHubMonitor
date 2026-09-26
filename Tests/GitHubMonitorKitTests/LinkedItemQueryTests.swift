@@ -39,6 +39,32 @@ struct LinkedItemQueryTests {
         #expect(document.contains("\"agp\""))
     }
 
+    /// The bug this replaced: everything past the cap was recorded as
+    /// "not there" without ever having been asked about, and a genuinely
+    /// linked issue vanished from the pane for the rest of the run.
+    @Test("More than one request's worth is split, not dropped")
+    func batched() {
+        let many = (1...(LinkedItemQuery.maximumLookups + 3)).map { reference($0) }
+        let batches = LinkedItemQuery.batches(many)
+
+        #expect(batches.count == 2)
+        #expect(batches[0].count == LinkedItemQuery.maximumLookups)
+        #expect(batches[1].count == 3)
+        // Every reference asked for lands in exactly one batch.
+        #expect(batches.flatMap { $0 } == many)
+    }
+
+    @Test("A batch repeats nothing, even across the split")
+    func batchesDeduplicate() {
+        let batches = LinkedItemQuery.batches([reference(1), reference(1), reference(2)])
+        #expect(batches == [[reference(1), reference(2)]])
+    }
+
+    @Test("Nothing to ask about is no batches at all")
+    func noBatches() {
+        #expect(LinkedItemQuery.batches([]).isEmpty)
+    }
+
     /// The same alias twice in one block is rejected by GitHub outright,
     /// which would take the whole panel down with it.
     @Test("The same number twice is asked for once")

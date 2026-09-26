@@ -38,17 +38,16 @@ struct LinkedItemsPanel: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            scroller
-        }
-        .frame(width: 420, height: height)
-        // A popover inherits the environment of what it springs from, and
-        // what this springs from is a row that truncates everything to one
-        // line. Without this the summary was a single clipped sentence.
-        .lineLimit(nil)
-        .task(id: links.map(\.id).joined()) {
-            controller.loadLinksIfNeeded(links.map(\.reference))
-        }
+        scroller
+            .frame(width: 420, height: height)
+            // A popover inherits the environment of what it springs
+            // from, and what this springs from is a row that truncates
+            // everything to one line. Without this the summary was a
+            // single clipped sentence.
+            .lineLimit(nil)
+            .task(id: links.map(\.id).joined()) {
+                controller.loadLinksIfNeeded(links.map(\.reference))
+            }
     }
 
     private var scroller: some View {
@@ -129,8 +128,8 @@ private struct LinkedRow: View {
                     .buttonStyle(.accessoryBar)
                     .font(.caption)
             }
-        // A number in a sentence that turned out not to be an issue. It was
-        // a guess; a wrong guess is not worth a line of its own.
+        // Dropped before the panel is built, so this should not arrive.
+        // Drawing nothing is the same answer either way.
         case .missing:
             EmptyView()
         }
@@ -185,7 +184,7 @@ private struct LinkedSummaryCard: View {
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Image(systemName: summary.state.symbolName)
+            Image(systemName: summary.symbolName)
                 .foregroundStyle(tint)
                 .help(summary.state.label)
             VStack(alignment: .leading, spacing: 2) {
@@ -273,11 +272,21 @@ extension LinkedSummary {
     /// Built rather than fetched: the diff overlay is opened from a row
     /// whose detail is loading beside it, and asking GitHub again for what
     /// is already in hand would spend a point to learn nothing.
+    /// A draft is only a draft while it is open; a merged one is merged
+    /// whatever it was drafted as.
+    static func state(of item: PullRequestItem) -> State {
+        switch item.state {
+        case .merged: .merged
+        case .closed: .closed
+        case .open: item.isDraft ? .draft : .open
+        }
+    }
+
     static func local(_ item: PullRequestItem, detail: PullRequestDetail?) -> LinkedSummary {
         LinkedSummary(
             reference: item.reference,
             kind: .pullRequest,
-            state: item.isDraft ? .draft : .open,
+            state: Self.state(of: item),
             title: item.title,
             author: item.author,
             authorAvatarURL: item.authorAvatarURL,
@@ -377,18 +386,10 @@ struct LinkChipRow: View {
 
     @StateObject private var panel = ViewFlag()
 
-    /// A number that turned out to be nothing is dropped -- but only once
-    /// that is known. Nothing is looked up until somebody opens the panel,
-    /// so a guess is shown until it has been asked about, and then never
-    /// again for the rest of the run.
-    private var shown: [ItemLink] {
-        links.filter { context.state.linkedSummaries[$0.reference.id] != .missing }
-    }
-
     var body: some View {
-        if !shown.isEmpty {
+        if !links.isEmpty {
             FlowRow(spacing: 4) {
-                ForEach(shown) { link in
+                ForEach(links) { link in
                     Button { panel.isOn = true } label: { chip(link) }
                         .buttonStyle(.plain)
                         .pointerStyle(.link)
@@ -404,7 +405,7 @@ struct LinkChipRow: View {
                 LinkedItemsPanel(
                     state: context.state,
                     controller: context.controller,
-                    links: shown,
+                    links: links,
                     unshown: unshown,
                     close: { panel.isOn = false }
                 )

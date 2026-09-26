@@ -145,6 +145,9 @@ public final class AppState {
     /// asking GitHub again every time the same panel is opened would spend
     /// the budget on an answer that has not changed.
     public var linkedSummaries: [String: LinkedSummaryState] = [:]
+    /// Numbers read out of descriptions, so a body is parsed once rather
+    /// than on every pass a view makes over it.
+    let bodyLinks = BodyLinkCache()
     /// The conversation behind a notification, fetched when its pane opens.
     /// A mention lives in a comment, so the pane needs more than the one
     /// message the notification points at.
@@ -930,6 +933,60 @@ public final class AppState {
 
 // MARK: - Links
 
+/// Something that can point at an issue or a pull request.
+///
+/// A protocol rather than one method per type: the two were written out
+/// twice with identical bodies, and the rule about which links to show is
+/// one rule.
+public protocol LinkableItem: Identifiable, Sendable where ID == String {
+    var repository: String { get }
+    var number: Int { get }
+    /// What was known without asking: GitHub's own links, and the number at
+    /// the head of a title.
+    var links: [ItemLink] { get }
+    /// How many GitHub counted, of which `links` holds at most a few.
+    var linkedTotal: Int { get }
+}
+
+extension PullRequestItem: LinkableItem {}
+extension IssueItem: LinkableItem {}
+
+extension LinkableItem {
+    /// This item, as something others can point at.
+    public var reference: ItemReference {
+        ItemReference(repository: repository, number: number)
+    }
+}
+
+/// Numbers read out of a description, kept so they are read once.
+///
+/// A class the state holds rather than a stored property of it: `links(of:)`
+/// is called while a view draws, and anything the observation machinery can
+/// see being written there would invalidate the view that just read it.
+@MainActor
+final class BodyLinkCache {
+    private var entries: [String: (body: String, links: [ItemLink])] = [:]
+    /// How many descriptions have actually been read. The point of this
+    /// class is that it stays low, so it is worth being able to check.
+    private(set) var reads = 0
+
+    func links(id: String, body: String, repository: String) -> [ItemLink] {
+        if let held = entries[id], held.body == body { return held.links }
+        reads += 1
+        let read = ItemReferences.inBody(body, repository: repository)
+        entries[id] = (body, read)
+        return read
+    }
+
+    /// Drops what no longer has a row, alongside the details it was read
+    /// from.
+    func keep(_ ids: Set<String>) {
+        entries = entries.filter { ids.contains($0.key) }
+    }
+
+    func clear() { entries.removeAll() }
+}
+
 extension AppState {
     /// Everything a pull request points at, as far as is known here.
     ///
@@ -938,48 +995,45 @@ extension AppState {
     /// only ever opened somewhere the description is on its way, so the
     /// list fills in rather than staying short.
     public func links(of item: PullRequestItem) -> [ItemLink] {
-        var groups = [item.links]
-        if case .loaded(let detail) = pullRequestDetails[item.id] {
-            groups.append(ItemReferences.inBody(detail.body, repository: item.repository))
-        }
-        return without(itself: item.reference, in: ItemLink.merge(groups))
+        links(of: item, body: loadedBody(pullRequestDetails[item.id]))
     }
 
     public func links(of item: IssueItem) -> [ItemLink] {
-        var groups = [item.links]
-        if case .loaded(let detail) = issueDetails[item.id] {
-            groups.append(ItemReferences.inBody(detail.body, repository: item.repository))
-        }
-        return without(itself: item.reference, in: ItemLink.merge(groups))
+        links(of: item, body: loadedBody(issueDetails[item.id]))
     }
 
-    /// A description that names its own number is talking about itself, and
-    /// a panel offering to show you what you are already looking at is a
-    /// panel nobody wants.
-    private func without(itself: ItemReference, in links: [ItemLink]) -> [ItemLink] {
-        links.filter { $0.reference != itself }
+    private func links(of item: some LinkableItem, body: String?) -> [ItemLink] {
+        var groups = [item.links]
+        if let body {
+            groups.append(
+                bodyLinks.links(id: item.id, body: body, repository: item.repository)
+            )
+        }
+        return ItemLink.merge(groups).filter { link in
+            // A description that names its own number is talking about
+            // itself, and a panel offering to show you what you are already
+            // looking at is a panel nobody wants.
+            guard link.reference != item.reference else { return false }
+            // A number that turned out to be nothing was a guess, and a
+            // wrong guess is not worth a chip, a card or the height of one.
+            // Dropped here so every caller gets the same list.
+            return linkedSummaries[link.reference.id] != .missing
+        }
+    }
+
+    private func loadedBody(_ state: DetailState?) -> String? {
+        guard case .loaded(let detail) = state else { return nil }
+        return detail.body
+    }
+
+    private func loadedBody(_ state: IssueDetailState?) -> String? {
+        guard case .loaded(let detail) = state else { return nil }
+        return detail.body
     }
 
     /// How many links GitHub counted that are not in the list.
-    public func unshownLinks(of item: PullRequestItem) -> Int {
+    public func unshownLinks(of item: some LinkableItem) -> Int {
         max(0, item.linkedTotal - item.links.count { $0.kind == .closes })
-    }
-
-    public func unshownLinks(of item: IssueItem) -> Int {
-        max(0, item.linkedTotal - item.links.count { $0.kind == .closes })
-    }
-}
-
-extension PullRequestItem {
-    /// This pull request, as something other items can point at.
-    public var reference: ItemReference {
-        ItemReference(repository: repository, number: number)
-    }
-}
-
-extension IssueItem {
-    public var reference: ItemReference {
-        ItemReference(repository: repository, number: number)
     }
 }
 

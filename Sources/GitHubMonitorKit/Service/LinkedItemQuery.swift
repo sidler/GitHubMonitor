@@ -51,12 +51,26 @@ public enum LinkedItemQuery {
         """
     }
 
-    /// What is actually asked for: no repeats, and no more than fits in
-    /// one request. The same number twice in one repository would produce
-    /// the same alias twice, which GitHub rejects outright.
-    static func asked(_ references: [ItemReference]) -> [ItemReference] {
+    /// Everything wanted, split into requests GitHub will take.
+    ///
+    /// Splitting rather than truncating: a pull request can name more
+    /// numbers than one request holds -- five GitHub linked, five off the
+    /// title, five out of the description -- and dropping the rest meant
+    /// they were recorded as "not there" without ever having been asked
+    /// about.
+    public static func batches(_ references: [ItemReference]) -> [[ItemReference]] {
         var seen = Set<ItemReference>()
-        return references.filter { seen.insert($0).inserted }.prefix(maximumLookups).map { $0 }
+        let unique = references.filter { seen.insert($0).inserted }
+        return stride(from: 0, to: unique.count, by: maximumLookups).map { start in
+            Array(unique[start..<min(start + maximumLookups, unique.count)])
+        }
+    }
+
+    /// What one request actually asks for: no repeats, and no more than
+    /// fits. The same number twice in one repository would produce the same
+    /// alias twice, which GitHub rejects outright.
+    static func asked(_ references: [ItemReference]) -> [ItemReference] {
+        batches(references).first ?? []
     }
 
     /// An alias GitHub accepts and the parser can read the reference back

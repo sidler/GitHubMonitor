@@ -95,6 +95,59 @@ struct LinkedItemsTests {
         #expect(state.unshownLinks(of: pullRequest) == 0)
     }
 
+    /// A guess that turned out to be nothing should not reach a chip, a
+    /// card, or the height the panel is given for one.
+    @Test("A number known to be nothing is dropped everywhere")
+    func missingIsDropped() {
+        let state = state()
+        let pullRequest = item(links: [link(318, .closes)])
+        state.pullRequestDetails[pullRequest.id] = .loaded(detail(body: "See #4712 and #9999."))
+        state.linkedSummaries["\(repository)#9999"] = .missing
+
+        #expect(state.links(of: pullRequest).map(\.reference.number) == [318, 4712])
+    }
+
+    /// Reading the same description again on every pass a view makes over
+    /// it was measurable work for an answer that had not changed.
+    @Test("A description is read for numbers once")
+    func bodyReadOnce() {
+        let state = state()
+        let pullRequest = item()
+        state.pullRequestDetails[pullRequest.id] = .loaded(detail(body: "See #4712."))
+
+        let first = state.links(of: pullRequest)
+        _ = state.links(of: pullRequest)
+        _ = state.links(of: pullRequest)
+        #expect(first.map(\.reference.number) == [4712])
+        #expect(state.bodyLinks.reads == 1)
+
+        // A new description is read again rather than answered from the
+        // one before it.
+        state.pullRequestDetails[pullRequest.id] = .loaded(detail(body: "See #4713."))
+        #expect(state.links(of: pullRequest).map(\.reference.number) == [4713])
+        #expect(state.bodyLinks.reads == 2)
+    }
+
+    /// A draft is only a draft while it is open.
+    @Test(
+        "A summary built here reports merged and closed, not just open",
+        arguments: [
+            (PullRequestState.merged, false, LinkedSummary.State.merged),
+            (.closed, false, .closed),
+            (.open, true, .draft),
+            (.open, false, .open),
+        ]
+    )
+    func localState(state: PullRequestState, isDraft: Bool, expected: LinkedSummary.State) {
+        let pullRequest = PullRequestItem(
+            id: "x", number: 1, title: "t", repository: repository, author: "a",
+            authorAvatarURL: nil, url: URL(string: "https://github.com")!,
+            isDraft: isDraft, state: state, updatedAt: .now,
+            reviewDecision: .none, checks: .none
+        )
+        #expect(LinkedSummary.local(pullRequest, detail: nil).state == expected)
+    }
+
     // MARK: - Going there
 
     @Test("An item in a list can be shown, and the sidebar follows")

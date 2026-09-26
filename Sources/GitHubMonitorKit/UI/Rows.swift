@@ -98,7 +98,7 @@ struct PullRequestRow: View {
                     if let linked {
                         LinkBadge(
                             context: linked,
-                            links: item.links.filter { $0.kind == .closes },
+                            links: linked.state.links(of: item).filter { $0.kind == .closes },
                             unshown: linked.state.unshownLinks(of: item)
                         )
                     }

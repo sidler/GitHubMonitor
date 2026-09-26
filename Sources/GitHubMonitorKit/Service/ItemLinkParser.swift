@@ -6,6 +6,14 @@ import Foundation
 /// link somebody made by hand in the sidebar. Everything else has to be
 /// read out of text, which `ItemReferences` does.
 public enum ItemLinkParser {
+    /// How many links each row asks GitHub for.
+    ///
+    /// Its own number rather than the one `ItemReferences` reads prose
+    /// with: this one sits inside a search over a hundred rows and is
+    /// charged for, and raising the other because a description names more
+    /// numbers than expected has no business widening it.
+    public static let limit = 5
+
     /// The links under one connection, and how many there are altogether.
     ///
     /// The total comes from GitHub rather than from the nodes: the query

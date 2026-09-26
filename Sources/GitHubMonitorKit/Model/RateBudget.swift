@@ -109,8 +109,12 @@ public enum RefreshCost {
         guard let lastRefreshCost else {
             return "No refresh has finished yet, so there is nothing measured to report."
         }
+        // Zero is not "free". `lists()` only answers at all when there
+        // were searches to run, so a charge of nothing means GitHub's
+        // answer carried no `cost` field -- and saying "nothing is being
+        // spent" while the lists are being fetched would be a lie.
         guard lastRefreshCost > 0 else {
-            return "No list is being fetched, so nothing is being spent."
+            return "GitHub did not say what the last refresh cost."
         }
         let perHour = pointsPerHour(refreshCost: lastRefreshCost, interval: interval)
         let minutes = Int((interval / 60).rounded())
