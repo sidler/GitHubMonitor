@@ -713,6 +713,7 @@ public final class AppState {
 
                 - [x] Covered by `SessionHandlerTest`
                 - [ ] Needs the migration to have run
+                - Ticked and plain in one list, which is what GitHub does
                 """,
                 mergeStatus: .conflicting,
                 checks: [

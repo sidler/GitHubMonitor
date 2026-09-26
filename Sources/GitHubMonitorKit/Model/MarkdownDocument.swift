@@ -8,7 +8,7 @@ import Foundation
 public enum MarkdownBlock: Hashable, Sendable {
     case heading(level: Int, text: String)
     case paragraph(String)
-    case bullets([String])
+    case bullets([BulletItem])
     case numbered([String])
     case quote(String)
     /// Verbatim, with its fence removed, and whatever the fence called it.
@@ -19,6 +19,27 @@ public enum MarkdownBlock: Hashable, Sendable {
     /// fits into a pane four inches wide.
     case table(header: [String], rows: [[String]])
     case rule
+}
+
+/// One item of a bullet list, which on GitHub may be a checkbox.
+///
+/// A task list is a bullet list whose items open with `[ ]` or `[x]`, and
+/// the two kinds mix freely inside one list -- so the mark belongs to the
+/// item rather than to the list. Splitting a mixed list into two blocks
+/// would put a gap in the middle of something the author wrote as one.
+public struct BulletItem: Hashable, Sendable {
+    public enum Mark: Hashable, Sendable {
+        case bullet
+        case task(done: Bool)
+    }
+
+    public let mark: Mark
+    public let text: String
+
+    public init(mark: Mark = .bullet, text: String) {
+        self.mark = mark
+        self.text = text
+    }
 }
 
 /// Splits a GitHub comment body into blocks.
@@ -217,11 +238,39 @@ public enum MarkdownDocument {
         return isAlignmentRow(cells(in: next))
     }
 
-    static func bulletItem(_ line: String) -> String? {
+    static func bulletItem(_ line: String) -> BulletItem? {
         for marker in ["- ", "* ", "+ "] where line.hasPrefix(marker) {
-            return String(line.dropFirst(marker.count)).trimmingCharacters(in: .whitespaces)
+            let rest = String(line.dropFirst(marker.count)).trimmingCharacters(in: .whitespaces)
+            if let task = task(in: rest) { return task }
+            return BulletItem(text: rest)
         }
         return nil
+    }
+
+    /// A checkbox at the head of a bullet, if there is one.
+    ///
+    /// GitHub wants the box followed by a space; a bullet that is nothing
+    /// but an empty box is accepted too, because that is how a template
+    /// line reads before anyone has written in it.
+    static func task(in text: String) -> BulletItem? {
+        guard text.count >= 3, text.hasPrefix("[") else { return nil }
+        let inside = text[text.index(after: text.startIndex)]
+        let done: Bool
+        switch inside {
+        case " ": done = false
+        case "x", "X": done = true
+        default: return nil
+        }
+
+        let after = text.index(text.startIndex, offsetBy: 2)
+        guard text[after] == "]" else { return nil }
+
+        let rest = text[text.index(after: after)...]
+        guard rest.isEmpty || rest.first == " " else { return nil }
+        return BulletItem(
+            mark: .task(done: done),
+            text: rest.trimmingCharacters(in: .whitespaces)
+        )
     }
 
     static func numberedItem(_ line: String) -> String? {

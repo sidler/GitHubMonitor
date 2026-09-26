@@ -47,10 +47,12 @@ struct MarkdownText: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
         case .bullets(let items):
-            list(items.map { (marker: "•", text: $0) })
+            list(items.map { (marker: Marker(item: $0), text: $0.text) })
 
         case .numbered(let items):
-            list(items.enumerated().map { (marker: "\($0.offset + 1).", text: $0.element) })
+            list(items.enumerated().map {
+                (marker: Marker.number("\($0.offset + 1)."), text: $0.element)
+            })
 
         case .quote(let text):
             HStack(alignment: .top, spacing: 8) {
@@ -82,12 +84,52 @@ struct MarkdownText: View {
         }
     }
 
-    private func list(_ items: [(marker: String, text: String)]) -> some View {
+    /// What stands in front of a list item: a bullet, a number, or the box
+    /// of a checklist.
+    enum Marker: Hashable {
+        case bullet
+        case number(String)
+        case task(done: Bool)
+
+        init(item: BulletItem) {
+            switch item.mark {
+            case .bullet: self = .bullet
+            case .task(let done): self = .task(done: done)
+            }
+        }
+    }
+
+    /// A dot and a box are not the same width, so both are drawn in a
+    /// column of one width: without it a list that mixes them steps its
+    /// text in and out again. Numbers keep their own width, because "10."
+    /// does not fit in a dot's column.
+    private static let bulletColumn: CGFloat = 13
+
+    @ViewBuilder
+    private func markerView(_ marker: Marker) -> some View {
+        switch marker {
+        case .bullet:
+            Text(verbatim: "\u{2022}")
+                .font(.callout)
+                .frame(width: Self.bulletColumn, alignment: .center)
+        case .number(let value):
+            Text(verbatim: value)
+                .font(.callout.monospacedDigit())
+        // Left unpainted on purpose. The box already says which of the two
+        // it is, and a colour here would claim that a checklist in someone
+        // else's description is a status the app is reporting.
+        case .task(let done):
+            Image(systemName: done ? "checkmark.square.fill" : "square")
+                .font(.callout)
+                .frame(width: Self.bulletColumn, alignment: .center)
+        }
+    }
+
+    private func list(_ items: [(marker: Marker, text: String)]) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(item.marker)
-                        .font(.callout.monospacedDigit())
+                    markerView(item.marker)
                         .foregroundStyle(Color(nsColor: .secondaryLabelColor))
                     Text(inline(item.text))
                         .font(.callout)

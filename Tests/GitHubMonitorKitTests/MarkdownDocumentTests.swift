@@ -41,7 +41,54 @@ struct MarkdownDocumentTests {
     @Test("Bullets are collected into one list")
     func bullets() {
         let blocks = MarkdownDocument.blocks(from: "- one\n- two\n* three")
-        #expect(blocks == [.bullets(["one", "two", "three"])])
+        #expect(blocks == [.bullets([plain("one"), plain("two"), plain("three")])])
+    }
+
+    private func plain(_ text: String) -> BulletItem { BulletItem(text: text) }
+    private func task(_ text: String, done: Bool) -> BulletItem {
+        BulletItem(mark: .task(done: done), text: text)
+    }
+
+    /// The checklist in a pull request description: what is left to do
+    /// before it can be merged, which is the reason to read one.
+    @Test("A checkbox is read off the bullet, ticked or not")
+    func tasks() {
+        let blocks = MarkdownDocument.blocks(from: "- [x] tests\n- [ ] changelog\n- [X] docs")
+        #expect(blocks == [.bullets([
+            task("tests", done: true),
+            task("changelog", done: false),
+            task("docs", done: true),
+        ])])
+    }
+
+    /// GitHub renders them as one list, so splitting them into two blocks
+    /// would put a gap in the middle of something written as one.
+    @Test("Boxes and plain bullets stay in the same list")
+    func mixed() {
+        let blocks = MarkdownDocument.blocks(from: "- [ ] migrate\n- needs review first")
+        #expect(blocks == [.bullets([
+            task("migrate", done: false),
+            plain("needs review first"),
+        ])])
+    }
+
+    /// An empty box on its own is how a template line reads before anyone
+    /// has written in it.
+    @Test("An empty box with no text is still a box")
+    func emptyTask() {
+        #expect(MarkdownDocument.blocks(from: "- [ ]") == [.bullets([task("", done: false)])])
+    }
+
+    /// Only a box is a box. A bullet that opens with a bracket -- a
+    /// reference, a link, an abbreviation -- is prose.
+    @Test("A bracket that is not a checkbox stays in the text")
+    func notATask() {
+        #expect(MarkdownDocument.blocks(from: "- [see #12] and then") == [
+            .bullets([plain("[see #12] and then")]),
+        ])
+        #expect(MarkdownDocument.blocks(from: "- [x]no space") == [
+            .bullets([plain("[x]no space")]),
+        ])
     }
 
     @Test("Numbered items keep their text, not their numbers")
