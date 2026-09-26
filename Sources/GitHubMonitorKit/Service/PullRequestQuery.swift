@@ -46,7 +46,7 @@ public enum PullRequestQuery {
         let after = cursor.map { ", after: \(jsonString($0))" } ?? ""
         return """
         query {
-          rateLimit { limit remaining resetAt }
+          rateLimit { limit remaining resetAt cost }
           d0: search(query: \(jsonString(repositoryQuery(repository))), type: ISSUE, first: \(pageSize)\(after)) {
             issueCount
             pageInfo { hasNextPage endCursor }

@@ -187,13 +187,9 @@ public final class AppState {
     /// Who comments across a whole repository -- read only while that side
     /// of the switch is showing, since it covers every pull request in it.
     public var repositoryCommenters: CommenterState = .unconfigured
-    /// How many searches a refresh runs: one per line of every list that is
-    /// shown somewhere. What the cost of keeping up to date is measured in.
-    public var runningSearchCount: Int {
-        settings.savedLists
-            .filter { $0.isRunnable && settings.listVisibility.isShownAnywhere($0.id) }
-            .reduce(0) { $0 + $1.queryLines.count }
-    }
+    /// What the last refresh of the lists cost, as GitHub charged it. Nil
+    /// until one has finished.
+    public var lastRefreshCost: Int?
 
     /// How many rows each list is not showing, where paging was cut short.
     /// Empty for every list that was read to the end, which is nearly all
@@ -620,6 +616,9 @@ public final class AppState {
     /// UIs can be exercised before the API clients exist.
     public func loadSampleData() {
         hasToken = true
+        // A plausible charge, so the sentence in settings has something to
+        // say without a token.
+        lastRefreshCost = 13
         listPullRequests[SavedList.Seed.reviews] = [
             PullRequestItem(
                 id: "1", number: 482, title: "Fix race condition in session handler",

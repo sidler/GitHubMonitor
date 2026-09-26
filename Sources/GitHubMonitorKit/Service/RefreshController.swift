@@ -171,6 +171,7 @@ public final class RefreshController {
         state.myTrends = .unconfigured
         state.repositoryCommenters = .unconfigured
         state.budgets = RateBudgets()
+        state.lastRefreshCost = nil
         state.loadState = .idle
     }
 
@@ -251,7 +252,15 @@ public final class RefreshController {
             guard !Task.isCancelled else { return }
 
             let results = fetched.results
-            if let budget = fetched.budget { state.budgets.graphQL = budget }
+            if let budget = fetched.budget {
+                state.budgets.graphQL = budget
+                // What GitHub charged for this refresh, for the sentence in
+                // settings. Its own figure, not the difference between two
+                // readings: details, diffs and linked summaries are fetched
+                // between refreshes, and a difference would charge the
+                // refresh for those as well.
+                state.lastRefreshCost = budget.cost
+            }
             state.listPullRequests = results.pullRequests
             state.listIssues = results.issues
             state.listUnread = fetched.unread

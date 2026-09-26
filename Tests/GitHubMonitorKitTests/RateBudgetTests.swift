@@ -83,24 +83,59 @@ struct RateBudgetTests {
 
     // MARK: - What it costs
 
-    /// Measured against the API: a search is one point whatever it brings
-    /// back, so the cost is lines times refreshes.
-    @Test("The cost is one point per search line per refresh")
+    /// What one refresh was charged, carried over an hour.
+    @Test("An hour is the last refresh, as often as it runs")
     func cost() {
-        #expect(RefreshCost.pointsPerHour(searchLines: 6, interval: 300) == 72)
-        #expect(RefreshCost.pointsPerHour(searchLines: 1, interval: 3600) == 1)
-        #expect(RefreshCost.pointsPerHour(searchLines: 0, interval: 300) == 0)
-        #expect(RefreshCost.pointsPerHour(searchLines: 6, interval: 0) == 0)
+        #expect(RefreshCost.pointsPerHour(refreshCost: 13, interval: 300) == 156)
+        #expect(RefreshCost.pointsPerHour(refreshCost: 1, interval: 3600) == 1)
+        #expect(RefreshCost.pointsPerHour(refreshCost: 0, interval: 300) == 0)
+        #expect(RefreshCost.pointsPerHour(refreshCost: 13, interval: 0) == 0)
     }
 
-    @Test("The sentence says what is being spent")
+    @Test("The sentence says what was charged, not what was guessed")
     func sentence() {
-        let text = RefreshCost.sentence(searchLines: 6, interval: 300)
-        #expect(text.contains("6 searches"))
+        let text = RefreshCost.sentence(lastRefreshCost: 13, interval: 300)
+        #expect(text.contains("13 points"))
         #expect(text.contains("5 minutes"))
-        #expect(text.contains("72"))
+        #expect(text.contains("156"))
 
-        #expect(RefreshCost.sentence(searchLines: 1, interval: 600).contains("1 search every 10 minutes"))
-        #expect(RefreshCost.sentence(searchLines: 0, interval: 300).contains("nothing is being spent"))
+        #expect(RefreshCost.sentence(lastRefreshCost: 1, interval: 600).contains("1 point"))
+        #expect(
+            RefreshCost.sentence(lastRefreshCost: 0, interval: 300)
+                .contains("nothing is being spent")
+        )
+    }
+
+    /// Before the first refresh there is nothing to report, and a guess in
+    /// its place is what this replaced.
+    @Test("Nothing measured yet is said, not estimated")
+    func unmeasured() {
+        #expect(
+            RefreshCost.sentence(lastRefreshCost: nil, interval: 300)
+                .contains("nothing measured")
+        )
+    }
+
+    /// GitHub charges each request of a paged fetch separately, and the
+    /// sentence is about the refresh, not one request of it.
+    @Test("A reading can stand for the whole run that produced it")
+    func summed() {
+        let reading = RateBudget(remaining: 4900, limit: 5000, resetAt: nil, cost: 4)
+        #expect(reading.costing(13).cost == 13)
+        #expect(reading.costing(13).remaining == 4900)
+    }
+
+    @Test("The cost GitHub charged is read across")
+    func chargedCost() throws {
+        let payload: [String: Any] = [
+            "rateLimit": ["limit": 5000, "remaining": 4900, "cost": 7],
+        ]
+        let budget = try #require(ListParser.budget(from: payload))
+        #expect(budget.cost == 7)
+        // Charged or not, it has to be asked for to arrive.
+        let document = ListQuery.document([
+            ListSearch(listID: "l", content: .pullRequests, query: "is:pr"),
+        ])
+        #expect(document.contains("rateLimit { limit remaining resetAt cost }"))
     }
 }

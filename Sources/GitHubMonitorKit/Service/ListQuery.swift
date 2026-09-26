@@ -97,7 +97,7 @@ public enum ListQuery {
         return """
         query {
           # Free: asking for the allowance does not spend any of it.
-          rateLimit { limit remaining resetAt }
+          rateLimit { limit remaining resetAt cost }
         \(aliases.joined(separator: "\n"))
         }
 
@@ -266,7 +266,8 @@ public enum ListParser {
         return RateBudget(
             remaining: remaining,
             limit: limit,
-            resetAt: GitHubDate.optional(from: node["resetAt"] as? String)
+            resetAt: GitHubDate.optional(from: node["resetAt"] as? String),
+            cost: node["cost"] as? Int ?? 0
         )
     }
 }

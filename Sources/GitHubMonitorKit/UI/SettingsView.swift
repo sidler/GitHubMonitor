@@ -181,7 +181,7 @@ private struct GeneralSettingsView: View {
                     .foregroundStyle(.secondary)
 
                 Text(RefreshCost.sentence(
-                    searchLines: state.runningSearchCount,
+                    lastRefreshCost: state.lastRefreshCost,
                     interval: settings.refreshInterval
                 ))
                 .font(.caption)

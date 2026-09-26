@@ -64,6 +64,8 @@ public struct GitHubService: Sendable {
         var cursor: String?
         var total = 0
         var budget: RateBudget?
+        // Charged per page, and the chart's cost is all of them together.
+        var spent = 0
         var stoppedEarly = false
         // A page that reports another page while yielding nothing parsable
         // would otherwise keep this going for ever: the row cap never trips
@@ -78,7 +80,10 @@ public struct GitHubService: Sendable {
             let page = PullRequestParser.repositoryPage(from: payload)
             entries += page.entries
             if total == 0 { total = page.total }
-            budget = ListParser.budget(from: payload) ?? budget
+            if let reading = ListParser.budget(from: payload) {
+                spent += reading.cost
+                budget = reading
+            }
 
             if entries.count >= PullRequestQuery.dashboardLimit || pagesLeft <= 0 {
                 stoppedEarly = page.cursor != nil
@@ -93,7 +98,7 @@ public struct GitHubService: Sendable {
             PullRequestQuery.unread(
                 total: total, read: entries.count, stoppedEarly: stoppedEarly
             ),
-            budget
+            budget?.costing(spent)
         )
     }
 
@@ -379,6 +384,9 @@ public struct GitHubService: Sendable {
 
         var results = ListResults()
         var budget: RateBudget?
+        // Every round is charged separately, and the sentence in settings
+        // is about what one refresh costs, not one request of it.
+        var spent = 0
         var round: [(search: ListSearch, cursor: String?)] = searches.map { ($0, nil) }
         var isFirstRound = true
         /// Lists that still had pages when the cap stopped them, which is
@@ -398,7 +406,10 @@ public struct GitHubService: Sendable {
 
             let payload = try await client.graphQL(ListQuery.document(batch, cursors: cursors))
             let page = ListParser.results(from: payload, searches: batch, viewer: viewer)
-            budget = ListParser.budget(from: payload) ?? budget
+            if let reading = ListParser.budget(from: payload) {
+                spent += reading.cost
+                budget = reading
+            }
 
             // Totals from the first round only: every page repeats them, and
             // only the first round covers every search.
@@ -421,7 +432,7 @@ public struct GitHubService: Sendable {
         // short as surely as one that hit the row cap.
         for entry in round { stoppedAtCap.insert(entry.search.listID) }
 
-        return (results, results.unread(stoppedAt: stoppedAtCap), budget)
+        return (results, results.unread(stoppedAt: stoppedAtCap), budget?.costing(spent))
     }
 
     /// The text and the end of the thread behind one issue, fetched when its
