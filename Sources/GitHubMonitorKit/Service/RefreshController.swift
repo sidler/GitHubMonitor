@@ -174,6 +174,7 @@ public final class RefreshController {
         state.repositoryCommenters = .unconfigured
         state.budgets = RateBudgets()
         state.lastRefreshCost = nil
+        state.listFailures = [:]
         state.loadState = .idle
     }
 
@@ -266,6 +267,7 @@ public final class RefreshController {
             state.listPullRequests = results.pullRequests
             state.listIssues = results.issues
             state.listUnread = fetched.unread
+            state.listFailures = fetched.failures
             applyOwnApprovals()
 
             // A row that is gone takes its detail with it -- and the pane

@@ -163,3 +163,80 @@ struct UnshownTests {
         #expect(complete.unread(stoppedAt: ["reviews"]).isEmpty)
     }
 }
+
+/// One list written with a qualifier GitHub will not take used to stop every
+/// other list from refreshing, and said so in a status line that named none
+/// of them.
+@Suite("A list GitHub refuses")
+struct ListFailureTests {
+    private let searches = [
+        ListSearch(listID: "reviews", content: .pullRequests, query: "is:pr review-requested:@me"),
+        ListSearch(listID: "recent", content: .pullRequests, query: "is:pr closed:>@today-1w"),
+        ListSearch(listID: "issues", content: .issues, query: "is:issue assignee:@me"),
+    ]
+
+    private func failure(_ message: String, path: [String]) -> GraphQLAnswer.Failure {
+        GraphQLAnswer.Failure(message: message, path: path)
+    }
+
+    /// The aliases are positional, so the path names the search and the
+    /// search names the list.
+    @Test("The refusal is pinned to the list that caused it")
+    func pinned() {
+        let found = ListParser.failures(
+            [failure("\"@today-1w\" is not a recognized date/time format.", path: ["s1"])],
+            searches: searches
+        )
+        #expect(found.count == 1)
+        #expect(found["recent"]?.contains("not a recognized") == true)
+        #expect(found["reviews"] == nil)
+        #expect(found["issues"] == nil)
+    }
+
+    /// Paging repeats the same complaint once per round, and the list wants
+    /// one message, not four.
+    @Test("The same complaint twice is reported once")
+    func repeated() {
+        let found = ListParser.failures(
+            [failure("first", path: ["s1"]), failure("second", path: ["s1"])],
+            searches: searches
+        )
+        #expect(found["recent"] == "first")
+    }
+
+    /// A complaint about the request as a whole names no alias, and must
+    /// not be pinned to whichever list happens to be first.
+    @Test("A failure with no path belongs to no list")
+    func unattributed() {
+        #expect(ListParser.failures([failure("Bad credentials", path: [])], searches: searches).isEmpty)
+        #expect(
+            ListParser.failures(
+                [failure("odd", path: ["rateLimit"])], searches: searches
+            ).isEmpty
+        )
+    }
+
+    @Test("An alias past the end of the batch is ignored, not a crash")
+    func outOfRange() {
+        #expect(ListParser.failures([failure("x", path: ["s9"])], searches: searches).isEmpty)
+    }
+
+    @Test("What GitHub said is read off the answer, path and all")
+    func readingTheAnswer() {
+        let root: [String: Any] = [
+            "data": ["s0": ["nodes": []]],
+            "errors": [
+                ["message": "\"@today-1w\" is not a recognized date/time format.", "path": ["s1"]],
+            ],
+        ]
+        let found = GraphQLAnswer.failures(from: root)
+        #expect(found.count == 1)
+        #expect(found.first?.path == ["s1"])
+        #expect(found.first?.message.contains("@today-1w") == true)
+    }
+
+    @Test("An answer with nothing wrong reports nothing wrong")
+    func noFailures() {
+        #expect(GraphQLAnswer.failures(from: ["data": [:]]).isEmpty)
+    }
+}

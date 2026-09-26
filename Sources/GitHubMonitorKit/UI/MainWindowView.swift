@@ -20,9 +20,20 @@ struct SidebarColumn: View {
                     switch entry {
                     case .list(let list):
                         Section(list.title) {
-                            Label("All", systemImage: list.symbol)
-                                .badge(state.count(of: list))
-                                .tag(SidebarSelection.list(id: list.id, repository: nil))
+                            Label(
+                                "All",
+                                systemImage: state.listFailures[list.id] == nil
+                                    ? list.symbol
+                                    : "exclamationmark.triangle"
+                            )
+                            // Marked here as well as on the list itself:
+                            // this is where somebody looks to find out
+                            // which of their lists is the one complaining.
+                            .foregroundStyle(
+                                state.listFailures[list.id] == nil ? .primary : Color.orange
+                            )
+                            .badge(state.count(of: list))
+                            .tag(SidebarSelection.list(id: list.id, repository: nil))
 
                             ForEach(repositoryRows(state.repositories(in: list))) { repository in
                                 repositoryRow(repository)
@@ -219,9 +230,46 @@ struct ContentColumn: View {
 
     // MARK: - Lists
 
+    /// What GitHub said about a list it would not run.
+    ///
+    /// Above the rows rather than in place of them: a list that failed may
+    /// still be showing what the last good refresh brought back, and
+    /// replacing that with an error would throw away the only thing on
+    /// screen worth reading.
+    @ViewBuilder
+    private func failureBanner(_ list: SavedList) -> some View {
+        if let message = state.listFailures[list.id] {
+            HStack(alignment: .firstTextBaseline, spacing: 7) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("GitHub would not run this list's search")
+                        .font(.callout.weight(.medium))
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+                Spacer(minLength: 8)
+                Button("Edit the list\u{2026}") {
+                    state.selectedSettingsTab = .lists
+                    state.sidebarSelection = .settings
+                }
+                .buttonStyle(.accessoryBar)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 9)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.orange.opacity(0.12))
+            Divider()
+        }
+    }
+
     private func pullRequestList(_ list: SavedList) -> some View {
         let items = state.selectedPullRequests(in: list)
-        return GroupedList(
+        return VStack(spacing: 0) {
+        failureBanner(list)
+        GroupedList(
             items: items,
             grouping: list.grouping,
             repository: \.repository,
@@ -253,11 +301,14 @@ struct ContentColumn: View {
                 )
             }
         }
+        }
     }
 
     private func issueList(_ list: SavedList) -> some View {
         let items = state.selectedIssues(in: list)
-        return GroupedList(
+        return VStack(spacing: 0) {
+        failureBanner(list)
+        GroupedList(
             items: items,
             grouping: list.grouping,
             repository: \.repository,
@@ -287,6 +338,7 @@ struct ContentColumn: View {
                     )
                 )
             }
+        }
         }
     }
 

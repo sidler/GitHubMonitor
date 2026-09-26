@@ -31,7 +31,11 @@ public enum ListQuery {
             ListSearch(
                 listID: list.id,
                 content: list.content,
-                query: scoped(query, repositoryFilters: repositoryFilters)
+                // Resolved here rather than when the list was saved, so
+                // "closed in the last week" still means that next month.
+                query: RelativeDates.expand(
+                    scoped(query, repositoryFilters: repositoryFilters)
+                )
             )
         }
     }
@@ -254,6 +258,31 @@ public enum ListParser {
             )
         }
         return pages
+    }
+
+    /// Which lists GitHub refused, and what it said about them.
+    ///
+    /// The aliases are positional -- `s0` is the first search in the batch
+    /// -- so a failure's path names the search, and the search names the
+    /// list. A failure with no usable path belongs to the request rather
+    /// than to one line, and is left for the caller to report wholesale.
+    public static func failures(
+        _ failures: [GraphQLAnswer.Failure], searches: [ListSearch]
+    ) -> [String: String] {
+        var result: [String: String] = [:]
+        for failure in failures {
+            guard
+                let alias = failure.path.first,
+                alias.hasPrefix("s"),
+                let index = Int(alias.dropFirst()),
+                searches.indices.contains(index)
+            else { continue }
+            // The first complaint about a list is the one worth showing;
+            // paging can produce the same one again per round.
+            let listID = searches[index].listID
+            if result[listID] == nil { result[listID] = failure.message }
+        }
+        return result
     }
 
     /// What GitHub said was left, as it travels with every list refresh.

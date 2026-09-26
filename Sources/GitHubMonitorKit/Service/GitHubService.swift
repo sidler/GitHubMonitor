@@ -379,14 +379,21 @@ public struct GitHubService: Sendable {
     /// nine costs two requests rather than two per list.
     public func lists(
         _ searches: [ListSearch], viewer: String? = nil
-    ) async throws -> (results: ListResults, unread: [String: Int], budget: RateBudget?) {
-        guard !searches.isEmpty else { return (ListResults(), [:], nil) }
+    ) async throws -> (
+        results: ListResults,
+        unread: [String: Int],
+        budget: RateBudget?,
+        failures: [String: String]
+    ) {
+        guard !searches.isEmpty else { return (ListResults(), [:], nil, [:]) }
 
         var results = ListResults()
         var budget: RateBudget?
         // Every round is charged separately, and the sentence in settings
         // is about what one refresh costs, not one request of it.
         var spent = 0
+        /// Lists GitHub refused, kept out of the way of the ones it did not.
+        var failures: [String: String] = [:]
         var round: [(search: ListSearch, cursor: String?)] = searches.map { ($0, nil) }
         var isFirstRound = true
         /// Lists that still had pages when the cap stopped them, which is
@@ -404,7 +411,19 @@ public struct GitHubService: Sendable {
                 cursors[position] = entry.cursor
             }
 
-            let payload = try await client.graphQL(ListQuery.document(batch, cursors: cursors))
+            // The answer rather than only the data: one list written with
+            // a qualifier GitHub will not take should not stop the others
+            // from refreshing.
+            let answer = try await client.graphQLAnswer(
+                ListQuery.document(batch, cursors: cursors)
+            )
+            let payload = answer.data
+            failures.merge(ListParser.failures(answer.failures, searches: batch)) { held, _ in held }
+            // A complaint that names no list is about the request itself,
+            // and there is nothing partial to salvage from that.
+            if failures.isEmpty, !answer.failures.isEmpty {
+                throw GitHubError.graphQL(answer.failures.map(\.message))
+            }
             let page = ListParser.results(from: payload, searches: batch, viewer: viewer)
             if let reading = ListParser.budget(from: payload) {
                 spent += reading.cost
@@ -432,7 +451,7 @@ public struct GitHubService: Sendable {
         // short as surely as one that hit the row cap.
         for entry in round { stoppedAtCap.insert(entry.search.listID) }
 
-        return (results, results.unread(stoppedAt: stoppedAtCap), budget?.costing(spent))
+        return (results, results.unread(stoppedAt: stoppedAtCap), budget?.costing(spent), failures)
     }
 
     /// The text and the end of the thread behind one issue, fetched when its

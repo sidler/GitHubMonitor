@@ -193,6 +193,12 @@ public final class AppState {
     /// What the last refresh of the lists cost, as GitHub charged it. Nil
     /// until one has finished.
     public var lastRefreshCost: Int?
+    /// Lists GitHub refused, by list id, with what it said.
+    ///
+    /// Held per list rather than for the refresh as a whole: one search
+    /// written with a qualifier GitHub will not take used to stop every
+    /// other list, and said so in a status line that named none of them.
+    public var listFailures: [String: String] = [:]
 
     /// How many rows each list is not showing, where paging was cut short.
     /// Empty for every list that was read to the end, which is nearly all

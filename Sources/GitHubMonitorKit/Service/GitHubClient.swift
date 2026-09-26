@@ -84,6 +84,28 @@ public struct GitHubClient: Sendable {
         _ document: String,
         variables: [String: Any]? = nil
     ) async throws -> [String: Any] {
+        let answer = try await graphQLAnswer(document, variables: variables)
+        // GraphQL reports failures with HTTP 200 and an "errors" array, so a
+        // successful status code is not on its own a successful request.
+        if !answer.failures.isEmpty {
+            throw GitHubError.graphQL(answer.failures.map(\.message))
+        }
+        return answer.data
+    }
+
+    /// The same request, with whatever failed handed back rather than
+    /// thrown.
+    ///
+    /// A document that asks several things at once -- which is how the
+    /// lists travel, all of them in one request -- gets an answer for the
+    /// ones that worked and an error for the one that did not. Throwing
+    /// discards the answer along with the error, so one list written with a
+    /// qualifier GitHub will not take stopped every other list from
+    /// refreshing.
+    public func graphQLAnswer(
+        _ document: String,
+        variables: [String: Any]? = nil
+    ) async throws -> GraphQLAnswer {
         var request = URLRequest(url: URL(string: "https://api.github.com/graphql")!)
         request.httpMethod = "POST"
         var body: [String: Any] = ["query": document]
@@ -96,16 +118,15 @@ public struct GitHubClient: Sendable {
         guard let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
             throw GitHubError.decoding("response was not a JSON object")
         }
-        // GraphQL reports failures with HTTP 200 and an "errors" array, so a
-        // successful status code is not on its own a successful request.
-        if let errors = root["errors"] as? [[String: Any]], !errors.isEmpty {
-            let messages = errors.compactMap { $0["message"] as? String }
-            throw GitHubError.graphQL(messages.isEmpty ? ["GraphQL request failed"] : messages)
-        }
+
+        let failures = GraphQLAnswer.failures(from: root)
         guard let payload = root["data"] as? [String: Any] else {
+            // No data at all: there is nothing to carry on with, so this is
+            // a failure however it is reported.
+            if !failures.isEmpty { throw GitHubError.graphQL(failures.map(\.message)) }
             throw GitHubError.decoding("response contained no data")
         }
-        return payload
+        return GraphQLAnswer(data: payload, failures: failures)
     }
 
     @discardableResult
@@ -176,5 +197,46 @@ public struct GitHubClient: Sendable {
             let message = object["message"] as? String
         else { return nil }
         return message
+    }
+}
+
+/// What one GraphQL request came back with: what worked, and what did not.
+///
+/// Not `Sendable`: the payload is the parsed JSON, whose values are `Any`.
+/// It is read on the actor that asked for it, as every other payload in
+/// this file is.
+public struct GraphQLAnswer {
+    /// One thing GitHub refused, and where in the document it was asked.
+    public struct Failure: Equatable, Sendable {
+        public let message: String
+        /// The aliases leading to the field that failed, as GitHub reports
+        /// them -- `["s3"]` for the fourth search in a batch. Empty where
+        /// the failure belongs to the request as a whole.
+        public let path: [String]
+
+        public init(message: String, path: [String]) {
+            self.message = message
+            self.path = path
+        }
+    }
+
+    public let data: [String: Any]
+    public let failures: [Failure]
+
+    public init(data: [String: Any], failures: [Failure]) {
+        self.data = data
+        self.failures = failures
+    }
+
+    static func failures(from root: [String: Any]) -> [Failure] {
+        guard let errors = root["errors"] as? [[String: Any]] else { return [] }
+        return errors.map { entry in
+            Failure(
+                message: entry["message"] as? String ?? "GitHub refused the request",
+                // Numbers appear in a path into a list; only the names
+                // matter for finding which search it was.
+                path: (entry["path"] as? [Any] ?? []).compactMap { $0 as? String }
+            )
+        }
     }
 }
