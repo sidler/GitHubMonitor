@@ -22,7 +22,36 @@ struct LinkedItemsPanel: View {
     private var closes: [ItemLink] { links.filter { $0.kind == .closes } }
     private var mentions: [ItemLink] { links.filter { $0.kind == .mentions } }
 
+    /// How tall the panel is, worked out from how many cards there will be
+    /// rather than from what is in them.
+    ///
+    /// A popover takes its size when it opens and does not grow afterwards.
+    /// The summaries are fetched at that moment, so a panel measured from
+    /// its content would be measured from three "loading" lines and stay
+    /// that size once the summaries arrived -- which is exactly what it
+    /// did. Counting the cards is known straight away and does not change.
+    private var height: CGFloat {
+        let cards = (lead == nil ? 0 : 1) + links.count
+        let groups = (closes.isEmpty ? 0 : 1) + (mentions.isEmpty ? 0 : 1)
+        let wanted = 28 + CGFloat(cards) * 172 + CGFloat(groups) * 24
+        return min(max(wanted, 120), 520)
+    }
+
     var body: some View {
+        VStack(spacing: 0) {
+            scroller
+        }
+        .frame(width: 420, height: height)
+        // A popover inherits the environment of what it springs from, and
+        // what this springs from is a row that truncates everything to one
+        // line. Without this the summary was a single clipped sentence.
+        .lineLimit(nil)
+        .task(id: links.map(\.id).joined()) {
+            controller.loadLinksIfNeeded(links.map(\.reference))
+        }
+    }
+
+    private var scroller: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 if let lead {
@@ -55,18 +84,6 @@ struct LinkedItemsPanel: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .scrollBounceBehavior(.basedOnSize)
-        // A popover inherits the environment of what it springs from, and
-        // what this springs from is a row that truncates everything to one
-        // line. Without this the summary was a single clipped sentence.
-        .lineLimit(nil)
-        .frame(width: 420)
-        // Tall enough for a summary and a linked issue, short enough that
-        // the panel stays a panel rather than a second window over the
-        // diff it is explaining.
-        .frame(maxHeight: 520)
-        .task(id: links.map(\.id).joined()) {
-            controller.loadLinksIfNeeded(links.map(\.reference))
-        }
     }
 
     @ViewBuilder

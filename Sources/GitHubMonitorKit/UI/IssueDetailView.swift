@@ -199,7 +199,7 @@ struct FlowRow: Layout {
         for row in layout(subviews: subviews, width: bounds.width) {
             var x = bounds.minX
             for index in row.indices {
-                let size = subviews[index].sizeThatFits(.unspecified)
+                let size = measure(subviews[index], within: bounds.width)
                 subviews[index].place(
                     at: CGPoint(x: x, y: y),
                     anchor: .topLeading,
@@ -209,6 +209,18 @@ struct FlowRow: Layout {
             }
             y += row.height + spacing
         }
+    }
+
+    /// What a child is, given the room there is.
+    ///
+    /// Offered the row's width rather than nothing: a chip carrying a long
+    /// title reports its ideal width when asked with `.unspecified`, and a
+    /// row laid out from ideal widths puts a child past its own right edge
+    /// instead of letting it truncate. Never wider than the row.
+    private func measure(_ subview: LayoutSubview, within width: CGFloat) -> CGSize {
+        guard width.isFinite else { return subview.sizeThatFits(.unspecified) }
+        let size = subview.sizeThatFits(ProposedViewSize(width: width, height: nil))
+        return CGSize(width: min(size.width, width), height: size.height)
     }
 
     private struct Row {
@@ -222,7 +234,7 @@ struct FlowRow: Layout {
         var current = Row()
 
         for index in subviews.indices {
-            let size = subviews[index].sizeThatFits(.unspecified)
+            let size = measure(subviews[index], within: width)
             let needed = current.indices.isEmpty ? size.width : current.width + spacing + size.width
             if needed > width, !current.indices.isEmpty {
                 rows.append(current)
