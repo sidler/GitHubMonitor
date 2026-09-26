@@ -434,6 +434,8 @@ private final class Disclosure: ObservableObject {
 }
 
 struct DescriptionSection: View {
+    nonisolated static let title = "Description"
+
     let source: String
     @StateObject private var disclosure = Disclosure()
 
@@ -453,7 +455,7 @@ struct DescriptionSection: View {
                 HStack(spacing: 8) {
                     Text("Description")
                         .font(.subheadline.weight(.semibold))
-                    if !disclosure.isExpanded, let first = Self.firstLine(of: source) {
+                    if !disclosure.isExpanded, let first = Self.firstLine(of: source, besides: Self.title) {
                         Text(first)
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -472,14 +474,20 @@ struct DescriptionSection: View {
     /// away. Leading heading marks and quote marks are dropped: they are
     /// punctuation for a renderer, not words for a reader.
     ///
+    /// A line that only repeats the section's own name is skipped: the
+    /// house template opens with `## Description`, and "Description
+    /// Description" is a row that says one thing twice.
+    ///
     /// `nonisolated` because a `View` is on the main actor and this is a
     /// string function: without it a test calling it hops actors and traps.
-    nonisolated static func firstLine(of source: String) -> String? {
+    nonisolated static func firstLine(of source: String, besides title: String) -> String? {
         for line in source.split(separator: "\n", omittingEmptySubsequences: false) {
             let stripped = line
                 .drop { $0 == "#" || $0 == ">" || $0 == " " || $0 == "\t" }
                 .trimmingCharacters(in: .whitespaces)
-            if !stripped.isEmpty { return stripped }
+            guard !stripped.isEmpty else { continue }
+            if stripped.caseInsensitiveCompare(title) == .orderedSame { continue }
+            return stripped
         }
         return nil
     }

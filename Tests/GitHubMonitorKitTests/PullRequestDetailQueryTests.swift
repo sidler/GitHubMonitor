@@ -206,21 +206,33 @@ struct PullRequestDetailQueryTests {
 /// what it is about.
 @Suite("The folded description")
 struct DescriptionSummaryTests {
+    private let title = DescriptionSection.title
+
     @Test("The first line with words on it is the hint")
     func firstLine() {
-        #expect(DescriptionSection.firstLine(of: "\n\nFixes the race.\nMore below.") == "Fixes the race.")
+        #expect(DescriptionSection.firstLine(of: "\n\nFixes the race.\nMore below.", besides: title) == "Fixes the race.")
     }
 
     /// Heading and quote marks are punctuation for a renderer; read aloud
     /// they are noise.
     @Test("Leading marks are dropped")
     func marks() {
-        #expect(DescriptionSection.firstLine(of: "## What this fixes\n\ntext") == "What this fixes")
-        #expect(DescriptionSection.firstLine(of: "> quoted") == "quoted")
+        #expect(DescriptionSection.firstLine(of: "## What this fixes\n\ntext", besides: title) == "What this fixes")
+        #expect(DescriptionSection.firstLine(of: "> quoted", besides: title) == "quoted")
+    }
+
+    /// The house template opens with `## Description`, and the hint sat
+    /// next to a label of the same word.
+    @Test("A first line that repeats the section's name is skipped")
+    func repeatsTheTitle() {
+        #expect(
+            DescriptionSection.firstLine(of: "## Description\n\nCloses #1", besides: title)
+                == "Closes #1"
+        )
     }
 
     @Test("A description of nothing but blank lines has no hint")
     func blank() {
-        #expect(DescriptionSection.firstLine(of: "\n   \n") == nil)
+        #expect(DescriptionSection.firstLine(of: "\n   \n", besides: title) == nil)
     }
 }
