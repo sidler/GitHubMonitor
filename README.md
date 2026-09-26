@@ -1,23 +1,66 @@
 # GitHub Monitor
 
-A small macOS menu bar app that shows how much GitHub work is waiting for you:
+A macOS menu bar app that shows how much GitHub work is waiting for you — and
+lets you do most of the reviewing without leaving it.
 
-- **Lists you define** — each one a title and one or more GitHub searches, shown
-  as pull requests or as issues. It starts with three: reviews requested of you
-  or your teams, the pull requests you opened, and the issues assigned to you —
-  all three editable like any other.
-- **Unread mentions** — unread notification threads matching the reasons you
-  care about. Not a search, so not a list: they come from the notifications API.
+The counts live in the menu bar. A popover gives a short overview; a separate
+window gives the full lists, the diffs, the charts and the settings.
 
-The counts live in the menu bar, each list switchable per place it appears. A
-popover gives a short overview; a separate window gives the full lists, message
-previews, the workload and trend charts, and settings.
+## What it does
 
-A list's search is GitHub's own syntax, one search per line, results merged.
-`@me` is you, and GitHub resolves team membership itself — a review requested
-from a team you are on is returned by `review-requested:@me`. The repository
-filter from the settings is added to a line that names no `repo:`, `org:` or
-`user:` of its own.
+**Lists you define.** Each is a title and one or more GitHub searches, shown as
+pull requests or as issues. It starts with reviews requested of you or your
+teams, the pull requests you opened, and the issues assigned to you — all three
+editable like any other, and all of them exportable to a file and importable
+again. A list's search is GitHub's own syntax, one search per line, results
+merged. `@me` is you, and GitHub resolves team membership itself. Lists page to
+300 rows and say how many more the search found.
+
+**Unread mentions.** Unread notification threads matching the reasons you care
+about. Not a search, so not a list: they come from the notifications API, which
+has an hourly allowance of its own.
+
+**Rows that answer at a glance.** Review decision, check results, whether the
+pull request still merges into its base branch, how far the review has got, and
+how long it has been waiting on *you* — the date turns orange and then red once
+your own review has been outstanding too long. Every symbol has a tooltip,
+which appears after 300 ms rather than the system's second and a half.
+
+**Sorting and grouping per list.** Last updated, date opened, type, or waiting
+longest; flat, by repository, or by type. Drafts shown or hidden. Each list
+remembers its own choices.
+
+**A detail pane** for the selected row: branch and merge state, the change
+counts, the description rendered as Markdown — folded away by default, so the
+rest is not pushed off the pane — every changed file, every check with its
+result, and each reviewer with where they stand. Markdown includes tables,
+task lists, code fences with syntax highlighting, and quotes.
+
+**The diff, over the window.** Clicking a file opens every file's patch in one
+scrolling overlay with a file tree to jump by, because a diff read three words
+at a time in a 400-point pane is not read.
+
+**Approving, from the diff.** The approval is bound to the commit whose diff was
+on screen: if somebody pushed since you started reading, it is refused rather
+than applied to code you did not see. It asks first, says whether auto-merge is
+armed, and the list and pane carry the approval straight away. "Request
+changes" opens the pull request on GitHub, where a review can be written
+against the lines.
+
+**Linked issues and pull requests.** What GitHub itself links, plus numbers
+written at the head of a title or in a description. A panel — the same one from
+the list, from both detail panes and from the diff — summarises the other side
+without leaving what you were reading.
+
+**Charts.** *Workload* is one repository's open pull requests per author, ready
+and draft as separate segments. *Trends* follows a repository over time. *My
+Trends* is about you: how long reviews wait on you, how fast you answer, and
+who you review with.
+
+**The hourly budget, in plain sight.** Settings report what GitHub actually
+charged for the last refresh and what that comes to over an hour, read from
+GitHub's own figure rather than estimated. Refreshing stops on its own when the
+allowance runs low and picks up again when it is restored.
 
 ## Requirements
 
@@ -52,16 +95,18 @@ The app has no Dock icon; look for its icon in the menu bar. `make run` kills a
 previously running instance first.
 
 To open a specific surface straight away — useful for screenshots, since the
-app otherwise only reacts to a click on the status item — launch the binary
-directly with `GHM_OPEN` set to `popover`, `pullRequests`, `mentions` or
-`settings`:
+app otherwise only reacts to a click on the status item — pass `--open` with
+`popover`, `mentions`, `dashboard`, `trends`, `myTrends`, `settings` or a
+list's id. `--sample` fills the app with made-up data so the whole interface
+can be exercised without a token.
 
 ```bash
-GHM_OPEN=settings ./.build/GitHubMonitor.app/Contents/MacOS/GitHubMonitor
+open -n /Applications/GitHubMonitor.app --args --open settings --sample
 ```
 
-Note that `open` does not forward environment variables, so this needs the
-binary path rather than `open -a`.
+`settings:general` opens a particular settings tab. The same switches are read
+from the environment as `GHM_OPEN` and `GHM_SAMPLE`, which is what to use when
+launching the binary directly rather than through `open`.
 
 ### Signing
 
@@ -120,49 +165,39 @@ popover tells you what to do.
 
 ## Configuration
 
-Settings are split into three tabs.
+Settings are split into four tabs.
 
 **Account** — the token, and the teams whose review requests count as yours
 (loadable as a checklist from your memberships).
+
+**Lists** — the lists themselves: title, symbol, searches, what they show, and
+where each appears (window, popover, menu bar). Drag to reorder; the sidebar,
+the popover and the menu bar all follow that order. Lists can be written to a
+file and read back, with a confirmation naming what an import would replace.
 
 **Filters**
 
 | Setting | Effect |
 |---|---|
 | Repositories | Restrict counting to given owners or `owner/repo` entries. "Add from current results" offers what is actually in your lists. |
-| Include drafts | Whether draft pull requests count |
 | Mention reasons | Which notification reasons count towards the badge. With none selected the count stays at zero. |
 
 **General**
 
 | Setting | Effect |
 |---|---|
-| Menu bar display | Both counts / single total / hide zeros |
-| Refresh interval | How often to poll. The app never polls faster than GitHub's own suggested interval, even when set to 1 minute. |
+| Menu bar display | All counts / single total / hide zeros |
+| Waiting reviews | After how many days a waiting review is marked, and when it is called overdue |
+| Sidebar | Whether to hide the repository row when a list covers only one |
+| Refresh interval | How often to poll, with what the last refresh cost |
+| GitHub's hourly budget | What is left of each allowance, and when it resets |
 | Launch at login | Register the app as a login item. The entry points at the app's current location, so moving it afterwards breaks it. |
 
-**Dashboard** charts one repository's open pull requests per author as a
-stacked bar: ready for review and drafts as separate segments, so a pile of
-drafts does not read as a review queue. The repository is chosen in the view
-itself and remembered.
-
-Each pull request row carries two actions: one opens a detail pane showing
-changed files, additions and deletions, comment count, every check with its
-result, and each reviewer with where they stand; the other opens the pull
-request on GitHub.
-
-The sidebar lists each repository under *Pull Requests* and *Mentions*, so one
-click narrows the view to that repository's queue; the header says which list
-is on screen.
-
-The main window's lists can be shown flat, split into per-repository
-sections, or — for mentions — split by subject type (pull request, issue,
-commit). Switched above each list; the two lists remember their own choice.
-
-While the main window is open the app behaves as an ordinary application:
-it appears in the Dock and the app switcher and shows a menu bar with the
-usual shortcuts (Cmd+, for settings, Cmd+R to refresh, Cmd+W to close).
-Closing the window returns it to a menu bar agent with no Dock icon.
+While the main window is open the app behaves as an ordinary application: it
+appears in the Dock and the app switcher and shows a menu bar with the usual
+shortcuts (Cmd+, for settings, Cmd+R to refresh, Cmd+W to close, and
+Cmd+Option+arrows to move the detail pane down the list). Closing the window
+returns it to a menu bar agent with no Dock icon.
 
 ## Project layout
 
