@@ -6,6 +6,8 @@ lets you do most of the reviewing without leaving it.
 The counts live in the menu bar. A popover gives a short overview; a separate
 window gives the full lists, the diffs, the charts and the settings.
 
+![The window: a list, a row's detail pane, and what it links to](Docs/screenshots/window.png)
+
 ## What it does
 
 **Lists you define.** Each is a title and one or more GitHub searches, shown as
@@ -40,6 +42,8 @@ task lists, code fences with syntax highlighting, and quotes.
 scrolling overlay with a file tree to jump by, because a diff read three words
 at a time in a 400-point pane is not read.
 
+![Every file's patch in one overlay, with a tree to jump by](Docs/screenshots/diff.png)
+
 **Approving, from the diff.** The approval is bound to the commit whose diff was
 on screen: if somebody pushed since you started reading, it is refused rather
 than applied to code you did not see. It asks first, says whether auto-merge is
@@ -52,10 +56,20 @@ written at the head of a title or in a description. A panel — the same one fro
 the list, from both detail panes and from the diff — summarises the other side
 without leaving what you were reading.
 
+![The panel over the diff: the pull request, then the issue it closes](Docs/screenshots/links.png)
+
 **Charts.** *Workload* is one repository's open pull requests per author, ready
 and draft as separate segments. *Trends* follows a repository over time. *My
 Trends* is about you: how long reviews wait on you, how fast you answer, and
 who you review with.
+
+![My Trends: what you opened, when, and who comments on it](Docs/screenshots/trends.png)
+
+**A sidebar that follows your lists.** Every list switched on for the window
+appears in it, each with the repositories its rows actually came from
+underneath — one click narrows the view to that repository's share of that
+list. A list covering a single repository can have that row hidden, since it
+would only repeat a count that already covers everything.
 
 **The hourly budget, in plain sight.** Settings report what GitHub actually
 charged for the last refresh and what that comes to over an hour, read from
@@ -198,6 +212,14 @@ appears in the Dock and the app switcher and shows a menu bar with the usual
 shortcuts (Cmd+, for settings, Cmd+R to refresh, Cmd+W to close, and
 Cmd+Option+arrows to move the detail pane down the list). Closing the window
 returns it to a menu bar agent with no Dock icon.
+
+## The sample content
+
+`--sample` fills the app with made-up repositories and people so the whole
+interface can be exercised without a token. It is also where the screenshots
+above come from, which is why none of them show real work. The fixtures live in
+`Sources/GitHubMonitorKit/Model/SampleData.swift`, and the tests draw on the
+same ones, so a row in a test looks like a row in the app.
 
 ## Project layout
 

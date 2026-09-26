@@ -239,7 +239,7 @@ struct InspectionMovementTests {
         state.settings.savedLists += [mine]
         state.listPullRequests[mine.id] = [
             PullRequestItem(
-                id: "mine-1", number: 9, title: "t", repository: "r", author: "sidler",
+                id: "mine-1", number: 9, title: "t", repository: "r", author: "avery",
                 authorAvatarURL: nil, url: URL(string: "https://github.com")!, isDraft: false,
                 updatedAt: .now, reviewDecision: .none, checks: .none
             ),

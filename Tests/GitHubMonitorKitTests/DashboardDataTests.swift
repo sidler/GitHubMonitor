@@ -306,7 +306,7 @@ struct WorkloadInspectorTests {
                             updatedAt: .now, reviewDecision: .none, checks: .none
                         ),
                         reviewers: [
-                            ReviewerStatus(name: "sidler", avatarURL: nil, state: .pending, isTeam: false),
+                            ReviewerStatus(name: "avery", avatarURL: nil, state: .pending, isTeam: false),
                         ]
                     ),
                 ],
@@ -342,10 +342,10 @@ struct WorkloadInspectorTests {
     func reviewerSelection() throws {
         let state = makeState()
         state.settings.dashboardGrouping = .reviewer
-        state.workloadSelection = WorkloadSelection(grouping: .reviewer, id: "user:sidler")
+        state.workloadSelection = WorkloadSelection(grouping: .reviewer, id: "user:avery")
 
         let detail = try #require(state.inspectedWorkload)
-        #expect(detail.title == "sidler")
+        #expect(detail.title == "avery")
         #expect(detail.pullRequests.map(\.id) == ["1"])
     }
 

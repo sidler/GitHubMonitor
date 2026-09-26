@@ -66,7 +66,7 @@ struct RepositoryGroupingTests {
             updatedAt: .now, reviewDecision: .none, checks: .none
         )
         let notification = NotificationItem(
-            id: "n", title: "t", repository: "sidler/dotfiles", avatarURL: nil,
+            id: "n", title: "t", repository: "avery/dotfiles", avatarURL: nil,
             reason: .mention, updatedAt: .now, subjectType: "Issue",
             latestCommentAPIURL: nil, subjectAPIURL: nil
         )
@@ -80,8 +80,8 @@ struct RepositoryGroupingTests {
         let repositories = RepositoryGrouping.repositories(
             pullRequests: [pullRequest], notifications: [notification, unknown]
         )
-        #expect(repositories == ["octo/server", "sidler/dotfiles"])
-        #expect(RepositoryGrouping.owners(of: repositories) == ["octo", "sidler"])
+        #expect(repositories == ["avery/dotfiles", "octo/server"])
+        #expect(RepositoryGrouping.owners(of: repositories) == ["avery", "octo"])
     }
 
     @Test("Duplicate repositories are suggested once")
@@ -122,7 +122,7 @@ struct RepositorySuggestionTests {
             notifications: [],
             issues: [issue]
         )
-        #expect(repositories == ["octo/toolkit", "octo/platform"])
+        #expect(repositories == ["octo/platform", "octo/toolkit"])
         #expect(RepositoryGrouping.owners(of: repositories) == ["octo"])
     }
 }

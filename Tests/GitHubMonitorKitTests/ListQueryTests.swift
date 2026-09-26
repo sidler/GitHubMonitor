@@ -60,7 +60,7 @@ struct ListQueryTests {
     @Test("A search that names its own scope is left alone", arguments: [
         "is:pr repo:octo/platform",
         "is:pr org:octo",
-        "is:pr user:sidler",
+        "is:pr user:avery",
         "is:pr -repo:octo/legacy",
     ])
     func ownScopeWins(query: String) {

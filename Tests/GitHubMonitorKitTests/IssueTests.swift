@@ -109,7 +109,7 @@ struct IssueParserTests {
                             "id": "C_1",
                             "createdAt": "2026-09-19T09:00:00Z",
                             "body": "Agreed.",
-                            "author": ["login": "sidler", "avatarUrl": "https://example.com/a.png"],
+                            "author": ["login": "avery", "avatarUrl": "https://example.com/a.png"],
                         ],
                     ],
                 ],
@@ -117,7 +117,7 @@ struct IssueParserTests {
         ])
 
         #expect(detail.body.contains("**first**"))
-        #expect(detail.comments.map(\.author) == ["sidler"])
+        #expect(detail.comments.map(\.author) == ["avery"])
         #expect(detail.totalComments == 12)
         // The pane shows the tail of a long thread and has to say so.
         #expect(detail.olderComments == 11)

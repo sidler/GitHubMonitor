@@ -26,8 +26,8 @@ struct WaitingTests {
     @Test("The clock starts when the review was asked of you")
     func namedRequest() throws {
         let item = try #require(PullRequestParser.pullRequest(
-            from: node(requests: [(login: "sidler", team: nil, at: "2026-09-18T09:00:00Z")]),
-            requestedOf: "sidler"
+            from: node(requests: [(login: "avery", team: nil, at: "2026-09-18T09:00:00Z")]),
+            requestedOf: "avery"
         ))
         #expect(item.reviewRequestedAt == date("2026-09-18T09:00:00Z"))
     }
@@ -39,7 +39,7 @@ struct WaitingTests {
     func teamRequest() throws {
         let item = try #require(PullRequestParser.pullRequest(
             from: node(requests: [(login: nil, team: "Frontend", at: "2026-09-18T09:00:00Z")]),
-            requestedOf: "sidler"
+            requestedOf: "avery"
         ))
         #expect(item.reviewRequestedAt == nil)
     }
@@ -48,7 +48,7 @@ struct WaitingTests {
     func otherPerson() throws {
         let item = try #require(PullRequestParser.pullRequest(
             from: node(requests: [(login: "chriskapp", team: nil, at: "2026-09-18T09:00:00Z")]),
-            requestedOf: "sidler"
+            requestedOf: "avery"
         ))
         #expect(item.reviewRequestedAt == nil)
     }
@@ -59,11 +59,11 @@ struct WaitingTests {
     func earliest() throws {
         let item = try #require(PullRequestParser.pullRequest(
             from: node(requests: [
-                (login: "sidler", team: nil, at: "2026-09-19T09:00:00Z"),
+                (login: "avery", team: nil, at: "2026-09-19T09:00:00Z"),
                 (login: "chriskapp", team: nil, at: "2026-09-17T09:00:00Z"),
-                (login: "sidler", team: nil, at: "2026-09-18T09:00:00Z"),
+                (login: "avery", team: nil, at: "2026-09-18T09:00:00Z"),
             ]),
-            requestedOf: "sidler"
+            requestedOf: "avery"
         ))
         #expect(item.reviewRequestedAt == date("2026-09-18T09:00:00Z"))
     }
@@ -71,7 +71,7 @@ struct WaitingTests {
     @Test("Without a signed-in login nothing is claimed")
     func noViewer() throws {
         let item = try #require(PullRequestParser.pullRequest(
-            from: node(requests: [(login: "sidler", team: nil, at: "2026-09-18T09:00:00Z")]),
+            from: node(requests: [(login: "avery", team: nil, at: "2026-09-18T09:00:00Z")]),
             requestedOf: nil
         ))
         #expect(item.reviewRequestedAt == nil)
@@ -80,8 +80,8 @@ struct WaitingTests {
     @Test("A login differing only in case is still you")
     func caseInsensitive() throws {
         let item = try #require(PullRequestParser.pullRequest(
-            from: node(requests: [(login: "Sidler", team: nil, at: "2026-09-18T09:00:00Z")]),
-            requestedOf: "sidler"
+            from: node(requests: [(login: "Avery", team: nil, at: "2026-09-18T09:00:00Z")]),
+            requestedOf: "avery"
         ))
         #expect(item.reviewRequestedAt != nil)
     }

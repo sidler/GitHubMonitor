@@ -27,10 +27,10 @@ struct ReviewResponseTests {
     func firstRound() throws {
         let response = try #require(MyTrendQuery.response(
             from: node(
-                requests: [(login: "sidler", team: nil, at: "2026-09-01T09:00:00Z")],
+                requests: [(login: "avery", team: nil, at: "2026-09-01T09:00:00Z")],
                 reviews: ["2026-09-01T15:00:00Z"]
             ),
-            viewer: "sidler"
+            viewer: "avery"
         ))
         #expect(response.duration == 6 * 3600)
     }
@@ -42,12 +42,12 @@ struct ReviewResponseTests {
         let response = try #require(MyTrendQuery.response(
             from: node(
                 requests: [
-                    (login: "sidler", team: nil, at: "2026-09-01T09:00:00Z"),
-                    (login: "sidler", team: nil, at: "2026-09-05T09:00:00Z"),
+                    (login: "avery", team: nil, at: "2026-09-01T09:00:00Z"),
+                    (login: "avery", team: nil, at: "2026-09-05T09:00:00Z"),
                 ],
                 reviews: ["2026-09-02T09:00:00Z", "2026-09-05T09:30:00Z"]
             ),
-            viewer: "sidler"
+            viewer: "avery"
         ))
         #expect(response.duration == 24 * 3600)
     }
@@ -58,10 +58,10 @@ struct ReviewResponseTests {
     func reviewBeforeRequest() throws {
         let response = try #require(MyTrendQuery.response(
             from: node(
-                requests: [(login: "sidler", team: nil, at: "2026-09-03T09:00:00Z")],
+                requests: [(login: "avery", team: nil, at: "2026-09-03T09:00:00Z")],
                 reviews: ["2026-09-01T09:00:00Z", "2026-09-04T09:00:00Z"]
             ),
-            viewer: "sidler"
+            viewer: "avery"
         ))
         #expect(response.duration == 24 * 3600)
     }
@@ -70,10 +70,10 @@ struct ReviewResponseTests {
     func neverAnswered() {
         #expect(MyTrendQuery.response(
             from: node(
-                requests: [(login: "sidler", team: nil, at: "2026-09-01T09:00:00Z")],
+                requests: [(login: "avery", team: nil, at: "2026-09-01T09:00:00Z")],
                 reviews: []
             ),
-            viewer: "sidler"
+            viewer: "avery"
         ) == nil)
     }
 
@@ -84,7 +84,7 @@ struct ReviewResponseTests {
                 requests: [(login: nil, team: "Frontend", at: "2026-09-01T09:00:00Z")],
                 reviews: ["2026-09-02T09:00:00Z"]
             ),
-            viewer: "sidler"
+            viewer: "avery"
         ) == nil)
     }
 
@@ -96,18 +96,18 @@ struct ReviewResponseTests {
                 "pageInfo": ["hasNextPage": true, "endCursor": "abc"],
                 "nodes": [
                     node(
-                        requests: [(login: "sidler", team: nil, at: "2026-09-01T09:00:00Z")],
+                        requests: [(login: "avery", team: nil, at: "2026-09-01T09:00:00Z")],
                         reviews: ["2026-09-01T10:00:00Z"]
                     ),
                     // Not answered: dropped rather than counted as zero.
                     node(
-                        requests: [(login: "sidler", team: nil, at: "2026-09-02T09:00:00Z")],
+                        requests: [(login: "avery", team: nil, at: "2026-09-02T09:00:00Z")],
                         reviews: []
                     ),
                 ],
             ],
         ]
-        let page = MyTrendQuery.responsePage(from: payload, viewer: "sidler")
+        let page = MyTrendQuery.responsePage(from: payload, viewer: "avery")
         #expect(page.items.count == 1)
         #expect(page.items.first?.duration == 3600)
         #expect(page.cursor == "abc")
@@ -121,10 +121,10 @@ struct ReviewResponseTests {
             end: GitHubDate.date(from: "2026-09-30T00:00:00Z")
         )
         let query = MyTrendQuery.reviewedQuery(
-            login: "sidler", repositoryFilters: ["octo"], period: period
+            login: "avery", repositoryFilters: ["octo"], period: period
         )
         #expect(query.contains("is:pr"))
-        #expect(query.contains("reviewed-by:sidler"))
+        #expect(query.contains("reviewed-by:avery"))
         #expect(query.contains("org:octo"))
     }
 

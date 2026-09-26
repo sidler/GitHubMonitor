@@ -17,13 +17,13 @@ struct MyTrendQueryTests {
 
     @Test("The searches are scoped to the author")
     func author() {
-        let opened = MyTrendQuery.openedQuery(login: "sidler", repositoryFilters: [], period: week)
-        #expect(opened.contains("author:sidler"))
+        let opened = MyTrendQuery.openedQuery(login: "avery", repositoryFilters: [], period: week)
+        #expect(opened.contains("author:avery"))
         #expect(opened.contains("created:2026-09-14..2026-09-20"))
         #expect(!opened.contains("is:merged"))
 
-        let merged = MyTrendQuery.mergedQuery(login: "sidler", repositoryFilters: [], period: week)
-        #expect(merged.contains("author:sidler"))
+        let merged = MyTrendQuery.mergedQuery(login: "avery", repositoryFilters: [], period: week)
+        #expect(merged.contains("author:avery"))
         #expect(merged.contains("is:merged"))
         #expect(merged.contains("merged:2026-09-14..2026-09-20"))
     }
@@ -33,7 +33,7 @@ struct MyTrendQueryTests {
     @Test("Repository filters carry over from the lists")
     func filters() {
         let query = MyTrendQuery.openedQuery(
-            login: "sidler",
+            login: "avery",
             repositoryFilters: ["octo", "octo/platform"],
             period: week
         )
@@ -51,7 +51,7 @@ struct MyTrendQueryTests {
 struct MyTrendPayloadTests {
     private func node(
         created: String = "2026-09-14T09:00:00Z",
-        author: String = "sidler",
+        author: String = "avery",
         comments: [[String: Any]] = [],
         commentTotal: Int? = nil,
         reviews: [[String: Any]] = []
@@ -134,14 +134,14 @@ struct MyTrendPayloadTests {
         let facts = try #require(
             MyTrendQuery.facts(
                 from: node(
-                    comments: [comment(by: "sidler"), comment(by: "dara"), comment(by: "sidler")],
-                    reviews: [review(by: "sidler", inline: 3), review(by: "mira", inline: 1)]
+                    comments: [comment(by: "avery"), comment(by: "dara"), comment(by: "avery")],
+                    reviews: [review(by: "avery", inline: 3), review(by: "mira", inline: 1)]
                 )
             )
         )
         #expect(facts.commentsFromEveryone == 3)
         #expect(facts.commentsFromPeople == 3)
-        #expect(facts.commentersFromEveryone["sidler"] == nil)
+        #expect(facts.commentersFromEveryone["avery"] == nil)
         #expect(facts.commentersFromEveryone["dara"] == 1)
         #expect(facts.commentersFromEveryone["mira"] == 2)
     }
@@ -257,7 +257,7 @@ struct MyTrendMathTests {
             merged: [],
             calendar: calendar
         )
-        let data = MyTrendData(login: "sidler", resolution: .weekly, buckets: [first, second])
+        let data = MyTrendData(login: "avery", resolution: .weekly, buckets: [first, second])
 
         #expect(data.hours[9] == 2)
         #expect(data.totalOpened == 2)
@@ -277,7 +277,7 @@ struct MyTrendMathTests {
             merged: [],
             calendar: calendar
         )
-        let data = MyTrendData(login: "sidler", resolution: .weekly, buckets: [bucket])
+        let data = MyTrendData(login: "avery", resolution: .weekly, buckets: [bucket])
         #expect(data.commenters(includingBots: false).map(\.login) == ["adam", "zoe"])
     }
 
@@ -325,7 +325,7 @@ struct MyTrendStoreTests {
         return (TrendStore(directory: directory), directory)
     }
 
-    private func data(login: String = "sidler") -> MyTrendData {
+    private func data(login: String = "avery") -> MyTrendData {
         MyTrendData(
             login: login,
             resolution: .weekly,
@@ -351,7 +351,7 @@ struct MyTrendStoreTests {
         defer { try? FileManager.default.removeItem(at: directory) }
 
         store.save(data())
-        let loaded = try #require(store.loadMine(login: "sidler", resolution: .weekly))
+        let loaded = try #require(store.loadMine(login: "avery", resolution: .weekly))
         #expect(loaded.buckets.first?.hours[9] == 2)
         #expect(loaded.buckets.first?.commentersFromPeople["dara"] == 7)
         #expect(loaded.buckets.first?.merge.median == 3_600)
@@ -364,11 +364,11 @@ struct MyTrendStoreTests {
         let (store, directory) = store()
         defer { try? FileManager.default.removeItem(at: directory) }
 
-        store.save(data(login: "sidler"))
+        store.save(data(login: "avery"))
         #expect(store.loadMine(login: "mira", resolution: .weekly) == nil)
-        #expect(store.loadMine(login: "sidler", resolution: .monthly) == nil)
+        #expect(store.loadMine(login: "avery", resolution: .monthly) == nil)
         // A repository history and a personal one must not collide.
-        #expect(store.load(repository: "sidler", resolution: .weekly) == nil)
+        #expect(store.load(repository: "avery", resolution: .weekly) == nil)
     }
 }
 

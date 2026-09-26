@@ -140,11 +140,11 @@ struct PullRequestDetailQueryTests {
     func reviewers() throws {
         let detail = try PullRequestDetailQuery.detail(from: payload(
             reviews: [["state": "APPROVED", "author": ["login": "mira", "avatarUrl": "https://e/a.png"]]],
-            requests: [["requestedReviewer": ["login": "sidler", "avatarUrl": "https://e/b.png"]]]
+            requests: [["requestedReviewer": ["login": "avery", "avatarUrl": "https://e/b.png"]]]
         ))
         #expect(detail.reviewers.count == 2)
         #expect(detail.reviewers.first { $0.name == "mira" }?.state == .approved)
-        #expect(detail.reviewers.first { $0.name == "sidler" }?.state == .pending)
+        #expect(detail.reviewers.first { $0.name == "avery" }?.state == .pending)
     }
 
     /// Someone who reviewed and was then asked again appears in both lists;

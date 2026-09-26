@@ -17,7 +17,7 @@ struct PullRequestFilterTests {
         [
             item("octo/server"),
             item("octo/website", draft: true),
-            item("sidler/dotfiles"),
+            item("avery/dotfiles"),
             item("other/thing", draft: true),
         ]
     }
@@ -44,7 +44,7 @@ struct PullRequestFilterTests {
     /// with the same letters.
     @Test("Owner matching does not leak into similarly named owners")
     func ownerPrefixDoesNotLeak() {
-        let items = [item("octo/server"), item("octonautics/server")]
+        let items = [item("octo/server"), item("octoics/core")]
         let result = PullRequestFilter.matchingRepositories(items, repositoryFilters: ["octo"])
         #expect(result.map(\.repository) == ["octo/server"])
     }

@@ -17,7 +17,7 @@ struct NotificationFilterTests {
             item("1", reason: .mention),
             item("2", reason: .teamMention),
             item("3", reason: .subscribed),
-            item("4", reason: .mention, repository: "sidler/dotfiles"),
+            item("4", reason: .mention, repository: "avery/dotfiles"),
         ]
     }
 
@@ -52,7 +52,7 @@ struct NotificationFilterTests {
     func ownerPrefix() {
         let items = [
             item("1", reason: .mention, repository: "octo/server"),
-            item("2", reason: .mention, repository: "octonautics/server"),
+            item("2", reason: .mention, repository: "octoics/core"),
         ]
         let result = NotificationFilter.apply(items, reasons: [.mention], repositoryFilters: ["octo"])
         #expect(result.map(\.id) == ["1"])

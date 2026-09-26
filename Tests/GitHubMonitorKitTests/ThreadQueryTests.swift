@@ -54,7 +54,7 @@ struct ThreadQueryTests {
                             [
                                 "id": "C_2",
                                 "createdAt": "2026-09-10T12:07:06Z",
-                                "body": "@sidler please look",
+                                "body": "@avery please look",
                                 "author": ["login": "mrick808"],
                             ],
                         ],
@@ -86,23 +86,23 @@ struct MentionMatchingTests {
 
     @Test("A comment that names you is marked")
     func names() {
-        #expect(comment("cc @sidler please review").mentions("sidler"))
-        #expect(comment("@sidler").mentions("sidler"))
-        #expect(comment("ping @Sidler, thanks").mentions("sidler"))
+        #expect(comment("cc @avery please review").mentions("avery"))
+        #expect(comment("@avery").mentions("avery"))
+        #expect(comment("ping @Avery, thanks").mentions("avery"))
     }
 
-    /// `@sid` must not match `@sidler`, and a name inside another word is
+    /// `@sid` must not match `@avery`, and a name inside another word is
     /// not a mention either.
     @Test("A longer name is not a match")
     func doesNotOverreach() {
-        #expect(!comment("cc @sidlerberg").mentions("sidler"))
-        #expect(!comment("cc @sidler-bot").mentions("sidler"))
-        #expect(!comment("no mention at all").mentions("sidler"))
-        #expect(!comment("sidler without the at sign").mentions("sidler"))
+        #expect(!comment("cc @averyberg").mentions("avery"))
+        #expect(!comment("cc @avery-bot").mentions("avery"))
+        #expect(!comment("no mention at all").mentions("avery"))
+        #expect(!comment("avery without the at sign").mentions("avery"))
     }
 
     @Test("Without a login nothing is marked")
     func noViewer() {
-        #expect(!comment("@sidler").mentions(""))
+        #expect(!comment("@avery").mentions(""))
     }
 }

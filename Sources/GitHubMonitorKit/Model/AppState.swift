@@ -619,84 +619,19 @@ public final class AppState {
     /// UIs can be exercised before the API clients exist.
     public func loadSampleData() {
         hasToken = true
+        viewer = Viewer(login: SampleData.viewer, avatarURL: SampleData.avatar(5), scopes: TokenScopes(granted: ["repo", "notifications", "read:org"]))
         // A plausible charge, so the sentence in settings has something to
         // say without a token.
         lastRefreshCost = 13
-        listPullRequests[SavedList.Seed.reviews] = [
-            PullRequestItem(
-                id: "1", number: 482, title: "Fix race condition in session handler",
-                repository: "octo/server", author: "mira",
-                authorAvatarURL: URL(string: "https://avatars.githubusercontent.com/u/1?v=4"),
-                url: URL(string: "https://github.com")!, isDraft: false,
-                updatedAt: .now.addingTimeInterval(-3600),
-                reviewDecision: .reviewRequired, checks: .success,
-                mergeStatus: .conflicting,
-                headCommit: "22da5a177503201b9cbbe78802da6353299f74df",
-                isAutoMergeArmed: true,
-                // Long enough to be called overdue under any sane threshold.
-                reviewRequestedAt: .now.addingTimeInterval(-86400 * 9),
-                links: [
-                    ItemLink(
-                        reference: ItemReference(repository: "octo/server", number: 318),
-                        kind: .closes,
-                        title: "Session table migration order is ambiguous",
-                        url: URL(string: "https://github.com")
-                    ),
-                ],
-                linkedTotal: 2
-            ),
-            PullRequestItem(
-                id: "2", number: 77, title: "Add PSR-12 ruleset to CI",
-                repository: "octo/website", author: "arun",
-                authorAvatarURL: URL(string: "https://avatars.githubusercontent.com/u/2?v=4"),
-                url: URL(string: "https://github.com")!, isDraft: true,
-                updatedAt: .now.addingTimeInterval(-86400 * 3),
-                reviewDecision: .changesRequested, checks: .failure
-            ),
-            PullRequestItem(
-                id: "3", number: 1204, title: "Bump dependencies for PHP 8.4",
-                repository: "octo/toolkit", author: "dara",
-                authorAvatarURL: URL(string: "https://avatars.githubusercontent.com/u/3?v=4"),
-                url: URL(string: "https://github.com")!, isDraft: false,
-                updatedAt: .now.addingTimeInterval(-600),
-                reviewDecision: .reviewRequired, checks: .pending,
-                mergeStatus: .mergeable,
-                reviewRequestedAt: .now.addingTimeInterval(-86400 * 4)
-            ),
-        ]
-        listIssues[SavedList.Seed.issues] = [
-            IssueItem(
-                id: "i1", number: 318, title: "Session table migration order is ambiguous",
-                repository: "octo/server", author: "mira",
-                authorAvatarURL: URL(string: "https://avatars.githubusercontent.com/u/1?v=4"),
-                url: URL(string: "https://github.com")!,
-                createdAt: .now.addingTimeInterval(-86400 * 9),
-                updatedAt: .now.addingTimeInterval(-5400),
-                comments: 7,
-                labels: [
-                    IssueLabel(name: "bug", color: "d73a4a"),
-                    IssueLabel(name: "needs decision", color: "fbca04"),
-                ],
-                milestone: "8.3",
-                links: [
-                    ItemLink(
-                        reference: ItemReference(repository: "octo/server", number: 482),
-                        kind: .closes,
-                        title: "Fix race condition in session handler",
-                        url: URL(string: "https://github.com")
-                    ),
-                ]
-            ),
-            IssueItem(
-                id: "i2", number: 91, title: "Document the release checklist",
-                repository: "octo/website", author: "arun",
-                authorAvatarURL: URL(string: "https://avatars.githubusercontent.com/u/2?v=4"),
-                url: URL(string: "https://github.com")!,
-                createdAt: .now.addingTimeInterval(-86400 * 30),
-                updatedAt: .now.addingTimeInterval(-86400 * 2),
-                labels: [IssueLabel(name: "documentation", color: "0075ca")]
-            ),
-        ]
+
+        listPullRequests[SavedList.Seed.reviews] = SampleData.reviewsRequested()
+        listPullRequests[SavedList.Seed.authored] = SampleData.myPullRequests()
+        listIssues[SavedList.Seed.issues] = SampleData.issues()
+
+        pullRequestDetails["pr-482"] = .loaded(SampleData.detail())
+        changedFiles["pr-482"] = .loaded(SampleData.changedFiles())
+        linkedSummaries = SampleData.linkedSummaries()
+
         notifications = [
             NotificationItem(
                 id: "n1", title: "Can you take a look at the migration order?",
@@ -927,7 +862,7 @@ public final class AppState {
             ))
         }
 
-        return MyTrendData(login: "sidler", resolution: .weekly, buckets: buckets)
+        return MyTrendData(login: "avery", resolution: .weekly, buckets: buckets)
     }
 }
 

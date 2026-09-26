@@ -185,9 +185,9 @@ struct ApprovalDetailTests {
     @Test("The approver appears without waiting for GitHub")
     func appears() {
         let after = detail(reviewers: [reviewer("chriskapp", .pending)])
-            .countingApproval(by: "sidler", avatarURL: nil)
-        #expect(after.reviewers.map(\.name).contains("sidler"))
-        #expect(after.reviewers.first { $0.name == "sidler" }?.state == .approved)
+            .countingApproval(by: "avery", avatarURL: nil)
+        #expect(after.reviewers.map(\.name).contains("avery"))
+        #expect(after.reviewers.first { $0.name == "avery" }?.state == .approved)
     }
 
     /// Their own earlier review is replaced, not joined: nobody stands in
@@ -195,27 +195,27 @@ struct ApprovalDetailTests {
     @Test("An earlier review by the same person is replaced")
     func replacesOwn() {
         let after = detail(reviewers: [
-            reviewer("sidler", .changesRequested),
+            reviewer("avery", .changesRequested),
             reviewer("chriskapp", .pending),
-        ]).countingApproval(by: "sidler", avatarURL: nil)
+        ]).countingApproval(by: "avery", avatarURL: nil)
 
-        #expect(after.reviewers.filter { $0.name == "sidler" }.count == 1)
-        #expect(after.reviewers.first { $0.name == "sidler" }?.state == .approved)
+        #expect(after.reviewers.filter { $0.name == "avery" }.count == 1)
+        #expect(after.reviewers.first { $0.name == "avery" }?.state == .approved)
     }
 
     /// A team that was asked is not this person, even where the names match.
     @Test("A team of the same name is left alone")
     func teamsUntouched() {
-        let after = detail(reviewers: [reviewer("sidler", .pending, isTeam: true)])
-            .countingApproval(by: "sidler", avatarURL: nil)
+        let after = detail(reviewers: [reviewer("avery", .pending, isTeam: true)])
+            .countingApproval(by: "avery", avatarURL: nil)
         #expect(after.reviewers.count == 2)
         #expect(after.reviewers.contains { $0.isTeam && $0.state == .pending })
     }
 
     @Test("A login differing only in case is still the same person")
     func caseInsensitive() {
-        let after = detail(reviewers: [reviewer("Sidler", .commented)])
-            .countingApproval(by: "sidler", avatarURL: nil)
+        let after = detail(reviewers: [reviewer("Avery", .commented)])
+            .countingApproval(by: "avery", avatarURL: nil)
         #expect(after.reviewers.count == 1)
         #expect(after.reviewers.first?.state == .approved)
     }
@@ -227,14 +227,14 @@ struct ApprovalDetailTests {
         let after = detail(reviewers: [
             reviewer("anna", .approved),
             reviewer("bea", .changesRequested),
-        ]).countingApproval(by: "sidler", avatarURL: nil)
-        #expect(after.reviewers.map(\.name) == ["bea", "anna", "sidler"])
+        ]).countingApproval(by: "avery", avatarURL: nil)
+        #expect(after.reviewers.map(\.name) == ["bea", "anna", "avery"])
     }
 
     @Test("Nothing else about the pull request is touched")
     func onlyReviewers() {
         let before = detail(reviewers: [])
-        let after = before.countingApproval(by: "sidler", avatarURL: nil)
+        let after = before.countingApproval(by: "avery", avatarURL: nil)
         #expect(after.headBranch == before.headBranch)
         #expect(after.additions == before.additions)
         #expect(after.changedFiles == before.changedFiles)

@@ -199,3 +199,69 @@ struct LinkedItemsTests {
         #expect(state.sidebarSelection.repository == nil)
     }
 }
+
+/// The made-up content is what the app shows without a token and what the
+/// screenshots in the README are taken from, so it is worth it holding
+/// together.
+@MainActor
+@Suite("The sample content")
+struct SampleDataTests {
+    @Test("Every link a sample row carries points at a sample row or a seeded summary")
+    func linksResolve() {
+        let rows = SampleData.reviewsRequested() + SampleData.myPullRequests()
+        let issues = Set(SampleData.issues().map(\.reference.id))
+        let summaries = SampleData.linkedSummaries()
+
+        for link in rows.flatMap(\.links) {
+            #expect(
+                issues.contains(link.reference.id) || summaries[link.reference.id] != nil,
+                "\(link.reference.id) is linked to by a sample row but is nowhere to be found"
+            )
+        }
+    }
+
+    /// The issue and the pull request that answer each other should agree
+    /// about which one that is.
+    @Test("The links between the sample rows point both ways")
+    func linksAreMutual() {
+        let rows = SampleData.reviewsRequested() + SampleData.myPullRequests()
+        let issues = SampleData.issues()
+
+        for issue in issues {
+            for link in issue.links {
+                guard let pullRequest = rows.first(where: { $0.reference == link.reference })
+                else { continue }
+                #expect(
+                    pullRequest.links.contains { $0.reference == issue.reference },
+                    "\(pullRequest.reference.id) does not link back to \(issue.reference.id)"
+                )
+            }
+        }
+    }
+
+    /// The description is the one the Markdown rendering is exercised
+    /// against, so the things it is meant to exercise have to be in it.
+    @Test("The sample description carries a table, a checklist and numbers")
+    func descriptionIsWorthRendering() {
+        let blocks = MarkdownDocument.blocks(from: SampleData.description)
+        #expect(blocks.contains { if case .table = $0 { true } else { false } })
+        #expect(blocks.contains { block in
+            guard case .bullets(let items) = block else { return false }
+            return items.contains { $0.mark != .bullet }
+        })
+        #expect(!ItemReferences.inBody(
+            SampleData.description, repository: SampleData.Repository.server
+        ).isEmpty)
+    }
+
+    /// Nothing in here should name a real repository or a real person.
+    @Test("The sample content is fiction")
+    func isFiction() {
+        let text = (SampleData.reviewsRequested() + SampleData.myPullRequests())
+            .map { "\($0.repository) \($0.author) \($0.title)" }
+            .joined(separator: " ")
+            + SampleData.issues().map { "\($0.repository) \($0.author)" }.joined()
+            + SampleData.description
+        #expect(text.contains("octo/"))
+    }
+}

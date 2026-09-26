@@ -36,7 +36,7 @@ struct LinkedItemQueryTests {
         )
         #expect(document.components(separatedBy: "repository(owner:").count == 3)
         #expect(document.contains("\"platform\""))
-        #expect(document.contains("\"agp\""))
+        #expect(document.contains("\"toolkit\""))
     }
 
     /// The bug this replaced: everything past the cap was recorded as
@@ -116,7 +116,7 @@ struct LinkedItemQueryTests {
             "updatedAt": "2026-09-20T10:00:00Z",
             "body": "",
             "repository": ["nameWithOwner": "octo/platform"],
-            "author": ["login": "sidler"],
+            "author": ["login": "avery"],
             "comments": ["totalCount": 0],
             "additions": 12,
             "deletions": 3,

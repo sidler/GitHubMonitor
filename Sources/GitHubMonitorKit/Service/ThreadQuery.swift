@@ -76,7 +76,7 @@ public extension IssueComment {
     ///
     /// Plain text matching, because that is what a mention is: `@login` in
     /// the body. Case-insensitive, and only where the name ends -- `@sid`
-    /// must not match `@sidler`.
+    /// must not match `@avery`.
     func mentions(_ login: String) -> Bool {
         guard !login.isEmpty else { return false }
         let needle = "@\(login)".lowercased()
