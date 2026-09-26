@@ -699,6 +699,21 @@ public final class AppState {
                 headBranch: "fix/session-handler-race",
                 baseBranch: "main",
                 additions: 154, deletions: 64, changedFiles: 6, comments: 4,
+                body: """
+                ## What this fixes
+
+                Two requests arriving together both wrote a session row, and
+                the unique index added in 8.3 turned the second one into a
+                fatal error.
+
+                | Case | Before | After |
+                | --- | --- | --- |
+                | New session | insert | insert |
+                | Known session | insert, fails | update |
+
+                - [x] Covered by `SessionHandlerTest`
+                - [ ] Needs the migration to have run
+                """,
                 mergeStatus: .conflicting,
                 checks: [
                     CheckRun(name: "phpunit", status: .success),

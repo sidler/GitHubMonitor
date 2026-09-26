@@ -8,7 +8,8 @@ struct PullRequestDetailQueryTests {
         checks: [[String: Any]] = [],
         reviews: [[String: Any]] = [],
         requests: [[String: Any]] = [],
-        mergeable: String = "MERGEABLE"
+        mergeable: String = "MERGEABLE",
+        body: String? = "Adds the export button."
     ) -> [String: Any] {
         [
             "node": [
@@ -18,6 +19,7 @@ struct PullRequestDetailQueryTests {
                 "deletions": 45,
                 "changedFiles": 7,
                 "comments": ["totalCount": 3],
+                "body": body as Any,
                 "mergeable": mergeable,
                 "commits": ["nodes": [["commit": [
                     "statusCheckRollup": ["contexts": ["nodes": checks]],
@@ -63,6 +65,19 @@ struct PullRequestDetailQueryTests {
         let detail = try PullRequestDetailQuery.detail(from: payload())
         #expect(detail.headBranch == "feature/csv-export")
         #expect(detail.baseBranch == "main")
+    }
+
+    /// A plain field on the pull request, so the pane pays nothing extra
+    /// for it -- but it has to be asked for to arrive.
+    @Test("The description is asked for and read across")
+    func body() throws {
+        #expect(PullRequestDetailQuery.document.contains("body"))
+        #expect(try PullRequestDetailQuery.detail(from: payload()).body == "Adds the export button.")
+    }
+
+    @Test("A pull request opened without a description reads as empty")
+    func missingBody() throws {
+        #expect(try PullRequestDetailQuery.detail(from: payload(body: nil)).body.isEmpty)
     }
 
     @Test("A missing node is an error, not an empty detail")
@@ -184,5 +199,28 @@ struct PullRequestDetailQueryTests {
         #expect(detail.changedFiles == 0)
         // Empty rather than absent, so the view can simply skip the row.
         #expect(detail.headBranch.isEmpty)
+    }
+}
+
+/// The line shown next to the fold, so a closed description still says
+/// what it is about.
+@Suite("The folded description")
+struct DescriptionSummaryTests {
+    @Test("The first line with words on it is the hint")
+    func firstLine() {
+        #expect(DescriptionSection.firstLine(of: "\n\nFixes the race.\nMore below.") == "Fixes the race.")
+    }
+
+    /// Heading and quote marks are punctuation for a renderer; read aloud
+    /// they are noise.
+    @Test("Leading marks are dropped")
+    func marks() {
+        #expect(DescriptionSection.firstLine(of: "## What this fixes\n\ntext") == "What this fixes")
+        #expect(DescriptionSection.firstLine(of: "> quoted") == "quoted")
+    }
+
+    @Test("A description of nothing but blank lines has no hint")
+    func blank() {
+        #expect(DescriptionSection.firstLine(of: "\n   \n") == nil)
     }
 }

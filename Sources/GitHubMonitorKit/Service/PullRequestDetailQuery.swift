@@ -17,6 +17,7 @@ public enum PullRequestDetailQuery {
           deletions
           changedFiles
           comments { totalCount }
+          body
           mergeable
           commits(last: 1) {
             nodes {
@@ -63,6 +64,7 @@ public enum PullRequestDetailQuery {
             deletions: node["deletions"] as? Int ?? 0,
             changedFiles: node["changedFiles"] as? Int ?? 0,
             comments: (node["comments"] as? [String: Any])?["totalCount"] as? Int ?? 0,
+            body: node["body"] as? String ?? "",
             mergeStatus: PullRequestParser.mergeStatus(node["mergeable"] as? String),
             checks: checks(from: node),
             reviewers: reviewers(from: node)

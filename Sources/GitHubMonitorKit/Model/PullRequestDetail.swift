@@ -99,6 +99,12 @@ public struct PullRequestDetail: Hashable, Sendable {
     public let deletions: Int
     public let changedFiles: Int
     public let comments: Int
+    /// The text the author wrote when opening it, as Markdown.
+    ///
+    /// Carried here rather than fetched on demand: it is a plain field on
+    /// the pull request, so the request that already loads this pane pays
+    /// nothing more for it.
+    public let body: String
     /// Read again here rather than taken from the row: GitHub works it out
     /// in the background, so a pull request that was still unknown when the
     /// list loaded usually has an answer by the time its pane is opened.
@@ -113,6 +119,7 @@ public struct PullRequestDetail: Hashable, Sendable {
         deletions: Int,
         changedFiles: Int,
         comments: Int,
+        body: String = "",
         mergeStatus: MergeStatus = .unknown,
         checks: [CheckRun],
         reviewers: [ReviewerStatus]
@@ -123,6 +130,7 @@ public struct PullRequestDetail: Hashable, Sendable {
         self.deletions = deletions
         self.changedFiles = changedFiles
         self.comments = comments
+        self.body = body
         self.mergeStatus = mergeStatus
         self.checks = checks
         self.reviewers = reviewers
@@ -149,6 +157,7 @@ public struct PullRequestDetail: Hashable, Sendable {
             deletions: deletions,
             changedFiles: changedFiles,
             comments: comments,
+            body: body,
             mergeStatus: mergeStatus,
             checks: checks,
             reviewers: ReviewerStatus.ordered(others + [approved])

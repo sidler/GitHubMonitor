@@ -29,6 +29,7 @@ struct PullRequestDetailView: View {
                     case .loaded(let detail):
                         branches(detail)
                         changes(detail)
+                        description(detail)
                         changedFiles
                         checks(detail)
                         reviewers(detail)
@@ -169,6 +170,34 @@ struct PullRequestDetailView: View {
             }
         } header: {
             sectionTitle("Changes")
+        }
+    }
+
+    // MARK: - The description
+
+    /// The author's own text, folded away.
+    ///
+    /// Folded because a description is unbounded: a template with four
+    /// headings and a checklist would push the branch, the files and the
+    /// checks off the pane, and those are what it is opened for. Closed it
+    /// costs one row, and that row carries the first line so the fold is
+    /// not a blind one.
+    ///
+    /// Keyed to the pull request, so moving to the next one starts closed
+    /// again rather than inheriting the last one's fold.
+    @ViewBuilder
+    private func description(_ detail: PullRequestDetail) -> some View {
+        if detail.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            Section {
+                Text("This pull request was opened with a title only.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            } header: {
+                sectionTitle("Description")
+            }
+        } else {
+            DescriptionSection(source: detail.body)
+                .id(item.id)
         }
     }
 
@@ -394,5 +423,64 @@ struct PullRequestDetailView: View {
         case .dismissed: .secondary
         case .pending: .yellow
         }
+    }
+}
+
+/// View-local state without `@State`: its macro implementation ships only
+/// with Xcode, and this project builds against the Command Line Tools.
+@MainActor
+private final class Disclosure: ObservableObject {
+    @Published var isExpanded = false
+}
+
+struct DescriptionSection: View {
+    let source: String
+    @StateObject private var disclosure = Disclosure()
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $disclosure.isExpanded) {
+            MarkdownText(source: source)
+                .padding(.top, 8)
+        } label: {
+            // A button rather than the bare label: on macOS only the
+            // triangle toggles a DisclosureGroup, which leaves the word
+            // "Description" looking like a control that does nothing. The
+            // triangle keeps working -- it is its own hit area, so this
+            // cannot toggle twice.
+            Button {
+                disclosure.isExpanded.toggle()
+            } label: {
+                HStack(spacing: 8) {
+                    Text("Description")
+                        .font(.subheadline.weight(.semibold))
+                    if !disclosure.isExpanded, let first = Self.firstLine(of: source) {
+                        Text(first)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    /// The first line with something on it, as a hint of what is folded
+    /// away. Leading heading marks and quote marks are dropped: they are
+    /// punctuation for a renderer, not words for a reader.
+    ///
+    /// `nonisolated` because a `View` is on the main actor and this is a
+    /// string function: without it a test calling it hops actors and traps.
+    nonisolated static func firstLine(of source: String) -> String? {
+        for line in source.split(separator: "\n", omittingEmptySubsequences: false) {
+            let stripped = line
+                .drop { $0 == "#" || $0 == ">" || $0 == " " || $0 == "\t" }
+                .trimmingCharacters(in: .whitespaces)
+            if !stripped.isEmpty { return stripped }
+        }
+        return nil
     }
 }
