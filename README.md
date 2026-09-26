@@ -223,6 +223,10 @@ above come from, which is why none of them show real work. The fixtures live in
 `Sources/GitHubMonitorKit/Model/SampleData.swift`, and the tests draw on the
 same ones, so a row in a test looks like a row in the app.
 
+## Licence
+
+MIT — see [LICENSE](LICENSE).
+
 ## Project layout
 
 ```

@@ -35,11 +35,9 @@ enum AppMenu {
         let item = NSMenuItem()
         let menu = NSMenu(title: appName)
 
-        menu.addItem(
-            withTitle: "About \(appName)",
-            action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
-            keyEquivalent: ""
-        )
+        menu.addItem(ActionItem(title: "About \(appName)", keyEquivalent: "") {
+            NSApp.orderFrontStandardAboutPanel(options: AboutPanel.options())
+        })
         menu.addItem(.separator())
 
         // The native home for Cmd+, replacing the event monitor.
@@ -197,5 +195,71 @@ private final class ActionItem: NSMenuItem {
 
     @objc private func run() {
         handler()
+    }
+}
+
+/// What the About panel says.
+///
+/// Filled in rather than left to the bundle: the standard panel shows the
+/// name, the icon and the version on its own, and then an empty box where
+/// anyone opening it is looking for what the thing is and what they may do
+/// with it.
+enum AboutPanel {
+    static let repository = "https://github.com/sidler/GitHubMonitor"
+
+    static func options() -> [NSApplication.AboutPanelOptionKey: Any] {
+        [
+            .credits: credits(),
+            .applicationName: "GitHub Monitor",
+        ]
+    }
+
+    /// The panel renders an attributed string, so the text is built rather
+    /// than loaded from a Credits file the Makefile would have to copy.
+    static func credits() -> NSAttributedString {
+        let body = NSMutableAttributedString()
+
+        body.append(line(
+            "A menu bar app for the GitHub work waiting on you: the reviews, "
+                + "the issues and the mentions, with the diffs and the "
+                + "approving close enough that most of it needs no browser.",
+            size: 11
+        ))
+        body.append(line("", size: 5))
+        // The licence and the copyright come from the bundle, which the
+        // panel prints under this of its own accord -- saying either here
+        // as well put the same sentence on screen twice.
+        body.append(line("Source at", size: 11))
+        body.append(link(repository))
+
+        return body
+    }
+
+    private static func line(
+        _ text: String, size: CGFloat, colour: NSColor = .labelColor
+    ) -> NSAttributedString {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        return NSAttributedString(
+            string: text + "\n",
+            attributes: [
+                .font: NSFont.systemFont(ofSize: size),
+                .foregroundColor: colour,
+                .paragraphStyle: paragraph,
+            ]
+        )
+    }
+
+    private static func link(_ url: String) -> NSAttributedString {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        return NSAttributedString(
+            string: url + "\n",
+            attributes: [
+                .font: NSFont.systemFont(ofSize: 11),
+                .link: URL(string: url) as Any,
+                .paragraphStyle: paragraph,
+            ]
+        )
     }
 }
