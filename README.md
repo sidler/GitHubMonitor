@@ -18,6 +18,8 @@ again. A list's search is GitHub's own syntax, one search per line, results
 merged. `@me` is you, and GitHub resolves team membership itself. Lists page to
 300 rows and say how many more the search found.
 
+![The menu bar item and the panel under it](Docs/screenshots/menubar.png)
+
 **Unread mentions.** Unread notification threads matching the reasons you care
 about. Not a search, so not a list: they come from the notifications API, which
 has an hourly allowance of its own.
