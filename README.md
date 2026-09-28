@@ -153,6 +153,37 @@ again after every build, and the Keychain treats each build as a different
 application, so the stored token needs re-authorising every time. With the
 certificate, both ask once and then remember.
 
+### Releasing a signed, notarised build
+
+`make release` builds, signs with a Developer ID, submits the result to
+Apple, staples the ticket and then checks what another Mac will conclude.
+Two things have to be arranged once before it works, and neither can be done
+from the command line:
+
+1. **A "Developer ID Application" certificate.** From the paid Apple
+   Developer Program: create a certificate request in Keychain Access
+   (*Certificate Assistant → Request a Certificate From a Certificate
+   Authority*), upload it at developer.apple.com under *Certificates*,
+   download the `.cer` and double-click it. The other certificate types do
+   not work — "Apple Development" is for testing, "Apple Distribution" is
+   for the App Store.
+2. **Notarisation credentials**, stored once under a profile name:
+
+   ```bash
+   xcrun notarytool store-credentials "GitHubMonitor" \
+     --apple-id you@example.com --team-id YOURTEAMID \
+     --password <an app-specific password>
+   ```
+
+   The password is an app-specific one from appleid.apple.com, not your
+   Apple ID password.
+
+Signing alone is not enough: since macOS 10.15 an app that is signed but not
+notarised is refused with "Apple cannot check it for malicious software".
+Notarising without stapling leaves it needing the network on first launch.
+The target does all three and then asks `spctl` — Gatekeeper's own verdict —
+whether it would let the result run.
+
 ### Network access
 
 The app talks to `api.github.com` and `avatars.githubusercontent.com`. If you
