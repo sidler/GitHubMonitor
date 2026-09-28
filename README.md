@@ -78,11 +78,42 @@ charged for the last refresh and what that comes to over an hour, read from
 GitHub's own figure rather than estimated. Refreshing stops on its own when the
 allowance runs low and picks up again when it is restored.
 
+## Install
+
+```bash
+brew tap sidler/tap
+brew trust --cask sidler/tap/githubmonitor
+brew install --cask githubmonitor
+```
+
+Homebrew asks you to trust a tap that is not its own before it will run
+anything from it — the middle line is that consent, and it is needed once.
+
+Or take the zip from [the latest
+release](https://github.com/sidler/GitHubMonitor/releases/latest), unpack it
+and move `GitHubMonitor.app` to `/Applications`.
+
+Either way the app is signed with a Developer ID and notarised by Apple, with
+the ticket stapled to the bundle, so it opens without a Gatekeeper warning and
+without needing the network the first time:
+
+```
+$ spctl --assess --type execute /Applications/GitHubMonitor.app
+/Applications/GitHubMonitor.app: accepted
+source=Notarized Developer ID
+```
+
+The app has no Dock icon; look for its icon in the menu bar.
+
 ## Requirements
 
 - macOS 26 or later — the app uses the system's own glass materials rather than
   reproducing them
-- Swift 6 toolchain (Xcode not required — the Command Line Tools are enough)
+- A classic GitHub personal access token — see [Setting up the
+  token](#setting-up-the-token)
+
+To build it yourself you also need a Swift 6 toolchain. Xcode is not required;
+the Command Line Tools are enough.
 
 ## Build and run
 
@@ -183,6 +214,17 @@ notarised is refused with "Apple cannot check it for malicious software".
 Notarising without stapling leaves it needing the network on first launch.
 The target does all three and then asks `spctl` — Gatekeeper's own verdict —
 whether it would let the result run.
+
+Publishing a release is three more steps: tag it, attach
+`.build/release-app/GitHubMonitor-<version>.zip` to a GitHub release, and
+update `version` and `sha256` in the cask at
+[sidler/homebrew-tap](https://github.com/sidler/homebrew-tap). Take the
+checksum from the file GitHub serves rather than the local one — they should
+match, and it costs one `curl` to know rather than assume.
+
+`CFBundleVersion` in `Resources/Info.plist` is still `1`. Apple does not mind,
+but anything that compares builds does: it has to increase before there is a
+second release.
 
 ### Network access
 
