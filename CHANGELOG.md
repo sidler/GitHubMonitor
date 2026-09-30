@@ -5,6 +5,9 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- The diff's text size can be changed, from *View → Larger Diff Text* and
+  ⌘+ / ⌘− while a diff is open, or from Settings. The patch only: the
+  file names and the tree beside them keep theirs.
 - The file's name stays at the top of the column while you read its patch,
   and the next file's name pushes it off.
 - This changelog, and the window that shows it.

@@ -256,6 +256,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             close: { [weak state] in state?.openedDiff = nil },
             review: item.map(reviewActions(for:)),
             subject: item.map(subject(for:)),
+            fontSize: state.settings.diffFontSize,
             viewed: ViewedFiles(
                 app: state,
                 pullRequestID: opened.pullRequestID,
@@ -484,6 +485,10 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             // A list can be renamed, reordered or deleted while the window
             // is open, and the title bar follows it.
             _ = state.settings.savedLists
+            // Changed from the View menu while a diff is on screen, which is
+            // the only sensible moment to change it: the overlay is rebuilt
+            // rather than left at the size it was opened with.
+            _ = state.settings.diffFontSize
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else { return }

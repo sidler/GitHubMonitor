@@ -14,14 +14,22 @@ enum AppMenu {
         openSettings: @escaping () -> Void,
         refresh: @escaping () -> Void,
         moveDetail: @escaping (Int) -> Void,
-        closeDetail: @escaping () -> Void
+        closeDetail: @escaping () -> Void,
+        changeDiffFontSize: @escaping (Double) -> Void,
+        resetDiffFontSize: @escaping () -> Void
     ) -> NSMenu {
         let main = NSMenu()
 
         main.addItem(applicationMenu(appName: appName, openSettings: openSettings))
         main.addItem(fileMenu())
         main.addItem(editMenu())
-        main.addItem(viewMenu(refresh: refresh, moveDetail: moveDetail, closeDetail: closeDetail))
+        main.addItem(viewMenu(
+            refresh: refresh,
+            moveDetail: moveDetail,
+            closeDetail: closeDetail,
+            changeDiffFontSize: changeDiffFontSize,
+            resetDiffFontSize: resetDiffFontSize
+        ))
         main.addItem(windowMenu())
 
         return main
@@ -124,7 +132,9 @@ enum AppMenu {
     private static func viewMenu(
         refresh: @escaping () -> Void,
         moveDetail: @escaping (Int) -> Void,
-        closeDetail: @escaping () -> Void
+        closeDetail: @escaping () -> Void,
+        changeDiffFontSize: @escaping (Double) -> Void,
+        resetDiffFontSize: @escaping () -> Void
     ) -> NSMenuItem {
         let item = NSMenuItem()
         let menu = NSMenu(title: "View")
@@ -155,6 +165,22 @@ enum AppMenu {
         let close = ActionItem(title: "Close Details", keyEquivalent: "i", action: closeDetail)
         close.keyEquivalentModifierMask = [.command, .option]
         menu.addItem(close)
+        menu.addItem(.separator())
+
+        // The shortcuts every reader already has in their fingers, and the
+        // only reason the size is worth changing from a menu at all: it is
+        // decided while looking at the code, not in a settings window with
+        // no code on screen. They stay enabled at the ends of the range so
+        // the size in Settings is not the only place the limit is visible.
+        menu.addItem(ActionItem(title: "Larger Diff Text", keyEquivalent: "+") {
+            changeDiffFontSize(1)
+        })
+        menu.addItem(ActionItem(title: "Smaller Diff Text", keyEquivalent: "-") {
+            changeDiffFontSize(-1)
+        })
+        menu.addItem(ActionItem(
+            title: "Actual Size", keyEquivalent: "0", action: resetDiffFontSize
+        ))
         menu.addItem(.separator())
         menu.addItem(
             withTitle: "Toggle Sidebar",

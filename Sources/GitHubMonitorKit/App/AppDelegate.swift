@@ -61,7 +61,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             openSettings: { windowController.show(selecting: .settings) },
             refresh: { Task { await refresh.refresh() } },
             moveDetail: { refresh.moveInspection(by: $0) },
-            closeDetail: { refresh.closeInspector() }
+            closeDetail: { refresh.closeInspector() },
+            changeDiffFontSize: { [state] step in state.settings.changeDiffFontSize(by: step) },
+            resetDiffFontSize: { [state] in state.settings.resetDiffFontSize() }
         )
 
         // Sample data is opt-in now that real requests work, so the UI can

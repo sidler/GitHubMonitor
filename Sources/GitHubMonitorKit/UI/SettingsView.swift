@@ -166,6 +166,32 @@ private struct GeneralSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("Diff") {
+                Stepper(value: $settings.diffFontSize,
+                        in: Settings.smallestDiffFontSize...Settings.largestDiffFontSize,
+                        step: 1) {
+                    // A LabeledContent here would huddle against the label
+                    // instead of sitting under the values of the rows above:
+                    // a Stepper's label is given only the width it asks for.
+                    HStack {
+                        Text("Text size")
+                        Spacer()
+                        Text(verbatim: "\(Int(settings.diffFontSize)) pt").monospacedDigit()
+                    }
+                }
+
+                // Shown at the size being chosen, because "13 pt" answers a
+                // different question than the one being asked.
+                Text(verbatim: "@@ -1,4 +1,4 @@  func send(_ message: Message) throws {")
+                    .font(.system(size: settings.diffFontSize).monospaced())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+
+                Text("The patch only. File names and the tree beside them keep their size, and \u{2318}+ and \u{2318}\u{2212} change this while a diff is open.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Refresh") {
                 Picker("Every", selection: $settings.refreshInterval) {
                     Text("1 minute").tag(TimeInterval(60))

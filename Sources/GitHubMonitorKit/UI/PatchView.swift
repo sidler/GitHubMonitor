@@ -21,6 +21,9 @@ struct DiffOverlay: View {
     /// The pull request itself and what it answers, for the panel in the
     /// header. Nil where the overlay was opened without one.
     var subject: LinkedSubject?
+    /// How large the patch text is. Read from the settings by whoever
+    /// builds the overlay, so a change reaches an open diff.
+    var fontSize: Double = Settings.defaultDiffFontSize
     /// Which files have been ticked off, and how to tick one. Nil leaves
     /// the overlay a reader with no checkboxes.
     var viewed: ViewedFiles?
@@ -299,7 +302,7 @@ struct DiffOverlay: View {
                 // Its own horizontal scroll, so a long line moves without
                 // dragging the file above it sideways too.
                 ScrollView(.horizontal, showsIndicators: false) {
-                    PatchLines(patch: patch, language: file.language)
+                    PatchLines(patch: patch, language: file.language, fontSize: fontSize)
                         .padding(.vertical, 6)
                         // At least the width of the column, so the added and
                         // removed bands run the whole way across; a longer
@@ -362,6 +365,7 @@ struct ViewedFiles {
 struct PatchLines: View {
     let patch: String
     let language: CodeLanguage?
+    var fontSize: Double = Settings.defaultDiffFontSize
 
     private var lines: [Line] {
         patch.components(separatedBy: "\n").enumerated().map { Line(id: $0.offset, text: $0.element) }
@@ -384,7 +388,7 @@ struct PatchLines: View {
             // of every other line would have the highlighter reading `-` as
             // punctuation before a keyword. Colour the code, not the diff.
             language: kind == .hunk ? nil : language,
-            font: .caption.monospaced()
+            font: .system(size: fontSize).monospaced()
         )
         .foregroundStyle(kind.textTint)
         .padding(.horizontal, 12)

@@ -52,6 +52,50 @@ public final class Settings {
         didSet { store.set(overdueDays, forKey: Key.overdueDays) }
     }
 
+    /// How large the diff's own text is, in points.
+    ///
+    /// The patch only. The file names above it and the tree beside it are
+    /// chrome, and a reader who wants the code bigger does not want the
+    /// furniture bigger with it.
+    ///
+    /// Clamped on the way in rather than trusted: this is read from
+    /// preferences, which anything can write, and a size of zero would
+    /// leave a diff that cannot be read at all.
+    public var diffFontSize: Double {
+        didSet {
+            let clamped = Self.clampedFontSize(diffFontSize)
+            if clamped != diffFontSize {
+                diffFontSize = clamped
+                return
+            }
+            store.set(diffFontSize, forKey: Key.diffFontSize)
+        }
+    }
+
+    /// What the diff looked like before it could be changed, so leaving the
+    /// setting alone leaves the app as it was.
+    public static let defaultDiffFontSize: Double = 10
+    public static let smallestDiffFontSize: Double = 8
+    public static let largestDiffFontSize: Double = 20
+
+    public static func clampedFontSize(_ size: Double) -> Double {
+        min(max(size.rounded(), smallestDiffFontSize), largestDiffFontSize)
+    }
+
+    /// One press of Larger or Smaller.
+    ///
+    /// Clamping rather than refusing: a step at the end of the range should
+    /// leave the size where it is, not leave the menu item dead. The item
+    /// stays enabled, which is also how the system's own text-size items
+    /// behave.
+    public func changeDiffFontSize(by step: Double) {
+        diffFontSize = Self.clampedFontSize(diffFontSize + step)
+    }
+
+    public func resetDiffFontSize() {
+        diffFontSize = Self.defaultDiffFontSize
+    }
+
     /// Whether a section that covers a single repository drops its
     /// repository row.
     ///
@@ -161,6 +205,9 @@ public final class Settings {
         hidesSingleRepository = store.bool(forKey: Key.hidesSingleRepository)
         agingDays = store.object(forKey: Key.agingDays) as? Int ?? 3
         overdueDays = store.object(forKey: Key.overdueDays) as? Int ?? 7
+        diffFontSize = Self.clampedFontSize(
+            store.object(forKey: Key.diffFontSize) as? Double ?? Self.defaultDiffFontSize
+        )
         if let raw = store.stringArray(forKey: Key.notificationReasons) {
             notificationReasons = Set(raw.map(NotificationReason.init(apiValue:)))
         } else {
@@ -283,6 +330,7 @@ public final class Settings {
         static let hidesSingleRepository = "hidesSingleRepository"
         static let agingDays = "agingDays"
         static let overdueDays = "overdueDays"
+        static let diffFontSize = "diffFontSize"
         static let notificationReasons = "notificationReasons"
         static let hiddenLists = "hiddenLists"
         static let savedLists = "savedLists"
