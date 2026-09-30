@@ -30,6 +30,9 @@ if [ -n "$build" ]; then
   /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $build" "$app/Contents/Info.plist"
 fi
 cp Resources/AppIcon.icns "$app/Contents/Resources/AppIcon.icns"
+# The changelog travels with the app, so the window that shows it needs no
+# network and cannot drift from the file in the repository.
+cp CHANGELOG.md "$app/Contents/Resources/CHANGELOG.md"
 cp "$binary" "$app/Contents/MacOS/GitHubMonitor"
 
 # Nothing is nested inside this bundle -- no frameworks, no XPC services,

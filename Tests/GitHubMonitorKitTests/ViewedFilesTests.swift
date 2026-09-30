@@ -125,3 +125,44 @@ struct ViewedFilesStateTests {
         #expect(state.viewedCount(of: [file("a")], in: "pr-1") == 1)
     }
 }
+
+@Suite("The changelog the app shows")
+struct ChangelogTests {
+    /// The file the app ships is the file in the repository; a second copy
+    /// written out in Swift would be the one that goes stale.
+    @Test("The repository's changelog names the released versions")
+    func repositoryFile() throws {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // GitHubMonitorKitTests
+            .deletingLastPathComponent()   // Tests
+            .deletingLastPathComponent()   // repository root
+            .appendingPathComponent("CHANGELOG.md")
+        let text = try String(contentsOf: url, encoding: .utf8)
+
+        #expect(text.contains("## 1.1.0"))
+        #expect(text.contains("## 0.1.0"))
+        // Newest first, which is what the window title relies on. The
+        // "Unreleased" heading above them is not a version and is skipped.
+        #expect(Changelog.newestVersion(in: text) == "1.1.0")
+    }
+
+    @Test("The newest version is the first heading, whatever follows it")
+    func newest() {
+        #expect(Changelog.newestVersion(in: "# Changelog\n\n## 2.0\n\ntext\n\n## 1.0") == "2.0")
+        #expect(Changelog.newestVersion(in: "# Changelog\n\nno versions yet") == nil)
+        #expect(Changelog.newestVersion(in: "") == nil)
+        // A heading that is not a version number is not a version.
+        #expect(Changelog.newestVersion(in: "## Unreleased\n\n## 3.2.1") == "3.2.1")
+    }
+
+    /// A build that forgot to copy the file should say so rather than open
+    /// an empty window.
+    @Test("A bundle without one says so")
+    func missing() {
+        let text = Changelog.text(in: Bundle(for: TestAnchor.self))
+        #expect(text.contains("does not carry one"))
+    }
+}
+
+/// Only here to name a bundle that has no changelog in it.
+private final class TestAnchor {}

@@ -91,6 +91,45 @@ struct MarkdownDocumentTests {
         ])
     }
 
+    /// The tail of a wrapped bullet used to fall out of the list and land
+    /// at the margin as a paragraph of its own.
+    @Test("A bullet wrapped over two lines is one item")
+    func wrapped() {
+        let blocks = MarkdownDocument.blocks(from: "- one that runs on\n  and finishes here\n- two")
+        #expect(blocks == [.bullets([plain("one that runs on and finishes here"), plain("two")])])
+    }
+
+    @Test("A wrapped numbered item is one item too")
+    func wrappedNumber() {
+        #expect(
+            MarkdownDocument.blocks(from: "1. first line\n   second line")
+                == [.numbered(["first line second line"])]
+        )
+    }
+
+    /// The indent is what marks a continuation. A paragraph written flush
+    /// after a list is a paragraph, and must not be swallowed by the last
+    /// bullet.
+    @Test("An unindented line after a list ends the list")
+    func notAContinuation() {
+        let blocks = MarkdownDocument.blocks(from: "- one\nafterwards")
+        #expect(blocks == [.bullets([plain("one")]), .paragraph("afterwards")])
+    }
+
+    @Test("A blank line ends the list rather than continuing it")
+    func blankEndsIt() {
+        let blocks = MarkdownDocument.blocks(from: "- one\n\n  indented after a gap")
+        #expect(blocks.first == .bullets([plain("one")]))
+        #expect(blocks.count == 2)
+    }
+
+    /// A checklist that wraps keeps its box.
+    @Test("A wrapped task item keeps its mark")
+    func wrappedTask() {
+        let blocks = MarkdownDocument.blocks(from: "- [x] done and\n  still done")
+        #expect(blocks == [.bullets([task("done and still done", done: true)])])
+    }
+
     @Test("Numbered items keep their text, not their numbers")
     func numbered() {
         #expect(MarkdownDocument.blocks(from: "1. first\n2) second") == [.numbered(["first", "second"])])

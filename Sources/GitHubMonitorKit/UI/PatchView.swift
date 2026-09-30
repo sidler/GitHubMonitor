@@ -210,10 +210,21 @@ struct DiffOverlay: View {
         // short lines sat in a narrow column of colour.
         GeometryReader { proxy in
             ScrollView(.vertical) {
-                LazyVStack(alignment: .leading, spacing: 18) {
+                // Pinned headers: the file being read keeps its name at the
+                // top of the column, and the next file's header pushes it
+                // off as it arrives. Without it a long patch leaves you
+                // scrolling through code with nothing saying which file it
+                // belongs to.
+                LazyVStack(
+                    alignment: .leading, spacing: 18, pinnedViews: [.sectionHeaders]
+                ) {
                     ForEach(files) { file in
-                        fileSection(file, width: proxy.size.width)
-                            .id(file.path)
+                        Section {
+                            fileBody(file, width: proxy.size.width)
+                        } header: {
+                            fileHeader(file)
+                        }
+                        .id(file.path)
                     }
                 }
                 .scrollTargetLayout()
@@ -224,9 +235,14 @@ struct DiffOverlay: View {
         }
     }
 
-    private func fileSection(_ file: ChangedFile, width: CGFloat) -> some View {
+    /// The line that stays at the top while its file is being read.
+    ///
+    /// Opaque, and that is not decoration: a pinned header over a scroll
+    /// view shows whatever is passing underneath it unless it brings its
+    /// own background.
+    private func fileHeader(_ file: ChangedFile) -> some View {
         let state = viewed?.state(file.path) ?? .unviewed
-        return VStack(alignment: .leading, spacing: 6) {
+        return VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
                 if let viewed {
                     Button { viewed.toggle(file.path) } label: {
@@ -261,7 +277,16 @@ struct DiffOverlay: View {
                 Spacer(minLength: 8)
             }
             .padding(.horizontal, 12)
+            .padding(.vertical, 6)
 
+            Divider()
+        }
+        .background(.background)
+    }
+
+    private func fileBody(_ file: ChangedFile, width: CGFloat) -> some View {
+        let state = viewed?.state(file.path) ?? .unviewed
+        return VStack(alignment: .leading, spacing: 6) {
             // A ticked file keeps its header and its place, and folds the
             // patch away. Folded rather than hidden: the point of the tick
             // is "done with this for now", not "never show me again".

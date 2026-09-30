@@ -296,6 +296,12 @@ above come from, which is why none of them show real work. The fixtures live in
 `Sources/GitHubMonitorKit/Model/SampleData.swift`, and the tests draw on the
 same ones, so a row in a test looks like a row in the app.
 
+## Changelog
+
+[CHANGELOG.md](CHANGELOG.md) — the app ships it and shows it under *GitHub
+Monitor → What's New*, so it reads the same file rather than a second copy
+that would go stale.
+
 ## Licence
 
 MIT — see [LICENSE](LICENSE).

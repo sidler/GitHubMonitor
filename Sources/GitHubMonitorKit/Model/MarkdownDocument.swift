@@ -127,9 +127,22 @@ public enum MarkdownDocument {
             if let item = bulletItem(trimmed) {
                 flushParagraph()
                 var items = [item]
-                while let next = lines.first,
-                      let more = bulletItem(next.trimmingCharacters(in: .whitespaces)) {
-                    items.append(more)
+                while let next = lines.first {
+                    let row = next.trimmingCharacters(in: .whitespaces)
+                    if let more = bulletItem(row) {
+                        items.append(more)
+                    } else if let continued = continuation(of: next) {
+                        // An item wrapped onto the next line belongs to the
+                        // item, not to a paragraph of its own. Without this
+                        // the tail of every wrapped bullet fell back to the
+                        // margin, outside the list it was written in.
+                        items[items.count - 1] = BulletItem(
+                            mark: items[items.count - 1].mark,
+                            text: items[items.count - 1].text + " " + continued
+                        )
+                    } else {
+                        break
+                    }
                     lines = lines.dropFirst()
                 }
                 blocks.append(.bullets(items))
@@ -139,9 +152,15 @@ public enum MarkdownDocument {
             if let item = numberedItem(trimmed) {
                 flushParagraph()
                 var items = [item]
-                while let next = lines.first,
-                      let more = numberedItem(next.trimmingCharacters(in: .whitespaces)) {
-                    items.append(more)
+                while let next = lines.first {
+                    let row = next.trimmingCharacters(in: .whitespaces)
+                    if let more = numberedItem(row) {
+                        items.append(more)
+                    } else if let continued = continuation(of: next) {
+                        items[items.count - 1] += " " + continued
+                    } else {
+                        break
+                    }
                     lines = lines.dropFirst()
                 }
                 blocks.append(.numbered(items))
@@ -236,6 +255,18 @@ public enum MarkdownDocument {
             return false
         }
         return isAlignmentRow(cells(in: next))
+    }
+
+    /// A line that carries on the list item above it.
+    ///
+    /// Indented and not empty: that is how people write a wrapped item, and
+    /// insisting on the indent keeps an ordinary paragraph after a list
+    /// from being swallowed into the last bullet.
+    static func continuation(of line: String) -> String? {
+        guard line.hasPrefix(" ") || line.hasPrefix("\t") else { return nil }
+        let text = line.trimmingCharacters(in: .whitespaces)
+        guard !text.isEmpty else { return nil }
+        return text
     }
 
     static func bulletItem(_ line: String) -> BulletItem? {

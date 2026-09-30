@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 
 /// The application's main menu.
 ///
@@ -37,6 +38,9 @@ enum AppMenu {
 
         menu.addItem(ActionItem(title: "About \(appName)", keyEquivalent: "") {
             NSApp.orderFrontStandardAboutPanel(options: AboutPanel.options())
+        })
+        menu.addItem(ActionItem(title: "What's New\u{2026}", keyEquivalent: "") {
+            ChangelogWindow.show()
         })
         menu.addItem(.separator())
 
@@ -261,5 +265,47 @@ enum AboutPanel {
                 .paragraphStyle: paragraph,
             ]
         )
+    }
+}
+
+/// The window that shows the changelog.
+///
+/// One window, kept between openings rather than rebuilt: reopening should
+/// bring back what was there, scroll position and all, the way the About
+/// panel does.
+@MainActor
+enum ChangelogWindow {
+    private static var window: NSWindow?
+
+    static func show() {
+        if let window {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let text = Changelog.text()
+        let created = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 560, height: 520),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        created.title = Changelog.newestVersion(in: text)
+            .map { "What's New in \($0)" } ?? "What's New"
+        created.contentViewController = NSHostingController(
+            rootView: ChangelogView(text: text)
+        )
+        // Set after the controller, because assigning one resizes the window
+        // to what SwiftUI asks for -- and a scroll view asks for almost no
+        // width, which is how this opened two pixels wide.
+        created.setContentSize(NSSize(width: 560, height: 520))
+        // Closing it should put it away, not destroy it under the reference
+        // held here.
+        created.isReleasedWhenClosed = false
+        created.center()
+        created.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        window = created
     }
 }
