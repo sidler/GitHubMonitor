@@ -3,3 +3,7 @@
 *.app/
 .DS_Store
 Package.resolved
+
+# Claude Code keeps per-machine tool permissions here. The skills beside it
+# belong to the project and are checked in.
+.claude/settings.local.json

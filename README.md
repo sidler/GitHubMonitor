@@ -222,9 +222,13 @@ update `version` and `sha256` in the cask at
 checksum from the file GitHub serves rather than the local one — they should
 match, and it costs one `curl` to know rather than assume.
 
-`CFBundleVersion` in `Resources/Info.plist` is still `1`. Apple does not mind,
-but anything that compares builds does: it has to increase before there is a
-second release.
+`CFBundleVersion` is not edited by hand. `Scripts/assemble-bundle.sh` writes
+the number of commits into the bundle at build time, so it rises on its own
+for anything that compares builds. It does mean the release has to be built
+after the version commit, or the number belongs to the previous state.
+
+The whole sequence is written down as a skill, in
+[`.claude/skills/release`](.claude/skills/release/SKILL.md).
 
 ### Network access
 
