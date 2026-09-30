@@ -161,6 +161,7 @@ public final class RefreshController {
         state.pullRequestDetails = [:]
         state.issueDetails = [:]
         state.changedFiles = [:]
+        state.viewedFiles = [:]
         state.openedDiff = nil
         state.approval = .idle
         state.inspectedPullRequestID = nil
@@ -277,6 +278,7 @@ public final class RefreshController {
                 livePullRequests.contains($0.key)
             }
             state.changedFiles = state.changedFiles.filter { livePullRequests.contains($0.key) }
+            state.viewedFiles = state.viewedFiles.filter { livePullRequests.contains($0.key) }
             if let inspected = state.inspectedPullRequestID, !livePullRequests.contains(inspected) {
                 state.inspectedPullRequestID = nil
             }
@@ -784,6 +786,7 @@ public final class RefreshController {
         guard let service, let item = state.pullRequest(withID: id) else { return }
 
         state.changedFiles[id] = .loading
+        loadViewedFilesIfNeeded(for: id)
         Task { [weak self] in
             do {
                 let files = try await service.changedFiles(
@@ -795,6 +798,67 @@ public final class RefreshController {
                 self?.state.changedFiles[id] = .failed(error.localizedDescription)
             } catch {
                 self?.state.changedFiles[id] = .failed(error.localizedDescription)
+            }
+        }
+    }
+
+    // MARK: - Viewed files
+
+    /// Which files GitHub says this person has ticked off.
+    ///
+    /// Its own request beside the patches: the patches come from REST,
+    /// which does not carry the tick, and this comes from GraphQL, which
+    /// does not carry the patch. Joined on the path, which is what both
+    /// sides key on.
+    ///
+    /// A failure here is quiet. The diff is readable without the ticks, and
+    /// an error banner over somebody's review for a checkbox would be worse
+    /// than the missing checkbox.
+    public func loadViewedFilesIfNeeded(for id: String) {
+        guard state.viewedFiles[id] == nil, let service else { return }
+        // Claimed straight away, so a second opening does not ask again
+        // while the first is still in flight.
+        state.viewedFiles[id] = [:]
+
+        Task { [weak self] in
+            do {
+                let fetched = try await service.viewedFiles(pullRequestID: id)
+                guard let self else { return }
+                // Merged rather than assigned: a tick set while this was in
+                // flight is newer than what the request went out to ask.
+                state.viewedFiles[id] = fetched.states.merging(
+                    state.viewedFiles[id] ?? [:]
+                ) { _, mine in mine }
+                if let budget = fetched.budget { state.budgets.graphQL = budget }
+            } catch {
+                Log.api.error("viewed files failed: \(error.localizedDescription, privacy: .public)")
+                // Left empty rather than nil: asking again on every redraw
+                // would spend the budget on an answer that just failed.
+            }
+        }
+    }
+
+    /// Ticks a file off, or takes the tick back, on GitHub and here.
+    ///
+    /// Shown straight away and corrected if GitHub refuses. A tick is a
+    /// private, reversible note to yourself that nobody else sees, so it
+    /// asks nothing first -- unlike the approval, which is public and
+    /// final.
+    public func setViewed(_ viewed: Bool, path: String, in pullRequestID: String) {
+        guard let service else { return }
+        let previous = state.viewedState(of: path, in: pullRequestID)
+        guard previous != (viewed ? .viewed : .unviewed) else { return }
+
+        state.viewedFiles[pullRequestID, default: [:]][path] = viewed ? .viewed : .unviewed
+
+        Task { [weak self] in
+            do {
+                try await service.setViewed(viewed, pullRequestID: pullRequestID, path: path)
+            } catch {
+                Log.api.error("marking viewed failed: \(error.localizedDescription, privacy: .public)")
+                // Put back what it was, rather than leave a tick on screen
+                // that GitHub does not have.
+                self?.state.viewedFiles[pullRequestID, default: [:]][path] = previous
             }
         }
     }

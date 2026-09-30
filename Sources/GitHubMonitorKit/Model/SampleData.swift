@@ -333,6 +333,15 @@ public enum SampleData {
         ]
     }
 
+    /// One file ticked off, one changed since it was ticked, and the rest
+    /// untouched -- all three states the diff has to draw.
+    public static func viewedFiles() -> [String: FileViewedState] {
+        [
+            "src/Session/migrations.yml": .viewed,
+            "src/Filter/UserFilter.php": .dismissed,
+        ]
+    }
+
     // MARK: - Linked items
 
     /// Two looked-up links and one number that turned out to be nothing, so

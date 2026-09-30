@@ -255,7 +255,20 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             ),
             close: { [weak state] in state?.openedDiff = nil },
             review: item.map(reviewActions(for:)),
-            subject: item.map(subject(for:))
+            subject: item.map(subject(for:)),
+            viewed: ViewedFiles(
+                app: state,
+                pullRequestID: opened.pullRequestID,
+                toggle: { [controller, state] path in
+                    let now = state.viewedState(of: path, in: opened.pullRequestID)
+                    // A file GitHub has dismissed is unticked as far as the
+                    // tick goes, so pressing it ticks it -- which is what
+                    // somebody who has just re-read it means.
+                    controller.setViewed(
+                        now != .viewed, path: path, in: opened.pullRequestID
+                    )
+                }
+            )
         )
     }
 

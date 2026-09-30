@@ -86,3 +86,44 @@ public enum ChangedFilesState: Equatable, Sendable {
     case loaded([ChangedFile])
     case failed(String)
 }
+
+/// Whether this person has ticked a file off while reviewing.
+///
+/// GitHub's own three answers, not two. `dismissed` is the one worth
+/// keeping apart: it means the file was ticked and has changed since, so
+/// the tick was taken back. "Looked at, but not at this" is a different
+/// thing from "not looked at", and it is the one a reviewer most needs to
+/// see.
+public enum FileViewedState: String, Hashable, Sendable {
+    case unviewed
+    case viewed
+    case dismissed
+
+    public init(apiValue: String?) {
+        switch apiValue {
+        case "VIEWED": self = .viewed
+        case "DISMISSED": self = .dismissed
+        default: self = .unviewed
+        }
+    }
+
+    /// Whether the patch is folded away. Only a plain tick folds it: a
+    /// dismissed file is exactly the one to read again.
+    public var isFolded: Bool { self == .viewed }
+
+    public var label: String {
+        switch self {
+        case .unviewed: "Not viewed"
+        case .viewed: "Viewed"
+        case .dismissed: "Changed since you viewed it"
+        }
+    }
+
+    public var symbolName: String {
+        switch self {
+        case .unviewed: "square"
+        case .viewed: "checkmark.square.fill"
+        case .dismissed: "exclamationmark.square"
+        }
+    }
+}

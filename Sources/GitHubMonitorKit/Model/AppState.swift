@@ -148,6 +148,13 @@ public final class AppState {
     /// Numbers read out of descriptions, so a body is parsed once rather
     /// than on every pass a view makes over it.
     let bodyLinks = BodyLinkCache()
+    /// Which files of which pull request have been ticked off, by pull
+    /// request id and then by path.
+    ///
+    /// Beside the patches rather than inside them: ticking a file off does
+    /// not change its diff, and rebuilding the whole file list for a
+    /// checkbox would throw away the scroll position with it.
+    public var viewedFiles: [String: [String: FileViewedState]] = [:]
     /// The conversation behind a notification, fetched when its pane opens.
     /// A mention lives in a comment, so the pane needs more than the one
     /// message the notification points at.
@@ -637,6 +644,7 @@ public final class AppState {
         pullRequestDetails["pr-482"] = .loaded(SampleData.detail())
         changedFiles["pr-482"] = .loaded(SampleData.changedFiles())
         linkedSummaries = SampleData.linkedSummaries()
+        viewedFiles["pr-482"] = SampleData.viewedFiles()
 
         notifications = [
             NotificationItem(
@@ -1022,5 +1030,22 @@ extension AppState {
             }
         }
         return nil
+    }
+}
+
+
+extension AppState {
+    /// Where one file stands for this person. Unviewed until GitHub says
+    /// otherwise, which is also the honest answer while the states are
+    /// still being fetched.
+    public func viewedState(of path: String, in pullRequestID: String) -> FileViewedState {
+        viewedFiles[pullRequestID]?[path] ?? .unviewed
+    }
+
+    /// How many of a pull request's files have been ticked off, for the
+    /// line in the diff's header. Counted over the files actually on
+    /// screen, so it cannot claim more than it shows.
+    public func viewedCount(of files: [ChangedFile], in pullRequestID: String) -> Int {
+        files.count { viewedState(of: $0.path, in: pullRequestID) == .viewed }
     }
 }

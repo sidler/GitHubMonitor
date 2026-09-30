@@ -21,6 +21,9 @@ struct DiffOverlay: View {
     /// The pull request itself and what it answers, for the panel in the
     /// header. Nil where the overlay was opened without one.
     var subject: LinkedSubject?
+    /// Which files have been ticked off, and how to tick one. Nil leaves
+    /// the overlay a reader with no checkboxes.
+    var viewed: ViewedFiles?
 
     @StateObject private var open = OpenFolders()
 
@@ -73,6 +76,14 @@ struct DiffOverlay: View {
         HStack(spacing: 10) {
             Text("\(files.count) file\(files.count == 1 ? "" : "s") changed")
                 .font(.headline)
+            // The number a review is actually measured against, next to the
+            // one it is measured out of.
+            if let viewed, viewed.count(of: files) > 0 {
+                Text("\(viewed.count(of: files)) of \(files.count) viewed")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
             if additions > 0 {
                 Text(verbatim: "+\(additions)").foregroundStyle(.green).monospacedDigit()
             }
@@ -183,7 +194,7 @@ struct DiffOverlay: View {
     /// and scrolling moves the highlight.
     private var index: some View {
         List(selection: $path) {
-            FileTreeRows(nodes: FileTree.build(files), open: open)
+            FileTreeRows(nodes: FileTree.build(files), open: open, viewed: viewed?.states ?? [:])
         }
         // Inset rather than sidebar: the sidebar style draws an edge shadow
         // down its trailing side, which fell across the diff beside it.
@@ -214,8 +225,20 @@ struct DiffOverlay: View {
     }
 
     private func fileSection(_ file: ChangedFile, width: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        let state = viewed?.state(file.path) ?? .unviewed
+        return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
+                if let viewed {
+                    Button { viewed.toggle(file.path) } label: {
+                        Image(systemName: state.symbolName)
+                            .foregroundStyle(tint(for: state))
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .pointerStyle(.link)
+                    .help(state.label)
+                }
+
                 Image(systemName: file.change.symbolName)
                     .foregroundStyle(.secondary)
                     .help(file.change.label)
@@ -239,7 +262,15 @@ struct DiffOverlay: View {
             }
             .padding(.horizontal, 12)
 
-            if let patch = file.patch {
+            // A ticked file keeps its header and its place, and folds the
+            // patch away. Folded rather than hidden: the point of the tick
+            // is "done with this for now", not "never show me again".
+            if state.isFolded {
+                Text("Viewed \u{2014} click the tick to unfold it again")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 12)
+            } else if let patch = file.patch {
                 // Its own horizontal scroll, so a long line moves without
                 // dragging the file above it sideways too.
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -257,6 +288,44 @@ struct DiffOverlay: View {
                     .padding(.horizontal, 12)
             }
         }
+    }
+}
+
+extension DiffOverlay {
+    fileprivate func tint(for state: FileViewedState) -> Color {
+        switch state {
+        case .unviewed: Color(nsColor: .secondaryLabelColor)
+        case .viewed: .green
+        // The one that needs reading again, and the only one drawn in a
+        // colour that asks for attention.
+        case .dismissed: .orange
+        }
+    }
+}
+
+/// What the overlay may do with the ticks beside its files.
+///
+/// The state itself rather than a copy of it, which is the difference
+/// between a tick that appears when it is pressed and one that appears
+/// after the next launch: a snapshot taken when the overlay was built does
+/// not change when the tick does, and the view has nothing to redraw for.
+/// Read during `body`, so the view follows the state the way any other
+/// observed read does.
+@MainActor
+struct ViewedFiles {
+    let app: AppState
+    let pullRequestID: String
+    let toggle: (String) -> Void
+
+    var states: [String: FileViewedState] { app.viewedFiles[pullRequestID] ?? [:] }
+
+    func state(_ path: String) -> FileViewedState {
+        app.viewedState(of: path, in: pullRequestID)
+    }
+
+    /// How many of these files are ticked off, for the header.
+    func count(of files: [ChangedFile]) -> Int {
+        app.viewedCount(of: files, in: pullRequestID)
     }
 }
 
@@ -372,6 +441,9 @@ final class OpenFolders: ObservableObject {
 struct FileTreeRows: View {
     let nodes: [FileTree.Node]
     @ObservedObject var open: OpenFolders
+    /// Where each file stands, so the list used for jumping also says what
+    /// is left to read. Empty where the overlay has no ticks.
+    var viewed: [String: FileViewedState] = [:]
 
     var body: some View {
         ForEach(nodes) { node in
@@ -380,7 +452,7 @@ struct FileTreeRows: View {
                 fileRow(file).tag(file.path)
             case .folder(let folder):
                 DisclosureGroup(isExpanded: open.binding(for: folder.path)) {
-                    AnyView(FileTreeRows(nodes: folder.children, open: open))
+                    AnyView(FileTreeRows(nodes: folder.children, open: open, viewed: viewed))
                 } label: {
                     folderRow(folder)
                 }
@@ -389,7 +461,8 @@ struct FileTreeRows: View {
     }
 
     private func fileRow(_ file: ChangedFile) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
+        let state = viewed[file.path] ?? .unviewed
+        return HStack(alignment: .firstTextBaseline, spacing: 6) {
             Image(systemName: file.change.symbolName)
                 .foregroundStyle(.secondary)
             // The name only: the folders above it carry the rest, which is
@@ -397,6 +470,13 @@ struct FileTreeRows: View {
             Text((file.path as NSString).lastPathComponent)
                 .lineLimit(1)
                 .truncationMode(.middle)
+                .foregroundStyle(state == .viewed ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
+            if state != .unviewed {
+                Image(systemName: state.symbolName)
+                    .font(.caption)
+                    .foregroundStyle(state == .viewed ? Color.green : Color.orange)
+                    .help(state.label)
+            }
             Spacer(minLength: 4)
             if file.additions > 0 {
                 Text(verbatim: "+\(file.additions)")

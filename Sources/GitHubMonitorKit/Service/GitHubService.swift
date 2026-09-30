@@ -164,6 +164,50 @@ public struct GitHubService: Sendable {
         return try ApprovalQuery.head(from: payload)
     }
 
+    /// Which files of a pull request this person has already ticked off.
+    ///
+    /// Paged to the same ceiling the patches stop at, so the answer covers
+    /// what the overlay can show and no more.
+    public func viewedFiles(
+        pullRequestID: String
+    ) async throws -> (states: [String: FileViewedState], budget: RateBudget?) {
+        var states: [String: FileViewedState] = [:]
+        var budget: RateBudget?
+        var spent = 0
+        var cursor: String?
+        // A page that reports another page while yielding nothing would
+        // otherwise keep this going: the file cap counts files, not rounds.
+        var pagesLeft = ViewedFilesQuery.maximumFiles / ViewedFilesQuery.pageSize + 1
+
+        repeat {
+            pagesLeft -= 1
+            var variables: [String: Any] = ["id": pullRequestID]
+            if let cursor { variables["after"] = cursor }
+            let payload = try await client.graphQL(ViewedFilesQuery.document, variables: variables)
+            let page = ViewedFilesQuery.page(from: payload)
+            states.merge(page.states) { _, new in new }
+            if let reading = ListParser.budget(from: payload) {
+                spent += reading.cost
+                budget = reading
+            }
+            cursor = (states.count >= ViewedFilesQuery.maximumFiles || pagesLeft <= 0)
+                ? nil
+                : page.cursor
+        } while cursor != nil
+
+        return (states, budget?.costing(spent))
+    }
+
+    /// Ticks one file off, or takes the tick back.
+    public func setViewed(
+        _ viewed: Bool, pullRequestID: String, path: String
+    ) async throws {
+        _ = try await client.graphQL(
+            ViewedFilesQuery.document(setting: viewed),
+            variables: ["id": pullRequestID, "path": path]
+        )
+    }
+
     /// Looks up linked issues and pull requests by number.
     ///
     /// One request for the lot: this costs a point whatever it carries
