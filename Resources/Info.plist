@@ -2,35 +2,27 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>CFBundleExecutable</key>
-	<string>GitHubMonitor</string>
-	<key>CFBundleIdentifier</key>
-	<string>com.sidler.githubmonitor</string>
-	<key>CFBundleIconFile</key>
-	<string>AppIcon</string>
-	<key>CFBundleName</key>
-	<string>GitHubMonitor</string>
 	<key>CFBundleDisplayName</key>
 	<string>GitHub Monitor</string>
+	<key>CFBundleExecutable</key>
+	<string>GitHubMonitor</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.sidler.githubmonitor</string>
+	<key>CFBundleName</key>
+	<string>GitHubMonitor</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.1.0</string>
-	<!-- A placeholder. The build writes the real one into the bundle's copy
-	     of this file: an updater compares builds on CFBundleVersion, and a
-	     number that never moves makes every version look equally old. -->
+	<string>1.2.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
-	<key>NSHumanReadableCopyright</key>
-	<string>© 2026 Stefan Idler. MIT licensed.</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>26.0</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
-	<!-- Deliberately NOT LSUIElement: that flag stops macOS from ever
-	     building the menu bar, so switching to a regular activation policy
-	     later leaves the menu titles visible but dead. main.swift sets the
-	     accessory policy instead, before the app finishes launching, which
-	     keeps the Dock icon away without losing the menu. -->
+	<key>NSHumanReadableCopyright</key>
+	<string>© 2026 Stefan Idler. MIT licensed.</string>
 </dict>
 </plist>

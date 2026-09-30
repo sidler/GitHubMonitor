@@ -3,16 +3,26 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
-## Unreleased
+## 1.2.0
 
-- The diff's text size can be changed, from *View → Larger Diff Text* and
-  ⌘+ / ⌘− while a diff is open, or from Settings. The patch only: the
-  file names and the tree beside them keep theirs.
+### Reading a diff
+
+- The diff's text size can be chosen, from *View → Larger Diff Text* with
+  ⌘+ and ⌘− while a diff is open, or from a stepper in Settings. Eight
+  to twenty points. The patch only: the file names above it and the tree
+  beside it are chrome, and a reader who wants the code bigger does not
+  want the furniture bigger with it.
 - The file's name stays at the top of the column while you read its patch,
-  and the next file's name pushes it off.
-- This changelog, and the window that shows it.
-- A list item wrapped over several lines is one item again. Its tail used to
-  fall out of the list and land at the margin as a paragraph of its own.
+  and the next file's name pushes it off. A long patch used to leave you
+  scrolling through code with nothing saying which file it belonged to.
+
+### Elsewhere
+
+- This changelog, and the window under *GitHub Monitor → What's New* that
+  shows it.
+- A list item wrapped over several lines is one item again. Its tail used
+  to fall out of the list and land at the margin as a paragraph of its
+  own — in every pull request description, not only here.
 
 ## 1.1.0
 
