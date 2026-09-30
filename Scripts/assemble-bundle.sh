@@ -20,6 +20,15 @@ shift 3
 rm -rf "$app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp Resources/Info.plist "$app/Contents/Info.plist"
+
+# The build number, written into the bundle rather than kept in the
+# repository: it has to increase with every build an updater might compare,
+# and the number of commits does that on its own without anybody having to
+# remember. Falls back to the plist's placeholder outside a git checkout.
+build=$(git rev-list --count HEAD 2>/dev/null || echo "")
+if [ -n "$build" ]; then
+  /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $build" "$app/Contents/Info.plist"
+fi
 cp Resources/AppIcon.icns "$app/Contents/Resources/AppIcon.icns"
 cp "$binary" "$app/Contents/MacOS/GitHubMonitor"
 
