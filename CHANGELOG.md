@@ -3,7 +3,9 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
-## Unreleased
+## 1.3.0
+
+### Reading a diff
 
 - The diff carries line numbers, each line's place in both files — before
   the change, then after. A removed line is numbered only in the old file
@@ -16,6 +18,8 @@ What changed in each released version. The app shows this file itself, under
   of the following patch, with the lines above it gone and nothing saying
   they had been skipped. Ticking a file further down, or unfolding one,
   still leaves the page where it is.
+### The menu bar
+
 - A refresh GitHub does not answer leaves the last counts in the menu bar
   rather than replacing them with a warning triangle. A timeout is usually
   over before anybody looks, and counts that were right a minute ago are
