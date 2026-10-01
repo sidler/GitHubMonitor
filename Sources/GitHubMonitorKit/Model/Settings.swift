@@ -82,6 +82,16 @@ public final class Settings {
         min(max(size.rounded(), smallestDiffFontSize), largestDiffFontSize)
     }
 
+    /// Whether the diff carries the line numbers of both files.
+    ///
+    /// On by default: a number is how a diff is talked about with anybody
+    /// else, and reading one without them means counting. Off for those who
+    /// want the narrowest possible column, which on a laptop beside a
+    /// browser is a real want.
+    public var showsDiffLineNumbers: Bool {
+        didSet { store.set(showsDiffLineNumbers, forKey: Key.showsDiffLineNumbers) }
+    }
+
     /// One press of Larger or Smaller.
     ///
     /// Clamping rather than refusing: a step at the end of the range should
@@ -205,6 +215,9 @@ public final class Settings {
         hidesSingleRepository = store.bool(forKey: Key.hidesSingleRepository)
         agingDays = store.object(forKey: Key.agingDays) as? Int ?? 3
         overdueDays = store.object(forKey: Key.overdueDays) as? Int ?? 7
+        // Absent means on rather than off: a fresh install should show
+        // them, and `as? Bool` on a missing key is nil, not false.
+        showsDiffLineNumbers = store.object(forKey: Key.showsDiffLineNumbers) as? Bool ?? true
         diffFontSize = Self.clampedFontSize(
             store.object(forKey: Key.diffFontSize) as? Double ?? Self.defaultDiffFontSize
         )
@@ -331,6 +344,7 @@ public final class Settings {
         static let agingDays = "agingDays"
         static let overdueDays = "overdueDays"
         static let diffFontSize = "diffFontSize"
+        static let showsDiffLineNumbers = "showsDiffLineNumbers"
         static let notificationReasons = "notificationReasons"
         static let hiddenLists = "hiddenLists"
         static let savedLists = "savedLists"

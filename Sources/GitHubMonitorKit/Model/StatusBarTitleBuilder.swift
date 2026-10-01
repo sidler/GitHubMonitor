@@ -19,13 +19,29 @@ public enum StatusBarStyle: String, CaseIterable, Codable, Sendable {
 }
 
 /// Overall health of the data behind the counts. Drives whether we show
-/// numbers at all -- stale or missing data must not masquerade as a real zero.
+/// numbers at all -- missing data must not masquerade as a real zero.
 public enum StatusBarHealth: Equatable, Sendable {
     case ok
     /// No token configured yet.
     case unconfigured
-    /// Last refresh failed (network, auth, rate limit).
+    /// The last refresh failed, but an earlier one succeeded, so the counts
+    /// on hand are real numbers that were true a few minutes ago.
+    ///
+    /// Drawn exactly like `ok`. A timeout is usually over before anybody
+    /// looks, and replacing five counts with a warning triangle for it
+    /// throws away everything the menu bar is for to report a condition
+    /// that will have passed by the next tick. The failure is not hidden:
+    /// it is in the tooltip, and in red at the foot of the window and the
+    /// popover, where there is room to say what went wrong and a button to
+    /// try again.
+    case stale
+    /// The last refresh failed and nothing earlier succeeded, so there is
+    /// nothing to fall back to. Counting zero here would be a lie about an
+    /// empty queue rather than a report of an unanswered question.
     case failing
+
+    /// Whether the last refresh failed, either way.
+    public var isFailure: Bool { self == .stale || self == .failing }
 }
 
 /// A renderable piece of the menu bar title. Kept symbolic rather than
@@ -59,7 +75,7 @@ public enum StatusBarTitleBuilder {
             return [.symbol(unconfiguredSymbol)]
         case .failing:
             return [.symbol(warningSymbol)]
-        case .ok:
+        case .ok, .stale:
             break
         }
 
@@ -103,13 +119,18 @@ public enum StatusBarTitleBuilder {
         switch health {
         case .unconfigured: return "GitHub Monitor: no token configured"
         case .failing: return "GitHub Monitor: last refresh failed"
-        case .ok: break
+        case .ok, .stale: break
         }
 
+        // Where the numbers are old, the tooltip is where that is said. It
+        // costs nothing until somebody asks, which is the right price for a
+        // condition that is usually over before they do.
+        let suffix = health == .stale ? " \u{2014} last refresh failed" : ""
+
         guard !counts.isEmpty else {
-            return "GitHub Monitor: no counts shown in the menu bar"
+            return "GitHub Monitor: no counts shown in the menu bar" + suffix
         }
         let phrases = counts.map { "\($0.count) \($0.title.lowercased())" }
-        return "GitHub Monitor: " + phrases.joined(separator: ", ")
+        return "GitHub Monitor: " + phrases.joined(separator: ", ") + suffix
     }
 }

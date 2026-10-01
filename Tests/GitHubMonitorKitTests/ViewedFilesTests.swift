@@ -167,3 +167,71 @@ struct ChangelogTests {
 
 /// Only here to name a bundle that has no changelog in it.
 private final class TestAnchor {}
+
+@Suite("Where the diff goes when a file is ticked off")
+struct DiffNavigationTests {
+    private let files = ["a.swift", "b.swift", "c.swift"].map {
+        ChangedFile(path: $0, additions: 1, deletions: 0, change: .modified, patch: "@@")
+    }
+
+    /// The case this exists for: fold away what you just read, and the next
+    /// file starts at its first line rather than wherever the shrinking
+    /// column happens to leave it.
+    @Test("Ticking the file being read moves to the next one")
+    func movesOn() {
+        #expect(
+            DiffNavigation.destination(
+                ticking: "a.swift", folding: true, showing: "a.swift", in: files
+            ) == "b.swift"
+        )
+    }
+
+    /// A tick further down the list is a note to self, not a request to go
+    /// somewhere.
+    @Test("Ticking a file you are not reading leaves the scroll alone")
+    func staysPut() {
+        #expect(
+            DiffNavigation.destination(
+                ticking: "c.swift", folding: true, showing: "a.swift", in: files
+            ) == nil
+        )
+    }
+
+    /// Unfolding is the opposite request: you want to see that file, so
+    /// moving away from it would be exactly wrong.
+    @Test("Unticking never moves")
+    func unfolding() {
+        #expect(
+            DiffNavigation.destination(
+                ticking: "a.swift", folding: false, showing: "a.swift", in: files
+            ) == nil
+        )
+    }
+
+    /// Nothing follows it, so it keeps itself rather than leaving the
+    /// landing place to whatever the layout does as it shrinks.
+    @Test("Ticking the last file lands on its own header")
+    func lastFile() {
+        #expect(
+            DiffNavigation.destination(
+                ticking: "c.swift", folding: true, showing: "c.swift", in: files
+            ) == "c.swift"
+        )
+    }
+
+    /// The next file as listed, even where it is one already ticked off.
+    /// Skipping to the next unviewed file is a second guess nobody asked
+    /// for -- the same reason opening a diff does not jump to one either.
+    @Test("The next file is the next one, viewed or not")
+    func doesNotSkip() {
+        #expect(DiffNavigation.file(after: "a.swift", in: files) == "b.swift")
+        #expect(DiffNavigation.file(after: "c.swift", in: files) == nil)
+        // A path the list does not hold cannot send anybody anywhere.
+        #expect(DiffNavigation.file(after: "gone.swift", in: files) == nil)
+        #expect(
+            DiffNavigation.destination(
+                ticking: "a.swift", folding: true, showing: nil, in: files
+            ) == nil
+        )
+    }
+}

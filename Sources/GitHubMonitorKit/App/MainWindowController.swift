@@ -257,6 +257,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             review: item.map(reviewActions(for:)),
             subject: item.map(subject(for:)),
             fontSize: state.settings.diffFontSize,
+            showsLineNumbers: state.settings.showsDiffLineNumbers,
             viewed: ViewedFiles(
                 app: state,
                 pullRequestID: opened.pullRequestID,
@@ -489,6 +490,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             // the only sensible moment to change it: the overlay is rebuilt
             // rather than left at the size it was opened with.
             _ = state.settings.diffFontSize
+            _ = state.settings.showsDiffLineNumbers
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else { return }

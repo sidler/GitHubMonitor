@@ -151,9 +151,11 @@ can be exercised without a token.
 open -n /Applications/GitHubMonitor.app --args --open settings --sample
 ```
 
-`settings:general` opens a particular settings tab. The same switches are read
-from the environment as `GHM_OPEN` and `GHM_SAMPLE`, which is what to use when
-launching the binary directly rather than through `open`.
+`settings:general` opens a particular settings tab. `--fail` marks the last
+refresh as failed on top of the sample data, which is how to see what the menu
+bar does when GitHub does not answer. The same switches are read from the
+environment as `GHM_OPEN`, `GHM_SAMPLE` and `GHM_FAIL`, which is what to use
+when launching the binary directly rather than through `open`.
 
 ### Signing
 

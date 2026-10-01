@@ -433,7 +433,7 @@ struct ContentColumn: View {
                 ProgressView().controlSize(.small)
             }
             Text(state.statusMessage)
-                .foregroundStyle(state.health == .failing ? .red : .secondary)
+                .foregroundStyle(state.health.isFailure ? .red : .secondary)
 
             Button {
                 Task { await controller.refresh() }

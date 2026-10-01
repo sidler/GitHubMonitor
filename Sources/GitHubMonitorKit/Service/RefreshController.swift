@@ -845,11 +845,15 @@ public final class RefreshController {
     /// asks nothing first -- unlike the approval, which is public and
     /// final.
     public func setViewed(_ viewed: Bool, path: String, in pullRequestID: String) {
-        guard let service else { return }
+        guard service != nil || state.isSample else { return }
         let previous = state.viewedState(of: path, in: pullRequestID)
         guard previous != (viewed ? .viewed : .unviewed) else { return }
 
         state.viewedFiles[pullRequestID, default: [:]][path] = viewed ? .viewed : .unviewed
+
+        // Made-up files have nowhere to be sent. The tick stands on its own
+        // so the folding, and the scroll that follows it, can be worked.
+        guard let service else { return }
 
         Task { [weak self] in
             do {

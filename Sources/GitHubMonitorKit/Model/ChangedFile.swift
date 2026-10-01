@@ -127,3 +127,45 @@ public enum FileViewedState: String, Hashable, Sendable {
         }
     }
 }
+
+/// Where the diff goes next when a file is ticked off.
+///
+/// Folding a file takes height out of the column above where the reader is
+/// looking, so the offset that was the start of the following file becomes
+/// somewhere in the middle of it. Landing mid-patch is worse than not
+/// folding at all: the lines above are gone from view and nothing says they
+/// were skipped. The cure is to say where to land rather than let the
+/// shrinking layout decide.
+public enum DiffNavigation {
+    /// The file after `path`, or nil if it is the last one.
+    ///
+    /// The next file as listed, not the next unviewed one. Skipping ahead
+    /// over files already ticked would be a second guess about where the
+    /// reader wants to be, and one they did not ask for.
+    public static func file(after path: String, in files: [ChangedFile]) -> String? {
+        guard
+            let index = files.firstIndex(where: { $0.path == path }),
+            files.indices.contains(index + 1)
+        else { return nil }
+        return files[index + 1].path
+    }
+
+    /// Where to leave the scroll when `ticked` is ticked off while `showing`
+    /// is the file at the top of the column, or nil to leave it alone.
+    ///
+    /// Nil for everything except folding away the file being read. Ticking
+    /// something further down in passing, or unfolding one, should not move
+    /// the page -- a jump nobody asked for is its own kind of lost place.
+    public static func destination(
+        ticking ticked: String,
+        folding: Bool,
+        showing: String?,
+        in files: [ChangedFile]
+    ) -> String? {
+        guard folding, showing == ticked else { return nil }
+        // The last file has nothing after it, so it keeps itself: the tick
+        // ends somewhere deliberate rather than wherever the shrinking
+        // layout happens to leave it.
+        return file(after: ticked, in: files) ?? ticked
+    }
+}

@@ -169,7 +169,7 @@ struct PopoverView: View {
             Spacer()
             Text(state.statusMessage)
                 .font(.caption)
-                .foregroundStyle(state.health == .failing ? .red : .secondary)
+                .foregroundStyle(state.health.isFailure ? .red : .secondary)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)

@@ -63,13 +63,25 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             moveDetail: { refresh.moveInspection(by: $0) },
             closeDetail: { refresh.closeInspector() },
             changeDiffFontSize: { [state] step in state.settings.changeDiffFontSize(by: step) },
-            resetDiffFontSize: { [state] in state.settings.resetDiffFontSize() }
+            resetDiffFontSize: { [state] in state.settings.resetDiffFontSize() },
+            showsDiffLineNumbers: { [state] in state.settings.showsDiffLineNumbers },
+            toggleDiffLineNumbers: { [state] in
+                state.settings.showsDiffLineNumbers.toggle()
+            }
         )
 
         // Sample data is opt-in now that real requests work, so the UI can
         // still be exercised without a token.
         if devOption("GHM_SAMPLE") != nil {
             state.loadSampleData()
+            // Development aid: what the menu bar does when a refresh fails
+            // on top of counts that already arrived. Applied after the
+            // sample load, which marks itself loaded.
+            if let message = devOption("GHM_FAIL") {
+                state.loadState = .failed(
+                    message == "1" ? "The request timed out." : message
+                )
+            }
         } else {
             Task {
                 // Without a token there is nothing to show and nowhere to go,

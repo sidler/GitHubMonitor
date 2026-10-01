@@ -268,7 +268,7 @@ public enum SampleData {
         PullRequestDetail(
             headBranch: "fix/session-handler-race",
             baseBranch: "main",
-            additions: 154, deletions: 64, changedFiles: 6, comments: 4,
+            additions: 195, deletions: 76, changedFiles: 6, comments: 4,
             body: description,
             mergeStatus: .conflicting,
             checks: [
@@ -283,6 +283,21 @@ public enum SampleData {
 
     /// One small patch, one large enough to stay folded, and a tree deep
     /// enough for the file index to have something to collapse.
+    /// Assembles a patch long enough to outrun the column it is read in.
+    ///
+    /// Written as lists of lines rather than one long string literal: a
+    /// forty-line patch inside a Swift string is unreadable in the one place
+    /// it has to be maintained.
+    private static func longPatch(
+        header: String, removed: [String], added: [String], context: [String]
+    ) -> String {
+        ([header]
+            + removed.map { "-" + $0 }
+            + added.map { "+" + $0 }
+            + context.map { " " + $0 }
+        ).joined(separator: "\n")
+    }
+
     public static func changedFiles() -> [ChangedFile] {
         [
             ChangedFile(
@@ -308,15 +323,107 @@ public enum SampleData {
                 additions: 2, deletions: 0, change: .modified,
                 patch: "@@ -4,2 +4,4 @@\n order:\n   - Migration20260901120000\n+  - Migration20260901123000\n+  # runs after the column exists\n"
             ),
+            // Two long patches in a row, deliberately. A file taller than
+            // the column is the only way to be reading the middle of one,
+            // and two of them in sequence is what it takes to see where the
+            // scroll lands when the first is folded away.
             ChangedFile(
                 path: "src/Filter/SessionFilter.php",
-                additions: 3, deletions: 1, change: .modified,
-                patch: "@@ -12,3 +12,5 @@\n class SessionFilter\n-    public $id;\n+    public string $id = '';\n+    public string $data = '';\n"
+                additions: 25, deletions: 7, change: .modified,
+                patch: longPatch(
+                    header: "@@ -12,24 +12,46 @@ class SessionFilter",
+                    removed: [
+                        "    public $id;",
+                        "    public $data;",
+                        "",
+                        "    public function matches($row)",
+                        "    {",
+                        "        return $row['id'] == $this->id;",
+                        "    }",
+                    ],
+                    added: [
+                        "    public string $id = '';",
+                        "    public string $data = '';",
+                        "    private ?Clock $clock = null;",
+                        "",
+                        "    public function matches(array $row): bool",
+                        "    {",
+                        "        if (!isset($row['id'])) {",
+                        "            return false;",
+                        "        }",
+                        "",
+                        "        // Compare as strings: the column is a char(36)",
+                        "        // and PHP would otherwise read '0e123' as a float.",
+                        "        if ((string) $row['id'] !== $this->id) {",
+                        "            return false;",
+                        "        }",
+                        "",
+                        "        return $this->notExpired($row);",
+                        "    }",
+                        "",
+                        "    private function notExpired(array $row): bool",
+                        "    {",
+                        "        $clock = $this->clock ?? new SystemClock();",
+                        "",
+                        "        return $row['expires_at'] > $clock->now();",
+                        "    }",
+                    ],
+                    context: [
+                        "    public function describe(): string",
+                        "    {",
+                        "        return sprintf('session %s', $this->id);",
+                        "    }",
+                        "}",
+                    ]
+                )
             ),
             ChangedFile(
                 path: "src/Filter/UserFilter.php",
-                additions: 1, deletions: 1, change: .modified,
-                patch: "@@ -8,1 +8,1 @@\n-#[ModuleId('_system_module_id_')]\n+#[ModuleId(_system_module_id_)]\n"
+                additions: 20, deletions: 7, change: .modified,
+                patch: longPatch(
+                    header: "@@ -8,18 +8,38 @@ class UserFilter",
+                    removed: [
+                        "#[ModuleId('_system_module_id_')]",
+                        "    public $login;",
+                        "",
+                        "    public function matches($row)",
+                        "    {",
+                        "        return $row['login'] == $this->login;",
+                        "    }",
+                    ],
+                    added: [
+                        "#[ModuleId(_system_module_id_)]",
+                        "    public string $login = '';",
+                        "    private array $teams = [];",
+                        "",
+                        "    public function matches(array $row): bool",
+                        "    {",
+                        "        if (strcasecmp($row['login'], $this->login) === 0) {",
+                        "            return true;",
+                        "        }",
+                        "",
+                        "        // A review asked of a team names the team, not",
+                        "        // the person, so the teams have to be checked too.",
+                        "        foreach ($this->teams as $team) {",
+                        "            if (in_array($row['login'], $team->members(), true)) {",
+                        "                return true;",
+                        "            }",
+                        "        }",
+                        "",
+                        "        return false;",
+                        "    }",
+                    ],
+                    context: [
+                        "    public function withTeams(array $teams): self",
+                        "    {",
+                        "        $copy = clone $this;",
+                        "        $copy->teams = $teams;",
+                        "",
+                        "        return $copy;",
+                        "    }",
+                        "}",
+                    ]
+                )
             ),
             ChangedFile(
                 path: "README.md",

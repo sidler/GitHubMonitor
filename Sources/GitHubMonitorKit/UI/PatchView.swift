@@ -24,6 +24,8 @@ struct DiffOverlay: View {
     /// How large the patch text is. Read from the settings by whoever
     /// builds the overlay, so a change reaches an open diff.
     var fontSize: Double = Settings.defaultDiffFontSize
+    /// Whether each line carries its number in both files.
+    var showsLineNumbers: Bool = true
     /// Which files have been ticked off, and how to tick one. Nil leaves
     /// the overlay a reader with no checkboxes.
     var viewed: ViewedFiles?
@@ -248,7 +250,7 @@ struct DiffOverlay: View {
         return VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
                 if let viewed {
-                    Button { viewed.toggle(file.path) } label: {
+                    Button { tick(file, viewed) } label: {
                         Image(systemName: state.symbolName)
                             .foregroundStyle(tint(for: state))
                             .contentShape(Rectangle())
@@ -287,6 +289,19 @@ struct DiffOverlay: View {
         .background(.background)
     }
 
+    /// Ticks a file off and, where that folded away the one being read,
+    /// moves on to the top of the next. `DiffNavigation` decides where.
+    private func tick(_ file: ChangedFile, _ viewed: ViewedFiles) {
+        let folding = !viewed.state(file.path).isFolded
+        viewed.toggle(file.path)
+
+        guard let destination = DiffNavigation.destination(
+            ticking: file.path, folding: folding, showing: path, in: files
+        ) else { return }
+
+        withAnimation(.easeOut(duration: 0.2)) { path = destination }
+    }
+
     private func fileBody(_ file: ChangedFile, width: CGFloat) -> some View {
         let state = viewed?.state(file.path) ?? .unviewed
         return VStack(alignment: .leading, spacing: 6) {
@@ -302,7 +317,12 @@ struct DiffOverlay: View {
                 // Its own horizontal scroll, so a long line moves without
                 // dragging the file above it sideways too.
                 ScrollView(.horizontal, showsIndicators: false) {
-                    PatchLines(patch: patch, language: file.language, fontSize: fontSize)
+                    PatchLines(
+                        patch: patch,
+                        language: file.language,
+                        fontSize: fontSize,
+                        showsLineNumbers: showsLineNumbers
+                    )
                         .padding(.vertical, 6)
                         // At least the width of the column, so the added and
                         // removed bands run the whole way across; a longer
@@ -366,32 +386,55 @@ struct PatchLines: View {
     let patch: String
     let language: CodeLanguage?
     var fontSize: Double = Settings.defaultDiffFontSize
+    var showsLineNumbers: Bool = true
 
     private var lines: [Line] {
-        patch.components(separatedBy: "\n").enumerated().map { Line(id: $0.offset, text: $0.element) }
+        let numbers = showsLineNumbers ? DiffLineNumbers.read(patch) : []
+        return patch.components(separatedBy: "\n").enumerated().map { index, text in
+            Line(
+                id: index,
+                text: text,
+                number: index < numbers.count ? numbers[index] : .none
+            )
+        }
+    }
+
+    /// Set once for the whole file, so the code keeps one left edge rather
+    /// than stepping right where the numbers reach three digits.
+    private var gutterDigits: Int {
+        showsLineNumbers ? DiffLineNumbers.width(of: DiffLineNumbers.read(patch)) : 0
     }
 
     var body: some View {
+        let digits = gutterDigits
         VStack(alignment: .leading, spacing: 0) {
             ForEach(lines) { line in
-                row(line.text)
+                row(line, digits: digits)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func row(_ text: String) -> some View {
-        let kind = Kind(line: text)
-        return CodeText(
-            source: text,
-            // A hunk header is not code, and the marker column at the start
-            // of every other line would have the highlighter reading `-` as
-            // punctuation before a keyword. Colour the code, not the diff.
-            language: kind == .hunk ? nil : language,
-            font: .system(size: fontSize).monospaced()
-        )
-        .foregroundStyle(kind.textTint)
-        .padding(.horizontal, 12)
+    private func row(_ line: Line, digits: Int) -> some View {
+        let kind = Kind(line: line.text)
+        return HStack(spacing: 0) {
+            if showsLineNumbers {
+                gutter(line.number, digits: digits)
+            }
+
+            CodeText(
+                source: line.text,
+                // A hunk header is not code, and the marker column at the
+                // start of every other line would have the highlighter
+                // reading `-` as punctuation before a keyword. Colour the
+                // code, not the diff.
+                language: kind == .hunk ? nil : language,
+                font: .system(size: fontSize).monospaced()
+            )
+            .foregroundStyle(kind.textTint)
+            .padding(.leading, showsLineNumbers ? 8 : 12)
+            .padding(.trailing, 12)
+        }
         .padding(.vertical, 1)
         .frame(maxWidth: .infinity, alignment: .leading)
         // In a plain rectangle: a bare colour background rounds its
@@ -400,9 +443,31 @@ struct PatchLines: View {
         .background(kind.background, in: Rectangle())
     }
 
+    /// The two numbers, old then new, before the line itself.
+    ///
+    /// Plain `Text` rather than the selectable kind the code uses, so
+    /// copying a passage out of the diff copies the code and not a column
+    /// of numbers down its left-hand side.
+    ///
+    /// Padded to a set number of digits with figure spaces rather than laid
+    /// out with fixed frames: in a monospaced font that is what lines the
+    /// columns up, and it costs no measurement.
+    private func gutter(_ number: DiffLineNumber, digits: Int) -> some View {
+        Text(verbatim: Self.pad(number.old, to: digits) + " " + Self.pad(number.new, to: digits))
+            .font(.system(size: fontSize).monospaced())
+            .foregroundStyle(.tertiary)
+            .padding(.leading, 12)
+    }
+
+    static func pad(_ number: Int?, to digits: Int) -> String {
+        let text = number.map(String.init) ?? ""
+        return String(repeating: " ", count: max(0, digits - text.count)) + text
+    }
+
     private struct Line: Identifiable {
         let id: Int
         let text: String
+        let number: DiffLineNumber
     }
 
     private enum Kind {

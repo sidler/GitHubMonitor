@@ -131,7 +131,24 @@ public final class AppState {
     public var listPullRequests: [String: [PullRequestItem]] = [:]
     public var listIssues: [String: [IssueItem]] = [:]
     public var notifications: [NotificationItem] = []
-    public var loadState: LoadState = .idle
+    public var loadState: LoadState = .idle {
+        didSet {
+            if case .loaded = loadState { hasLoadedOnce = true }
+        }
+    }
+
+    /// Whether a refresh has ever succeeded since the app started.
+    ///
+    /// What tells a stale count from a count that never existed. Recorded
+    /// here, off `loadState` itself, rather than at each place that marks a
+    /// success: there are two of those today and the next one would forget.
+    public private(set) var hasLoadedOnce = false
+    /// Whether the contents are made up.
+    ///
+    /// Sample data exists so the whole interface can be worked without a
+    /// token, and a control that does nothing is not worked. What would
+    /// otherwise go to GitHub is kept locally instead.
+    public private(set) var isSample = false
     /// True once a token has been found in the Keychain.
     public var hasToken: Bool = false
     /// Who the token belongs to, once verified.
@@ -609,8 +626,11 @@ public final class AppState {
 
     public var health: StatusBarHealth {
         guard hasToken else { return .unconfigured }
-        if case .failed = loadState { return .failing }
-        return .ok
+        guard case .failed = loadState else { return .ok }
+        // Counts from the last answer GitHub did give are worth more than a
+        // warning triangle in place of them. With nothing behind them there
+        // is nothing to show, and zeros would read as an empty queue.
+        return hasLoadedOnce ? .stale : .failing
     }
 
     public var statusMessage: String {
@@ -631,6 +651,7 @@ public final class AppState {
     /// Placeholder content for stage 1, so the menu bar rendering and the two
     /// UIs can be exercised before the API clients exist.
     public func loadSampleData() {
+        isSample = true
         hasToken = true
         viewer = Viewer(login: SampleData.viewer, avatarURL: SampleData.avatar(5), scopes: TokenScopes(granted: ["repo", "notifications", "read:org"]))
         // A plausible charge, so the sentence in settings has something to

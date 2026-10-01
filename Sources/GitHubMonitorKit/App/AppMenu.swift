@@ -16,7 +16,9 @@ enum AppMenu {
         moveDetail: @escaping (Int) -> Void,
         closeDetail: @escaping () -> Void,
         changeDiffFontSize: @escaping (Double) -> Void,
-        resetDiffFontSize: @escaping () -> Void
+        resetDiffFontSize: @escaping () -> Void,
+        showsDiffLineNumbers: @escaping () -> Bool,
+        toggleDiffLineNumbers: @escaping () -> Void
     ) -> NSMenu {
         let main = NSMenu()
 
@@ -28,7 +30,9 @@ enum AppMenu {
             moveDetail: moveDetail,
             closeDetail: closeDetail,
             changeDiffFontSize: changeDiffFontSize,
-            resetDiffFontSize: resetDiffFontSize
+            resetDiffFontSize: resetDiffFontSize,
+            showsDiffLineNumbers: showsDiffLineNumbers,
+            toggleDiffLineNumbers: toggleDiffLineNumbers
         ))
         main.addItem(windowMenu())
 
@@ -134,7 +138,9 @@ enum AppMenu {
         moveDetail: @escaping (Int) -> Void,
         closeDetail: @escaping () -> Void,
         changeDiffFontSize: @escaping (Double) -> Void,
-        resetDiffFontSize: @escaping () -> Void
+        resetDiffFontSize: @escaping () -> Void,
+        showsDiffLineNumbers: @escaping () -> Bool,
+        toggleDiffLineNumbers: @escaping () -> Void
     ) -> NSMenuItem {
         let item = NSMenuItem()
         let menu = NSMenu(title: "View")
@@ -181,6 +187,16 @@ enum AppMenu {
         menu.addItem(ActionItem(
             title: "Actual Size", keyEquivalent: "0", action: resetDiffFontSize
         ))
+
+        // Ticked rather than renamed to "Hide Line Numbers": a menu item
+        // whose title flips says what pressing it does but never what the
+        // diff is doing now, and this one is also set from Settings, where
+        // it is a switch.
+        let numbers = ActionItem(
+            title: "Show Line Numbers", keyEquivalent: "", action: toggleDiffLineNumbers
+        )
+        numbers.isOn = showsDiffLineNumbers
+        menu.addItem(numbers)
         menu.addItem(.separator())
         menu.addItem(
             withTitle: "Toggle Sidebar",
@@ -209,8 +225,16 @@ enum AppMenu {
 /// A menu item that runs a closure, since the standard items all need a
 /// responder-chain selector.
 @MainActor
-private final class ActionItem: NSMenuItem {
+private final class ActionItem: NSMenuItem, NSMenuItemValidation {
     private let handler: () -> Void
+
+    /// Whether the item should carry a tick, asked each time the menu is
+    /// about to be shown.
+    ///
+    /// Asked rather than stored: the same preference is set from Settings
+    /// too, and a tick written once at launch would be wrong from the first
+    /// time it was changed anywhere else.
+    var isOn: (() -> Bool)?
 
     init(title: String, keyEquivalent: String, action: @escaping () -> Void) {
         handler = action
@@ -221,6 +245,13 @@ private final class ActionItem: NSMenuItem {
     @available(*, unavailable)
     required init(coder: NSCoder) {
         fatalError("not supported")
+    }
+
+    /// AppKit asks the target this before drawing the item, which is the
+    /// one moment the answer is certain to be current.
+    func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        if let isOn { item.state = isOn() ? .on : .off }
+        return true
     }
 
     @objc private func run() {

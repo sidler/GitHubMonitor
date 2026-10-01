@@ -3,6 +3,28 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
+## Unreleased
+
+- The diff carries line numbers, each line's place in both files — before
+  the change, then after. A removed line is numbered only in the old file
+  and an added one only in the new, which is what tells you where a hunk
+  actually lands. They can be switched off from *View → Show Line Numbers*
+  or beside the text size in Settings, for the narrowest possible column.
+- Ticking off the file you are reading now leaves the next one's first line
+  at the top of the column. Folding takes height out of the page above
+  where you are looking, so the scroll used to land somewhere in the middle
+  of the following patch, with the lines above it gone and nothing saying
+  they had been skipped. Ticking a file further down, or unfolding one,
+  still leaves the page where it is.
+- A refresh GitHub does not answer leaves the last counts in the menu bar
+  rather than replacing them with a warning triangle. A timeout is usually
+  over before anybody looks, and counts that were right a minute ago are
+  worth more than a symbol saying so. The triangle is kept for the one case
+  it is still true of: a failure with nothing behind it, where the only
+  alternative would be zeros that read as an empty queue. What went wrong
+  is still said in red at the foot of the window and the popover, and now
+  in the menu bar's tooltip too.
+
 ## 1.2.0
 
 ### Reading a diff

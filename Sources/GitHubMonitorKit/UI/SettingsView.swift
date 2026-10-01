@@ -180,6 +180,9 @@ private struct GeneralSettingsView: View {
                     }
                 }
 
+                Toggle("Show line numbers", isOn: $settings.showsDiffLineNumbers)
+                    .toggleStyle(.switch)
+
                 // Shown at the size being chosen, because "13 pt" answers a
                 // different question than the one being asked.
                 Text(verbatim: "@@ -1,4 +1,4 @@  func send(_ message: Message) throws {")
@@ -187,7 +190,7 @@ private struct GeneralSettingsView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
 
-                Text("The patch only. File names and the tree beside them keep their size, and \u{2318}+ and \u{2318}\u{2212} change this while a diff is open.")
+                Text("The patch only. File names and the tree beside them keep their size, and \u{2318}+ and \u{2318}\u{2212} change this while a diff is open. The numbers are the line's place in both files \u{2014} before the change, then after.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
