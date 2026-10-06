@@ -75,6 +75,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // Sample data is opt-in now that real requests work, so the UI can
         // still be exercised without a token.
         if devOption("GHM_SAMPLE") != nil {
+            state.isBigSample = devOption("GHM_BIG") != nil
             state.loadSampleData()
             // Development aid: what the menu bar does when a refresh fails
             // on top of counts that already arrived. Applied after the

@@ -249,10 +249,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         return DiffOverlay(
             files: opened.files,
             pullRequest: opened.url,
-            path: Binding(
-                get: { [weak state] in state?.openedDiff?.path },
-                set: { [weak state] path in state?.openedDiff?.path = path }
-            ),
+            startingPath: opened.path,
             close: { [weak state] in state?.openedDiff = nil },
             review: item.map(reviewActions(for:)),
             subject: item.map(subject(for:)),

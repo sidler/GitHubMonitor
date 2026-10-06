@@ -3,6 +3,58 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
+## Unreleased
+
+- The diff fills the window. It was capped at 1500 points wide, which on a
+  wide screen left most of the glass empty — and a wide screen is exactly
+  where two columns of code have somewhere to go.
+- **Side by side splits the width down the middle**, whatever is in the
+  file, and each side scrolls sideways on its own. Columns sized to their
+  own longest line put the divider somewhere different in every file, so a
+  review was read down a page whose shape changed at every heading; now
+  every file opens looking the same. Tying the two sides together instead
+  dragged the shorter one past its last character whenever the longer was
+  read.
+- **One file is one container.** The two-column diff was cut into a piece
+  per hunk and a piece per comment, each piece a pair of scroll views kept
+  level with the others by passing positions around. A review of forty
+  files became hundreds of scroll views sending one another messages,
+  which is what made scrolling such a review wobble and horizontal
+  scrolling behave as though it had a mind of its own. Each column of each
+  file is now one view holding every row of that column; nothing is kept
+  in step because there is nothing to keep in step.
+- Each file's columns scroll sideways on their own. Carrying one position
+  across every file in the review was part of the same machinery, and it
+  was what made a column that had just scrolled into sight drag all the
+  others back to the left edge. It can come back on its own terms; it is
+  not worth a diff that cannot be scrolled.
+- The hunk header is split between the columns: the old file's range on
+  the left, the new file's on the right, with the enclosing function on
+  both. A line belonging to both files has nowhere to go in two columns
+  that scroll apart — and no need, because each side has a half of its
+  own.
+- **The diff can be scrolled within a file at all.** The file at the top
+  of the column was written back into the app's state on every frame,
+  which rebuilt the overlay and handed its scroll view that position
+  again — and SwiftUI took the handover for an instruction, pulling the
+  file being read back to the top. You could step from file to file and
+  barely move inside one. With the short files in a small review that
+  passed for scrolling; on a real review of long files the page simply
+  would not move. The overlay keeps its own place now.
+- **A large diff scrolls at a quarter of the cost.** Nearly all of the
+  layout time went into building one accessibility element per coloured
+  token: a thousand lines of code made thousands of them, each walked
+  again on every frame. One element per line now, carrying the line as its
+  label, which is the useful unit anyway.
+- The colour bands no longer scroll out from under their lines. A row is
+  drawn as wide as the widest line in its column rather than as wide as
+  its own text, so the band keeps running across the row however far it is
+  scrolled sideways.
+- The line numbers stay put while the code scrolls under them. At half a
+  window most code overflows, so reading sideways is the normal way to
+  read this layout — and a number that leaves with its line is no use to
+  anybody trying to say where they are.
+
 ## 1.4.0
 
 ### The review's comments, in the diff

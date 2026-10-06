@@ -42,9 +42,15 @@ public enum SettingsTab: String, Hashable, CaseIterable, Sendable {
 /// it could never be anything else.
 public struct OpenedDiff: Equatable, Sendable {
     public let pullRequestID: String
-    /// The file at the top of the overlay. Written both by scrolling it and
-    /// by the list beside it, which is what makes the two follow each other.
-    public var path: String?
+    /// The file to put at the top when the overlay opens.
+    ///
+    /// Set once, here, and not touched again: the overlay keeps its own
+    /// place while it is up. Writing every scroll back into the app's state
+    /// rebuilt the overlay on each frame and handed its scroll view a
+    /// position, which SwiftUI took for an instruction -- so the file being
+    /// read was pulled back to the top and the diff could barely be
+    /// scrolled within a file at all.
+    public let path: String?
     /// The diff itself, taken when it was opened.
     ///
     /// Carried here rather than read from `changedFiles` as it goes: that
@@ -163,6 +169,9 @@ public final class AppState {
     /// token, and a control that does nothing is not worked. What would
     /// otherwise go to GitHub is kept locally instead.
     public private(set) var isSample = false
+    /// Whether the sample's diff is the large one, for looking at how the
+    /// overlay behaves under a review nobody would enjoy.
+    public var isBigSample = false
     /// True once a token has been found in the Keychain.
     public var hasToken: Bool = false
     /// Who the token belongs to, once verified.
@@ -685,6 +694,7 @@ public final class AppState {
         linkedSummaries = SampleData.linkedSummaries()
         viewedFiles["pr-482"] = SampleData.viewedFiles()
         reviewThreads["pr-482"] = SampleData.reviewThreads()
+        if isBigSample { changedFiles["pr-482"] = .loaded(SampleData.largeDiff()) }
 
         notifications = [
             NotificationItem(

@@ -35,20 +35,14 @@ public enum DiffSideRow: Equatable, Sendable {
     case pair(left: DiffCell?, right: DiffCell?)
 }
 
-/// How many characters wide each part of a side-by-side patch has to be.
+/// The longest line each column holds, in characters.
 public struct DiffWidths: Equatable, Sendable {
-    /// The old file's longest line.
     public let left: Int
-    /// The new file's longest line.
     public let right: Int
-    /// The longest line that spans both columns: a hunk header or git's
-    /// note. Neither column alone has to hold it, but the pair of them do.
-    public let span: Int
 
-    public init(left: Int, right: Int, span: Int) {
+    public init(left: Int, right: Int) {
         self.left = left
         self.right = right
-        self.span = span
     }
 }
 
@@ -67,6 +61,60 @@ public struct DiffWidths: Equatable, Sendable {
 /// but it is the guess that puts a renamed variable next to its old name,
 /// which is what the view is for.
 public enum DiffSideBySide {
+    /// How long the longest line on each side is.
+    ///
+    /// Not for sizing the columns -- those are half the width each,
+    /// whatever is in the file -- but for sizing what scrolls inside one.
+    /// A row has to be as wide as the widest line beside it, or its colour
+    /// band stops where its own text does and the rest of the row goes
+    /// white as soon as anything is scrolled sideways.
+    public static func longest(in rows: [DiffSideRow]) -> DiffWidths {
+        var left = 0
+        var right = 0
+        for row in rows {
+            guard case .pair(let leftCell, let rightCell) = row else { continue }
+            left = max(left, leftCell?.text.count ?? 0)
+            right = max(right, rightCell?.text.count ?? 0)
+        }
+        return DiffWidths(left: left, right: right)
+    }
+
+    /// A hunk header, split into the half that belongs to each file.
+    ///
+    /// `@@ -40,6 +40,14 @@ class Thing` says where the old file resumes
+    /// and where the new one does, in one line. Two columns that each
+    /// scroll on their own have nowhere to put a line belonging to both --
+    /// and there is no need, because each side has a half of its own.
+    ///
+    /// What follows the second `@@` is the enclosing function, which git
+    /// works out and which belongs to neither range. It is kept on both
+    /// sides: it is the answer to "where am I" that the reader wanted.
+    public static func halves(ofHunk line: String) -> (old: String, new: String) {
+        var old: Substring?
+        var new: Substring?
+        var context: [Substring] = []
+        var closed = 0
+
+        for field in line.split(separator: " ", omittingEmptySubsequences: false).dropFirst() {
+            if field == "@@" {
+                closed += 1
+            } else if closed > 0 {
+                context.append(field)
+            } else if field.hasPrefix("-"), old == nil {
+                old = field
+            } else if field.hasPrefix("+"), new == nil {
+                new = field
+            }
+        }
+
+        // A header this does not understand is shown whole on both sides
+        // rather than taken apart into something that is not true.
+        guard let old, let new else { return (line, line) }
+
+        let tail = context.isEmpty ? "" : " " + context.joined(separator: " ")
+        return ("@@ \(old) @@" + tail, "@@ \(new) @@" + tail)
+    }
+
     public static func rows(of patch: String) -> [DiffSideRow] {
         let lines = patch.components(separatedBy: "\n")
         let numbers = DiffLineNumbers.read(patch)
@@ -155,30 +203,4 @@ public enum DiffSideBySide {
         return rows
     }
 
-    /// The longest line each column has to hold, in characters.
-    ///
-    /// Measured per side rather than over the whole patch. Giving both
-    /// columns the width of the file's longest line keeps the divider in
-    /// the same place everywhere, but it also pads the short side to match
-    /// the long one -- so a file with one wide line pushes the second
-    /// column off the edge for no reason. Where neither side needs more
-    /// than half, both get exactly half and the divider is centred, which
-    /// is most files.
-    public static func widths(of rows: [DiffSideRow]) -> DiffWidths {
-        var left = 0
-        var right = 0
-        var span = 0
-
-        for row in rows {
-            switch row {
-            case .hunk(let text), .note(let text):
-                span = max(span, text.count)
-            case .pair(let leftCell, let rightCell):
-                left = max(left, leftCell?.text.count ?? 0)
-                right = max(right, rightCell?.text.count ?? 0)
-            }
-        }
-
-        return DiffWidths(left: left, right: right, span: span)
-    }
 }

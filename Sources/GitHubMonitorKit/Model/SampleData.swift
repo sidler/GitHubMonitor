@@ -527,6 +527,50 @@ public enum SampleData {
         ]
     }
 
+    /// A review the size of a real refactoring: forty-three files and a
+    /// couple of thousand changed lines.
+    ///
+    /// Here rather than only in the tests because the thing it is for --
+    /// whether the diff still scrolls smoothly -- cannot be measured
+    /// anywhere but in the running window. `--big` opens the overlay on
+    /// it.
+    public static func largeDiff() -> [ChangedFile] {
+        let areas = [
+            "Controller/Module", "Flow/Action", "Installer/Migrations", "LifeCycle",
+            "Model", "PermissionHandler", "ReportConfiguration", "Repository", "Service",
+        ]
+        return (0..<43).map { index in
+            let area = areas[index % areas.count]
+            var lines: [String] = []
+            // Several hunks per file, which is what a refactoring looks
+            // like and what multiplies the scrolling columns two layouts
+            // need. One hunk per file hid that entirely.
+            for hunk in 0..<(3 + index % 4) {
+                let at = 40 + hunk * 120
+                lines.append("@@ -\(at),\(6 + index % 5) +\(at),\(14 + index % 9) @@ class Handler\(index)")
+                lines.append("     public function case\(hunk)(): void")
+                lines.append("     {")
+                for i in 0..<(4 + index % 5) {
+                    lines.append("-        $this->assertSame($old[\(i)], $actual->value(\(i)));")
+                }
+                for i in 0..<(10 + index % 9) {
+                    lines.append(
+                        "+        $this->assertSame($expected[\(i)], "
+                            + "$actual->total(\(i)), 'row \(i) of handler \(index)');"
+                    )
+                }
+                lines.append("     }")
+            }
+            return ChangedFile(
+                path: "core/module_bcm/src/\(area)/Handler\(index).php",
+                additions: 40 + index % 9,
+                deletions: 4 + index % 5,
+                change: .modified,
+                patch: lines.joined(separator: "\n")
+            )
+        }
+    }
+
     // MARK: - Linked items
 
     /// Two looked-up links and one number that turned out to be nothing, so

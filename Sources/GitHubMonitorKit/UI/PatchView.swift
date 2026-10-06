@@ -13,7 +13,9 @@ import SwiftUI
 struct DiffOverlay: View {
     let files: [ChangedFile]
     let pullRequest: URL
-    @Binding var path: String?
+    /// The file to put at the top when the overlay opens. After that the
+    /// overlay keeps its own place.
+    let startingPath: String?
     let close: () -> Void
     /// The pull request being read, where one is known. Nil leaves the
     /// overlay a reader and nothing more.
@@ -39,6 +41,16 @@ struct DiffOverlay: View {
     var viewed: ViewedFiles?
 
     @StateObject private var open = OpenFolders()
+    /// Which file is at the top of the column, kept here rather than in the
+    /// app's state.
+    ///
+    /// Scrolling writes this on every frame. Through the app's state it
+    /// went out to the window controller, which rebuilt the whole overlay
+    /// and handed the scroll view its position again -- which SwiftUI took
+    /// for an instruction and used to pull the file being read back to the
+    /// top. The diff could be scrolled from file to file and barely at all
+    /// within one, which with short files looked almost like scrolling.
+    @StateObject private var place = DiffPlace()
 
     var body: some View {
         ZStack {
@@ -62,11 +74,18 @@ struct DiffOverlay: View {
                 .overlay(
                     RoundedRectangle(cornerRadius: 10).strokeBorder(.quaternary, lineWidth: 1)
                 )
-                // Capped, so a large window leaves a border of ground worth
-                // aiming at rather than a hairline. A small one still gets
-                // everything it has.
-                .frame(maxWidth: 1500, maxHeight: 1100)
+                // As wide as the window, less a border of ground worth
+                // aiming at: clicking beside the card puts it away, and a
+                // hairline is not something anybody can hit. Width is not
+                // capped beyond that -- a diff read on a wide screen is
+                // exactly where two columns of code have somewhere to go.
+                .frame(maxHeight: 1100)
                 .padding(36)
+        }
+        .onAppear {
+            // Once, so that opening on a file lands on it and scrolling
+            // afterwards is nobody's business but the overlay's.
+            if place.path == nil { place.path = startingPath }
         }
         // Escape is handled by the view that hosts this, so that it stops
         // here instead of reaching the list behind it.
@@ -225,7 +244,7 @@ struct DiffOverlay: View {
     /// Bound to the same value the scroll position writes, so clicking jumps
     /// and scrolling moves the highlight.
     private var index: some View {
-        List(selection: $path) {
+        List(selection: $place.path) {
             FileTreeRows(
                 nodes: FileTree.build(files),
                 open: open,
@@ -268,7 +287,7 @@ struct DiffOverlay: View {
                 .padding(.vertical, 12)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .scrollPosition(id: $path, anchor: .top)
+            .scrollPosition(id: $place.path, anchor: .top)
         }
     }
 
@@ -321,55 +340,6 @@ struct DiffOverlay: View {
         .background(.background)
     }
 
-    @ViewBuilder
-    private func patchStretch(
-        _ patch: String, file: ChangedFile, width: CGFloat, only: Range<Int>
-    ) -> some View {
-        switch layout {
-        case .unified:
-            PatchLines(
-                patch: patch,
-                language: file.language,
-                fontSize: fontSize,
-                showsLineNumbers: showsLineNumbers,
-                only: only
-            )
-        case .sideBySide:
-            SideBySidePatch(
-                patch: patch,
-                language: file.language,
-                available: width,
-                fontSize: fontSize,
-                showsLineNumbers: showsLineNumbers,
-                only: only
-            )
-        }
-    }
-
-    /// Where this file's conversations interrupt its patch.
-    ///
-    /// The two layouts count rows differently -- one column has a row per
-    /// patch line, two columns pair them up -- so each is asked in its own
-    /// terms and the cutting is the same afterwards.
-    private func segments(
-        of patch: String, file: ChangedFile, width: CGFloat
-    ) -> [ReviewThreadAnchors.Segment] {
-        let placed = ReviewThreadPlacement.placed(threads, in: file.path)
-        switch layout {
-        case .unified:
-            return ReviewThreadAnchors.segments(
-                count: patch.components(separatedBy: "\n").count,
-                anchors: ReviewThreadAnchors.unified(patch: patch, threads: placed)
-            )
-        case .sideBySide:
-            let rows = DiffCache.shared.rows(of: patch)
-            return ReviewThreadAnchors.segments(
-                count: rows.count,
-                anchors: ReviewThreadAnchors.sideBySide(rows: rows, threads: placed)
-            )
-        }
-    }
-
     /// Ticks a file off and, where that folded away the one being read,
     /// moves on to the top of the next. `DiffNavigation` decides where.
     private func tick(_ file: ChangedFile, _ viewed: ViewedFiles) {
@@ -377,10 +347,10 @@ struct DiffOverlay: View {
         viewed.toggle(file.path)
 
         guard let destination = DiffNavigation.destination(
-            ticking: file.path, folding: folding, showing: path, in: files
+            ticking: file.path, folding: folding, showing: place.path, in: files
         ) else { return }
 
-        withAnimation(.easeOut(duration: 0.2)) { path = destination }
+        withAnimation(.easeOut(duration: 0.2)) { place.path = destination }
     }
 
     private func fileBody(_ file: ChangedFile, width: CGFloat) -> some View {
@@ -401,26 +371,40 @@ struct DiffOverlay: View {
                     OutdatedThreadsView(threads: stranded)
                 }
 
-                // Cut into stretches around the comments, each stretch with
-                // its own horizontal scroll: a long line of code moves
-                // without dragging the prose beside it off the edge.
-                ForEach(segments(of: patch, file: file, width: width)) { segment in
-                    switch segment {
-                    case .code(let range):
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            patchStretch(patch, file: file, width: width, only: range)
-                                .padding(.vertical, 6)
-                                // At least the width of the column, so the
-                                // added and removed bands run the whole way
-                                // across; a longer line still scrolls.
-                                .frame(minWidth: width, alignment: .leading)
-                        }
-                    case .threads(let here):
-                        VStack(alignment: .leading, spacing: 0) {
-                            ForEach(here) { ReviewThreadView(thread: $0) }
-                        }
-                        .frame(width: width, alignment: .leading)
+                // One file, one container. It was briefly cut into a piece
+                // per comment, each with its own horizontal scroll, so the
+                // prose between them would stay put -- and the pieces then
+                // had to be kept level with one another. A review of forty
+                // files became hundreds of scroll views passing positions
+                // around, which is what made scrolling one wobble.
+                switch layout {
+                case .unified:
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        PatchLines(
+                            patch: patch,
+                            language: file.language,
+                            fontSize: fontSize,
+                            showsLineNumbers: showsLineNumbers,
+                            threads: ReviewThreadPlacement.placed(mine, in: file.path),
+                            column: width
+                        )
+                            .padding(.vertical, 6)
+                            // At least the width of the column, so the
+                            // added and removed bands run the whole way
+                            // across; a longer line still makes it wider
+                            // and scrolls.
+                            .frame(minWidth: width, alignment: .leading)
                     }
+                case .sideBySide:
+                    SideBySidePatch(
+                        patch: patch,
+                        language: file.language,
+                        available: width,
+                        fontSize: fontSize,
+                        showsLineNumbers: showsLineNumbers,
+                        threads: ReviewThreadPlacement.placed(mine, in: file.path)
+                    )
+                    .padding(.vertical, 6)
                 }
             } else {
                 Text("GitHub sends no diff for this file \u{2014} it is binary, or too large.")
@@ -480,9 +464,12 @@ struct PatchLines: View {
     let language: CodeLanguage?
     var fontSize: Double = Settings.defaultDiffFontSize
     var showsLineNumbers: Bool = true
-    /// Which lines to draw. Nil draws them all; a range draws one stretch,
-    /// which is how the patch is cut around the review comments.
-    var only: Range<Int>?
+    /// The conversations to draw among the lines they hang on.
+    var threads: [ReviewThread] = []
+    /// How wide the column is, for the prose among the code. The patch
+    /// itself may be wider and scroll; a comment keeps the column's width
+    /// so it reads as prose rather than as a very long line.
+    var column: CGFloat = 400
 
     private var lines: [Line] {
         let numbers = showsLineNumbers ? DiffLineNumbers.read(patch) : []
@@ -493,15 +480,20 @@ struct PatchLines: View {
         // Numbered and marked over the whole patch before the slice: both
         // depend on what came earlier in the file, and a stretch measured
         // on its own would start counting from one.
-        return patch.components(separatedBy: "\n").enumerated().compactMap { index, text in
-            guard only.map({ $0.contains(index) }) ?? true else { return nil }
-            return Line(
+        return patch.components(separatedBy: "\n").enumerated().map { index, text in
+            Line(
                 id: index,
                 text: text,
                 number: index < numbers.count ? numbers[index] : .none,
                 emphasis: index < marks.count ? marks[index] : []
             )
         }
+    }
+
+    /// Which conversations hang off which line of the patch.
+    private var anchors: [Int: [ReviewThread]] {
+        guard !threads.isEmpty else { return [:] }
+        return ReviewThreadAnchors.unified(patch: patch, threads: threads)
     }
 
     /// Set once for the whole file, so the code keeps one left edge rather
@@ -512,9 +504,16 @@ struct PatchLines: View {
 
     var body: some View {
         let digits = gutterDigits
+        let anchors = anchors
         VStack(alignment: .leading, spacing: 0) {
             ForEach(lines) { line in
                 row(line, digits: digits)
+                if let here = anchors[line.id] {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(here) { ReviewThreadView(thread: $0) }
+                    }
+                    .frame(width: column, alignment: .leading)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -548,6 +547,13 @@ struct PatchLines: View {
         // corners on this system, which made every added and removed line
         // look like a pill.
         .background(kind.background, in: Rectangle())
+        // One element per line rather than one per coloured token.
+        // Resolving the attributed text of every token is where nearly all
+        // of the layout time went on a large diff: a thousand lines of
+        // code made thousands of accessibility nodes, each walked again on
+        // every frame of a scroll.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: line.text))
     }
 
     /// The two numbers, old then new, before the line itself.
@@ -788,4 +794,16 @@ struct ReviewActions {
     let cancel: () -> Void
     /// True when GitHub took the approval.
     let approve: () async -> Bool
+}
+
+/// Where the diff is being read, for as long as it is open.
+///
+/// View-local state without `@State`, whose macro ships only with Xcode.
+@MainActor
+final class DiffPlace: ObservableObject {
+    /// The file at the top of the column.
+    ///
+    /// Written by scrolling it and by the list beside it, which is what
+    /// makes the two follow each other.
+    @Published var path: String?
 }

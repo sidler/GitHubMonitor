@@ -233,35 +233,6 @@ struct ReviewThreadAnchorTests {
         #expect(anchors.keys.sorted() == [2])
     }
 
-    @Test("Each stretch of patch is followed by what was said about its last line")
-    func segments() {
-        let cut = ReviewThreadAnchors.segments(count: 6, anchors: [1: [thread("t", line: 1)]])
-        #expect(cut.count == 3)
-        #expect(cut[0] == .code(0..<2))
-        if case .threads(let here) = cut[1] { #expect(here.map(\.id) == ["t"]) } else { Issue.record() }
-        #expect(cut[2] == .code(2..<6))
-    }
-
-    /// Every row has to be drawn exactly once, or the patch gains or loses
-    /// lines wherever somebody left a remark.
-    @Test("Cutting loses no rows and repeats none", arguments: [
-        [0], [3], [0, 1, 2, 3, 4, 5], [5], [2, 4],
-    ])
-    func covers(at: [Int]) {
-        let anchors = Dictionary(uniqueKeysWithValues: at.map { ($0, [thread("t\($0)", line: $0)]) })
-        var drawn: [Int] = []
-        for segment in ReviewThreadAnchors.segments(count: 6, anchors: anchors) {
-            if case .code(let range) = segment { drawn += Array(range) }
-        }
-        #expect(drawn == Array(0..<6))
-    }
-
-    @Test("A patch nobody commented on is one stretch")
-    func noThreads() {
-        #expect(ReviewThreadAnchors.segments(count: 4, anchors: [:]) == [.code(0..<4)])
-        #expect(ReviewThreadAnchors.segments(count: 0, anchors: [:]).isEmpty)
-    }
-
     /// Two columns pair lines up, so a row can carry a number from each
     /// file and a thread may hang off either side of it.
     @Test("In two columns a thread hangs off whichever side names its line")

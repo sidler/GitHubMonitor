@@ -147,6 +147,29 @@ struct DiffSideBySideTests {
         )])
     }
 
+    /// A row is drawn as wide as the widest line in its column, not as
+    /// wide as its own text. Otherwise its colour band stops where the
+    /// text does, and scrolling sideways leaves white where the band was.
+    @Test("Each column knows its longest line")
+    func longest() {
+        let measured = DiffSideBySide.longest(
+            in: DiffSideBySide.rows(of: "@@ -1,1 +1,1 @@\n-ab\n+a much longer line")
+        )
+        #expect(measured.left == 3)
+        #expect(measured.right == "+a much longer line".count)
+    }
+
+    /// A side made only of blanks asks for nothing, and falls back to its
+    /// half of the column.
+    @Test("A side with nothing on it measures zero")
+    func emptySide() {
+        let measured = DiffSideBySide.longest(
+            in: DiffSideBySide.rows(of: "@@ -0,0 +1,1 @@\n+only")
+        )
+        #expect(measured.left == 0)
+        #expect(measured.right == 5)
+    }
+
     /// The two columns size their number gutter from the rows, which are
     /// already worked out and kept; reading the patch a second time per
     /// frame was a second pass over every line. The two ways of asking must
@@ -170,27 +193,6 @@ struct DiffSideBySideTests {
         }
     }
 
-    /// Each column is measured on its own. Padding the short side out to
-    /// the long one's width pushes the second column off the edge for no
-    /// reason, which is what it did at first.
-    @Test("Each column is measured on its own side's longest line")
-    func widths() {
-        let measured = DiffSideBySide.widths(
-            of: DiffSideBySide.rows(of: "@@ -1,1 +1,1 @@\n-ab\n+a much longer line")
-        )
-        #expect(measured.left == 3)                      // "-ab"
-        #expect(measured.right == "+a much longer line".count)
-        #expect(measured.span == "@@ -1,1 +1,1 @@".count)
-    }
-
-    /// A blank cell asks for nothing, so a side made entirely of blanks
-    /// falls back to its half of the column rather than to a sliver.
-    @Test("A side with nothing on it measures zero")
-    func emptySide() {
-        let measured = DiffSideBySide.widths(of: DiffSideBySide.rows(of: "@@ -0,0 +1,1 @@\n+only"))
-        #expect(measured.left == 0)
-        #expect(measured.right == 5)
-    }
 }
 
 extension String {
@@ -199,5 +201,53 @@ extension String {
         let from = index(startIndex, offsetBy: range.location)
         let to = index(from, offsetBy: range.length)
         return self[from..<to]
+    }
+}
+
+@Suite("Splitting the hunk header between the columns")
+struct HunkHalvesTests {
+    /// Two columns that each scroll on their own have nowhere to put a
+    /// line belonging to both -- and no need, since each side has a half.
+    @Test("Each side gets its own range")
+    func halves() {
+        let halves = DiffSideBySide.halves(ofHunk: "@@ -40,6 +40,14 @@ class Handler")
+        #expect(halves.old == "@@ -40,6 @@ class Handler")
+        #expect(halves.new == "@@ +40,14 @@ class Handler")
+    }
+
+    /// Git works the enclosing function out and it belongs to neither
+    /// range. Both sides keep it: it is the answer to "where am I".
+    @Test("The function around the hunk stays on both sides")
+    func contextIsKept() {
+        let halves = DiffSideBySide.halves(
+            ofHunk: "@@ -1,2 +1,2 @@ public function matches(array $row): bool"
+        )
+        #expect(halves.old.hasSuffix("public function matches(array $row): bool"))
+        #expect(halves.new.hasSuffix("public function matches(array $row): bool"))
+    }
+
+    @Test("A header with no trailing context ends after the second marker")
+    func withoutContext() {
+        let halves = DiffSideBySide.halves(ofHunk: "@@ -1,1 +1,1 @@")
+        #expect(halves.old == "@@ -1,1 @@")
+        #expect(halves.new == "@@ +1,1 @@")
+    }
+
+    /// A count may be left off, which means one line.
+    @Test("A range without a count is still a range")
+    func withoutCounts() {
+        let halves = DiffSideBySide.halves(ofHunk: "@@ -8 +8 @@")
+        #expect(halves.old == "@@ -8 @@")
+        #expect(halves.new == "@@ +8 @@")
+    }
+
+    /// Shown whole on both sides rather than taken apart into something
+    /// that is not true.
+    @Test("A header this does not understand is left alone")
+    func unparsed() {
+        let line = "@@ something else entirely @@"
+        let halves = DiffSideBySide.halves(ofHunk: line)
+        #expect(halves.old == line)
+        #expect(halves.new == line)
     }
 }
