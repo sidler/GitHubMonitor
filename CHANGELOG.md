@@ -3,13 +3,14 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
-## Unreleased
+## 1.4.0
 
-- **The review's comments are in the diff.** Each conversation sits under
-  the line it was written about, in either layout, with who said it and
-  when. Resolved threads arrive folded to a line saying how many comments
-  they hold — enough to see that something was discussed there without
-  having to read it again. Fetched when the diff is opened rather than with
+### The review's comments, in the diff
+
+- **Each conversation sits under the line it was written about**, in
+  either layout, with who said it and when. Resolved threads arrive folded
+  to a line saying how many comments they hold — enough to see that
+  something was discussed there without having to read it again. Fetched when the diff is opened rather than with
   the file list: the query carries every comment body, and arrowing down a
   list of pull requests should not pay for the discussion on each of them.
 - The file list beside the diff says how many conversations each file
@@ -25,6 +26,9 @@ What changed in each released version. The app shows this file itself, under
   comments — now have a band behind them. Review comments are mostly about
   named things, and `use the id, not the login` read as a sentence with two
   odd nouns in it.
+
+### Reading a diff
+
 - **The words that changed are marked.** On a line that was edited rather
   than replaced, the parts that actually differ are drawn bold and on a
   stronger band, so a renamed identifier is one glance rather than two
@@ -46,6 +50,8 @@ What changed in each released version. The app shows this file itself, under
   because an empty cell beside an added line means "this did not exist",
   not "unchanged here". Switched from the diff's own header, from *View*,
   or in Settings, and remembered.
+### Elsewhere
+
 - Files in the diff are listed by path. The column and the file tree beside
   it now move together; the lists elsewhere still put the largest file
   first, which is the useful order in a pane four inches wide but not the
