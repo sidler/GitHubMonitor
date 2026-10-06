@@ -198,6 +198,43 @@ public struct GitHubService: Sendable {
         return (states, budget?.costing(spent))
     }
 
+    /// The conversations hanging off a pull request's diff.
+    ///
+    /// Fetched when the diff is opened rather than with the file list: the
+    /// query carries every comment body, which is not something to pay for
+    /// each time somebody arrows down the list of pull requests.
+    public func reviewThreads(
+        pullRequestID: String
+    ) async throws -> (threads: [ReviewThread], budget: RateBudget?) {
+        var threads: [ReviewThread] = []
+        var budget: RateBudget?
+        var spent = 0
+        var cursor: String?
+        // A page that reports another page while yielding nothing would
+        // otherwise keep this going: the cap counts threads, not rounds.
+        var pagesLeft = ReviewThreadsQuery.maximumThreads / ReviewThreadsQuery.pageSize + 1
+
+        repeat {
+            pagesLeft -= 1
+            var variables: [String: Any] = ["id": pullRequestID]
+            if let cursor { variables["after"] = cursor }
+            let payload = try await client.graphQL(
+                ReviewThreadsQuery.document, variables: variables
+            )
+            let page = ReviewThreadsQuery.page(from: payload)
+            threads += page.threads
+            if let reading = ListParser.budget(from: payload) {
+                spent += reading.cost
+                budget = reading
+            }
+            cursor = (threads.count >= ReviewThreadsQuery.maximumThreads || pagesLeft <= 0)
+                ? nil
+                : page.cursor
+        } while cursor != nil
+
+        return (threads, budget?.costing(spent))
+    }
+
     /// Ticks one file off, or takes the tick back.
     public func setViewed(
         _ viewed: Bool, pullRequestID: String, path: String

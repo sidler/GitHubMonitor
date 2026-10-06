@@ -10,6 +10,12 @@ struct CodeText: View {
     let source: String
     let language: CodeLanguage?
     var font: Font = .caption.monospaced()
+    /// Stretches of this line that are not in the line it replaced, or that
+    /// replaced it. Drawn bold and on a stronger band.
+    var emphasis: [ChangedRange] = []
+    /// The band those stretches sit on, which is the row's own colour at
+    /// greater strength. Clear leaves them bold and nothing more.
+    var emphasisTint: Color = .clear
 
     var body: some View {
         Text(attributed)
@@ -24,6 +30,36 @@ struct CodeText: View {
             var piece = AttributedString(token.text)
             piece.foregroundColor = token.kind.tint
             result += piece
+        }
+        return marked(result)
+    }
+
+    /// Applies the changed stretches over the syntax colours.
+    ///
+    /// Over rather than instead: the word that changed is still code, and
+    /// losing its colour to say it changed trades one thing the reader
+    /// needs for another. Weight and ground are free -- the highlighter
+    /// sets neither.
+    ///
+    /// Offsets are in characters, which is what the comparison counts in;
+    /// `AttributedString` indexes the same way, so the two agree even where
+    /// a line holds characters that are several bytes long.
+    private func marked(_ text: AttributedString) -> AttributedString {
+        guard !emphasis.isEmpty else { return text }
+        var result = text
+        let count = result.characters.count
+
+        for range in emphasis {
+            let start = max(0, min(range.location, count))
+            let end = max(start, min(range.end, count))
+            guard start < end else { continue }
+
+            let from = result.index(result.startIndex, offsetByCharacters: start)
+            let to = result.index(result.startIndex, offsetByCharacters: end)
+            result[from..<to].inlinePresentationIntent = .stronglyEmphasized
+            if emphasisTint != .clear {
+                result[from..<to].backgroundColor = emphasisTint
+            }
         }
         return result
     }

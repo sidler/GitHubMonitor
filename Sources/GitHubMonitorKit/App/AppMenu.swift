@@ -18,7 +18,9 @@ enum AppMenu {
         changeDiffFontSize: @escaping (Double) -> Void,
         resetDiffFontSize: @escaping () -> Void,
         showsDiffLineNumbers: @escaping () -> Bool,
-        toggleDiffLineNumbers: @escaping () -> Void
+        toggleDiffLineNumbers: @escaping () -> Void,
+        diffLayout: @escaping () -> DiffLayout,
+        setDiffLayout: @escaping (DiffLayout) -> Void
     ) -> NSMenu {
         let main = NSMenu()
 
@@ -32,7 +34,9 @@ enum AppMenu {
             changeDiffFontSize: changeDiffFontSize,
             resetDiffFontSize: resetDiffFontSize,
             showsDiffLineNumbers: showsDiffLineNumbers,
-            toggleDiffLineNumbers: toggleDiffLineNumbers
+            toggleDiffLineNumbers: toggleDiffLineNumbers,
+            diffLayout: diffLayout,
+            setDiffLayout: setDiffLayout
         ))
         main.addItem(windowMenu())
 
@@ -140,7 +144,9 @@ enum AppMenu {
         changeDiffFontSize: @escaping (Double) -> Void,
         resetDiffFontSize: @escaping () -> Void,
         showsDiffLineNumbers: @escaping () -> Bool,
-        toggleDiffLineNumbers: @escaping () -> Void
+        toggleDiffLineNumbers: @escaping () -> Void,
+        diffLayout: @escaping () -> DiffLayout,
+        setDiffLayout: @escaping (DiffLayout) -> Void
     ) -> NSMenuItem {
         let item = NSMenuItem()
         let menu = NSMenu(title: "View")
@@ -187,6 +193,18 @@ enum AppMenu {
         menu.addItem(ActionItem(
             title: "Actual Size", keyEquivalent: "0", action: resetDiffFontSize
         ))
+
+        // One ticked item per layout rather than a single "Side by Side"
+        // switch: with two of them the menu says which one is in use, and
+        // picking the one already ticked is a harmless no-op rather than a
+        // way to end up in the other.
+        for option in DiffLayout.allCases {
+            let item = ActionItem(
+                title: option.label, keyEquivalent: "", action: { setDiffLayout(option) }
+            )
+            item.isOn = { diffLayout() == option }
+            menu.addItem(item)
+        }
 
         // Ticked rather than renamed to "Hide Line Numbers": a menu item
         // whose title flips says what pressing it does but never what the

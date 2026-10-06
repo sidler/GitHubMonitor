@@ -82,6 +82,11 @@ public final class Settings {
         min(max(size.rounded(), smallestDiffFontSize), largestDiffFontSize)
     }
 
+    /// Whether the diff is read in one column or two.
+    public var diffLayout: DiffLayout {
+        didSet { store.set(diffLayout.rawValue, forKey: Key.diffLayout) }
+    }
+
     /// Whether the diff carries the line numbers of both files.
     ///
     /// On by default: a number is how a diff is talked about with anybody
@@ -215,6 +220,9 @@ public final class Settings {
         hidesSingleRepository = store.bool(forKey: Key.hidesSingleRepository)
         agingDays = store.object(forKey: Key.agingDays) as? Int ?? 3
         overdueDays = store.object(forKey: Key.overdueDays) as? Int ?? 7
+        // Unified unless asked otherwise: it is the narrower of the two and
+        // what the app has always shown.
+        diffLayout = DiffLayout(rawValue: store.string(forKey: Key.diffLayout) ?? "") ?? .unified
         // Absent means on rather than off: a fresh install should show
         // them, and `as? Bool` on a missing key is nil, not false.
         showsDiffLineNumbers = store.object(forKey: Key.showsDiffLineNumbers) as? Bool ?? true
@@ -345,6 +353,7 @@ public final class Settings {
         static let overdueDays = "overdueDays"
         static let diffFontSize = "diffFontSize"
         static let showsDiffLineNumbers = "showsDiffLineNumbers"
+        static let diffLayout = "diffLayout"
         static let notificationReasons = "notificationReasons"
         static let hiddenLists = "hiddenLists"
         static let savedLists = "savedLists"

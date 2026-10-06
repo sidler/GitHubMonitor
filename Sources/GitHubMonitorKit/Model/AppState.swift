@@ -60,8 +60,22 @@ public struct OpenedDiff: Equatable, Sendable {
     public init(pullRequestID: String, path: String?, files: [ChangedFile], url: URL) {
         self.pullRequestID = pullRequestID
         self.path = path
-        self.files = files
+        self.files = Self.alphabetical(files)
         self.url = url
+    }
+
+    /// By path, which is the order the tree beside the diff is in and the
+    /// order GitHub shows.
+    ///
+    /// The lists elsewhere put the largest file first -- in a pane four
+    /// inches wide the useful question is where the work is. A diff is not
+    /// that: it is read top to bottom, and a reader following the tree down
+    /// the side wants the column beside it to move the same way.
+    ///
+    /// Done here rather than at the one place that builds this today, so a
+    /// second way of opening a diff cannot arrive in a different order.
+    static func alphabetical(_ files: [ChangedFile]) -> [ChangedFile] {
+        files.sorted { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
     }
 }
 
@@ -172,6 +186,10 @@ public final class AppState {
     /// not change its diff, and rebuilding the whole file list for a
     /// checkbox would throw away the scroll position with it.
     public var viewedFiles: [String: [String: FileViewedState]] = [:]
+    /// The conversations hanging off each pull request's diff, by its id.
+    /// Empty rather than missing once asked for, so a failed request is not
+    /// retried on every redraw.
+    public var reviewThreads: [String: [ReviewThread]] = [:]
     /// The conversation behind a notification, fetched when its pane opens.
     /// A mention lives in a comment, so the pane needs more than the one
     /// message the notification points at.
@@ -666,6 +684,7 @@ public final class AppState {
         changedFiles["pr-482"] = .loaded(SampleData.changedFiles())
         linkedSummaries = SampleData.linkedSummaries()
         viewedFiles["pr-482"] = SampleData.viewedFiles()
+        reviewThreads["pr-482"] = SampleData.reviewThreads()
 
         notifications = [
             NotificationItem(

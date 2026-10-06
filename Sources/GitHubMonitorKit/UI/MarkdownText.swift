@@ -251,12 +251,38 @@ struct MarkdownText: View {
     /// survive: GitHub renders them, and a checklist folded into one
     /// paragraph is no longer a checklist.
     private func inline(_ text: String) -> AttributedString {
-        (try? AttributedString(
+        let parsed = (try? AttributedString(
             markdown: text,
             options: .init(
                 interpretedSyntax: .inlineOnlyPreservingWhitespace,
                 failurePolicy: .returnPartiallyParsedIfPossible
             )
         )) ?? AttributedString(text)
+        return Self.tinted(parsed)
+    }
+
+    /// Puts a band behind code spans.
+    ///
+    /// Foundation marks them but SwiftUI draws them like any other word, so
+    /// `use the id, not the login` reads as a sentence with two odd nouns
+    /// in it rather than as a sentence naming two fields. It matters most
+    /// in review comments, which are mostly about named things.
+    ///
+    /// A band rather than a monospaced font: the font attribute would also
+    /// fix the size, overriding whatever the view around it asked for, and
+    /// a code span at the wrong size is worse than one at the right size
+    /// without the shape.
+    static func tinted(_ text: AttributedString) -> AttributedString {
+        var result = text
+        let spans = result.runs.compactMap { run -> Range<AttributedString.Index>? in
+            guard let intent = run.inlinePresentationIntent, intent.contains(.code) else {
+                return nil
+            }
+            return run.range
+        }
+        for span in spans {
+            result[span].backgroundColor = .secondary.opacity(0.22)
+        }
+        return result
     }
 }

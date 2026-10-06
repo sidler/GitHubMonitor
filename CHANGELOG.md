@@ -3,6 +3,54 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
+## Unreleased
+
+- **The review's comments are in the diff.** Each conversation sits under
+  the line it was written about, in either layout, with who said it and
+  when. Resolved threads arrive folded to a line saying how many comments
+  they hold — enough to see that something was discussed there without
+  having to read it again. Fetched when the diff is opened rather than with
+  the file list: the query carries every comment body, and arrowing down a
+  list of pull requests should not pay for the discussion on each of them.
+- The file list beside the diff says how many conversations each file
+  still has open, and a shut folder sums up what is inside it. Counted by
+  conversation rather than by comment: five replies arguing one point are
+  one thing to deal with, and a list saying "5" would send somebody looking
+  for five of them. The tooltip gives both numbers.
+- Comments GitHub can no longer place — the code they were written against
+  has since been rewritten — are gathered at the top of their file instead
+  of guessed at a line. A remark about code that has changed is often still
+  the remark that mattered.
+- Code spans in any rendered body — descriptions, issue comments, review
+  comments — now have a band behind them. Review comments are mostly about
+  named things, and `use the id, not the login` read as a sentence with two
+  odd nouns in it.
+- **The words that changed are marked.** On a line that was edited rather
+  than replaced, the parts that actually differ are drawn bold and on a
+  stronger band, so a renamed identifier is one glance rather than two
+  lines read character by character. Word by word, not character by
+  character: marking the `s` in `getUser` becoming `getUsers` is precise
+  and useless. A change in indentation alone is marked too — reformatting
+  should be visible.
+- **Side by side lines up what belongs together.** A removal and the
+  addition answering it share a row only where the two are recognisably
+  the same line; the rest get a row each, with a blank opposite. Before,
+  the first removal was paired with the first addition whether or not they
+  had anything to do with each other, which is only right when the two
+  blocks are the same length and nothing moved — the case nobody needs
+  help with.
+- **Side by side.** The old file beside the new one, as well as the single
+  column a patch comes in. Two columns are what you want where a line was
+  edited rather than replaced: the word that changed sits opposite the word
+  it changed from. A line with nothing answering it faces a tinted blank,
+  because an empty cell beside an added line means "this did not exist",
+  not "unchanged here". Switched from the diff's own header, from *View*,
+  or in Settings, and remembered.
+- Files in the diff are listed by path. The column and the file tree beside
+  it now move together; the lists elsewhere still put the largest file
+  first, which is the useful order in a pane four inches wide but not the
+  order a diff is read in.
+
 ## 1.3.0
 
 ### Reading a diff

@@ -874,6 +874,10 @@ struct InspectorColumn: View {
                 close: { controller.closeInspector() },
                 openDiff: { file in
                     guard case .loaded(let files) = state.changedFiles[item.id] else { return }
+                    // Asked for here rather than with the file list: the
+                    // query carries every comment body, and this is the
+                    // first moment anybody will read them.
+                    controller.loadReviewThreadsIfNeeded(for: item.id)
                     state.openedDiff = OpenedDiff(
                         pullRequestID: item.id, path: file.path, files: files, url: item.url
                     )

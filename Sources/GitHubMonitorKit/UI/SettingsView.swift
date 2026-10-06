@@ -180,6 +180,12 @@ private struct GeneralSettingsView: View {
                     }
                 }
 
+                Picker("Layout", selection: $settings.diffLayout) {
+                    ForEach(DiffLayout.allCases, id: \.self) { option in
+                        Text(option.label).tag(option)
+                    }
+                }
+
                 Toggle("Show line numbers", isOn: $settings.showsDiffLineNumbers)
                     .toggleStyle(.switch)
 
@@ -190,7 +196,7 @@ private struct GeneralSettingsView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
 
-                Text("The patch only. File names and the tree beside them keep their size, and \u{2318}+ and \u{2318}\u{2212} change this while a diff is open. The numbers are the line's place in both files \u{2014} before the change, then after.")
+                Text("The patch only. File names and the tree beside them keep their size, and \u{2318}+ and \u{2318}\u{2212} change this while a diff is open. The numbers are the line's place in both files \u{2014} before the change, then after. Side by side puts the old file beside the new one, and can also be switched from the diff's own header.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

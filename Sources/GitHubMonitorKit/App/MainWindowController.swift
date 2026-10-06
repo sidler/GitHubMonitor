@@ -258,6 +258,9 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             subject: item.map(subject(for:)),
             fontSize: state.settings.diffFontSize,
             showsLineNumbers: state.settings.showsDiffLineNumbers,
+            layout: state.settings.diffLayout,
+            threads: state.reviewThreads[opened.pullRequestID] ?? [],
+            setLayout: { [state] in state.settings.diffLayout = $0 },
             viewed: ViewedFiles(
                 app: state,
                 pullRequestID: opened.pullRequestID,
@@ -491,6 +494,10 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             // rather than left at the size it was opened with.
             _ = state.settings.diffFontSize
             _ = state.settings.showsDiffLineNumbers
+            _ = state.settings.diffLayout
+            // The diff is open before the comments arrive, so it has to be
+            // rebuilt when they do.
+            _ = state.reviewThreads
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else { return }

@@ -42,9 +42,25 @@ task lists, code fences with syntax highlighting, and quotes.
 
 **The diff, over the window.** Clicking a file opens every file's patch in one
 scrolling overlay with a file tree to jump by, because a diff read three words
-at a time in a 400-point pane is not read.
+at a time in a 400-point pane is not read. Files are listed by path, so the
+column and the tree beside it move together. Line numbers down the side give
+each line's place in both files.
 
 ![Every file's patch in one overlay, with a tree to jump by](Docs/screenshots/diff.png)
+
+**Unified or side by side.** One column is what a patch is and fits anywhere;
+two columns put the old file beside the new one, which is what you want when a
+line was edited rather than replaced. Switched from the diff's own header,
+from *View*, or in Settings. Side by side lines up a removal with the addition
+that answers it only where the two are recognisably the same line — the rest
+get a row each, rather than being paired by position with whatever was left
+over.
+
+**The words that changed are marked.** On a line that was edited rather than
+replaced, the parts that actually differ are drawn bold and on a stronger
+band, in either layout. A change in indentation alone is marked too.
+
+![The same patch in two columns, with the changed words marked](Docs/screenshots/side-by-side.png)
 
 **Approving, from the diff.** The approval is bound to the commit whose diff was
 on screen: if somebody pushed since you started reading, it is refused rather

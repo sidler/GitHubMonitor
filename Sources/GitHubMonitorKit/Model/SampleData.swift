@@ -449,6 +449,84 @@ public enum SampleData {
         ]
     }
 
+    /// Conversations on the diff, covering the three kinds the overlay has
+    /// to draw: one still open, one resolved and therefore folded away, and
+    /// one GitHub can no longer place because the code it was about has
+    /// since been rewritten.
+    public static func reviewThreads() -> [ReviewThread] {
+        [
+            ReviewThread(
+                id: "thread-1",
+                path: "src/Filter/UserFilter.php",
+                line: 14,
+                side: .new,
+                isResolved: false,
+                isOutdated: false,
+                comments: [
+                    IssueComment(
+                        id: "comment-1",
+                        author: "arun",
+                        avatarURL: avatar(2),
+                        createdAt: Date().addingTimeInterval(-3 * 3600),
+                        body: "`strcasecmp` on a login is right, but this will "
+                            + "also match an account that was renamed. Worth a "
+                            + "lookup by id instead?"
+                    ),
+                    IssueComment(
+                        id: "comment-2",
+                        author: viewer,
+                        avatarURL: avatar(5),
+                        createdAt: Date().addingTimeInterval(-2 * 3600),
+                        body: "The id is not in the row here \u{2014} it comes from "
+                            + "the search API, which only gives the login."
+                    ),
+                ]
+            ),
+            ReviewThread(
+                id: "thread-2",
+                path: "src/Session/SessionHandler.php",
+                line: 120,
+                side: .new,
+                isResolved: true,
+                isOutdated: false,
+                comments: [
+                    IssueComment(
+                        id: "comment-3",
+                        author: "noor",
+                        avatarURL: avatar(3),
+                        createdAt: Date().addingTimeInterval(-26 * 3600),
+                        body: "Does the unique index cover `data` as well?"
+                    ),
+                    IssueComment(
+                        id: "comment-4",
+                        author: "mira",
+                        avatarURL: avatar(1),
+                        createdAt: Date().addingTimeInterval(-25 * 3600),
+                        body: "Only `id`. That is the whole bug."
+                    ),
+                ]
+            ),
+            ReviewThread(
+                id: "thread-3",
+                path: "src/Filter/SessionFilter.php",
+                line: nil,
+                side: .new,
+                isResolved: false,
+                isOutdated: true,
+                comments: [
+                    IssueComment(
+                        id: "comment-5",
+                        author: "dara",
+                        avatarURL: avatar(4),
+                        createdAt: Date().addingTimeInterval(-4 * 24 * 3600),
+                        body: "This compared the ids as numbers, which made "
+                            + "`0e123` equal to zero. Please keep them strings."
+                    )
+                ]
+            ),
+        ]
+    }
+
     // MARK: - Linked items
 
     /// Two looked-up links and one number that turned out to be nothing, so

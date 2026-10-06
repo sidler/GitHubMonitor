@@ -26,6 +26,14 @@ struct DiffOverlay: View {
     var fontSize: Double = Settings.defaultDiffFontSize
     /// Whether each line carries its number in both files.
     var showsLineNumbers: Bool = true
+    /// One column or two.
+    var layout: DiffLayout = .unified
+    /// The conversations from the review, to draw under the lines they
+    /// hang on. Empty where none arrived, or none were asked for.
+    var threads: [ReviewThread] = []
+    /// How to change it from the header. Nil leaves the control off, for
+    /// an overlay built without anywhere to write the choice.
+    var setLayout: ((DiffLayout) -> Void)?
     /// Which files have been ticked off, and how to tick one. Nil leaves
     /// the overlay a reader with no checkboxes.
     var viewed: ViewedFiles?
@@ -104,6 +112,25 @@ struct DiffOverlay: View {
             }
 
             Spacer(minLength: 12)
+
+            if let setLayout {
+                // Here as well as in Settings and the View menu, because
+                // which layout suits a patch is decided by looking at the
+                // patch: a file of replaced lines reads better in two
+                // columns, a file of insertions in one.
+                Picker("", selection: Binding(get: { layout }, set: setLayout)) {
+                    ForEach(DiffLayout.allCases, id: \.self) { option in
+                        Image(systemName: option.symbolName)
+                            .help(option.label)
+                            .tag(option)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+                .help("How the patch is laid out")
+                Divider().frame(height: 14)
+            }
 
             if let review {
                 reviewControls(review)
@@ -199,7 +226,12 @@ struct DiffOverlay: View {
     /// and scrolling moves the highlight.
     private var index: some View {
         List(selection: $path) {
-            FileTreeRows(nodes: FileTree.build(files), open: open, viewed: viewed?.states ?? [:])
+            FileTreeRows(
+                nodes: FileTree.build(files),
+                open: open,
+                viewed: viewed?.states ?? [:],
+                comments: ReviewThreadPlacement.openCounts(threads)
+            )
         }
         // Inset rather than sidebar: the sidebar style draws an edge shadow
         // down its trailing side, which fell across the diff beside it.
@@ -289,6 +321,55 @@ struct DiffOverlay: View {
         .background(.background)
     }
 
+    @ViewBuilder
+    private func patchStretch(
+        _ patch: String, file: ChangedFile, width: CGFloat, only: Range<Int>
+    ) -> some View {
+        switch layout {
+        case .unified:
+            PatchLines(
+                patch: patch,
+                language: file.language,
+                fontSize: fontSize,
+                showsLineNumbers: showsLineNumbers,
+                only: only
+            )
+        case .sideBySide:
+            SideBySidePatch(
+                patch: patch,
+                language: file.language,
+                available: width,
+                fontSize: fontSize,
+                showsLineNumbers: showsLineNumbers,
+                only: only
+            )
+        }
+    }
+
+    /// Where this file's conversations interrupt its patch.
+    ///
+    /// The two layouts count rows differently -- one column has a row per
+    /// patch line, two columns pair them up -- so each is asked in its own
+    /// terms and the cutting is the same afterwards.
+    private func segments(
+        of patch: String, file: ChangedFile, width: CGFloat
+    ) -> [ReviewThreadAnchors.Segment] {
+        let placed = ReviewThreadPlacement.placed(threads, in: file.path)
+        switch layout {
+        case .unified:
+            return ReviewThreadAnchors.segments(
+                count: patch.components(separatedBy: "\n").count,
+                anchors: ReviewThreadAnchors.unified(patch: patch, threads: placed)
+            )
+        case .sideBySide:
+            let rows = DiffCache.shared.rows(of: patch)
+            return ReviewThreadAnchors.segments(
+                count: rows.count,
+                anchors: ReviewThreadAnchors.sideBySide(rows: rows, threads: placed)
+            )
+        }
+    }
+
     /// Ticks a file off and, where that folded away the one being read,
     /// moves on to the top of the next. `DiffNavigation` decides where.
     private func tick(_ file: ChangedFile, _ viewed: ViewedFiles) {
@@ -314,20 +395,32 @@ struct DiffOverlay: View {
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 12)
             } else if let patch = file.patch {
-                // Its own horizontal scroll, so a long line moves without
-                // dragging the file above it sideways too.
-                ScrollView(.horizontal, showsIndicators: false) {
-                    PatchLines(
-                        patch: patch,
-                        language: file.language,
-                        fontSize: fontSize,
-                        showsLineNumbers: showsLineNumbers
-                    )
-                        .padding(.vertical, 6)
-                        // At least the width of the column, so the added and
-                        // removed bands run the whole way across; a longer
-                        // line still makes it wider and scrolls.
-                        .frame(minWidth: width, alignment: .leading)
+                let mine = threads.filter { $0.path == file.path }
+                let stranded = ReviewThreadPlacement.unplaceable(mine, in: file.path)
+                if !stranded.isEmpty {
+                    OutdatedThreadsView(threads: stranded)
+                }
+
+                // Cut into stretches around the comments, each stretch with
+                // its own horizontal scroll: a long line of code moves
+                // without dragging the prose beside it off the edge.
+                ForEach(segments(of: patch, file: file, width: width)) { segment in
+                    switch segment {
+                    case .code(let range):
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            patchStretch(patch, file: file, width: width, only: range)
+                                .padding(.vertical, 6)
+                                // At least the width of the column, so the
+                                // added and removed bands run the whole way
+                                // across; a longer line still scrolls.
+                                .frame(minWidth: width, alignment: .leading)
+                        }
+                    case .threads(let here):
+                        VStack(alignment: .leading, spacing: 0) {
+                            ForEach(here) { ReviewThreadView(thread: $0) }
+                        }
+                        .frame(width: width, alignment: .leading)
+                    }
                 }
             } else {
                 Text("GitHub sends no diff for this file \u{2014} it is binary, or too large.")
@@ -387,14 +480,26 @@ struct PatchLines: View {
     let language: CodeLanguage?
     var fontSize: Double = Settings.defaultDiffFontSize
     var showsLineNumbers: Bool = true
+    /// Which lines to draw. Nil draws them all; a range draws one stretch,
+    /// which is how the patch is cut around the review comments.
+    var only: Range<Int>?
 
     private var lines: [Line] {
         let numbers = showsLineNumbers ? DiffLineNumbers.read(patch) : []
-        return patch.components(separatedBy: "\n").enumerated().map { index, text in
-            Line(
+        // One column keeps the order the patch was written in -- that order
+        // is what a unified diff is -- but the words it marks are found the
+        // same way as in two columns, so the two agree.
+        let marks = DiffCache.shared.emphasis(in: patch)
+        // Numbered and marked over the whole patch before the slice: both
+        // depend on what came earlier in the file, and a stretch measured
+        // on its own would start counting from one.
+        return patch.components(separatedBy: "\n").enumerated().compactMap { index, text in
+            guard only.map({ $0.contains(index) }) ?? true else { return nil }
+            return Line(
                 id: index,
                 text: text,
-                number: index < numbers.count ? numbers[index] : .none
+                number: index < numbers.count ? numbers[index] : .none,
+                emphasis: index < marks.count ? marks[index] : []
             )
         }
     }
@@ -416,7 +521,7 @@ struct PatchLines: View {
     }
 
     private func row(_ line: Line, digits: Int) -> some View {
-        let kind = Kind(line: line.text)
+        let kind = DiffLineKind(line: line.text)
         return HStack(spacing: 0) {
             if showsLineNumbers {
                 gutter(line.number, digits: digits)
@@ -429,7 +534,9 @@ struct PatchLines: View {
                 // reading `-` as punctuation before a keyword. Colour the
                 // code, not the diff.
                 language: kind == .hunk ? nil : language,
-                font: .system(size: fontSize).monospaced()
+                font: .system(size: fontSize).monospaced(),
+                emphasis: line.emphasis,
+                emphasisTint: kind.emphasis
             )
             .foregroundStyle(kind.textTint)
             .padding(.leading, showsLineNumbers ? 8 : 12)
@@ -468,43 +575,62 @@ struct PatchLines: View {
         let id: Int
         let text: String
         let number: DiffLineNumber
+        let emphasis: [ChangedRange]
+    }
+}
+
+/// What a line of a patch is, and how it is drawn.
+///
+/// At file scope rather than inside one of the two layouts: both read the
+/// same patch lines, and a second copy of this would be the one that
+/// drifts.
+enum DiffLineKind {
+    case added
+    case removed
+    case hunk
+    case context
+
+    init(line: String) {
+        if line.hasPrefix("@@") {
+            self = .hunk
+        } else if line.hasPrefix("+") {
+            self = .added
+        } else if line.hasPrefix("-") {
+            self = .removed
+        } else {
+            self = .context
+        }
     }
 
-    private enum Kind {
-        case added
-        case removed
-        case hunk
-        case context
-
-        init(line: String) {
-            if line.hasPrefix("@@") {
-                self = .hunk
-            } else if line.hasPrefix("+") {
-                self = .added
-            } else if line.hasPrefix("-") {
-                self = .removed
-            } else {
-                self = .context
-            }
+    var background: Color {
+        switch self {
+        case .added: .green.opacity(0.14)
+        case .removed: .red.opacity(0.14)
+        case .hunk: Color(nsColor: .quaternaryLabelColor).opacity(0.35)
+        case .context: .clear
         }
+    }
 
-        var background: Color {
-            switch self {
-            case .added: .green.opacity(0.14)
-            case .removed: .red.opacity(0.14)
-            case .hunk: Color(nsColor: .quaternaryLabelColor).opacity(0.35)
-            case .context: .clear
-            }
+    /// The stronger band behind the words that actually changed, where the
+    /// line opposite is close enough to say which those are.
+    ///
+    /// The row's own colour at roughly twice the strength: a third colour
+    /// would read as a third kind of change, and the point is "this part of
+    /// this change", not something new.
+    var emphasis: Color {
+        switch self {
+        case .added: .green.opacity(0.3)
+        case .removed: .red.opacity(0.3)
+        case .hunk, .context: .clear
         }
+    }
 
-        /// Only the hunk header is recoloured outright; added and removed
-        /// lines keep their syntax colours and are told apart by the band
-        /// behind them.
-        var textTint: Color {
-            switch self {
-            case .hunk: Color(nsColor: .secondaryLabelColor)
-            case .added, .removed, .context: Color(nsColor: .labelColor)
-            }
+    /// Only the hunk header is recoloured outright; added and removed lines
+    /// keep their syntax colours and are told apart by the band behind them.
+    var textTint: Color {
+        switch self {
+        case .hunk: Color(nsColor: .secondaryLabelColor)
+        case .added, .removed, .context: Color(nsColor: .labelColor)
         }
     }
 }
@@ -538,6 +664,10 @@ struct FileTreeRows: View {
     /// Where each file stands, so the list used for jumping also says what
     /// is left to read. Empty where the overlay has no ticks.
     var viewed: [String: FileViewedState] = [:]
+    /// What each file still has open from the review, by path. The list is
+    /// what somebody scans to decide where to go next, and an unanswered
+    /// remark is the best reason there is to go somewhere.
+    var comments: [String: ReviewThreadPlacement.OpenComments] = [:]
 
     var body: some View {
         ForEach(nodes) { node in
@@ -546,7 +676,9 @@ struct FileTreeRows: View {
                 fileRow(file).tag(file.path)
             case .folder(let folder):
                 DisclosureGroup(isExpanded: open.binding(for: folder.path)) {
-                    AnyView(FileTreeRows(nodes: folder.children, open: open, viewed: viewed))
+                    AnyView(FileTreeRows(
+                        nodes: folder.children, open: open, viewed: viewed, comments: comments
+                    ))
                 } label: {
                     folderRow(folder)
                 }
@@ -572,6 +704,9 @@ struct FileTreeRows: View {
                     .help(state.label)
             }
             Spacer(minLength: 4)
+            if let open = comments[file.path] {
+                badge(open)
+            }
             if file.additions > 0 {
                 Text(verbatim: "+\(file.additions)")
                     .foregroundStyle(.green).monospacedDigit()
@@ -585,12 +720,41 @@ struct FileTreeRows: View {
         .help(file.path)
     }
 
+    /// How much is open, for a file or for a whole folder.
+    ///
+    /// Blue because the other marks in this row are spoken for: green and
+    /// red are the size of the change, green and orange are whether it has
+    /// been read. An unanswered remark is none of those.
+    private func badge(_ open: ReviewThreadPlacement.OpenComments) -> some View {
+        HStack(spacing: 2) {
+            Image(systemName: "bubble.left.fill")
+            Text(verbatim: "\(open.conversations)").monospacedDigit()
+        }
+        .font(.caption2)
+        .foregroundStyle(.blue)
+        .help(open.label)
+    }
+
+    /// What a folder holds, so a shut one still says there is something
+    /// inside worth opening.
+    private func folded(_ folder: FileTree.Folder) -> ReviewThreadPlacement.OpenComments? {
+        let inside = folder.files.compactMap { comments[$0.path] }
+        guard !inside.isEmpty else { return nil }
+        return ReviewThreadPlacement.OpenComments(
+            conversations: inside.reduce(0) { $0 + $1.conversations },
+            comments: inside.reduce(0) { $0 + $1.comments }
+        )
+    }
+
     private func folderRow(_ folder: FileTree.Folder) -> some View {
         HStack(spacing: 6) {
             Text(folder.name)
                 .lineLimit(1)
                 .truncationMode(.head)
             Spacer(minLength: 4)
+            if let open = folded(folder) {
+                badge(open)
+            }
             Text(verbatim: "\(folder.files.count)")
                 .monospacedDigit()
                 .foregroundStyle(.tertiary)

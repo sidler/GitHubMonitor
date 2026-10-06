@@ -67,7 +67,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             showsDiffLineNumbers: { [state] in state.settings.showsDiffLineNumbers },
             toggleDiffLineNumbers: { [state] in
                 state.settings.showsDiffLineNumbers.toggle()
-            }
+            },
+            diffLayout: { [state] in state.settings.diffLayout },
+            setDiffLayout: { [state] layout in state.settings.diffLayout = layout }
         )
 
         // Sample data is opt-in now that real requests work, so the UI can

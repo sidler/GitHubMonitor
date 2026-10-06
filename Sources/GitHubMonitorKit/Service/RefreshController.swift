@@ -838,6 +838,39 @@ public final class RefreshController {
         }
     }
 
+    // MARK: - Review comments
+
+    /// The conversations hanging off the diff, fetched when it is opened.
+    ///
+    /// Not with the file list: this query carries every comment body, and
+    /// arrowing down a list of pull requests should not pay for the
+    /// discussion on each of them.
+    ///
+    /// Quiet on failure, for the same reason as the ticks: a diff with no
+    /// comments beside it is still a diff, and an error banner over
+    /// somebody's review would be worse than their absence.
+    public func loadReviewThreadsIfNeeded(for id: String) {
+        guard state.reviewThreads[id] == nil, let service else { return }
+        // Claimed straight away, so reopening the diff while the first
+        // request is in flight does not start a second.
+        state.reviewThreads[id] = []
+
+        Task { [weak self] in
+            do {
+                let fetched = try await service.reviewThreads(pullRequestID: id)
+                guard let self else { return }
+                state.reviewThreads[id] = fetched.threads
+                if let budget = fetched.budget { state.budgets.graphQL = budget }
+            } catch {
+                Log.api.error(
+                    "review threads failed: \(error.localizedDescription, privacy: .public)"
+                )
+                // Left empty rather than nil: asking again on every redraw
+                // would spend the budget on an answer that just failed.
+            }
+        }
+    }
+
     /// Ticks a file off, or takes the tick back, on GitHub and here.
     ///
     /// Shown straight away and corrected if GitHub refuses. A tick is a

@@ -443,8 +443,12 @@ struct PullRequestDetailView: View {
 /// View-local state without `@State`: its macro implementation ships only
 /// with Xcode, and this project builds against the Command Line Tools.
 @MainActor
-private final class Disclosure: ObservableObject {
-    @Published var isExpanded = false
+final class Disclosure: ObservableObject {
+    @Published var isExpanded: Bool
+
+    init(isExpanded: Bool = false) {
+        self.isExpanded = isExpanded
+    }
 }
 
 struct DescriptionSection: View {
