@@ -3,7 +3,7 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
-## Unreleased
+## 1.5.0
 
 - The diff fills the window. It was capped at 1500 points wide, which on a
   wide screen left most of the glass empty — and a wide screen is exactly
