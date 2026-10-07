@@ -231,3 +231,55 @@ struct DiffAlignmentTests {
         #expect(marks[2].isEmpty)
     }
 }
+
+@Suite("Taking the marker off a line")
+struct DiffMarkerSplitTests {
+    /// Drawn apart because a wrapped line has to be told from a new one:
+    /// with the marker in the text, the second half of a long line starts
+    /// where a `+` would be and reads as a line of its own.
+    @Test("The marker comes off and the code stays whole")
+    func split() {
+        let split = DiffWords.split("+    return true;")
+        #expect(split.marker == "+")
+        #expect(split.body == "    return true;")
+    }
+
+    @Test("A context line's leading space is a marker too")
+    func context() {
+        #expect(DiffWords.split("     $copy = clone $this;").marker == " ")
+    }
+
+    /// A hunk header has no marker column, and taking its first character
+    /// off would eat the `@`.
+    @Test("A line with no marker keeps all of itself")
+    func unmarked() {
+        let split = DiffWords.split("@@ -1,2 +1,2 @@")
+        #expect(split.marker.isEmpty)
+        #expect(split.body == "@@ -1,2 +1,2 @@")
+    }
+
+    /// The marked stretches are measured against the whole line, so they
+    /// have to move with it or the wrong words are drawn bold.
+    @Test("The marked stretches move with the text")
+    func emphasisMoves() {
+        let line = "+    $id = $row['login'];"
+        let found = DiffWords.compare("-    $id = $row['id'];", line)
+        let split = DiffWords.split(line, emphasis: found.new)
+
+        #expect(split.emphasis.first?.location == found.new.first!.location - 1)
+        // And it still covers the same word.
+        let from = split.body.index(split.body.startIndex, offsetBy: split.emphasis[0].location)
+        let to = split.body.index(from, offsetBy: split.emphasis[0].length)
+        #expect(String(split.body[from..<to]) == "login")
+    }
+
+    /// A stretch that begins at the marker itself has nothing left of it
+    /// once the marker is gone.
+    @Test("A stretch covering only the marker disappears with it")
+    func emphasisOnTheMarker() {
+        let split = DiffWords.split(
+            "+abc", emphasis: [ChangedRange(location: 0, length: 1)]
+        )
+        #expect(split.emphasis.isEmpty)
+    }
+}

@@ -9,12 +9,54 @@ What changed in each released version. The app shows this file itself, under
   wide screen left most of the glass empty — and a wide screen is exactly
   where two columns of code have somewhere to go.
 - **Side by side splits the width down the middle**, whatever is in the
-  file, and each side scrolls sideways on its own. Columns sized to their
-  own longest line put the divider somewhere different in every file, so a
-  review was read down a page whose shape changed at every heading; now
-  every file opens looking the same. Tying the two sides together instead
-  dragged the shorter one past its last character whenever the longer was
-  read.
+  file. Columns sized to their own longest line put the divider somewhere
+  different in every file, so a review was read down a page whose shape
+  changed at every heading; now every file opens looking the same.
+- **The file list beside the diff indents less.** It is drawn flat with
+  an indent of its own rather than as nested groups, because a list that
+  nests its own groups sets each level in by an amount it does not offer
+  to change — and at six levels, which a Java or PHP module reaches
+  without trying, that left a sliver for the file name with the rest of
+  the row to the left of it. A level is four points now rather than
+  twenty-two, and the rows are pulled back over the inset the list keeps
+  at its own leading edge whatever it is told.
+- The pencil beside a modified file is gone. Nearly every file in a review
+  is modified, so it was a column of one repeated symbol, and in a list
+  this narrow that column cost as much as two levels of indentation. Added,
+  removed and renamed files keep their mark, which is where it says
+  something.
+- **Types have a colour of their own**, and far more words are painted
+  than before. A signature is mostly types, and `public function
+  matches(array $row): bool` in one purple says nothing; `array` and
+  `bool` are teal now. PHP gained its `end*` forms, `isset`, `unset`,
+  `require_once` and the rest; TypeScript gained `satisfies`, `keyof`,
+  `infer`, `override` and its built-in types; CSS gained the at-rules and
+  keywords it has grown since.
+- A file that only adds lines, or only removes them, is drawn across the
+  whole width even in the two-column layout. There is nothing to put on
+  the other side, and half a window of blank facing the only column that
+  says anything helps nobody.
+- **The file list beside the diff can be dragged wider or narrower**, and
+  stays where it was put. The edge is twelve points of grab centred on the
+  line, and it shows itself under the pointer so there is something to aim
+  at. Dragging moves a line and the diff reflows once when the hand comes
+  off: every line wraps to its column, so changing that column on every
+  frame of the drag would re-wrap the whole file sixty times a second,
+  which is not resizing but flickering. How much width a path needs is a
+  judgement about one person's repositories — deeply nested Java wants
+  more of it than a flat Go project — and nobody wants to make that
+  judgement twice.
+- **Long lines wrap instead of scrolling sideways.** Nothing in the diff
+  scrolls horizontally any more, in either layout. That is what finally
+  made the two-column view simple: no scroll views inside a file, nothing
+  to keep in step, and a row whose two halves share one height because
+  they are one row — so a line that wraps on one side takes the other
+  down with it and the columns cannot drift apart.
+- The `+` and `−` markers sit in a column of their own. A wrapped line
+  would otherwise carry on where a marker would be and read as a line of
+  its own, which is the confusion a diff exists to prevent; in its own
+  column the marker cannot be mistaken for anything, and what wraps lines
+  up under the code it belongs to.
 - **One file is one container.** The two-column diff was cut into a piece
   per hunk and a piece per comment, each piece a pair of scroll views kept
   level with the others by passing positions around. A review of forty
@@ -23,16 +65,10 @@ What changed in each released version. The app shows this file itself, under
   scrolling behave as though it had a mind of its own. Each column of each
   file is now one view holding every row of that column; nothing is kept
   in step because there is nothing to keep in step.
-- Each file's columns scroll sideways on their own. Carrying one position
-  across every file in the review was part of the same machinery, and it
-  was what made a column that had just scrolled into sight drag all the
-  others back to the left edge. It can come back on its own terms; it is
-  not worth a diff that cannot be scrolled.
 - The hunk header is split between the columns: the old file's range on
   the left, the new file's on the right, with the enclosing function on
-  both. A line belonging to both files has nowhere to go in two columns
-  that scroll apart — and no need, because each side has a half of its
-  own.
+  both. A line belonging to both files has nowhere to go in two columns —
+  and no need, because each side has a half of its own.
 - **The diff can be scrolled within a file at all.** The file at the top
   of the column was written back into the app's state on every frame,
   which rebuilt the overlay and handed its scroll view that position
@@ -46,14 +82,6 @@ What changed in each released version. The app shows this file itself, under
   token: a thousand lines of code made thousands of them, each walked
   again on every frame. One element per line now, carrying the line as its
   label, which is the useful unit anyway.
-- The colour bands no longer scroll out from under their lines. A row is
-  drawn as wide as the widest line in its column rather than as wide as
-  its own text, so the band keeps running across the row however far it is
-  scrolled sideways.
-- The line numbers stay put while the code scrolls under them. At half a
-  window most code overflows, so reading sideways is the normal way to
-  read this layout — and a number that leaves with its line is no use to
-  anybody trying to say where they are.
 
 ## 1.4.0
 

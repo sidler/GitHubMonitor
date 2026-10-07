@@ -147,29 +147,6 @@ struct DiffSideBySideTests {
         )])
     }
 
-    /// A row is drawn as wide as the widest line in its column, not as
-    /// wide as its own text. Otherwise its colour band stops where the
-    /// text does, and scrolling sideways leaves white where the band was.
-    @Test("Each column knows its longest line")
-    func longest() {
-        let measured = DiffSideBySide.longest(
-            in: DiffSideBySide.rows(of: "@@ -1,1 +1,1 @@\n-ab\n+a much longer line")
-        )
-        #expect(measured.left == 3)
-        #expect(measured.right == "+a much longer line".count)
-    }
-
-    /// A side made only of blanks asks for nothing, and falls back to its
-    /// half of the column.
-    @Test("A side with nothing on it measures zero")
-    func emptySide() {
-        let measured = DiffSideBySide.longest(
-            in: DiffSideBySide.rows(of: "@@ -0,0 +1,1 @@\n+only")
-        )
-        #expect(measured.left == 0)
-        #expect(measured.right == 5)
-    }
-
     /// The two columns size their number gutter from the rows, which are
     /// already worked out and kept; reading the patch a second time per
     /// frame was a second pass over every line. The two ways of asking must
@@ -249,5 +226,40 @@ struct HunkHalvesTests {
         let halves = DiffSideBySide.halves(ofHunk: line)
         #expect(halves.old == line)
         #expect(halves.new == line)
+    }
+}
+
+@Suite("When two columns are worth drawing")
+struct OneSidedPatchTests {
+    /// A file that was added has no old version, so the left column would
+    /// be half a window of nothing and every line of the new file would be
+    /// squeezed into the other half to face it.
+    @Test("A patch that only adds has one side")
+    func added() {
+        #expect(DiffSideBySide.isOneSided("@@ -0,0 +1,2 @@\n+one\n+two"))
+    }
+
+    @Test("A patch that only removes has one side")
+    func removed() {
+        #expect(DiffSideBySide.isOneSided("@@ -1,2 +0,0 @@\n-one\n-two"))
+    }
+
+    @Test("A patch that does both has two")
+    func both() {
+        #expect(!DiffSideBySide.isOneSided("@@ -1,1 +1,1 @@\n-was\n+is"))
+    }
+
+    /// Context alone is nothing to compare, whichever way it is drawn.
+    @Test("A patch that changes nothing has one side")
+    func unchanged() {
+        #expect(DiffSideBySide.isOneSided("@@ -1,1 +1,1 @@\n unchanged"))
+        #expect(DiffSideBySide.isOneSided(""))
+    }
+
+    /// `---` and `+++` name the files a patch is between. Counting them as
+    /// lines would make every patch look two-sided.
+    @Test("A patch's own file headers are not its lines")
+    func fileHeaders() {
+        #expect(DiffSideBySide.isOneSided("--- a/x\n+++ b/x\n@@ -0,0 +1,1 @@\n+only"))
     }
 }

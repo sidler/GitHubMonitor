@@ -65,3 +65,44 @@ struct DiffFontSizeTests {
         #expect(Settings(store: UserDefaults(suiteName: name)!).diffFontSize == 14)
     }
 }
+
+
+@MainActor
+@Suite("How wide the file list beside the diff is")
+struct DiffSidebarWidthTests {
+    @Test("A fresh install opens at the width it always did")
+    func fresh() {
+        let settings = Settings(store: TestDefaults.make())
+        #expect(settings.diffSidebarWidth == Settings.defaultDiffSidebarWidth)
+    }
+
+    /// Dragged past either end the edge stops, rather than leaving a list
+    /// of no width or one that has eaten the diff.
+    @Test(
+        "A width out of range is clamped",
+        arguments: [(0.0, 160.0), (-50.0, 160.0), (900.0, 560.0), (300.4, 300.0)]
+    )
+    func clamped(asked: Double, expected: Double) {
+        let settings = Settings(store: TestDefaults.make())
+        settings.diffSidebarWidth = asked
+        #expect(settings.diffSidebarWidth == expected)
+    }
+
+    /// Preferences are a file anything can write, and a list of no width
+    /// is a diff with no way back to its files.
+    @Test("A width written straight into preferences is clamped on the way in")
+    func clampedOnRead() {
+        let store = TestDefaults.make()
+        store.set(2.0, forKey: "diffSidebarWidth")
+        #expect(Settings(store: store).diffSidebarWidth == Settings.narrowestDiffSidebar)
+    }
+
+    /// It is a judgement about one person's repositories, and nobody wants
+    /// to make it twice.
+    @Test("The width outlives the diff it was set in")
+    func persists() {
+        let name = TestDefaults.reserveName()
+        Settings(store: UserDefaults(suiteName: name)!).diffSidebarWidth = 340
+        #expect(Settings(store: UserDefaults(suiteName: name)!).diffSidebarWidth == 340)
+    }
+}

@@ -125,3 +125,73 @@ struct SyntaxHighlighterTests {
         #expect(CodeLanguage.forFile("Makefile") == nil)
     }
 }
+
+@Suite("Telling types from the words that direct the flow")
+struct CodeTypeTests {
+    private func kinds(_ source: String, _ language: CodeLanguage) -> [(String, CodeToken.Kind)] {
+        SyntaxHighlighter.tokens(source, language: language).map { ($0.text, $0.kind) }
+    }
+
+    /// The line a reader most wants to read is a signature, and it is
+    /// mostly types. One colour over the whole of it says nothing.
+    @Test("A PHP signature is words and types, not one colour")
+    func phpSignature() {
+        let found = kinds("public function matches(array $row): bool", .php)
+        #expect(found.contains { $0.0 == "public" && $0.1 == .keyword })
+        #expect(found.contains { $0.0 == "function" && $0.1 == .keyword })
+        #expect(found.contains { $0.0 == "array" && $0.1 == .type })
+        #expect(found.contains { $0.0 == "bool" && $0.1 == .type })
+    }
+
+    @Test("A TypeScript signature too")
+    func typescriptSignature() {
+        let found = kinds("async function load(id: string): Promise<number> {", .typescript)
+        #expect(found.contains { $0.0 == "async" && $0.1 == .keyword })
+        #expect(found.contains { $0.0 == "string" && $0.1 == .type })
+        #expect(found.contains { $0.0 == "Promise" && $0.1 == .type })
+        #expect(found.contains { $0.0 == "number" && $0.1 == .type })
+    }
+
+    /// Matched as written: `String` is not `string` outside PHP, and
+    /// lower-casing first would paint a variable called `Record` as a type
+    /// in a language where it is not one.
+    @Test("Types are matched as written, keywords however they are cased")
+    func casing() {
+        #expect(kinds("Promise", .typescript).first?.1 == .type)
+        #expect(kinds("promise", .typescript).first?.1 == .plain)
+        // PHP's keywords are case-insensitive and its types are written
+        // lower case, so both still land.
+        #expect(kinds("RETURN", .php).first?.1 == .keyword)
+        #expect(kinds("int", .php).first?.1 == .type)
+    }
+
+    /// The words added in this pass, which were drawn plainly before.
+    @Test(
+        "Words that used to go unpainted are painted now",
+        arguments: [
+            ("require_once", CodeLanguage.php), ("isset", .php), ("endforeach", .php),
+            ("satisfies", .typescript), ("keyof", .typescript), ("override", .typescript),
+            ("inherit", .css), ("container", .css),
+        ]
+    )
+    func newlyKnown(word: String, language: CodeLanguage) {
+        let kind = kinds(word, language).first?.1
+        #expect(kind == .keyword || kind == .type)
+    }
+
+    /// The one property every language's tests pin down: nothing is lost.
+    @Test("A line with types in it still joins back into itself")
+    func losesNothing() {
+        for line in [
+            "public function matches(array $row): bool",
+            "function load(id: string): Promise<number>",
+            "    $total = (int) $row['count'];",
+        ] {
+            for language in [CodeLanguage.php, .typescript] {
+                let joined = SyntaxHighlighter.tokens(line, language: language)
+                    .map(\.text).joined()
+                #expect(joined == line)
+            }
+        }
+    }
+}

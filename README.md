@@ -51,7 +51,8 @@ each line's place in both files.
 **Unified or side by side.** One column is what a patch is and fits anywhere;
 two columns put the old file beside the new one, which is what you want when a
 line was edited rather than replaced. Switched from the diff's own header,
-from *View*, or in Settings. Side by side lines up a removal with the addition
+from *View*, or in Settings. Lines too long for their column wrap rather
+than scrolling sideways. Side by side lines up a removal with the addition
 that answers it only where the two are recognisably the same line — the rest
 get a row each, rather than being paired by position with whatever was left
 over.

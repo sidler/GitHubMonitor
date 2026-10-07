@@ -535,10 +535,23 @@ public enum SampleData {
     /// anywhere but in the running window. `--big` opens the overlay on
     /// it.
     public static func largeDiff() -> [ChangedFile] {
+        // Paths as deep as a real module gets. Three levels was the shape
+        // of the first version of this, and at three levels the list looks
+        // fine however it is indented -- which is exactly why it hid the
+        // problem it was supposed to show.
         let areas = [
-            "Controller/Module", "Flow/Action", "Installer/Migrations", "LifeCycle",
-            "Model", "PermissionHandler", "ReportConfiguration", "Repository", "Service",
+            "src/Controller/Module/Action",
+            "src/Controller/Module",
+            "src/View/FormGenerator",
+            "src/Service",
+            "src/Repository",
+            "src/Model",
+            "tests/Unit/Controller/Module/Action",
+            "tests/Unit/Service",
+            "resources/js",
+            "config",
         ]
+        let modules = ["module_integrated_bia_pra", "module_infosec", "module_bcm"]
         return (0..<43).map { index in
             let area = areas[index % areas.count]
             var lines: [String] = []
@@ -561,8 +574,17 @@ public enum SampleData {
                 }
                 lines.append("     }")
             }
+            // Names as long as the ones a module of this shape actually
+            // carries: a short name fits however deep it sits, which is
+            // the other way the first version of this hid the problem.
+            let names = [
+                "EditIntegratedBiaProcessAction", "IntegratedBiaRecordResolver",
+                "BiaProcessClusterRepository", "AutoCreatedRecordsRightsHandler",
+                "BaseDescriptorFormGenerator", "EmergencyPlanLifeCycle",
+            ]
             return ChangedFile(
-                path: "core/module_bcm/src/\(area)/Handler\(index).php",
+                path: "core/\(modules[index % modules.count])/\(area)/"
+                    + "\(names[index % names.count])\(index).php",
                 additions: 40 + index % 9,
                 deletions: 4 + index % 5,
                 change: .modified,

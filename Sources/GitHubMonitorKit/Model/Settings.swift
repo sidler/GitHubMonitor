@@ -87,6 +87,33 @@ public final class Settings {
         didSet { store.set(diffLayout.rawValue, forKey: Key.diffLayout) }
     }
 
+    /// How wide the file list beside the diff is, in points.
+    ///
+    /// Remembered, because it is a judgement about the paths in one
+    /// person's repositories -- deeply nested Java wants more of it than a
+    /// flat Go project -- and nobody wants to make that judgement twice.
+    public var diffSidebarWidth: Double {
+        didSet {
+            let clamped = Self.clampedSidebarWidth(diffSidebarWidth)
+            if clamped != diffSidebarWidth {
+                diffSidebarWidth = clamped
+                return
+            }
+            store.set(diffSidebarWidth, forKey: Key.diffSidebarWidth)
+        }
+    }
+
+    public static let defaultDiffSidebarWidth: Double = 260
+    public static let narrowestDiffSidebar: Double = 160
+    public static let widestDiffSidebar: Double = 560
+
+    /// Clamped on the way in as well as out: this is read from
+    /// preferences, which anything can write, and a list of no width is a
+    /// diff with no way back to its files.
+    public static func clampedSidebarWidth(_ width: Double) -> Double {
+        min(max(width.rounded(), narrowestDiffSidebar), widestDiffSidebar)
+    }
+
     /// Whether the diff carries the line numbers of both files.
     ///
     /// On by default: a number is how a diff is talked about with anybody
@@ -223,6 +250,10 @@ public final class Settings {
         // Unified unless asked otherwise: it is the narrower of the two and
         // what the app has always shown.
         diffLayout = DiffLayout(rawValue: store.string(forKey: Key.diffLayout) ?? "") ?? .unified
+        diffSidebarWidth = Self.clampedSidebarWidth(
+            store.object(forKey: Key.diffSidebarWidth) as? Double
+                ?? Self.defaultDiffSidebarWidth
+        )
         // Absent means on rather than off: a fresh install should show
         // them, and `as? Bool` on a missing key is nil, not false.
         showsDiffLineNumbers = store.object(forKey: Key.showsDiffLineNumbers) as? Bool ?? true
@@ -354,6 +385,7 @@ public final class Settings {
         static let diffFontSize = "diffFontSize"
         static let showsDiffLineNumbers = "showsDiffLineNumbers"
         static let diffLayout = "diffLayout"
+        static let diffSidebarWidth = "diffSidebarWidth"
         static let notificationReasons = "notificationReasons"
         static let hiddenLists = "hiddenLists"
         static let savedLists = "savedLists"

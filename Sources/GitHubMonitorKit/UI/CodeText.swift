@@ -21,7 +21,12 @@ struct CodeText: View {
         Text(attributed)
             .font(font)
             .textSelection(.enabled)
-            .fixedSize(horizontal: true, vertical: true)
+            // Wrapped rather than scrolled sideways. A line too long for
+            // the column is read by letting it run on, not by dragging the
+            // whole file under it; and in two columns, where each side has
+            // half a window, most lines are too long.
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var attributed: AttributedString {
@@ -76,6 +81,10 @@ extension CodeToken.Kind {
         case .string: .red
         case .number: .blue
         case .keyword: .purple
+        // Teal, which is far enough from the purple of the keywords beside
+        // it that a signature reads as words and types rather than as one
+        // coloured run.
+        case .type: .teal
         case .tag: .purple
         }
     }

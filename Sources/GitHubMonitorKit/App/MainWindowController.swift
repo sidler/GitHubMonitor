@@ -250,6 +250,8 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             files: opened.files,
             pullRequest: opened.url,
             startingPath: opened.path,
+            startingSidebarWidth: state.settings.diffSidebarWidth,
+            setSidebarWidth: { [state] width in state.settings.diffSidebarWidth = width },
             close: { [weak state] in state?.openedDiff = nil },
             review: item.map(reviewActions(for:)),
             subject: item.map(subject(for:)),

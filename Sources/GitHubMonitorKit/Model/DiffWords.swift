@@ -107,6 +107,31 @@ public enum DiffWords {
         return line.dropFirst()
     }
 
+    /// A line split into its marker column and the code after it, with the
+    /// marked stretches moved to match.
+    ///
+    /// Drawn apart because a wrapped line has to be told from a new one.
+    /// With the marker in the text, the second half of a long line starts
+    /// where a `+` or `-` would be and reads as a line of its own -- the
+    /// confusion a diff exists to prevent. In its own column the marker
+    /// cannot be mistaken for anything, and what wraps lines up under the
+    /// code it belongs to.
+    public static func split(
+        _ line: String, emphasis: [ChangedRange] = []
+    ) -> (marker: String, body: String, emphasis: [ChangedRange]) {
+        let body = body(of: line)
+        let offset = line.count - body.count
+        guard offset > 0 else { return ("", line, emphasis) }
+
+        let moved = emphasis.compactMap { range -> ChangedRange? in
+            let start = max(0, range.location - offset)
+            let length = range.length - max(0, offset - range.location)
+            guard length > 0 else { return nil }
+            return ChangedRange(location: start, length: length)
+        }
+        return (String(line.prefix(offset)), String(body), moved)
+    }
+
     /// Lines longer than this are compared by length alone.
     ///
     /// The marking is quadratic in the number of words. A minified bundle on

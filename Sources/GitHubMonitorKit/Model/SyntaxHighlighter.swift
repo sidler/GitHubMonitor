@@ -85,26 +85,63 @@ public enum CodeLanguage: String, Hashable, Sendable, CaseIterable {
         case .php:
             [
                 "abstract", "and", "array", "as", "break", "callable", "case", "catch", "class",
-                "clone", "const", "continue", "declare", "default", "do", "echo", "else", "elseif",
-                "enum", "extends", "final", "finally", "fn", "for", "foreach", "function", "global",
-                "if", "implements", "include", "instanceof", "interface", "match", "namespace",
-                "new", "or", "print", "private", "protected", "public", "readonly", "require",
-                "return", "static", "switch", "throw", "trait", "try", "use", "var", "while",
-                "yield", "true", "false", "null", "self", "parent", "this",
+                "clone", "const", "continue", "declare", "default", "die", "do", "echo", "else",
+                "elseif", "empty", "enddeclare", "endfor", "endforeach", "endif", "endswitch",
+                "endwhile", "enum", "eval", "exit", "extends", "final", "finally", "fn", "for",
+                "foreach", "function", "global", "goto", "if", "implements", "include",
+                "include_once", "instanceof", "insteadof", "interface", "isset", "list", "match",
+                "namespace", "new", "or", "print", "private", "protected", "public", "readonly",
+                "require", "require_once", "return", "static", "switch", "throw", "trait", "try",
+                "unset", "use", "var", "while", "xor", "yield",
+                "true", "false", "null", "self", "parent", "this",
             ]
         case .javascript, .typescript:
             [
-                "as", "async", "await", "break", "case", "catch", "class", "const", "continue",
-                "default", "delete", "do", "else", "enum", "export", "extends", "finally", "for",
-                "from", "function", "if", "implements", "import", "in", "instanceof", "interface",
-                "let", "new", "of", "private", "protected", "public", "readonly", "return",
-                "static", "switch", "this", "throw", "try", "type", "typeof", "var", "void",
-                "while", "yield", "true", "false", "null", "undefined",
+                "abstract", "as", "asserts", "async", "await", "break", "case", "catch", "class",
+                "const", "continue", "debugger", "declare", "default", "delete", "do", "else",
+                "enum", "export", "extends", "finally", "for", "from", "function", "get",
+                "if", "implements", "import", "in", "infer", "instanceof", "interface", "is",
+                "keyof", "let", "module", "namespace", "new", "of", "override", "private",
+                "protected", "public", "readonly", "require", "return", "satisfies", "set",
+                "static", "super", "switch", "this", "throw", "try", "type", "typeof", "var",
+                "while", "with", "yield",
+                "true", "false", "null", "undefined", "NaN", "Infinity",
             ]
-        case .css: ["important", "media", "import", "keyframes", "supports", "charset", "font-face"]
+        case .css:
+            [
+                "important", "media", "import", "keyframes", "supports", "charset", "font-face",
+                "container", "layer", "property", "scope", "starting-style", "page", "namespace",
+                "counter-style", "font-feature-values", "inherit", "initial", "unset", "revert",
+                "auto", "none", "and", "not", "only", "from", "to",
+            ]
         case .json: ["true", "false", "null"]
-        case .yaml: ["true", "false", "null", "yes", "no", "on", "off"]
+        case .yaml: ["true", "false", "null", "yes", "no", "on", "off", "~"]
         case .xml: []
+        }
+    }
+
+    /// Names of types, told apart from the words that direct the flow.
+    ///
+    /// A signature is mostly types, and painting them the same purple as
+    /// `public` and `function` leaves the one line a reader most wants to
+    /// read as a wall of one colour. Matched as written rather than
+    /// lowercased: PHP's are all lower case anyway, and `String` is not
+    /// `string` anywhere else.
+    var types: Set<String> {
+        switch self {
+        case .php:
+            [
+                "array", "bool", "callable", "false", "float", "int", "iterable", "mixed",
+                "never", "null", "object", "parent", "self", "static", "string", "true", "void",
+            ]
+        case .javascript, .typescript:
+            [
+                "any", "bigint", "boolean", "never", "number", "object", "string", "symbol",
+                "undefined", "unknown", "void",
+                "Array", "Date", "Error", "Map", "Promise", "Readonly", "Record", "RegExp", "Set",
+                "WeakMap", "WeakSet",
+            ]
+        case .css, .json, .yaml, .xml: []
         }
     }
 }
@@ -117,6 +154,9 @@ public struct CodeToken: Hashable, Sendable {
         case string
         case number
         case keyword
+        /// A type's name. Its own colour because a signature is mostly
+        /// types, and one colour over the whole of it says nothing.
+        case type
         /// An XML or HTML tag name, which is what carries the structure
         /// there in place of keywords.
         case tag
@@ -191,7 +231,12 @@ public enum SyntaxHighlighter {
             }
             if isWordStart(character) {
                 let word = rest.prefix { isWordCharacter($0) }
-                if language.keywords.contains(word.lowercased()) {
+                // A type first: PHP's `static` and `self` are both, and
+                // in a signature -- which is where they nearly always are
+                // in a diff -- the type is what the reader came for.
+                if language.types.contains(String(word)) {
+                    emit(String(word), .type)
+                } else if language.keywords.contains(word.lowercased()) {
                     emit(String(word), .keyword)
                 } else {
                     plain += word

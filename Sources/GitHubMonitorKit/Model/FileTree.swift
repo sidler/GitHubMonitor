@@ -28,6 +28,44 @@ public enum FileTree {
         }
     }
 
+    /// One line of the drawn tree: a node and how deep it sits.
+    ///
+    /// Flattened rather than drawn as nested groups. A list that nests its
+    /// own groups indents each level by its own fixed amount, which is not
+    /// something it offers to change -- and at six levels deep, which a
+    /// Java or PHP module reaches without trying, that leaves a sliver for
+    /// the file name and the rest of the row to the left of it.
+    public struct Row: Identifiable, Hashable, Sendable {
+        public let node: Node
+        public let depth: Int
+
+        public var id: String {
+            switch node {
+            case .file(let file): "f:" + file.path
+            case .folder(let folder): "d:" + folder.path
+            }
+        }
+    }
+
+    /// The rows to draw, given which folders have been shut.
+    ///
+    /// Depth-first, in the order of the tree, leaving out everything under
+    /// a folder that is shut.
+    public static func rows(
+        _ nodes: [Node], shut: Set<String> = [], depth: Int = 0
+    ) -> [Row] {
+        nodes.flatMap { node -> [Row] in
+            switch node {
+            case .file:
+                return [Row(node: node, depth: depth)]
+            case .folder(let folder):
+                let here = Row(node: node, depth: depth)
+                guard !shut.contains(folder.path) else { return [here] }
+                return [here] + rows(folder.children, shut: shut, depth: depth + 1)
+            }
+        }
+    }
+
     public struct Folder: Hashable, Sendable {
         /// The whole path down to here, which is what makes it unique.
         public let path: String

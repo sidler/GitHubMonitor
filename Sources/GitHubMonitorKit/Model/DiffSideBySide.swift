@@ -35,17 +35,6 @@ public enum DiffSideRow: Equatable, Sendable {
     case pair(left: DiffCell?, right: DiffCell?)
 }
 
-/// The longest line each column holds, in characters.
-public struct DiffWidths: Equatable, Sendable {
-    public let left: Int
-    public let right: Int
-
-    public init(left: Int, right: Int) {
-        self.left = left
-        self.right = right
-    }
-}
-
 /// Turns a unified patch into two columns.
 ///
 /// A unified diff is one column by construction: a removal and the line
@@ -61,22 +50,24 @@ public struct DiffWidths: Equatable, Sendable {
 /// but it is the guess that puts a renamed variable next to its old name,
 /// which is what the view is for.
 public enum DiffSideBySide {
-    /// How long the longest line on each side is.
+    /// Whether a patch has anything to put on both sides.
     ///
-    /// Not for sizing the columns -- those are half the width each,
-    /// whatever is in the file -- but for sizing what scrolls inside one.
-    /// A row has to be as wide as the widest line beside it, or its colour
-    /// band stops where its own text does and the rest of the row goes
-    /// white as soon as anything is scrolled sideways.
-    public static func longest(in rows: [DiffSideRow]) -> DiffWidths {
-        var left = 0
-        var right = 0
-        for row in rows {
-            guard case .pair(let leftCell, let rightCell) = row else { continue }
-            left = max(left, leftCell?.text.count ?? 0)
-            right = max(right, rightCell?.text.count ?? 0)
+    /// A file that was added has no old version, one that was deleted has
+    /// no new one, and a file whose every changed line goes one way has
+    /// nothing to compare. Two columns for those is half a window of blank
+    /// facing the only column that says anything, and every line squeezed
+    /// into the other half for nothing.
+    public static func isOneSided(_ patch: String) -> Bool {
+        var hasOld = false
+        var hasNew = false
+        for line in patch.components(separatedBy: "\n") {
+            // `---` and `+++` are a patch's file headers, not its lines.
+            if line.hasPrefix("---") || line.hasPrefix("+++") { continue }
+            if line.hasPrefix("-") { hasOld = true }
+            if line.hasPrefix("+") { hasNew = true }
+            if hasOld, hasNew { return false }
         }
-        return DiffWidths(left: left, right: right)
+        return true
     }
 
     /// A hunk header, split into the half that belongs to each file.

@@ -105,3 +105,66 @@ struct FileTreeTests {
         #expect(FileTree.folderPaths(tree) == ["src/", "src/Filter/", "src/Model/"])
     }
 }
+
+@Suite("The tree, flattened into rows")
+struct FileTreeRowTests {
+    private func files(_ paths: [String]) -> [ChangedFile] {
+        paths.map {
+            ChangedFile(path: $0, additions: 1, deletions: 0, change: .modified, patch: "@@")
+        }
+    }
+
+    /// Flattened rather than drawn as nested groups: a list that nests its
+    /// own groups indents each level by an amount it does not offer to
+    /// change, and six levels deep leaves a sliver for the file name.
+    @Test("Every node gets a row, with how deep it sits")
+    func depths() {
+        let tree = FileTree.build(files(["a/b/one.php", "a/b/two.php", "a/c/three.php"]))
+        let rows = FileTree.rows(tree)
+
+        // `a` holds two folders, so it is a level of its own; the files
+        // sit two levels under it.
+        #expect(rows.first?.depth == 0)
+        #expect(rows.first?.id == "d:a/")
+        let deepest = rows.first { $0.id == "f:a/b/one.php" }
+        #expect(deepest?.depth == 2)
+    }
+
+    /// What is under a shut folder is not drawn, but the folder still is.
+    @Test("A shut folder keeps its own row and loses its children")
+    func shut() {
+        let tree = FileTree.build(files(["a/b/one.php", "a/c/two.php"]))
+        let all = FileTree.rows(tree)
+        let folded = FileTree.rows(tree, shut: ["a/b/"])
+
+        #expect(folded.count == all.count - 1)
+        #expect(folded.contains { $0.id == "d:a/b/" })
+        #expect(!folded.contains { $0.id == "f:a/b/one.php" })
+    }
+
+    /// Shutting the root takes everything with it but itself.
+    @Test("Shutting the top leaves one row")
+    func shutRoot() {
+        let tree = FileTree.build(files(["a/b/one.php", "a/c/two.php"]))
+        #expect(FileTree.rows(tree, shut: ["a/"]).count == 1)
+    }
+
+    /// Depth-first, in the order of the tree: the list is read downwards
+    /// and has to run the way the files do.
+    @Test("The rows come out in the order the tree is in")
+    func order() {
+        let tree = FileTree.build(files(["a/one.php", "a/two.php", "b/three.php"]))
+        let names = FileTree.rows(tree).map(\.id)
+        #expect(names.firstIndex(of: "f:a/one.php")! < names.firstIndex(of: "f:a/two.php")!)
+        #expect(names.firstIndex(of: "f:a/two.php")! < names.firstIndex(of: "f:b/three.php")!)
+    }
+
+    /// Files and folders can share a path in a flat list, so the two are
+    /// told apart in the identity as well.
+    @Test("A file and a folder of the same name are different rows")
+    func identity() {
+        let tree = FileTree.build(files(["x/one.php"]))
+        let ids = Set(FileTree.rows(tree).map(\.id))
+        #expect(ids.count == FileTree.rows(tree).count)
+    }
+}

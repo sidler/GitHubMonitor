@@ -1,3 +1,4 @@
+import AppKit
 import Combine
 import SwiftUI
 
@@ -16,6 +17,10 @@ struct DiffOverlay: View {
     /// The file to put at the top when the overlay opens. After that the
     /// overlay keeps its own place.
     let startingPath: String?
+    /// How wide the file list starts, and where to write it once it has
+    /// been moved. Nil leaves the divider fixed.
+    var startingSidebarWidth: Double = Settings.defaultDiffSidebarWidth
+    var setSidebarWidth: ((Double) -> Void)?
     let close: () -> Void
     /// The pull request being read, where one is known. Nil leaves the
     /// overlay a reader and nothing more.
@@ -41,6 +46,7 @@ struct DiffOverlay: View {
     var viewed: ViewedFiles?
 
     @StateObject private var open = OpenFolders()
+    @StateObject private var sidebar = SidebarWidth()
     /// Which file is at the top of the column, kept here rather than in the
     /// app's state.
     ///
@@ -86,6 +92,7 @@ struct DiffOverlay: View {
             // Once, so that opening on a file lands on it and scrolling
             // afterwards is nobody's business but the overlay's.
             if place.path == nil { place.path = startingPath }
+            sidebar.width = Settings.clampedSidebarWidth(startingSidebarWidth)
         }
         // Escape is handled by the view that hosts this, so that it stops
         // here instead of reaching the list behind it.
@@ -97,7 +104,7 @@ struct DiffOverlay: View {
             Divider()
             HStack(spacing: 0) {
                 index
-                Divider()
+                handle
                 diffs
             }
         }
@@ -244,20 +251,49 @@ struct DiffOverlay: View {
     /// Bound to the same value the scroll position writes, so clicking jumps
     /// and scrolling moves the highlight.
     private var index: some View {
-        List(selection: $place.path) {
+        // No `selection:`. A list whose rows are a flat `ForEach` of
+        // mixed kinds would neither mark the chosen file nor let one be
+        // chosen -- which is also why clicking a file in the tree never
+        // moved the diff. The mark and the click are drawn and handled
+        // here instead, where they can be seen to work.
+        List {
             FileTreeRows(
                 nodes: FileTree.build(files),
                 open: open,
                 viewed: viewed?.states ?? [:],
-                comments: ReviewThreadPlacement.openCounts(threads)
+                comments: ReviewThreadPlacement.openCounts(threads),
+                current: place.path,
+                choose: { place.path = $0 }
             )
         }
         // Inset rather than sidebar: the sidebar style draws an edge shadow
         // down its trailing side, which fell across the diff beside it.
-        .listStyle(.inset)
+        // Plain rather than inset: the inset style gives every row
+        // twenty-two points of leading of its own, which on a tree six
+        // levels deep was more than a third of what the indentation cost
+        // -- and it does not offer to give them back.
+        .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .frame(width: 260)
+        .frame(width: sidebar.width)
     }
+
+    /// The divider between the file list and the diff, which can be moved.
+    ///
+    /// A hairline is not something anybody can hit, so the grab area is
+    /// wider than the line it draws and sits over it: the divider stays a
+    /// hairline and the target is eight points across.
+    ///
+    /// The width is kept here while it is being dragged and written to the
+    /// settings when the hand comes off. Writing on every frame would put
+    /// sixty values a second into preferences for one decision.
+    private var handle: some View {
+        SidebarHandle(width: sidebar.width) { chosen in
+            sidebar.width = chosen
+            setSidebarWidth?(chosen)
+        }
+    }
+
+
 
     private var diffs: some View {
         // The width is measured and handed down: inside a horizontal scroll
@@ -371,31 +407,16 @@ struct DiffOverlay: View {
                     OutdatedThreadsView(threads: stranded)
                 }
 
-                // One file, one container. It was briefly cut into a piece
-                // per comment, each with its own horizontal scroll, so the
-                // prose between them would stay put -- and the pieces then
-                // had to be kept level with one another. A review of forty
-                // files became hundreds of scroll views passing positions
-                // around, which is what made scrolling one wobble.
+                // Nothing in here scrolls sideways: a line too long for
+                // the column wraps. That is what finally made this simple
+                // -- no scroll views inside a file, nothing to keep in
+                // step, and a row whose two halves share one height.
+                // Two columns only where there are two sides. A file that
+                // was added has no old version, so the left column would be
+                // half a window of nothing and every line of the new file
+                // would be squeezed into the other half to face it.
                 switch layout {
-                case .unified:
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        PatchLines(
-                            patch: patch,
-                            language: file.language,
-                            fontSize: fontSize,
-                            showsLineNumbers: showsLineNumbers,
-                            threads: ReviewThreadPlacement.placed(mine, in: file.path),
-                            column: width
-                        )
-                            .padding(.vertical, 6)
-                            // At least the width of the column, so the
-                            // added and removed bands run the whole way
-                            // across; a longer line still makes it wider
-                            // and scrolls.
-                            .frame(minWidth: width, alignment: .leading)
-                    }
-                case .sideBySide:
+                case .sideBySide where !DiffSideBySide.isOneSided(patch):
                     SideBySidePatch(
                         patch: patch,
                         language: file.language,
@@ -403,6 +424,16 @@ struct DiffOverlay: View {
                         fontSize: fontSize,
                         showsLineNumbers: showsLineNumbers,
                         threads: ReviewThreadPlacement.placed(mine, in: file.path)
+                    )
+                    .padding(.vertical, 6)
+                case .unified, .sideBySide:
+                    PatchLines(
+                        patch: patch,
+                        language: file.language,
+                        fontSize: fontSize,
+                        showsLineNumbers: showsLineNumbers,
+                        threads: ReviewThreadPlacement.placed(mine, in: file.path),
+                        column: width
                     )
                     .padding(.vertical, 6)
                 }
@@ -521,24 +552,31 @@ struct PatchLines: View {
 
     private func row(_ line: Line, digits: Int) -> some View {
         let kind = DiffLineKind(line: line.text)
-        return HStack(spacing: 0) {
+        let split = DiffWords.split(line.text, emphasis: line.emphasis)
+        return HStack(alignment: .top, spacing: 0) {
             if showsLineNumbers {
                 gutter(line.number, digits: digits)
             }
 
+            // The marker in a column of its own, so a line too long for the
+            // page wraps under its code rather than where a `+` would be.
+            Text(verbatim: split.marker)
+                .font(.system(size: fontSize).monospaced())
+                .foregroundStyle(.secondary)
+                .frame(width: markerWidth, alignment: .leading)
+
             CodeText(
-                source: line.text,
+                source: split.body,
                 // A hunk header is not code, and the marker column at the
                 // start of every other line would have the highlighter
                 // reading `-` as punctuation before a keyword. Colour the
                 // code, not the diff.
                 language: kind == .hunk ? nil : language,
                 font: .system(size: fontSize).monospaced(),
-                emphasis: line.emphasis,
+                emphasis: split.emphasis,
                 emphasisTint: kind.emphasis
             )
             .foregroundStyle(kind.textTint)
-            .padding(.leading, showsLineNumbers ? 8 : 12)
             .padding(.trailing, 12)
         }
         .padding(.vertical, 1)
@@ -570,6 +608,13 @@ struct PatchLines: View {
             .font(.system(size: fontSize).monospaced())
             .foregroundStyle(.tertiary)
             .padding(.leading, 12)
+            .padding(.trailing, 8)
+    }
+
+    /// One character, plus the room either side of it.
+    private var markerWidth: CGFloat {
+        NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
+            .maximumAdvancement.width + 10
     }
 
     static func pad(_ number: Int?, to digits: Int) -> String {
@@ -648,15 +693,12 @@ enum DiffLineKind {
 /// anything. A folder closed by hand stays closed while the overlay is up.
 @MainActor
 final class OpenFolders: ObservableObject {
-    @Published private var closed: Set<String> = []
+    @Published private(set) var shut: Set<String> = []
 
-    func binding(for path: String) -> Binding<Bool> {
-        Binding(
-            get: { [weak self] in !(self?.closed.contains(path) ?? false) },
-            set: { [weak self] isOpen in
-                if isOpen { self?.closed.remove(path) } else { self?.closed.insert(path) }
-            }
-        )
+    func isOpen(_ path: String) -> Bool { !shut.contains(path) }
+
+    func toggle(_ path: String) {
+        if shut.contains(path) { shut.remove(path) } else { shut.insert(path) }
     }
 }
 
@@ -674,29 +716,67 @@ struct FileTreeRows: View {
     /// what somebody scans to decide where to go next, and an unanswered
     /// remark is the best reason there is to go somewhere.
     var comments: [String: ReviewThreadPlacement.OpenComments] = [:]
+    /// The file the diff is showing, which this list marks.
+    var current: String?
+    /// What to do when one is picked.
+    var choose: (String) -> Void = { _ in }
 
     var body: some View {
-        ForEach(nodes) { node in
-            switch node {
+        ForEach(FileTree.rows(nodes, shut: open.shut)) { row in
+            switch row.node {
+            // Buttons rather than tap gestures. A list row swallows a
+            // plain gesture: with `onTapGesture` on these, clicking a file
+            // neither marked it nor moved the diff, and clicking a folder
+            // did not even fold it.
             case .file(let file):
-                fileRow(file).tag(file.path)
-            case .folder(let folder):
-                DisclosureGroup(isExpanded: open.binding(for: folder.path)) {
-                    AnyView(FileTreeRows(
-                        nodes: folder.children, open: open, viewed: viewed, comments: comments
-                    ))
-                } label: {
-                    folderRow(folder)
+                Button { choose(file.path) } label: {
+                    fileRow(file, depth: row.depth)
                 }
+                .buttonStyle(.plain)
+            case .folder(let folder):
+                Button { open.toggle(folder.path) } label: {
+                    folderRow(folder, depth: row.depth)
+                }
+                .buttonStyle(.plain)
             }
         }
     }
 
-    private func fileRow(_ file: ChangedFile) -> some View {
+    /// How far one level is set in.
+    ///
+    /// Four points. Measured at ten, six levels of a PHP module spent
+    /// sixty of the list's two hundred and sixty on indentation alone; at
+    /// four it is twenty-four. A level still reads as a level -- the
+    /// triangle and the grey of a folder's name say more about the
+    /// hierarchy than the distance does, and in this list the distance was
+    /// being paid for out of the file names.
+    private static let step: CGFloat = 4
+    /// Room for the triangle, so a file sits under its folder's name
+    /// rather than under its triangle.
+    private static let twistWidth: CGFloat = 12
+    /// What the list holds back at its leading edge whatever it is told.
+    ///
+    /// `listRowInsets` does not give it back and neither does
+    /// `contentMargins`, so the rows are pulled back over it. It is worth
+    /// about two characters of every file name.
+    private static let listInset: CGFloat = 10
+
+    private func indent(_ depth: Int) -> CGFloat { CGFloat(depth) * Self.step }
+
+    private func fileRow(_ file: ChangedFile, depth: Int) -> some View {
         let state = viewed[file.path] ?? .unviewed
         return HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Image(systemName: file.change.symbolName)
-                .foregroundStyle(.secondary)
+            Spacer()
+                .frame(width: indent(depth) + Self.twistWidth)
+            // Only where it says something. Nearly every file in a review
+            // is modified, so a pencil beside all of them is a column of
+            // one repeated symbol -- and in a list this narrow that column
+            // costs as much as two levels of indentation.
+            if file.change != .modified {
+                Image(systemName: file.change.symbolName)
+                    .foregroundStyle(.secondary)
+                    .help(file.change.label)
+            }
             // The name only: the folders above it carry the rest, which is
             // the whole point of the tree.
             Text((file.path as NSString).lastPathComponent)
@@ -723,6 +803,17 @@ struct FileTreeRows: View {
             }
         }
         .font(.caption)
+        .padding(.vertical, 2)
+        .padding(.horizontal, 4)
+        .padding(.leading, -Self.listInset)
+        // Drawn here rather than left to the list, which would not draw it
+        // at all for a flat row of mixed kinds.
+        .background(
+            file.path == current ? Color.secondary.opacity(0.22) : .clear,
+            in: RoundedRectangle(cornerRadius: 5)
+        )
+        .contentShape(Rectangle())
+        .pointerStyle(.link)
         .help(file.path)
     }
 
@@ -752,8 +843,14 @@ struct FileTreeRows: View {
         )
     }
 
-    private func folderRow(_ folder: FileTree.Folder) -> some View {
+    private func folderRow(_ folder: FileTree.Folder, depth: Int) -> some View {
         HStack(spacing: 6) {
+            Spacer()
+                .frame(width: indent(depth))
+            Image(systemName: open.isOpen(folder.path) ? "chevron.down" : "chevron.right")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .frame(width: Self.twistWidth, alignment: .leading)
             Text(folder.name)
                 .lineLimit(1)
                 .truncationMode(.head)
@@ -767,7 +864,12 @@ struct FileTreeRows: View {
         }
         .font(.caption.weight(.medium))
         .foregroundStyle(.secondary)
+        .padding(.leading, -Self.listInset)
         .help(folder.path)
+        // The whole row, not just the triangle: a folder's name is the
+        // thing anybody aims at, and it is the wider target by far.
+        .contentShape(Rectangle())
+        .pointerStyle(.link)
     }
 }
 
@@ -806,4 +908,78 @@ final class DiffPlace: ObservableObject {
     /// Written by scrolling it and by the list beside it, which is what
     /// makes the two follow each other.
     @Published var path: String?
+}
+
+/// How wide the file list beside the diff is.
+///
+/// View-local state without `@State`, whose macro ships only with Xcode.
+@MainActor
+final class SidebarWidth: ObservableObject {
+    @Published var width: CGFloat = Settings.defaultDiffSidebarWidth
+}
+
+/// The edge between the file list and the diff, which can be moved.
+///
+/// Its own view, holding its own state, so that dragging it redraws the
+/// line and nothing else. Kept on the overlay, the proposed width redrew
+/// the whole diff on every frame of the drag for a number only the line
+/// was waiting on.
+private struct SidebarHandle: View {
+    /// Where the edge is now. It does not move until the hand comes off.
+    let width: CGFloat
+    let commit: (CGFloat) -> Void
+
+    @StateObject private var drag = HandleDrag()
+
+    var body: some View {
+        // A filled shape rather than `Color.clear`, whose hit testing is
+        // not something to lean on: the first version of this was a clear
+        // strip marked only by a hairline, and it could not be caught with
+        // a mouse at all. Nearly-invisible grey is a surface either way,
+        // and it shows itself under the pointer so there is something to
+        // aim at.
+        Rectangle()
+            .fill(Color.secondary.opacity(drag.isHovering ? 0.22 : 0.001))
+            .frame(width: Self.width)
+            // Drawn, not felt: the line says where the edge is, the strip
+            // around it is what the hand catches.
+            .overlay(Divider().allowsHitTesting(false))
+            .contentShape(Rectangle())
+            // Not asked during a drag: the strip follows the pointer a
+            // frame behind, so the answer keeps changing and the highlight
+            // blinks all the way across.
+            .onHover { if drag.proposed == nil { drag.isHovering = $0 } }
+            .pointerStyle(.columnResize)
+            // While the hand is on it the line goes where the pointer
+            // goes, and the diff behind it stays where it was. Every line
+            // of the diff wraps to its column, so changing that column on
+            // every frame re-wraps the whole file sixty times a second --
+            // which is not resizing, it is flickering.
+            .offset(x: (drag.proposed ?? width) - width)
+            .gesture(
+                DragGesture(minimumDistance: 1)
+                    .onChanged { gesture in
+                        drag.isHovering = true
+                        drag.proposed = Settings.clampedSidebarWidth(
+                            width + gesture.translation.width
+                        )
+                    }
+                    .onEnded { _ in
+                        if let proposed = drag.proposed { commit(proposed) }
+                        drag.proposed = nil
+                    }
+            )
+    }
+
+    /// Twelve points, centred on the line: six either side is what a mouse
+    /// can find without aiming. The strip is invisible until the pointer
+    /// is over it, so the width costs the diff nothing to look at.
+    private static let width: CGFloat = 12
+}
+
+/// What the edge is doing, watched by the edge alone.
+@MainActor
+private final class HandleDrag: ObservableObject {
+    @Published var proposed: CGFloat?
+    @Published var isHovering = false
 }
