@@ -44,6 +44,11 @@ public enum IssueQuery {
               number
               title
               url
+              # Free: these nodes are already being fetched, and without
+              # them the list can say a pull request answers the issue but
+              # not whether anybody has merged it.
+              state
+              isDraft
               repository { nameWithOwner }
             }
           }

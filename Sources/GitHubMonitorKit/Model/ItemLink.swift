@@ -48,14 +48,25 @@ public struct ItemLink: Hashable, Sendable, Identifiable {
     /// read out of text, until it has been looked up.
     public let title: String?
     public let url: URL?
+    /// Where the thing linked to stands, when GitHub said so with the
+    /// link. Nil for a number read out of prose, which is a guess until it
+    /// has been looked up.
+    public let state: LinkedSummary.State?
 
     public var id: String { reference.id }
 
-    public init(reference: ItemReference, kind: Kind, title: String? = nil, url: URL? = nil) {
+    public init(
+        reference: ItemReference,
+        kind: Kind,
+        title: String? = nil,
+        url: URL? = nil,
+        state: LinkedSummary.State? = nil
+    ) {
         self.reference = reference
         self.kind = kind
         self.title = title
         self.url = url
+        self.state = state
     }
 
     /// Joins several findings into one list without repeating an item.
@@ -78,7 +89,8 @@ public struct ItemLink: Hashable, Sendable, Identifiable {
                         reference: held.reference,
                         kind: Kind.stronger(held.kind, link.kind),
                         title: held.title ?? link.title,
-                        url: held.url ?? link.url
+                        url: held.url ?? link.url,
+                        state: held.state ?? link.state
                     )
                 } else {
                     seen[link.reference] = result.count

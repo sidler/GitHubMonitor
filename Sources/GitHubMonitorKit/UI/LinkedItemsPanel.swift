@@ -320,15 +320,7 @@ private struct LinkedSummaryCard: View {
         .font(.caption)
     }
 
-    private var tint: Color {
-        switch summary.state {
-        case .open: .green
-        case .draft: .secondary
-        case .merged: .purple
-        case .closed: .secondary
-        case .notPlanned: .secondary
-        }
-    }
+    private var tint: Color { summary.state.tint }
 }
 
 extension LinkedSummary {
@@ -413,6 +405,11 @@ struct LinkBadge: View {
                             .monospacedDigit()
                     }
                 }
+                // Green for open, purple for merged, grey for anything
+                // that is over. Scanning a list of issues, the question
+                // behind the number is whether the answer has landed --
+                // and the number alone does not say.
+                .foregroundStyle(LinkedState.of(first, in: context.state)?.tint ?? .secondary)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -433,9 +430,31 @@ struct LinkBadge: View {
     }
 
     private var helpText: String {
-        let names = links.map(\.reference.id).joined(separator: ", ")
+        let names = links.map { link in
+            guard let state = LinkedState.of(link, in: context.state) else {
+                return link.reference.id
+            }
+            return "\(link.reference.id) \u{00b7} \(state.label)"
+        }
+        .joined(separator: ", ")
         guard unshown > 0 else { return "Linked to \(names)" }
         return "Linked to \(names) and \(unshown) more"
+    }
+}
+
+/// Where the thing a link points at stands.
+///
+/// From the link itself where GitHub said so with it -- which the lists
+/// now ask for, since those nodes were already being fetched -- and
+/// otherwise from a summary looked up since. A number read out of prose
+/// knows nothing until somebody has opened the panel on it.
+@MainActor
+enum LinkedState {
+    static func of(_ link: ItemLink, in state: AppState) -> LinkedSummary.State? {
+        if let known = link.state { return known }
+        guard case .loaded(let summary) = state.linkedSummaries[link.reference.id]
+        else { return nil }
+        return summary.state
     }
 }
 
@@ -459,7 +478,7 @@ struct LinkChipRow: View {
                     Button { panel.isOn = true } label: { chip(link) }
                         .buttonStyle(.plain)
                         .pointerStyle(.link)
-                        .help(link.title ?? link.reference.id)
+                        .help(help(link))
                 }
                 if unshown > 0 {
                     Text("+\(unshown)")
@@ -479,8 +498,28 @@ struct LinkChipRow: View {
         }
     }
 
+    /// Where the pull request behind this chip stands.
+    ///
+    /// From the link where GitHub said so with it, and otherwise from a
+    /// summary already fetched -- a number read out of prose knows nothing
+    /// until somebody has opened the panel on it.
+    private func state(_ link: ItemLink) -> LinkedSummary.State? {
+        LinkedState.of(link, in: context.state)
+    }
+
+    private func help(_ link: ItemLink) -> String {
+        let name = link.title ?? link.reference.id
+        guard let state = state(link) else { return name }
+        return "\(name) \u{00b7} \(state.label)"
+    }
+
     private func chip(_ link: ItemLink) -> some View {
-        HStack(spacing: 3) {
+        // Green for open, purple for merged, grey for anything that is
+        // over: a number alone says a pull request answers this issue
+        // without saying whether anybody has merged it, which is the
+        // question being asked when the list is scanned.
+        let tint = state(link)?.tint ?? Color.accentColor
+        return HStack(spacing: 3) {
             Image(systemName: link.kind == .closes ? "link" : "text.quote")
             Text(verbatim: "\(link.reference.number)")
                 .monospacedDigit()
@@ -489,10 +528,10 @@ struct LinkChipRow: View {
             }
         }
         .font(.caption)
-        .foregroundStyle(Color.accentColor)
+        .foregroundStyle(tint)
         .padding(.horizontal, 5)
         .padding(.vertical, 1)
-        .background(Color.accentColor.opacity(0.12), in: Capsule())
+        .background(tint.opacity(0.12), in: Capsule())
         .contentShape(Capsule())
     }
 }

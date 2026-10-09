@@ -34,10 +34,28 @@ public enum ItemLinkParser {
                 ),
                 kind: .closes,
                 title: entry["title"] as? String,
-                url: (entry["url"] as? String).flatMap(URL.init(string:))
+                url: (entry["url"] as? String).flatMap(URL.init(string:)),
+                state: pullRequestState(from: entry)
             )
         }
 
         return (links, connection["totalCount"] as? Int ?? links.count)
+    }
+
+    /// Where a linked pull request stands.
+    ///
+    /// Nil rather than a guess where the query did not ask: a chip drawn
+    /// green because nobody said otherwise would be a lie about something
+    /// that was merged last week.
+    static func pullRequestState(from entry: [String: Any]) -> LinkedSummary.State? {
+        guard let raw = entry["state"] as? String else { return nil }
+        switch raw {
+        case "MERGED": return .merged
+        case "CLOSED": return .closed
+        // A draft is open, but not in the sense anybody waiting on it
+        // means, so GitHub reports the two separately and so does this.
+        case "OPEN": return entry["isDraft"] as? Bool == true ? .draft : .open
+        default: return nil
+        }
     }
 }

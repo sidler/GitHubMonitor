@@ -184,7 +184,8 @@ public enum SampleData {
                         reference: ItemReference(repository: Repository.server, number: 482),
                         kind: .closes,
                         title: "Fix race condition in session handler",
-                        url: url(Repository.server, 482)
+                        url: url(Repository.server, 482),
+                        state: .open
                     ),
                 ]
             ),
@@ -202,7 +203,8 @@ public enum SampleData {
                         reference: ItemReference(repository: Repository.platform, number: 903),
                         kind: .closes,
                         title: "#611 Cache the rendered navigation between requests",
-                        url: url(Repository.platform, 903)
+                        url: url(Repository.platform, 903),
+                        state: .open
                     ),
                 ]
             ),
@@ -235,7 +237,16 @@ public enum SampleData {
                     IssueLabel(name: "bug", color: "d73a4a"),
                     IssueLabel(name: "good first issue", color: "7057ff"),
                 ],
-                type: IssueType(name: "Bug", color: .red)
+                type: IssueType(name: "Bug", color: .red),
+                links: [
+                    ItemLink(
+                        reference: ItemReference(repository: Repository.website, number: 88),
+                        kind: .closes,
+                        title: "Normalise hyphens before indexing",
+                        url: url(Repository.website, 88),
+                        state: .merged
+                    ),
+                ]
             ),
         ]
     }

@@ -130,3 +130,64 @@ struct ItemLinkMergeTests {
         #expect(merged.map(\.reference.number) == [2, 9])
     }
 }
+
+
+/// What a linked pull request's number says about it.
+@Suite("Where a link points, and how it is going")
+struct LinkedStateTests {
+    private func node(_ fields: [String: Any]) -> [String: Any] {
+        var entry: [String: Any] = [
+            "number": 482,
+            "title": "Fix race condition in session handler",
+            "url": "https://github.com/octo/server/pull/482",
+            "repository": ["nameWithOwner": "octo/server"],
+        ]
+        entry.merge(fields) { _, new in new }
+        return ["links": ["totalCount": 1, "nodes": [entry]]]
+    }
+
+    private func state(_ fields: [String: Any]) -> LinkedSummary.State? {
+        ItemLinkParser.links(
+            from: node(fields), key: "links", fallbackRepository: "octo/server"
+        ).links.first?.state
+    }
+
+    @Test("GitHub's three answers, and the draft hiding inside one of them")
+    func parsed() {
+        #expect(state(["state": "MERGED"]) == .merged)
+        #expect(state(["state": "CLOSED"]) == .closed)
+        #expect(state(["state": "OPEN"]) == .open)
+        // A draft is open, but not in the sense somebody waiting on it
+        // means.
+        #expect(state(["state": "OPEN", "isDraft": true]) == .draft)
+        #expect(state(["state": "OPEN", "isDraft": false]) == .open)
+    }
+
+    /// Nil rather than a guess: a chip drawn green because nobody said
+    /// otherwise would be a lie about something merged last week.
+    @Test("A query that did not ask gets no answer")
+    func unasked() {
+        #expect(state([:]) == nil)
+        #expect(state(["state": "SOMETHING_NEW"]) == nil)
+    }
+
+    /// Merging two findings about one number must not lose the state, or
+    /// a link GitHub described would come out as plain as a guess.
+    @Test("Merging keeps what is known")
+    func merging() {
+        let reference = ItemReference(repository: "octo/server", number: 482)
+        let guessed = ItemLink(reference: reference, kind: .mentions)
+        let known = ItemLink(
+            reference: reference, kind: .closes, title: "Fix it", state: .merged
+        )
+
+        #expect(ItemLink.merge([[guessed], [known]]).first?.state == .merged)
+        #expect(ItemLink.merge([[known], [guessed]]).first?.state == .merged)
+    }
+
+    @Test("Open and merged do not look the same")
+    func tints() {
+        #expect(LinkedSummary.State.open.tint != LinkedSummary.State.merged.tint)
+        #expect(LinkedSummary.State.closed.tint == LinkedSummary.State.notPlanned.tint)
+    }
+}

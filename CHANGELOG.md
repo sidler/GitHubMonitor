@@ -5,6 +5,19 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **A linked pull request's number says how it is going.** In the issue
+  list the number was drawn the same whether the pull request answering
+  the issue was still open or had been merged a week ago — which is the
+  question being asked when the list is scanned. Green for open, purple
+  for merged, grey for anything that is over without having been merged,
+  and the tooltip spells it out. GitHub's own colours, because those are
+  the ones anybody reading them already knows.
+- It costs nothing: those nodes were already being fetched for their
+  titles, so the state rides along in the same request. A number read out
+  of prose still has no colour until it has been looked up, which is the
+  honest answer — a chip drawn green because nobody said otherwise would
+  be a lie about something merged last week.
+
 - **Opening a comment in the diff no longer moves the page.** Unfolding a
   conversation scrolled the file out from under the line being read, and
   folding it again did the same — sometimes far enough to bring the

@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 /// Enough of a linked issue or pull request to answer "what is this about"
 /// without leaving what you were reading.
@@ -30,6 +31,20 @@ public struct LinkedSummary: Hashable, Sendable, Identifiable {
             case .merged: "Merged"
             case .closed: "Closed"
             case .notPlanned: "Closed as not planned"
+            }
+        }
+
+        /// The colour for where it stands.
+        ///
+        /// GitHub's own, which is what anybody reading it already expects:
+        /// green for open, purple for merged. Everything that is over
+        /// without having been merged is grey rather than red -- a closed
+        /// issue is not a failure, and a row of red chips would shout.
+        public var tint: Color {
+            switch self {
+            case .open: .green
+            case .merged: .purple
+            case .draft, .closed, .notPlanned: .secondary
             }
         }
 
