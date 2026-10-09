@@ -3,7 +3,7 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
-## Unreleased
+## 1.6.1
 
 - **A linked number is visible again on the row you have selected.** It
   was drawn in `.secondary`, and inside a selected row SwiftUI resolves a
