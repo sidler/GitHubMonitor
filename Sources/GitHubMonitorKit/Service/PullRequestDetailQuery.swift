@@ -25,8 +25,8 @@ public enum PullRequestDetailQuery {
                 statusCheckRollup {
                   contexts(first: 100) {
                     nodes {
-                      ... on CheckRun { name conclusion status }
-                      ... on StatusContext { context state }
+                      ... on CheckRun { id name conclusion status }
+                      ... on StatusContext { id context state }
                     }
                   }
                 }
@@ -90,6 +90,10 @@ public enum PullRequestDetailQuery {
                     ? lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
                     : priority(lhs.status) < priority(rhs.status)
             }
+            // Belt as well as braces: GitHub's ids are distinct, but an
+            // answer that somehow repeats one must not reach a list that
+            // keys on it.
+            .uniquedByID()
     }
 
     private static func priority(_ status: ChecksStatus) -> Int {
@@ -110,10 +114,14 @@ public enum PullRequestDetailQuery {
             } else {
                 .pending
             }
-            return CheckRun(name: name, status: status)
+            return CheckRun(id: node["id"] as? String, name: name, status: status)
         }
         if let context = node["context"] as? String {
-            return CheckRun(name: context, status: statusContextState(node["state"] as? String))
+            return CheckRun(
+                id: node["id"] as? String,
+                name: context,
+                status: statusContextState(node["state"] as? String)
+            )
         }
         return nil
     }

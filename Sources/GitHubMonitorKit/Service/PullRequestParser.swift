@@ -129,7 +129,11 @@ public enum PullRequestParser {
             guard (reviewer?["login"] as? String)?.caseInsensitiveCompare(viewer) == .orderedSame,
                   let raw = event["createdAt"] as? String
             else { return nil }
-            return GitHubDate.date(from: raw)
+            // `optional`, not `date`: the fallback there is the current
+            // time, which here would say the request had just been made.
+            // The clock would then restart at every refresh and the row
+            // would never age, which is worse than having no clock at all.
+            return GitHubDate.optional(from: raw)
         }
         .min()
     }

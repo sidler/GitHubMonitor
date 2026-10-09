@@ -60,9 +60,16 @@ public enum DiffSideBySide {
     public static func isOneSided(_ patch: String) -> Bool {
         var hasOld = false
         var hasNew = false
+        var insideHunk = false
         for line in patch.components(separatedBy: "\n") {
-            // `---` and `+++` are a patch's file headers, not its lines.
-            if line.hasPrefix("---") || line.hasPrefix("+++") { continue }
+            if DiffPatchLine.isHunkHeader(line) { insideHunk = true }
+            // A file header is not a line of either file. Only before the
+            // first `@@`, though: after it, `--- note` is a removed SQL
+            // comment and `---` a removed Markdown rule, and treating
+            // those as furniture reported a file with both sides as
+            // one-sided -- which quietly dropped the two-column layout the
+            // reader had chosen.
+            if DiffPatchLine.isFileHeader(line, insideHunk: insideHunk) { continue }
             if line.hasPrefix("-") { hasOld = true }
             if line.hasPrefix("+") { hasNew = true }
             if hasOld, hasNew { return false }
@@ -116,22 +123,27 @@ public enum DiffSideBySide {
             position < numbers.count ? numbers[position] : .none
         }
 
+        var insideHunk = false
+
         while index < lines.count {
             let line = lines[index]
 
-            if line.hasPrefix("@@") {
+            if DiffPatchLine.isHunkHeader(line) {
+                insideHunk = true
                 rows.append(.hunk(line))
                 index += 1
                 continue
             }
 
-            if line.hasPrefix("\\") {
+            if DiffPatchLine.isNote(line)
+                || DiffPatchLine.isFileHeader(line, insideHunk: insideHunk)
+            {
                 rows.append(.note(line))
                 index += 1
                 continue
             }
 
-            guard line.hasPrefix("+") || line.hasPrefix("-") else {
+            guard DiffPatchLine.isChange(line, insideHunk: insideHunk) else {
                 // Context: the same line in both files, at two numbers that
                 // are rarely the same.
                 let place = number(at: index)

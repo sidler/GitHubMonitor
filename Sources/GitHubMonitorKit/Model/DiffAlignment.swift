@@ -119,9 +119,13 @@ public enum DiffAlignment {
         let lines = patch.components(separatedBy: "\n")
         var result = Array(repeating: [ChangedRange](), count: lines.count)
         var index = 0
+        // A `---` before the first `@@` is a file header; the same three
+        // characters after it are a removed line of Markdown or SQL.
+        var insideHunk = false
 
         while index < lines.count {
-            guard isChange(lines[index]) else {
+            if DiffPatchLine.isHunkHeader(lines[index]) { insideHunk = true }
+            guard isChange(lines[index], insideHunk: insideHunk) else {
                 index += 1
                 continue
             }
@@ -130,7 +134,9 @@ public enum DiffAlignment {
             // pairing may reach: a context line is an anchor, not a gap.
             var removed: [Int] = []
             var added: [Int] = []
-            while index < lines.count, isChange(lines[index]) {
+            // A hunk header is not a change, so the run cannot run past
+            // one and `insideHunk` cannot go stale inside this loop.
+            while index < lines.count, isChange(lines[index], insideHunk: insideHunk) {
                 if lines[index].hasPrefix("-") { removed.append(index) } else { added.append(index) }
                 index += 1
             }
@@ -154,7 +160,7 @@ public enum DiffAlignment {
         return result
     }
 
-    static func isChange(_ line: String) -> Bool {
-        (line.hasPrefix("+") || line.hasPrefix("-")) && !line.hasPrefix("---") && !line.hasPrefix("+++")
+    static func isChange(_ line: String, insideHunk: Bool) -> Bool {
+        DiffPatchLine.isChange(line, insideHunk: insideHunk)
     }
 }

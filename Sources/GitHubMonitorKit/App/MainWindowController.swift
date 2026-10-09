@@ -64,6 +64,8 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
 
         if window == nil {
             makeWindow()
+        } else {
+            observeScrolling()
         }
 
         // Becoming a regular app is what puts the window in the app switcher
@@ -333,7 +335,18 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     /// SwiftUI scroll view. Observing the clip view directly works for every
     /// list, and survives switching between them because the notification is
     /// matched by ancestry rather than by a stored object.
+    /// Watches the content for scrolling, from scratch.
+    ///
+    /// Called when the window is built and again whenever it is shown,
+    /// because closing it takes the observer away while keeping the window
+    /// itself -- so `show()` found a window already there, skipped
+    /// building one, and the reopened window never watched anything again.
+    /// The band behind the title then stayed as it was, and rows scrolled
+    /// straight through it.
     private func observeScrolling() {
+        NotificationCenter.default.removeObserver(
+            self, name: NSView.boundsDidChangeNotification, object: nil
+        )
         // A selector rather than a closure: Swift 6 will not let a
         // Notification cross into the main actor from a sendable closure,
         // and bounds changes are posted on the main thread anyway.

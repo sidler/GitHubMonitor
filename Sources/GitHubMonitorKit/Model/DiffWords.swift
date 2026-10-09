@@ -4,7 +4,7 @@ import Foundation
 ///
 /// Offsets into the whole line, marker column included, because that is what
 /// the view draws. The comparison itself ignores the marker.
-public struct ChangedRange: Equatable, Sendable {
+public struct ChangedRange: Hashable, Sendable {
     public let location: Int
     public let length: Int
 

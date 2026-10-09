@@ -97,3 +97,85 @@ struct DiffAlignmentCostTests {
         #expect(seconds < 0.5)
     }
 }
+
+/// The other half of the per-frame cost: the patch is worked out once by
+/// `DiffCache`, and then every visible line is painted again.
+@MainActor
+@Suite("Not painting the same line twice")
+struct PaintedCodeTests {
+    private func lines(_ count: Int) -> [CodeText] {
+        (0..<count).map {
+            CodeText(
+                source: "+        $this->assertSame($expected[\($0)], $actual->total(\($0)));",
+                language: .php
+            )
+        }
+    }
+
+    @Test("The same line comes back painted the same way")
+    func sameAnswer() {
+        PaintedCode.shared.forget()
+        let code = lines(1)[0]
+        let first = PaintedCode.shared.text(for: code)
+        #expect(first == PaintedCode.shared.text(for: code))
+        // Painted at all, not merely remembered: the call is the only
+        // thing that puts colour on the line.
+        #expect(first.characters.isEmpty == false)
+        #expect(String(first.characters).hasPrefix("+        $this->assertSame"))
+    }
+
+    /// Asserted as a ratio rather than a time, so a busy machine does not
+    /// make it fail. A screenful of a large PHP diff measured five and a
+    /// half milliseconds to paint, which SwiftUI would spend on every
+    /// frame of a scroll.
+    @Test("A line already painted comes back far faster than it was painted")
+    func keepsIt() {
+        PaintedCode.shared.forget()
+        let code = lines(150)
+
+        let coldStart = Date()
+        for line in code { _ = PaintedCode.shared.text(for: line) }
+        let cold = Date().timeIntervalSince(coldStart)
+
+        let warmStart = Date()
+        for _ in 0..<5 {
+            for line in code { _ = PaintedCode.shared.text(for: line) }
+        }
+        let warm = Date().timeIntervalSince(warmStart) / 5
+
+        #expect(warm < cold / 5)
+    }
+
+    /// Two generations, so nothing is held for more than two turns.
+    @Test("What is held is bounded")
+    func bounded() {
+        PaintedCode.shared.forget()
+        for index in 0..<5_000 {
+            _ = PaintedCode.shared.text(
+                for: CodeText(source: "let x\(index) = \(index)", language: .typescript)
+            )
+        }
+        #expect(PaintedCode.shared.count <= 4_096)
+        PaintedCode.shared.forget()
+        #expect(PaintedCode.shared.count == 0)
+    }
+}
+
+/// The tables the scan reads for every word and every character.
+@Suite("A language is worked out once")
+struct CodeLanguageTableTests {
+    @Test("The same set comes back each time, and it is the right one")
+    func stable() {
+        for language in CodeLanguage.allCases {
+            #expect(language.keywords == language.keywords)
+            #expect(language.types == language.types)
+            #expect(language.lineComments == language.lineComments)
+            #expect(language.stringDelimiters == language.stringDelimiters)
+        }
+        #expect(CodeLanguage.php.keywords.contains("foreach"))
+        #expect(CodeLanguage.php.types.contains("bool"))
+        #expect(CodeLanguage.json.keywords.isEmpty == false || CodeLanguage.json.types.isEmpty)
+        #expect(CodeLanguage.php.blockComment?.open == "/*")
+        #expect(CodeLanguage.json.blockComment == nil)
+    }
+}

@@ -18,7 +18,7 @@ struct CodeText: View {
     var emphasisTint: Color = .clear
 
     var body: some View {
-        Text(attributed)
+        Text(PaintedCode.shared.text(for: self))
             .font(font)
             .textSelection(.enabled)
             // Wrapped rather than scrolled sideways. A line too long for
@@ -29,7 +29,7 @@ struct CodeText: View {
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var attributed: AttributedString {
+    fileprivate var attributed: AttributedString {
         var result = AttributedString()
         for token in SyntaxHighlighter.tokens(source, language: language) {
             var piece = AttributedString(token.text)
@@ -88,4 +88,65 @@ extension CodeToken.Kind {
         case .tag: .purple
         }
     }
+}
+
+/// Lines already painted.
+///
+/// Building the `AttributedString` means scanning the line character by
+/// character and appending a piece per token, and SwiftUI runs `body`
+/// again on every frame of a scroll -- measured at five and a half
+/// milliseconds for a screenful of a large PHP diff, a third of a frame
+/// spent re-deriving something that had not changed.
+///
+/// Two generations rather than a queue with a least-recently-used order:
+/// keeping that order means finding the entry on every hit, and finding it
+/// means comparing whole lines. Here a hit is one lookup. When the new
+/// generation fills, it becomes the old one and a fresh one starts, so
+/// nothing is held for more than two turns and nothing has to be swept.
+@MainActor
+final class PaintedCode {
+    static let shared = PaintedCode()
+
+    /// What the painting depends on, and nothing else: the same line in the
+    /// same language with the same stretches marked is the same picture,
+    /// whatever row it is drawn in. The font is applied outside.
+    private struct Key: Hashable {
+        let source: String
+        let language: CodeLanguage?
+        let emphasis: [ChangedRange]
+        let tint: Color
+    }
+
+    /// Enough for several screenfuls either side of the one being read.
+    private let limit = 2048
+    private var fresh: [Key: AttributedString] = [:]
+    private var stale: [Key: AttributedString] = [:]
+
+    func text(for code: CodeText) -> AttributedString {
+        let key = Key(
+            source: code.source, language: code.language,
+            emphasis: code.emphasis, tint: code.emphasisTint
+        )
+        if let known = fresh[key] { return known }
+        if let known = stale[key] {
+            fresh[key] = known
+            return known
+        }
+
+        let painted = code.attributed
+        if fresh.count >= limit {
+            stale = fresh
+            fresh = [:]
+        }
+        fresh[key] = painted
+        return painted
+    }
+
+    /// For the tests, and for anything that wants the measurement cold.
+    func forget() {
+        fresh.removeAll()
+        stale.removeAll()
+    }
+
+    var count: Int { fresh.count + stale.count }
 }

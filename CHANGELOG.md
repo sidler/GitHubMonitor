@@ -35,6 +35,58 @@ What changed in each released version. The app shows this file itself, under
   the lists that still had pages to fetch were presented as whole. The
   question is now asked of each complaint on its own, which also catches
   a request-level error arriving alongside a list-level one.
+- **`---` in a diff is a line of code, not a file header.** Four places
+  decided whether a line had changed, and they disagreed. A removed SQL
+  comment arrives as `--- note`, a removed Markdown rule as `---`, a
+  removed `--i;` as `---i;` — and one of those four treated all of them
+  as a patch's file headers, which GitHub does not even send. A file
+  whose only removal looked like that was reported as one-sided and
+  drawn in a single column, whatever layout you had chosen; and because
+  the other three disagreed, one column and two columns paired different
+  lines and marked different words in the same file. The rule is one
+  rule in one place now, and it goes by position: a header can only
+  stand before the first `@@`.
+- **An approval you have just made stays on the row.** The guess written
+  into the row while GitHub's search index catches up was being read
+  back as GitHub's own confirmation, so it was dropped one step early
+  and the next refresh put the lagging answer on screen — losing the
+  approval, which is the one thing the guess exists to prevent.
+- **A refresh asked for after a settings change actually asks.** A
+  refresh fixes its searches when it starts, and a second call simply
+  joined it — so switching a list on, adding a preset or changing a
+  repository filter reported success without the new query ever having
+  been sent, and the list filled in at the next tick instead of at once.
+- **Checks sharing a name are told apart.** A matrix job names every leg
+  the same, and the list keyed on the name: three legs of `phpunit` with
+  one failure among them could draw as three passes while the heading
+  above said one was failing.
+- **A notification about a release no longer asks for an issue.** Any
+  numeric subject URL was taken for a conversation, so a release earned
+  a wasted request and an error where "no conversation to show" was the
+  honest answer.
+- **Reopening the window watches it scroll again.** Closing took the
+  observer away and reopening did not put it back, so the band behind
+  the title stayed as it was and rows scrolled through it.
+- **A review request with an unreadable timestamp no longer looks new.**
+  It was given the current time, which restarted the waiting clock at
+  every refresh, so the row never aged. Timestamps carrying a fraction
+  of a second are read properly now, and one that still cannot be read
+  shows no clock rather than a wrong one.
+- The ageing thresholds are clamped like every other number read from
+  preferences. At zero every review that had started waiting was overdue
+  at once, and the Settings pickers offered no row that could put it
+  back.
+- The trends fetch reads the lower of its two budget replies rather than
+  whichever arrived first, so it stops where it is meant to.
+- **A large diff is painted once, not on every frame.** Every visible
+  line was re-scanned and re-coloured whenever the view rebuilt, and the
+  tables of keywords and types were built again from scratch for every
+  word looked up. A screenful of a large PHP diff cost five and a half
+  milliseconds a frame; it now costs well under a tenth of that.
+- The patch cache keeps what is being read rather than what arrived
+  first. In a review of more than sixty-four files the file at the top
+  of the column — read on every frame — was thrown out to make room for
+  one being scrolled past.
 
 ## 1.5.0
 

@@ -44,8 +44,37 @@ public enum CodeLanguage: String, Hashable, Sendable, CaseIterable {
         return ext.isEmpty ? nil : named(ext)
     }
 
+    // MARK: - What each language is made of
+    //
+    // Worked out once per language and kept, rather than rebuilt on every
+    // read. These were computed properties returning a literal, and the
+    // scan asks for the types and the keywords once per word and for the
+    // comment and string markers once per character -- on a diff that
+    // SwiftUI rebuilds at frame rate, tens of thousands of allocations a
+    // second to answer a question whose answer never changes.
+
+    var lineComments: [String] { Self.lineCommentTable[self] ?? [] }
+    var blockComment: (open: String, close: String)? { Self.blockCommentTable[self] ?? nil }
+    var stringDelimiters: [Character] { Self.stringDelimiterTable[self] ?? [] }
+    var keywords: Set<String> { Self.keywordTable[self] ?? [] }
+    var types: Set<String> { Self.typeTable[self] ?? [] }
+
+    private static let lineCommentTable: [CodeLanguage: [String]] = table { $0.builtLineComments }
+    private static let blockCommentTable: [CodeLanguage: (open: String, close: String)?] =
+        table { $0.builtBlockComment }
+    private static let stringDelimiterTable: [CodeLanguage: [Character]] =
+        table { $0.builtStringDelimiters }
+    private static let keywordTable: [CodeLanguage: Set<String>] = table { $0.builtKeywords }
+    private static let typeTable: [CodeLanguage: Set<String>] = table { $0.builtTypes }
+
+    private static func table<Value>(
+        _ of: (CodeLanguage) -> Value
+    ) -> [CodeLanguage: Value] {
+        Dictionary(uniqueKeysWithValues: allCases.map { ($0, of($0)) })
+    }
+
     /// What starts a comment that runs to the end of the line.
-    var lineComments: [String] {
+    private var builtLineComments: [String] {
         switch self {
         case .php: ["//", "#"]
         case .javascript, .typescript: ["//"]
@@ -55,7 +84,7 @@ public enum CodeLanguage: String, Hashable, Sendable, CaseIterable {
     }
 
     /// Opening and closing of a comment that spans lines.
-    var blockComment: (open: String, close: String)? {
+    private var builtBlockComment: (open: String, close: String)? {
         switch self {
         case .php, .javascript, .typescript, .css: ("/*", "*/")
         case .xml: ("<!--", "-->")
@@ -63,7 +92,7 @@ public enum CodeLanguage: String, Hashable, Sendable, CaseIterable {
         }
     }
 
-    var stringDelimiters: [Character] {
+    private var builtStringDelimiters: [Character] {
         switch self {
         case .json: ["\""]
         case .javascript, .typescript: ["\"", "'", "`"]
@@ -80,7 +109,7 @@ public enum CodeLanguage: String, Hashable, Sendable, CaseIterable {
         }
     }
 
-    var keywords: Set<String> {
+    private var builtKeywords: Set<String> {
         switch self {
         case .php:
             [
@@ -127,7 +156,7 @@ public enum CodeLanguage: String, Hashable, Sendable, CaseIterable {
     /// read as a wall of one colour. Matched as written rather than
     /// lowercased: PHP's are all lower case anyway, and `String` is not
     /// `string` anywhere else.
-    var types: Set<String> {
+    private var builtTypes: Set<String> {
         switch self {
         case .php:
             [
@@ -184,6 +213,13 @@ public enum SyntaxHighlighter {
             return source.isEmpty ? [] : [CodeToken(text: source, kind: .plain)]
         }
 
+        // Read once for the whole line rather than once per word or per
+        // character. Each is a dictionary lookup now instead of a rebuilt
+        // literal, but a lookup per character is still a lookup per
+        // character.
+        let types = language.types
+        let keywords = language.keywords
+
         var tokens: [CodeToken] = []
         var plain = ""
         var index = source.startIndex
@@ -234,9 +270,9 @@ public enum SyntaxHighlighter {
                 // A type first: PHP's `static` and `self` are both, and
                 // in a signature -- which is where they nearly always are
                 // in a diff -- the type is what the reader came for.
-                if language.types.contains(String(word)) {
+                if types.contains(String(word)) {
                     emit(String(word), .type)
-                } else if language.keywords.contains(word.lowercased()) {
+                } else if keywords.contains(word.lowercased()) {
                     emit(String(word), .keyword)
                 } else {
                     plain += word

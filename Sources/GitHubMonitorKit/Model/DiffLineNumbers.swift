@@ -39,9 +39,11 @@ public enum DiffLineNumbers {
         var result: [DiffLineNumber] = []
         var old = 0
         var new = 0
+        var insideHunk = false
 
         for line in patch.components(separatedBy: "\n") {
-            if line.hasPrefix("@@") {
+            if DiffPatchLine.isHunkHeader(line) {
+                insideHunk = true
                 if let start = starts(ofHunk: line) {
                     old = start.old
                     new = start.new
@@ -50,8 +52,11 @@ public enum DiffLineNumbers {
                 continue
             }
 
-            // Not a line of either file: a note from git about the last one.
-            if line.hasPrefix("\\") {
+            // Not a line of either file: a note from git about the last
+            // one, or a header standing before the first hunk.
+            if DiffPatchLine.isNote(line)
+                || DiffPatchLine.isFileHeader(line, insideHunk: insideHunk)
+            {
                 result.append(.none)
                 continue
             }

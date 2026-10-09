@@ -511,10 +511,13 @@ struct PatchLines: View {
         // Numbered and marked over the whole patch before the slice: both
         // depend on what came earlier in the file, and a stretch measured
         // on its own would start counting from one.
+        var insideHunk = false
         return patch.components(separatedBy: "\n").enumerated().map { index, text in
-            Line(
+            if DiffPatchLine.isHunkHeader(text) { insideHunk = true }
+            return Line(
                 id: index,
                 text: text,
+                insideHunk: insideHunk,
                 number: index < numbers.count ? numbers[index] : .none,
                 emphasis: index < marks.count ? marks[index] : []
             )
@@ -551,7 +554,7 @@ struct PatchLines: View {
     }
 
     private func row(_ line: Line, digits: Int) -> some View {
-        let kind = DiffLineKind(line: line.text)
+        let kind = DiffLineKind(line: line.text, insideHunk: line.insideHunk)
         let split = DiffWords.split(line.text, emphasis: line.emphasis)
         return HStack(alignment: .top, spacing: 0) {
             if showsLineNumbers {
@@ -625,6 +628,9 @@ struct PatchLines: View {
     private struct Line: Identifiable {
         let id: Int
         let text: String
+        /// Whether a `@@` has already gone by, which is what decides
+        /// whether a leading `---` is furniture or code.
+        let insideHunk: Bool
         let number: DiffLineNumber
         let emphasis: [ChangedRange]
     }
@@ -641,9 +647,14 @@ enum DiffLineKind {
     case hunk
     case context
 
-    init(line: String) {
-        if line.hasPrefix("@@") {
+    /// `insideHunk` because `---` is a file header before the first `@@`
+    /// and a removed Markdown rule after it, and the colour behind the
+    /// row should not be the one thing in the diff that still disagrees.
+    init(line: String, insideHunk: Bool = true) {
+        if DiffPatchLine.isHunkHeader(line) {
             self = .hunk
+        } else if DiffPatchLine.isFileHeader(line, insideHunk: insideHunk) {
+            self = .context
         } else if line.hasPrefix("+") {
             self = .added
         } else if line.hasPrefix("-") {

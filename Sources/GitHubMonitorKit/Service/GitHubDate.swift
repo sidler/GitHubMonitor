@@ -12,6 +12,18 @@ enum GitHubDate {
         return formatter
     }()
 
+    /// The same, for the timestamps that carry a fraction of a second.
+    ///
+    /// Two formatters because one will not do: `.withFractionalSeconds`
+    /// makes the fraction required, not optional, so a formatter that
+    /// reads `...T09:41:00.123Z` cannot read `...T09:41:00Z`. GitHub
+    /// sends both.
+    nonisolated(unsafe) private static let fractional: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
     /// Falls back to the current time so one unreadable timestamp cannot drop
     /// an otherwise usable item from the list.
     static func date(from value: String?, fallback: Date = .now) -> Date {
@@ -23,6 +35,6 @@ enum GitHubDate {
     /// substituting the current time would report it as merged just now.
     static func optional(from value: String?) -> Date? {
         guard let value else { return nil }
-        return formatter.date(from: value)
+        return formatter.date(from: value) ?? fractional.date(from: value)
     }
 }

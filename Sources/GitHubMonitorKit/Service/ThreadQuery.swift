@@ -22,6 +22,13 @@ public enum ThreadQuery {
         guard
             let reposIndex = parts.firstIndex(of: "repos"),
             parts.count >= reposIndex + 5,
+            // The kind, not only the number after it. A release carries
+            // `.../releases/184729103`, which is a number like any other,
+            // and asking GitHub for issue 184729103 earns a point spent
+            // and an error where "no conversation to show" was the honest
+            // answer -- or, where the number happens to exist, somebody
+            // else's conversation.
+            ["issues", "pulls"].contains(parts[reposIndex + 3]),
             let number = Int(parts[reposIndex + 4])
         else { return nil }
         return (parts[reposIndex + 1], parts[reposIndex + 2], number)

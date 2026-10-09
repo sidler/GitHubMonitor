@@ -227,12 +227,31 @@ public final class RefreshController {
     /// would put the row back the way it was before it.
     private var approvedByViewer: [String: Date] = [:]
 
+    /// The rows the guess has been written into since GitHub last spoke.
+    ///
+    /// `applyOwnApprovals` writes `.approved` into the row and
+    /// `forgetSettledApprovals` used to read that same field back as proof
+    /// that GitHub had caught up -- so the second call dropped the guess,
+    /// and the next refresh put the lagging search answer on screen. The
+    /// approval the user had just made disappeared from the row, which is
+    /// the one thing this machinery exists to prevent. Cleared when a
+    /// refresh replaces the rows, because only then is what they say
+    /// GitHub's own account of them.
+    private var approvalsApplied: Set<String> = []
+
     /// Coalesces concurrent calls: a manual refresh during a scheduled one
     /// joins it rather than issuing a second set of requests.
     public func refresh() async {
         if let inFlight {
             await inFlight.value
-            return
+            // Only where it asked what this call wanted asked. A refresh
+            // fixes its searches when it starts, so one already running
+            // cannot answer for a list switched on, a preset added or a
+            // repository filter changed since -- and `refresh()` is what
+            // those changes call to make the result appear at once rather
+            // than at the next tick. Joining such a refresh reported
+            // success without the new query ever having been sent.
+            guard inFlightSearches != searches() else { return }
         }
         let task = Task { await performRefresh() }
         inFlight = task
@@ -259,7 +278,16 @@ public final class RefreshController {
             }
     }
 
+    /// The searches the refresh now running went out with, so a call that
+    /// wants something else can tell that it was not asked.
+    private var inFlightSearches: [ListSearch] = []
+
     private func performRefresh() async {
+        // Fixed here, at the top of the task, so that what is recorded is
+        // exactly what is sent.
+        let wanted = searches()
+        inFlightSearches = wanted
+
         guard let service else {
             state.loadState = .failed(GitHubError.noToken.localizedDescription)
             return
@@ -290,7 +318,7 @@ public final class RefreshController {
             // Not pasted into the queries -- `@me` means something to
             // GitHub already -- but the review requests come back naming
             // people, and only the login says which of them is this person.
-            let fetched = try await service.lists(searches(), viewer: viewer.login)
+            let fetched = try await service.lists(wanted, viewer: viewer.login)
             // Cancelled means the token is going or the app is closing.
             // Writing what came back would put a signed-out account's rows
             // back on screen, so nothing is written past this point.
@@ -310,6 +338,9 @@ public final class RefreshController {
             state.listIssues = results.issues
             state.listUnread = fetched.unread
             state.listFailures = fetched.failures
+            // These rows are GitHub's own account, so whatever it says
+            // about an approval now counts as its answer.
+            approvalsApplied.removeAll()
             applyOwnApprovals()
 
             // A row that is gone takes its detail with it -- and the pane
@@ -445,8 +476,15 @@ public final class RefreshController {
                 state.trends = .loading(fresh)
 
                 // Stop while there is still enough budget for the lists.
-                if let remaining = opened.remainingQuota ?? merged.remainingQuota,
-                   remaining < Self.quotaFloor {
+                //
+                // The lower of the two readings, not whichever one came
+                // back: these two searches run at once, and taking the
+                // first answer meant a stale-higher number let the loop
+                // start another period it could not afford.
+                let remainingQuota = [opened.remainingQuota, merged.remainingQuota]
+                    .compactMap { $0 }
+                    .min()
+                if let remaining = remainingQuota, remaining < Self.quotaFloor {
                     fresh.truncationReason =
                         "Stopped after \(fresh.buckets.count) periods: GitHub's hourly query budget was running low."
                     break
@@ -1149,6 +1187,7 @@ public final class RefreshController {
             for (index, row) in items.enumerated() where approvedByViewer[row.id] != nil {
                 guard row.viewerReview?.state != .approved else { continue }
                 state.listPullRequests[listID]?[index] = row.countingViewerApproval()
+                approvalsApplied.insert(row.id)
             }
         }
 
@@ -1171,7 +1210,9 @@ public final class RefreshController {
     /// that carrying it further would be asserting rather than covering.
     private func forgetSettledApprovals() {
         for (id, approvedAt) in approvedByViewer {
-            let settled = state.pullRequest(withID: id)?.viewerReview?.state == .approved
+            // Not a row this put the approval into itself.
+            let settled = !approvalsApplied.contains(id)
+                && state.pullRequest(withID: id)?.viewerReview?.state == .approved
             if settled || Date.now.timeIntervalSince(approvedAt) > Self.approvalGrace {
                 approvedByViewer[id] = nil
             }

@@ -2,11 +2,20 @@ import Foundation
 
 /// A single check on the pull request's head commit.
 public struct CheckRun: Identifiable, Hashable, Sendable {
-    public var id: String { name }
+    /// GitHub's own id for the run, which the name is not.
+    ///
+    /// A matrix job names every leg the same, two workflows can both have
+    /// a job called `build`, and an app can post a CheckRun and a
+    /// StatusContext under one name. The name is what the row says; this
+    /// is what tells two rows apart, and a list holding the same id twice
+    /// is one SwiftUI draws wrong -- it reuses a row and the pane shows
+    /// three passes where one of them failed.
+    public let id: String
     public let name: String
     public let status: ChecksStatus
 
-    public init(name: String, status: ChecksStatus) {
+    public init(id: String? = nil, name: String, status: ChecksStatus) {
+        self.id = id ?? name
         self.name = name
         self.status = status
     }
@@ -174,4 +183,18 @@ public enum DetailState: Equatable, Sendable {
     case loading
     case loaded(PullRequestDetail)
     case failed(String)
+}
+
+extension Array where Element == CheckRun {
+    /// The same runs, with no id appearing twice.
+    ///
+    /// A repeat keeps the name and takes a number, so the row still reads
+    /// as itself and the list still has something to key on.
+    func uniquedByID() -> [CheckRun] {
+        var seen: Set<String> = []
+        return enumerated().map { offset, run in
+            guard !seen.insert(run.id).inserted else { return run }
+            return CheckRun(id: "\(run.id)#\(offset)", name: run.name, status: run.status)
+        }
+    }
 }

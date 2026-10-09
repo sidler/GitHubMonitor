@@ -25,7 +25,10 @@ public final class DiffCache {
     private var order: [String] = []
 
     public func emphasis(in patch: String) -> [[ChangedRange]] {
-        if let known = marks[patch] { return known }
+        if let known = marks[patch] {
+            remember(patch)
+            return known
+        }
         let worked = DiffAlignment.emphasis(in: patch)
         marks[patch] = worked
         remember(patch)
@@ -33,13 +36,25 @@ public final class DiffCache {
     }
 
     public func rows(of patch: String) -> [DiffSideRow] {
-        if let known = rows[patch] { return known }
+        if let known = rows[patch] {
+            remember(patch)
+            return known
+        }
         let worked = DiffSideBySide.rows(of: patch)
         rows[patch] = worked
         remember(patch)
         return worked
     }
 
+    /// Moves a patch to the front of the queue, whether it was just worked
+    /// out or just read.
+    ///
+    /// On reading too, which it did not do before: both hit paths returned
+    /// before reaching here, so the order was the order patches first
+    /// arrived and the oldest was dropped however often it was being read.
+    /// In a review of more than sixty-four files that meant the file at the
+    /// top of the column -- read on every frame -- was thrown out to make
+    /// room for one being scrolled past.
     private func remember(_ patch: String) {
         if let seen = order.firstIndex(of: patch) { order.remove(at: seen) }
         order.append(patch)

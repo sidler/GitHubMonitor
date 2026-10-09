@@ -44,12 +44,40 @@ public final class Settings {
     /// One pair for the whole app rather than one per list: this is a
     /// person's own tolerance, and four places to adjust it would be three
     /// too many.
+    /// Clamped like the other numbers read from preferences, which
+    /// anything can write. At zero every review that has started waiting
+    /// is overdue at once, and the Settings pickers offer no row matching
+    /// an out-of-range value, so nothing in the app could put it right.
     public var agingDays: Int {
-        didSet { store.set(agingDays, forKey: Key.agingDays) }
+        didSet {
+            let clamped = Self.clampedDays(agingDays)
+            if clamped != agingDays {
+                agingDays = clamped
+                return
+            }
+            store.set(agingDays, forKey: Key.agingDays)
+        }
     }
 
     public var overdueDays: Int {
-        didSet { store.set(overdueDays, forKey: Key.overdueDays) }
+        didSet {
+            let clamped = Self.clampedDays(overdueDays)
+            if clamped != overdueDays {
+                overdueDays = clamped
+                return
+            }
+            store.set(overdueDays, forKey: Key.overdueDays)
+        }
+    }
+
+    /// A day at the least, and a quarter at the most: below one the mark
+    /// is on before any time has passed, and above ninety nothing is ever
+    /// marked at all.
+    public static let fewestWaitingDays = 1
+    public static let mostWaitingDays = 90
+
+    public static func clampedDays(_ days: Int) -> Int {
+        min(max(days, fewestWaitingDays), mostWaitingDays)
     }
 
     /// How large the diff's own text is, in points.
@@ -245,8 +273,8 @@ public final class Settings {
         // bool(forKey:) rather than object(forKey:): there is nothing to
         // tell apart here -- unset and off both mean the rows stay.
         hidesSingleRepository = store.bool(forKey: Key.hidesSingleRepository)
-        agingDays = store.object(forKey: Key.agingDays) as? Int ?? 3
-        overdueDays = store.object(forKey: Key.overdueDays) as? Int ?? 7
+        agingDays = Self.clampedDays(store.object(forKey: Key.agingDays) as? Int ?? 3)
+        overdueDays = Self.clampedDays(store.object(forKey: Key.overdueDays) as? Int ?? 7)
         // Unified unless asked otherwise: it is the narrower of the two and
         // what the app has always shown.
         diffLayout = DiffLayout(rawValue: store.string(forKey: Key.diffLayout) ?? "") ?? .unified

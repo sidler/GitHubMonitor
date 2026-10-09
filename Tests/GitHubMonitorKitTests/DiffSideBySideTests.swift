@@ -262,4 +262,66 @@ struct OneSidedPatchTests {
     func fileHeaders() {
         #expect(DiffSideBySide.isOneSided("--- a/x\n+++ b/x\n@@ -0,0 +1,1 @@\n+only"))
     }
+
+    /// The other half of that rule, and the half that was wrong. A header
+    /// can only stand before the first `@@`; the same characters after it
+    /// are a line of the file. GitHub's patches carry no headers at all,
+    /// so a rule going by spelling alone only ever caught real code --
+    /// and reported a file with both sides as one-sided, which dropped
+    /// the two columns the reader had asked for.
+    @Test("After the first hunk, --- and +++ are code")
+    func markersThatLookLikeHeaders() {
+        // A removed SQL comment, the only removal in the file.
+        #expect(!DiffSideBySide.isOneSided(
+            "@@ -1,3 +1,3 @@\n SELECT 1\n--- legacy note\n+WHERE id = 2"
+        ))
+        // A Markdown rule replaced by another.
+        #expect(!DiffSideBySide.isOneSided("@@ -1,2 +1,2 @@\n---\n+***"))
+        // A C decrement becoming an increment.
+        #expect(!DiffSideBySide.isOneSided("@@ -1,2 +1,2 @@\n---i;\n+++i;"))
+
+        // And they are drawn as what they are, on the side they belong to.
+        let rows = DiffSideBySide.rows(of: "@@ -1,2 +1,2 @@\n---\n+***")
+        #expect(rows.count == 3)
+        guard case .pair(let left, let right) = rows[1] else {
+            Issue.record("the removed rule should be a pair, got \(rows[1])")
+            return
+        }
+        #expect(left?.text == "---")
+        #expect(right == nil)
+    }
+
+    /// One column and two columns must say the same thing about the same
+    /// patch -- which they did not, because each asked a different
+    /// question about a line beginning `---`.
+    @Test("Both layouts agree on which lines changed")
+    func layoutsAgree() {
+        let patch = "@@ -1,5 +1,5 @@\n-alpha = one()\n---\n-beta = two()\n+beta = twoish()\n+alpha = oneish()"
+        let marks = DiffAlignment.emphasis(in: patch)
+        let rows = DiffSideBySide.rows(of: patch)
+        #expect(rows.count == 4)
+
+        // The removed rule is a line of the file, so it takes the left
+        // side with nothing opposite it -- and the run of changes reaches
+        // across it, which is where the two layouts used to part company:
+        // one treated it as a context line and broke the run there, the
+        // other did not, so each paired a different removal with a
+        // different addition and marked different words in both.
+        guard case .pair(let rule, let nothing) = rows[2] else {
+            Issue.record("expected the removed rule as a pair, got \(rows[2])")
+            return
+        }
+        #expect(rule?.text == "---")
+        #expect(nothing == nil)
+        #expect(marks[2].isEmpty)
+
+        // What two columns mark is what one column marks.
+        guard case .pair(let old, let new) = rows[1] else {
+            Issue.record("expected a pair, got \(rows[1])")
+            return
+        }
+        #expect(old?.emphasis == marks[1])
+        #expect(new?.emphasis == marks[4])
+        #expect(old?.emphasis.isEmpty == false)
+    }
 }
