@@ -285,6 +285,30 @@ public enum ListParser {
         return result
     }
 
+    /// The complaints that name no list.
+    ///
+    /// A complaint carrying `path: ["s3"]` is about one search, and the
+    /// other lists in the batch are still worth keeping. One with no
+    /// usable path is about the request itself, and nothing in the answer
+    /// can be trusted.
+    ///
+    /// Sorted out per complaint rather than by asking whether any of them
+    /// were matched to a list: a request-level error arriving alongside a
+    /// list-level one is still a request-level error.
+    public static func unnamed(
+        _ failures: [GraphQLAnswer.Failure], searches: [ListSearch]
+    ) -> [GraphQLAnswer.Failure] {
+        failures.filter { failure in
+            guard
+                let alias = failure.path.first,
+                alias.hasPrefix("s"),
+                let index = Int(alias.dropFirst()),
+                searches.indices.contains(index)
+            else { return true }
+            return false
+        }
+    }
+
     /// What GitHub said was left, as it travels with every list refresh.
     public static func budget(from payload: [String: Any]) -> RateBudget? {
         guard

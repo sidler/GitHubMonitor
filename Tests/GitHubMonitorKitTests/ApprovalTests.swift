@@ -306,6 +306,13 @@ struct ApprovalPersistenceTests {
         state.approval = .confirming(pullRequestID: "1")
         state.inspectedPullRequestID = "1"
         state.linkedSummaries["octo/platform#9"] = .missing
+        state.viewedFiles["1"] = ["src/Thing.php": .viewed]
+        state.reviewThreads["1"] = [
+            ReviewThread(
+                id: "t1", path: "src/Thing.php", line: 4, side: .new,
+                isResolved: false, isOutdated: false, comments: []
+            ),
+        ]
 
         // Its own directory, so the test writes nothing into the cache the
         // app uses.
@@ -323,7 +330,42 @@ struct ApprovalPersistenceTests {
         #expect(state.approval == .idle)
         // Titles of issues in private repositories, like everything else.
         #expect(state.linkedSummaries.isEmpty)
+        // What colleagues wrote in the review, which was the one cache
+        // signing out used to walk past.
+        #expect(state.reviewThreads.isEmpty)
+        #expect(state.viewedFiles.isEmpty)
         #expect(!state.hasToken)
+    }
+
+    /// The ticks and the comments are claimed before their request goes
+    /// out and left claimed when it fails, so that a redraw does not ask
+    /// again. Reload is what asks again.
+    @Test("Reloading a detail lets the ticks and the comments be fetched again")
+    func reloadClearsWhatIsPinned() {
+        let state = state()
+        state.viewedFiles["1"] = [:]
+        state.reviewThreads["1"] = []
+        state.changedFiles["1"] = .loaded([])
+        state.pullRequestDetails["1"] = .failed("nope")
+        state.viewedFiles["2"] = ["other.php": .viewed]
+        state.reviewThreads["2"] = []
+
+        let controller = RefreshController(
+            state: state,
+            trendStore: TrendStore(directory: FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString))
+        )
+        controller.reloadDetail(for: "1")
+
+        // Asked for again: with no token in this test the fresh request
+        // answers at once, which is itself proof the old answer was let go.
+        #expect(state.pullRequestDetails["1"] != .failed("nope"))
+        #expect(state.changedFiles["1"] == nil)
+        #expect(state.viewedFiles["1"] == nil)
+        #expect(state.reviewThreads["1"] == nil)
+        // Only the one asked for.
+        #expect(state.viewedFiles["2"]?.isEmpty == false)
+        #expect(state.reviewThreads["2"] != nil)
     }
 }
 

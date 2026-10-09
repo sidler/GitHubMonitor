@@ -13,6 +13,16 @@ public final class RefreshController {
     private var trendsTask: Task<Void, Never>?
     private var myTrendsTask: Task<Void, Never>?
     private var commentersTask: Task<Void, Never>?
+    /// Every other fetch started on behalf of the signed-in account.
+    ///
+    /// Held so that stopping -- which is the first thing signing out does
+    /// -- can call them all off. These were plain `Task { }` before:
+    /// untracked and uncancellable, so a detail, a patch or a set of
+    /// review comments asked for a moment before a sign-out landed a
+    /// second afterwards and wrote the gone account's data back into the
+    /// state `signOut()` had just cleared.
+    private var accountTasks: [Int: Task<Void, Never>] = [:]
+    private var nextAccountTask = 0
     /// Passed back as If-Modified-Since so unchanged polls cost no rate limit.
     private var lastModified: String?
     /// GitHub's requested minimum interval, which overrides a shorter setting.
@@ -53,7 +63,7 @@ public final class RefreshController {
             if case .unconfigured = state.dashboard,
                !state.settings.dashboardRepository.isEmpty
             {
-                Task { await loadDashboard() }
+                accountTask { [weak self] in await self?.loadDashboard() }
             }
             restartTimer()
             return true
@@ -93,10 +103,40 @@ public final class RefreshController {
         )
     }
 
+    /// Starts a fetch belonging to the signed-in account.
+    ///
+    /// The work still answers for its own errors; what this adds is that
+    /// `stop()` can reach it, and that it lets go of itself when it is
+    /// done so the bag does not grow with every pane opened.
+    ///
+    /// A cancelled request throws, so each of these guards its writes with
+    /// `Task.isCancelled` before making them -- otherwise cancelling would
+    /// merely turn the stale write into a stale error message.
+    private func accountTask(_ work: @escaping () async -> Void) {
+        let id = nextAccountTask
+        nextAccountTask += 1
+        accountTasks[id] = Task { [weak self] in
+            await work()
+            self?.accountTasks[id] = nil
+        }
+    }
+
     public func stop() {
         timer?.cancel()
         timer = nil
         inFlight?.cancel()
+        inFlight = nil
+        // Everything else that is in the air. Cancelling the list refresh
+        // alone left the three charts and eleven per-item fetches running,
+        // each still holding the service of the account being left.
+        trendsTask?.cancel()
+        trendsTask = nil
+        myTrendsTask?.cancel()
+        myTrendsTask = nil
+        commentersTask?.cancel()
+        commentersTask = nil
+        for task in accountTasks.values { task.cancel() }
+        accountTasks.removeAll()
     }
 
     // MARK: - Token
@@ -162,6 +202,7 @@ public final class RefreshController {
         state.issueDetails = [:]
         state.changedFiles = [:]
         state.viewedFiles = [:]
+        state.reviewThreads = [:]
         state.openedDiff = nil
         state.approval = .idle
         state.inspectedPullRequestID = nil
@@ -279,6 +320,9 @@ public final class RefreshController {
             }
             state.changedFiles = state.changedFiles.filter { livePullRequests.contains($0.key) }
             state.viewedFiles = state.viewedFiles.filter { livePullRequests.contains($0.key) }
+            state.reviewThreads = state.reviewThreads.filter {
+                livePullRequests.contains($0.key)
+            }
             if let inspected = state.inspectedPullRequestID, !livePullRequests.contains(inspected) {
                 state.inspectedPullRequestID = nil
             }
@@ -310,9 +354,15 @@ public final class RefreshController {
 
             state.loadState = .loaded(.now)
         } catch let error as GitHubError {
+            // Not when it was called off: signing out cancels this and then
+            // sets the state to idle, and a cancelled request throws like
+            // any other -- so without this the footer of a signed-out
+            // window reads "cancelled".
+            guard !Task.isCancelled else { return }
             Log.api.error("refresh failed: \(error.localizedDescription, privacy: .public)")
             state.loadState = .failed(error.localizedDescription)
         } catch {
+            guard !Task.isCancelled else { return }
             state.loadState = .failed(error.localizedDescription)
         }
     }
@@ -404,6 +454,7 @@ public final class RefreshController {
             } catch let error as GitHubError {
                 // Periods already fetched are worth showing; only the empty
                 // case is a failure.
+                guard !Task.isCancelled else { return }
                 guard !fresh.buckets.isEmpty else {
                     state.trends = .failed(error.localizedDescription)
                     return
@@ -411,6 +462,7 @@ public final class RefreshController {
                 fresh.truncationReason = error.localizedDescription
                 break
             } catch {
+                guard !Task.isCancelled else { return }
                 guard !fresh.buckets.isEmpty else {
                     state.trends = .failed(error.localizedDescription)
                     return
@@ -456,6 +508,7 @@ public final class RefreshController {
                 state.viewer = viewer
                 login = viewer.login
             } catch {
+                guard !Task.isCancelled else { return }
                 state.myTrends = .failed(error.localizedDescription)
                 return
             }
@@ -521,6 +574,7 @@ public final class RefreshController {
                     break
                 }
             } catch {
+                guard !Task.isCancelled else { return }
                 guard !fresh.buckets.isEmpty else {
                     state.myTrends = .failed(error.localizedDescription)
                     return
@@ -585,6 +639,7 @@ public final class RefreshController {
                     break
                 }
             } catch {
+                guard !Task.isCancelled else { return }
                 guard fresh.periodsRead > 0 else {
                     state.repositoryCommenters = .failed(error.localizedDescription)
                     return
@@ -738,9 +793,20 @@ public final class RefreshController {
     }
 
     /// Refetches even when a detail is cached, for the pane's reload button.
+    ///
+    /// The ticks and the review comments go with it. Both are claimed by
+    /// their loaders before the request goes out and left claimed when it
+    /// fails, which is what stops a redraw asking again -- but it also
+    /// meant one failed request hid a pull request's review comments for
+    /// the life of the process, with nothing able to ask a second time.
+    /// This button is that second time. It is also the answer to a diff
+    /// that has moved on: after a force-push, comments anchored to the old
+    /// line numbers are worse than none.
     public func reloadDetail(for id: String) {
         state.pullRequestDetails[id] = nil
         state.changedFiles[id] = nil
+        state.viewedFiles[id] = nil
+        state.reviewThreads[id] = nil
         loadDetailIfNeeded(for: id)
     }
 
@@ -758,18 +824,21 @@ public final class RefreshController {
         }
 
         state.pullRequestDetails[id] = .loading
-        Task { [weak self] in
+        accountTask { [weak self] in
             do {
                 let detail = try await service.pullRequestDetail(id: id)
-                self?.state.pullRequestDetails[id] = .loaded(detail)
+                guard let self, !Task.isCancelled else { return }
+                state.pullRequestDetails[id] = .loaded(detail)
                 // A detail fetched moments after approving can still answer
                 // with the review set from before it.
-                self?.applyOwnApprovals()
+                applyOwnApprovals()
             } catch let error as GitHubError {
+                guard let self, !Task.isCancelled else { return }
                 Log.api.error("detail failed: \(error.localizedDescription, privacy: .public)")
-                self?.state.pullRequestDetails[id] = .failed(error.localizedDescription)
+                state.pullRequestDetails[id] = .failed(error.localizedDescription)
             } catch {
-                self?.state.pullRequestDetails[id] = .failed(error.localizedDescription)
+                guard let self, !Task.isCancelled else { return }
+                state.pullRequestDetails[id] = .failed(error.localizedDescription)
             }
         }
 
@@ -787,17 +856,20 @@ public final class RefreshController {
 
         state.changedFiles[id] = .loading
         loadViewedFilesIfNeeded(for: id)
-        Task { [weak self] in
+        accountTask { [weak self] in
             do {
                 let files = try await service.changedFiles(
                     repository: item.repository, number: item.number
                 )
-                self?.state.changedFiles[id] = .loaded(files)
+                guard let self, !Task.isCancelled else { return }
+                state.changedFiles[id] = .loaded(files)
             } catch let error as GitHubError {
+                guard let self, !Task.isCancelled else { return }
                 Log.api.error("files failed: \(error.localizedDescription, privacy: .public)")
-                self?.state.changedFiles[id] = .failed(error.localizedDescription)
+                state.changedFiles[id] = .failed(error.localizedDescription)
             } catch {
-                self?.state.changedFiles[id] = .failed(error.localizedDescription)
+                guard let self, !Task.isCancelled else { return }
+                state.changedFiles[id] = .failed(error.localizedDescription)
             }
         }
     }
@@ -820,10 +892,10 @@ public final class RefreshController {
         // while the first is still in flight.
         state.viewedFiles[id] = [:]
 
-        Task { [weak self] in
+        accountTask { [weak self] in
             do {
                 let fetched = try await service.viewedFiles(pullRequestID: id)
-                guard let self else { return }
+                guard let self, !Task.isCancelled else { return }
                 // Merged rather than assigned: a tick set while this was in
                 // flight is newer than what the request went out to ask.
                 state.viewedFiles[id] = fetched.states.merging(
@@ -855,10 +927,10 @@ public final class RefreshController {
         // request is in flight does not start a second.
         state.reviewThreads[id] = []
 
-        Task { [weak self] in
+        accountTask { [weak self] in
             do {
                 let fetched = try await service.reviewThreads(pullRequestID: id)
-                guard let self else { return }
+                guard let self, !Task.isCancelled else { return }
                 state.reviewThreads[id] = fetched.threads
                 if let budget = fetched.budget { state.budgets.graphQL = budget }
             } catch {
@@ -888,14 +960,15 @@ public final class RefreshController {
         // so the folding, and the scroll that follows it, can be worked.
         guard let service else { return }
 
-        Task { [weak self] in
+        accountTask { [weak self] in
             do {
                 try await service.setViewed(viewed, pullRequestID: pullRequestID, path: path)
             } catch {
+                guard let self, !Task.isCancelled else { return }
                 Log.api.error("marking viewed failed: \(error.localizedDescription, privacy: .public)")
                 // Put back what it was, rather than leave a tick on screen
                 // that GitHub does not have.
-                self?.state.viewedFiles[pullRequestID, default: [:]][path] = previous
+                state.viewedFiles[pullRequestID, default: [:]][path] = previous
             }
         }
     }
@@ -933,14 +1006,14 @@ public final class RefreshController {
             linksInFlight.insert(reference.id)
         }
 
-        Task { [weak self] in
+        accountTask { [weak self] in
             // One request per batch, in turn rather than at once: each is
             // charged, and the budget reading that comes back with the last
             // one should be the last word.
             for batch in LinkedItemQuery.batches(wanted) {
                 do {
                     let fetched = try await service.linkedItems(batch)
-                    guard let self else { return }
+                    guard let self, !Task.isCancelled else { return }
                     for reference in batch {
                         // Absent from an answer that did ask for it is the
                         // same as not there.
@@ -950,8 +1023,8 @@ public final class RefreshController {
                     }
                     if let budget = fetched.budget { state.budgets.graphQL = budget }
                 } catch {
+                    guard let self, !Task.isCancelled else { return }
                     Log.api.error("links failed: \(error.localizedDescription, privacy: .public)")
-                    guard let self else { return }
                     for reference in batch {
                         state.linkedSummaries[reference.id] = .failed(error.localizedDescription)
                         linksInFlight.remove(reference.id)
@@ -1046,7 +1119,7 @@ public final class RefreshController {
             // takes seconds -- holding a window open over a review that is
             // finished, to wait for a confirmation of something already
             // confirmed. The row and the pane already show the approval.
-            Task { [weak self] in await self?.refreshApproved(item) }
+            accountTask { [weak self] in await self?.refreshApproved(item) }
             return true
         } catch {
             Log.api.error("approve failed: \(error.localizedDescription, privacy: .public)")
@@ -1150,15 +1223,18 @@ public final class RefreshController {
         }
 
         state.issueDetails[id] = .loading
-        Task { [weak self] in
+        accountTask { [weak self] in
             do {
                 let detail = try await service.issueDetail(id: id)
-                self?.state.issueDetails[id] = .loaded(detail)
+                guard let self, !Task.isCancelled else { return }
+                state.issueDetails[id] = .loaded(detail)
             } catch let error as GitHubError {
+                guard let self, !Task.isCancelled else { return }
                 Log.api.error("issue detail failed: \(error.localizedDescription, privacy: .public)")
-                self?.state.issueDetails[id] = .failed(error.localizedDescription)
+                state.issueDetails[id] = .failed(error.localizedDescription)
             } catch {
-                self?.state.issueDetails[id] = .failed(error.localizedDescription)
+                guard let self, !Task.isCancelled else { return }
+                state.issueDetails[id] = .failed(error.localizedDescription)
             }
         }
     }
@@ -1206,15 +1282,18 @@ public final class RefreshController {
         }
 
         state.notificationThreads[item.id] = .loading
-        Task { [weak self] in
+        accountTask { [weak self] in
             do {
                 let thread = try await service.thread(at: url)
-                self?.state.notificationThreads[item.id] = .loaded(thread)
+                guard let self, !Task.isCancelled else { return }
+                state.notificationThreads[item.id] = .loaded(thread)
             } catch let error as GitHubError {
+                guard let self, !Task.isCancelled else { return }
                 Log.api.error("thread failed: \(error.localizedDescription, privacy: .public)")
-                self?.state.notificationThreads[item.id] = .failed(error.localizedDescription)
+                state.notificationThreads[item.id] = .failed(error.localizedDescription)
             } catch {
-                self?.state.notificationThreads[item.id] = .failed(error.localizedDescription)
+                guard let self, !Task.isCancelled else { return }
+                state.notificationThreads[item.id] = .failed(error.localizedDescription)
             }
         }
     }
@@ -1241,7 +1320,7 @@ public final class RefreshController {
             return
         }
         state.previews[item.id] = .loading
-        Task { [weak self] in await self?.fetchPreview(for: item) }
+        accountTask { [weak self] in await self?.fetchPreview(for: item) }
     }
 
     /// Reads the comments behind the notifications just loaded.
@@ -1270,8 +1349,11 @@ public final class RefreshController {
         }
 
         guard !fetchable.isEmpty else { return }
-        Task { [weak self] in
-            for item in fetchable { await self?.fetchPreview(for: item) }
+        accountTask { [weak self] in
+            for item in fetchable {
+                guard !Task.isCancelled else { return }
+                await self?.fetchPreview(for: item)
+            }
         }
     }
 

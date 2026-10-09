@@ -221,6 +221,31 @@ struct ListFailureTests {
         #expect(ListParser.failures([failure("x", path: ["s9"])], searches: searches).isEmpty)
     }
 
+    /// The question the paging loop actually asks: is anything here about
+    /// the request rather than about one list? Asked of the complaints in
+    /// hand, so an earlier round's failure cannot answer for this one.
+    @Test("A complaint about the request is told from one about a list")
+    func unnamedComplaints() {
+        #expect(ListParser.unnamed([failure("x", path: ["s1"])], searches: searches).isEmpty)
+        #expect(ListParser.unnamed([], searches: searches).isEmpty)
+
+        let loose = ListParser.unnamed(
+            [failure("Something went wrong while executing your query", path: [])],
+            searches: searches
+        )
+        #expect(loose.map(\.message) == ["Something went wrong while executing your query"])
+
+        // The case that used to pass as a partial answer: a list-level
+        // complaint standing beside a request-level one.
+        let both = ListParser.unnamed(
+            [failure("named", path: ["s1"]), failure("loose", path: [])],
+            searches: searches
+        )
+        #expect(both.map(\.message) == ["loose"])
+
+        #expect(ListParser.unnamed([failure("x", path: ["s9"])], searches: searches).count == 1)
+    }
+
     @Test("What GitHub said is read off the answer, path and all")
     func readingTheAnswer() {
         let root: [String: Any] = [

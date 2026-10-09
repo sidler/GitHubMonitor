@@ -3,6 +3,39 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
+## Unreleased
+
+- **Signing out now stops what is in the air.** Stopping cancelled the
+  refresh timer and the list request, and nothing else: the three charts
+  and eleven per-item fetches carried on, each still holding the service
+  of the account being left. A detail, a patch, a private issue's title
+  or a year of trends asked for a moment before signing out landed a
+  second afterwards and wrote itself back into the state that had just
+  been cleared. Every one of them is now held so it can be called off,
+  and none of them writes what it brings back once it has been. The
+  review comments were missing from the clearing-out altogether, so the
+  next account to sign in saw the previous one's discussion on the same
+  pull request.
+- **Reload fetches the ticks and the review comments again.** Both are
+  claimed before their request goes out and left claimed when it fails,
+  which is what stops a redraw asking again — but it also meant one
+  failed request hid a pull request's conversations for the rest of the
+  session, with nothing able to ask a second time. The pane's reload
+  button is that second time. It is also the answer to a diff that has
+  moved on: after a force-push, comments anchored to the old line
+  numbers are worse than no comments. They are forgotten along with the
+  pull request when it leaves the lists, rather than being kept for the
+  life of the process.
+- **A list cut short is no longer reported as complete.** A complaint
+  from GitHub that names no list is about the request itself and nothing
+  in the answer can be trusted — but the check asked whether *any* list
+  had failed so far, so one list refused on the first page stood as the
+  explanation for every complaint in every round after it. A
+  request-level error while paging was swallowed, the loop ran dry, and
+  the lists that still had pages to fetch were presented as whole. The
+  question is now asked of each complaint on its own, which also catches
+  a request-level error arriving alongside a list-level one.
+
 ## 1.5.0
 
 - The diff fills the window. It was capped at 1500 points wide, which on a

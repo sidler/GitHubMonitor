@@ -502,8 +502,16 @@ public struct GitHubService: Sendable {
             failures.merge(ListParser.failures(answer.failures, searches: batch)) { held, _ in held }
             // A complaint that names no list is about the request itself,
             // and there is nothing partial to salvage from that.
-            if failures.isEmpty, !answer.failures.isEmpty {
-                throw GitHubError.graphQL(answer.failures.map(\.message))
+            //
+            // Asked of this round's own complaints. Testing whether the
+            // accumulated dictionary was empty meant one list that failed
+            // on page one stood as the explanation for every complaint in
+            // every round after it -- so a request-level error on a later
+            // page was swallowed, the paging loop ran dry, and the lists
+            // that still had pages to fetch were presented as complete.
+            let unnamed = ListParser.unnamed(answer.failures, searches: batch)
+            if !unnamed.isEmpty {
+                throw GitHubError.graphQL(unnamed.map(\.message))
             }
             let page = ListParser.results(from: payload, searches: batch, viewer: viewer)
             if let reading = ListParser.budget(from: payload) {
