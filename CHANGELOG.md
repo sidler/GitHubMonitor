@@ -5,6 +5,46 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **Variables are marked as variables.** PHP and the shell introduce every
+  one with a `$`, which is exactly the word a reader follows down a diff,
+  and it was painted like any other. `$this->total($row)` now says in
+  three colours what it is made of: the variables, the call, and the
+  brackets between them.
+- **A name with a `(` after it is drawn as a call**, in every language
+  that has them. A signature is a name, its types and its parameters, and
+  only the types had a colour of their own.
+- **Twelve more languages are known**: HTML and Twig as themselves rather
+  than as XML, plus Python, Java, C#, C/C++, Go, Rust, Swift, Kotlin, Ruby,
+  SQL and shell. A Swift or Go fence in a comment is highlighted now, and
+  so is a `.sql` file in a diff.
+- HTML and Twig draw their tags and their attribute names apart, and Twig's
+  `{{ }}`, `{% %}` and `{# #}` are marked as the template's own. A
+  Makefile and a Dockerfile are left plain, because each has a syntax of
+  its own and painting them as shell would paint the wrong words.
+- **JSON reads as names and values** rather than as a column of red: a
+  quoted name before a colon is drawn as a name. The same in JavaScript
+  and TypeScript object literals.
+- `#[Attribute]` in PHP is an attribute, not a comment. `#` does open a
+  comment there, so the whole declaration under one of these turned grey.
+- Annotations and decorators — `@Override`, `@property`, `@Input` — are
+  drawn as the names they are.
+
+- **The panel of linked issues can be resized, and stays that size.** Drag
+  the corner; double-click it to give the panel back to its contents. It
+  was four hundred and twenty points wide with a height counted from how
+  many cards it held, which is the wrong measure when one card holds a
+  long summary — there was room for two lines of it and no way to ask for
+  more. One size serves all three places the panel opens from, because it
+  is one panel answering one question.
+- The diff is no longer capped at eleven hundred points tall. It fills the
+  window, which is what the comment above the cap always said it did.
+- **An issue's number is always visible, and copying it is one click.**
+  It shared one line with the repository, the author and the date, and
+  that line is truncated from the end in a pane this narrow — so the
+  number was the first thing to go. The repository gives way now, in the
+  middle, and the number does not. Clicking it copies `#1234`. The pull
+  request pane does the same, since the two sit side by side.
+
 - **Signing out now stops what is in the air.** Stopping cancelled the
   refresh timer and the list request, and nothing else: the three charts
   and eleven per-item fetches carried on, each still holding the service

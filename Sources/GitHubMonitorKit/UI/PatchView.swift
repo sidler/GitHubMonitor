@@ -80,12 +80,13 @@ struct DiffOverlay: View {
                 .overlay(
                     RoundedRectangle(cornerRadius: 10).strokeBorder(.quaternary, lineWidth: 1)
                 )
-                // As wide as the window, less a border of ground worth
+                // As large as the window, less a border of ground worth
                 // aiming at: clicking beside the card puts it away, and a
-                // hairline is not something anybody can hit. Width is not
-                // capped beyond that -- a diff read on a wide screen is
-                // exactly where two columns of code have somewhere to go.
-                .frame(maxHeight: 1100)
+                // hairline is not something anybody can hit. Nothing is
+                // capped beyond that -- a diff read on a large screen is
+                // exactly where a long file has somewhere to go, and the
+                // height was capped at eleven hundred points for no reason
+                // the comment above it ever gave.
                 .padding(36)
         }
         .onAppear {

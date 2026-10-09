@@ -106,3 +106,60 @@ struct DiffSidebarWidthTests {
         #expect(Settings(store: UserDefaults(suiteName: name)!).diffSidebarWidth == 340)
     }
 }
+
+
+/// How large the panel of linked items was left.
+@MainActor
+@Suite("The size of the linked panel")
+struct LinkedPanelSizeTests {
+    private func settings() -> Settings {
+        let store = UserDefaults(suiteName: UUID().uuidString)!
+        return Settings(store: store)
+    }
+
+    @Test("It starts at a readable width and takes its height from the cards")
+    func defaults() {
+        let settings = settings()
+        #expect(settings.linkedPanelWidth == Settings.defaultLinkedPanelWidth)
+        // Absent, not zero: until it is dragged the panel is as tall as
+        // what it holds.
+        #expect(settings.linkedPanelHeight == nil)
+    }
+
+    @Test("Both are clamped, like every other number read from preferences")
+    func clamped() {
+        let settings = settings()
+        settings.linkedPanelWidth = 10
+        #expect(settings.linkedPanelWidth == Settings.narrowestLinkedPanel)
+        settings.linkedPanelWidth = 4_000
+        #expect(settings.linkedPanelWidth == Settings.widestLinkedPanel)
+
+        settings.linkedPanelHeight = 4
+        #expect(settings.linkedPanelHeight == Settings.shortestLinkedPanel)
+        settings.linkedPanelHeight = 5_000
+        #expect(settings.linkedPanelHeight == Settings.tallestLinkedPanel)
+    }
+
+    @Test("What it was left at is what it opens at next time")
+    func kept() {
+        let store = UserDefaults(suiteName: UUID().uuidString)!
+        let first = Settings(store: store)
+        first.linkedPanelWidth = 640
+        first.linkedPanelHeight = 500
+
+        let second = Settings(store: store)
+        #expect(second.linkedPanelWidth == 640)
+        #expect(second.linkedPanelHeight == 500)
+    }
+
+    /// Double-clicking the corner gives the panel back to its contents.
+    @Test("Clearing the height goes back to fitting the cards")
+    func cleared() {
+        let store = UserDefaults(suiteName: UUID().uuidString)!
+        let settings = Settings(store: store)
+        settings.linkedPanelHeight = 500
+        settings.linkedPanelHeight = nil
+
+        #expect(Settings(store: store).linkedPanelHeight == nil)
+    }
+}

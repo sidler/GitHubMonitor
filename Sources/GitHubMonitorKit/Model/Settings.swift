@@ -138,6 +138,58 @@ public final class Settings {
     /// Clamped on the way in as well as out: this is read from
     /// preferences, which anything can write, and a list of no width is a
     /// diff with no way back to its files.
+    /// How wide the panel of linked issues and pull requests is, and how
+    /// tall it was left.
+    ///
+    /// One size for all three places it opens from -- a list row, a detail
+    /// pane and the diff -- because it is one panel answering one question,
+    /// and a size set in front of a diff is a size meant for the panel.
+    ///
+    /// The height is optional and starts absent: until it is dragged, the
+    /// panel is as tall as the cards it holds, which is right for a panel
+    /// holding one. Once dragged it is whatever it was left at, because at
+    /// that point the reader has said how much of the card they want to
+    /// see at once.
+    public var linkedPanelWidth: Double {
+        didSet {
+            let clamped = Self.clampedPanelWidth(linkedPanelWidth)
+            if clamped != linkedPanelWidth {
+                linkedPanelWidth = clamped
+                return
+            }
+            store.set(linkedPanelWidth, forKey: Key.linkedPanelWidth)
+        }
+    }
+
+    public var linkedPanelHeight: Double? {
+        didSet {
+            guard let height = linkedPanelHeight else {
+                store.removeObject(forKey: Key.linkedPanelHeight)
+                return
+            }
+            let clamped = Self.clampedPanelHeight(height)
+            if clamped != height {
+                linkedPanelHeight = clamped
+                return
+            }
+            store.set(clamped, forKey: Key.linkedPanelHeight)
+        }
+    }
+
+    public static let defaultLinkedPanelWidth: Double = 420
+    public static let narrowestLinkedPanel: Double = 320
+    public static let widestLinkedPanel: Double = 900
+    public static let shortestLinkedPanel: Double = 160
+    public static let tallestLinkedPanel: Double = 900
+
+    public static func clampedPanelWidth(_ width: Double) -> Double {
+        min(max(width.rounded(), narrowestLinkedPanel), widestLinkedPanel)
+    }
+
+    public static func clampedPanelHeight(_ height: Double) -> Double {
+        min(max(height.rounded(), shortestLinkedPanel), tallestLinkedPanel)
+    }
+
     public static func clampedSidebarWidth(_ width: Double) -> Double {
         min(max(width.rounded(), narrowestDiffSidebar), widestDiffSidebar)
     }
@@ -278,6 +330,12 @@ public final class Settings {
         // Unified unless asked otherwise: it is the narrower of the two and
         // what the app has always shown.
         diffLayout = DiffLayout(rawValue: store.string(forKey: Key.diffLayout) ?? "") ?? .unified
+        linkedPanelWidth = Self.clampedPanelWidth(
+            store.object(forKey: Key.linkedPanelWidth) as? Double
+                ?? Self.defaultLinkedPanelWidth
+        )
+        linkedPanelHeight = (store.object(forKey: Key.linkedPanelHeight) as? Double)
+            .map(Self.clampedPanelHeight)
         diffSidebarWidth = Self.clampedSidebarWidth(
             store.object(forKey: Key.diffSidebarWidth) as? Double
                 ?? Self.defaultDiffSidebarWidth
@@ -414,6 +472,8 @@ public final class Settings {
         static let showsDiffLineNumbers = "showsDiffLineNumbers"
         static let diffLayout = "diffLayout"
         static let diffSidebarWidth = "diffSidebarWidth"
+        static let linkedPanelWidth = "linkedPanelWidth"
+        static let linkedPanelHeight = "linkedPanelHeight"
         static let notificationReasons = "notificationReasons"
         static let hiddenLists = "hiddenLists"
         static let savedLists = "savedLists"

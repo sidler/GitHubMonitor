@@ -22,31 +22,97 @@ struct LinkedItemsPanel: View {
     private var closes: [ItemLink] { links.filter { $0.kind == .closes } }
     private var mentions: [ItemLink] { links.filter { $0.kind == .mentions } }
 
-    /// How tall the panel is, worked out from how many cards there will be
-    /// rather than from what is in them.
+    /// Tracks a resize while it is happening, so the panel follows the
+    /// hand and only the settings are written when it is let go.
+    @StateObject private var resize = PanelResize()
+
+    /// How tall the panel is when nobody has said otherwise, worked out
+    /// from how many cards there will be rather than from what is in them.
     ///
-    /// A popover takes its size when it opens and does not grow afterwards.
-    /// The summaries are fetched at that moment, so a panel measured from
-    /// its content would be measured from three "loading" lines and stay
-    /// that size once the summaries arrived -- which is exactly what it
-    /// did. Counting the cards is known straight away and does not change.
-    private var height: CGFloat {
+    /// A popover measured from its own content takes that measurement when
+    /// it opens and keeps it. The summaries are fetched at that moment, so
+    /// a panel sized this way was sized from three "loading" lines and
+    /// stayed that size once the summaries arrived -- which is exactly
+    /// what it did. Counting the cards is known straight away.
+    ///
+    /// An explicit size is a different matter: the popover does follow one
+    /// of those, which is what lets the corner below work at all.
+    private var naturalHeight: CGFloat {
         let cards = (lead == nil ? 0 : 1) + links.count
         let groups = (closes.isEmpty ? 0 : 1) + (mentions.isEmpty ? 0 : 1)
         let wanted = 28 + CGFloat(cards) * 172 + CGFloat(groups) * 24
         return min(max(wanted, 120), 520)
     }
 
+    private var width: CGFloat {
+        CGFloat(resize.width ?? state.settings.linkedPanelWidth)
+    }
+
+    private var height: CGFloat {
+        if let dragged = resize.height { return CGFloat(dragged) }
+        if let kept = state.settings.linkedPanelHeight { return CGFloat(kept) }
+        return naturalHeight
+    }
+
     var body: some View {
         scroller
-            .frame(width: 420, height: height)
+            .frame(width: width, height: height)
             // A popover inherits the environment of what it springs
             // from, and what this springs from is a row that truncates
             // everything to one line. Without this the summary was a
             // single clipped sentence.
             .lineLimit(nil)
+            .overlay(alignment: .bottomTrailing) { corner }
             .task(id: links.map(\.id).joined()) {
                 controller.loadLinksIfNeeded(links.map(\.reference))
+            }
+    }
+
+    /// The corner that resizes the panel.
+    ///
+    /// A corner rather than an edge: a popover has no frame of its own to
+    /// take hold of, and one target that does both axes is easier to find
+    /// than two that each do one. Double-clicking it gives the panel back
+    /// to the cards, which is where it starts.
+    private var corner: some View {
+        Image(systemName: "arrow.down.right")
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundStyle(resize.isHovering ? AnyShapeStyle(.secondary) : AnyShapeStyle(.tertiary))
+            .frame(width: 16, height: 16)
+            .contentShape(Rectangle())
+            .onHover { if resize.width == nil { resize.isHovering = $0 } }
+            .pointerStyle(.frameResize(position: .bottomTrailing))
+            .help("Drag to resize. Double-click to fit the contents.")
+            .gesture(
+                DragGesture(minimumDistance: 1)
+                    .onChanged { gesture in
+                        resize.isHovering = true
+                        // Measured from where the hand took hold, not from
+                        // where the panel is now: a drag reports how far it
+                        // has come in total, so adding that to a size this
+                        // same drag has already changed feeds the panel its
+                        // own growth and it runs away from the pointer.
+                        let from = resize.start
+                            ?? CGSize(width: width, height: height)
+                        resize.start = from
+                        resize.width = Settings.clampedPanelWidth(
+                            Double(from.width + gesture.translation.width)
+                        )
+                        resize.height = Settings.clampedPanelHeight(
+                            Double(from.height + gesture.translation.height)
+                        )
+                    }
+                    .onEnded { _ in
+                        if let width = resize.width { state.settings.linkedPanelWidth = width }
+                        if let height = resize.height { state.settings.linkedPanelHeight = height }
+                        resize.start = nil
+                        resize.width = nil
+                        resize.height = nil
+                    }
+            )
+            .onTapGesture(count: 2) {
+                state.settings.linkedPanelWidth = Settings.defaultLinkedPanelWidth
+                state.settings.linkedPanelHeight = nil
             }
     }
 
@@ -476,4 +542,19 @@ struct LinkedSubjectButton: View {
             )
         }
     }
+}
+
+/// A resize in progress.
+///
+/// Its own object, and its own file-private type, for the reason the diff
+/// overlay's divider has one: this package builds without Xcode, where the
+/// `State` macro is not available.
+@MainActor
+private final class PanelResize: ObservableObject {
+    /// What the panel measured when the hand took hold.
+    @Published var start: CGSize?
+    /// Nil except while the corner is being dragged.
+    @Published var width: Double?
+    @Published var height: Double?
+    @Published var isHovering = false
 }

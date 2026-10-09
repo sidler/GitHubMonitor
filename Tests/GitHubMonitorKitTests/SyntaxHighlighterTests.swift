@@ -75,7 +75,10 @@ struct SyntaxHighlighterTests {
     @Test("JSON: only double quotes, and the three literals")
     func json() {
         let source = "{\"name\": \"it's fine\", \"ok\": true, \"n\": 12}"
-        #expect(text(source, .json, of: .string) == ["\"name\"", "\"it's fine\"", "\"ok\"", "\"n\""])
+        // A name before a colon is not a value: an object reads as names
+        // and values rather than as a column of red.
+        #expect(text(source, .json, of: .type) == ["\"name\"", "\"ok\"", "\"n\""])
+        #expect(text(source, .json, of: .string) == ["\"it's fine\""])
         #expect(text(source, .json, of: .keyword) == ["true"])
         #expect(text(source, .json, of: .number) == ["12"])
     }
@@ -112,7 +115,11 @@ struct SyntaxHighlighterTests {
         #expect(CodeLanguage.named("PHP") == .php)
         #expect(CodeLanguage.named("ts") == .typescript)
         #expect(CodeLanguage.named("yml") == .yaml)
-        #expect(CodeLanguage.named("html") == .xml)
+        #expect(CodeLanguage.named("html") == .html)
+        #expect(CodeLanguage.named("twig") == .twig)
+        #expect(CodeLanguage.named("svg") == .xml)
+        #expect(CodeLanguage.named("rs") == .rust)
+        #expect(CodeLanguage.named("py") == .python)
         // A fence can carry more than the language.
         #expect(CodeLanguage.named("php title=Example.php") == .php)
         #expect(CodeLanguage.named("") == nil)
@@ -122,7 +129,13 @@ struct SyntaxHighlighterTests {
         #expect(CodeLanguage.forFile("src/Module/Thing.php") == .php)
         #expect(CodeLanguage.forFile("composer.json") == .json)
         #expect(CodeLanguage.forFile(".gitlab-ci.yml") == .yaml)
+        // A Makefile and a Dockerfile each have a syntax of their own,
+        // and painting them as something else paints the wrong words.
         #expect(CodeLanguage.forFile("Makefile") == nil)
+        #expect(CodeLanguage.forFile("Dockerfile") == nil)
+        #expect(CodeLanguage.forFile("deploy.sh") == .shell)
+        #expect(CodeLanguage.forFile("app/Http/Kernel.php") == .php)
+        #expect(CodeLanguage.forFile("templates/page.html.twig") == .twig)
     }
 }
 
@@ -193,5 +206,92 @@ struct CodeTypeTests {
                 #expect(joined == line)
             }
         }
+    }
+}
+
+
+/// What the highlighter learned to see beyond keywords.
+@Suite("Names, not only words")
+struct SyntaxNameTests {
+    private func text(
+        _ source: String, _ language: CodeLanguage, of kind: CodeToken.Kind
+    ) -> [String] {
+        SyntaxHighlighter.tokens(source, language: language)
+            .filter { $0.kind == kind }
+            .map(\.text)
+    }
+
+    /// The line this started from. PHP marks every variable with a `$`,
+    /// which is exactly the word a reader follows down a diff.
+    @Test("PHP: the variables and the calls are told apart")
+    func phpVariables() {
+        let line = "$this->assertSame($expected[0], $actual->total(0));"
+        #expect(text(line, .php, of: .variable) == ["$this", "$expected", "$actual"])
+        #expect(text(line, .php, of: .function) == ["assertSame", "total"])
+    }
+
+    @Test("PHP: a lone dollar is punctuation, not a variable")
+    func lonelyDollar() {
+        #expect(text("preg_match('/x$/', $s);", .php, of: .variable) == ["$s"])
+    }
+
+    /// `#` opens a comment in PHP, but `#[` opens an attribute -- and read
+    /// as a comment it turned the whole declaration under it grey.
+    @Test("PHP: an attribute is not a comment")
+    func attributeNotComment() {
+        let line = "#[Route('/x')] public function show(): void"
+        #expect(text(line, .php, of: .comment).isEmpty)
+        #expect(text(line, .php, of: .keyword).contains("function"))
+    }
+
+    @Test("The shell marks its variables the same way, braces and all")
+    func shellVariables() {
+        #expect(
+            text("echo \"${HOME}/$USER\"", .shell, of: .string) == ["\"${HOME}/$USER\""]
+        )
+        #expect(text("cp $src ${dest}/x", .shell, of: .variable) == ["$src", "${dest}"])
+    }
+
+    @Test("A name before a bracket is a call, in any language that has them")
+    func calls() {
+        #expect(text("const x = compute(1);", .typescript, of: .function) == ["compute"])
+        #expect(text("err := doThing(ctx)", .go, of: .function) == ["doThing"])
+        // A keyword keeps its own colour, bracket or not.
+        #expect(text("if (ok) {", .typescript, of: .function).isEmpty)
+    }
+
+    @Test("Annotations and decorators are names worth seeing")
+    func annotations() {
+        #expect(text("@Override\npublic void run() {}", .java, of: .type).contains("@Override"))
+        #expect(text("@property\ndef name(self):", .python, of: .type).contains("@property"))
+    }
+
+    @Test("HTML: tags and attribute names are drawn apart")
+    func html() {
+        let line = "<a href=\"/x\" class=\"btn\">Go</a>"
+        // The name with its bracket; the `>` that ends it is punctuation.
+        #expect(text(line, .html, of: .tag) == ["<a", "</a"])
+        #expect(text(line, .html, of: .type) == ["href", "class"])
+        #expect(text(line, .html, of: .string) == ["\"/x\"", "\"btn\""])
+    }
+
+    @Test("Twig: the braces it speaks through, and the words inside them")
+    func twig() {
+        let line = "{% if user.isAdmin %}{{ user.name }}{% endif %}"
+        #expect(text(line, .twig, of: .keyword) == ["{%", "if", "%}", "{{", "}}", "{%", "endif", "%}"])
+    }
+
+    @Test("Twig: its comment is its own, and runs across lines")
+    func twigComment() {
+        #expect(text("{# a note\nover two lines #}x", .twig, of: .comment) == ["{# a note\nover two lines #}"])
+    }
+
+    /// Every language, not only the five asked for by name.
+    @Test("The top of the list is covered", arguments: [
+        CodeLanguage.python, .java, .csharp, .cpp, .go, .rust, .swift, .kotlin, .ruby, .sql,
+    ])
+    func keywordsExist(language: CodeLanguage) {
+        #expect(!language.keywords.isEmpty)
+        #expect(!language.types.isEmpty)
     }
 }

@@ -145,7 +145,10 @@ struct MarkdownDocumentTests {
     @Test("Fenced code is kept verbatim")
     func code() {
         let source = "```swift\nlet a = 1\n\n  let b = 2\n```"
-        #expect(MarkdownDocument.blocks(from: source) == [.code("let a = 1\n\n  let b = 2")])
+        #expect(
+            MarkdownDocument.blocks(from: source)
+                == [.code("let a = 1\n\n  let b = 2", language: .swift)]
+        )
     }
 
     @Test("An unclosed fence still ends the document")

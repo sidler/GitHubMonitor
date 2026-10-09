@@ -86,6 +86,12 @@ extension CodeToken.Kind {
         // coloured run.
         case .type: .teal
         case .tag: .purple
+        // Orange and indigo are what is left that reads in both themes
+        // without colliding with the four above: a variable is not a
+        // string, a number, a keyword or a type, and in PHP it is the word
+        // the eye follows down the column.
+        case .variable: .orange
+        case .function: .indigo
         }
     }
 }

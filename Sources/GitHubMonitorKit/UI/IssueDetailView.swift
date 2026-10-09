@@ -65,7 +65,7 @@ struct IssueDetailView: View {
 
             HStack(spacing: 6) {
                 AvatarView(url: item.authorAvatarURL, size: 18)
-                Text(verbatim: "\(item.repository) #\(item.number)")
+                ItemNumberLabel(repository: item.repository, number: item.number)
                 Text("by \(item.author)")
                 Text(RelativeTime.string(for: item.createdAt))
                     .help("Opened \(RelativeTime.absolute(item.createdAt))")
