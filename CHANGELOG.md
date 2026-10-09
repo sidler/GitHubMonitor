@@ -3,7 +3,7 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
-## Unreleased
+## 1.6.0
 
 - **A linked pull request's number says how it is going.** In the issue
   list the number was drawn the same whether the pull request answering
