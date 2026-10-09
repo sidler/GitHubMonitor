@@ -5,6 +5,19 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **Opening a comment in the diff no longer moves the page.** Unfolding a
+  conversation scrolled the file out from under the line being read, and
+  folding it again did the same — sometimes far enough to bring the
+  previous file back into view. The scroll view was being handed back the
+  file it had just reported, and that modifier does not merely report
+  where you are: it *holds* what it is given, and re-applies the hold
+  whenever the content changes size, which is exactly what opening a
+  conversation does. Told to keep a file whose top was far above the
+  window, it pulled the page back to it. Going somewhere and being
+  somewhere are two things now. Clicking a file in the list still jumps to
+  it, the list still marks the file being read, and ticking a file off
+  still lands on the next one at its first line.
+
 - **Variables are marked as variables.** PHP and the shell introduce every
   one with a `$`, which is exactly the word a reader follows down a diff,
   and it was painted like any other. `$this->total($row)` now says in

@@ -92,7 +92,7 @@ struct DiffOverlay: View {
         .onAppear {
             // Once, so that opening on a file lands on it and scrolling
             // afterwards is nobody's business but the overlay's.
-            if place.path == nil { place.path = startingPath }
+            if place.path == nil { place.go(to: startingPath) }
             sidebar.width = Settings.clampedSidebarWidth(startingSidebarWidth)
         }
         // Escape is handled by the view that hosts this, so that it stops
@@ -264,7 +264,7 @@ struct DiffOverlay: View {
                 viewed: viewed?.states ?? [:],
                 comments: ReviewThreadPlacement.openCounts(threads),
                 current: place.path,
-                choose: { place.path = $0 }
+                choose: { place.go(to: $0) }
             )
         }
         // Inset rather than sidebar: the sidebar style draws an edge shadow
@@ -324,7 +324,27 @@ struct DiffOverlay: View {
                 .padding(.vertical, 12)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .scrollPosition(id: $place.path, anchor: .top)
+            // Asymmetric on purpose: what comes back is where the reader
+            // is, what goes in is only ever a destination. See `DiffPlace`.
+            .scrollPosition(
+                id: Binding(
+                    get: { place.wanted },
+                    set: { reported in
+                        // Nil is not an answer: the scroll view reports it
+                        // while the content settles, and taking it would
+                        // put the mark in the list out just as the reader
+                        // arrives somewhere.
+                        if let reported { place.path = reported }
+                    }
+                ),
+                anchor: .top
+            )
+            .onChange(of: place.wanted) { _, destination in
+                // Let go of it once the scroll has been asked for, so the
+                // hold does not outlive the jump.
+                guard destination != nil else { return }
+                Task { @MainActor in place.wanted = nil }
+            }
         }
     }
 
@@ -387,7 +407,7 @@ struct DiffOverlay: View {
             ticking: file.path, folding: folding, showing: place.path, in: files
         ) else { return }
 
-        withAnimation(.easeOut(duration: 0.2)) { place.path = destination }
+        withAnimation(.easeOut(duration: 0.2)) { place.go(to: destination) }
     }
 
     private func fileBody(_ file: ChangedFile, width: CGFloat) -> some View {
@@ -915,11 +935,29 @@ struct ReviewActions {
 /// View-local state without `@State`, whose macro ships only with Xcode.
 @MainActor
 final class DiffPlace: ObservableObject {
-    /// The file at the top of the column.
+    /// The file at the top of the column, as the scroll view reports it.
     ///
-    /// Written by scrolling it and by the list beside it, which is what
-    /// makes the two follow each other.
+    /// Read only. Handing it back to `scrollPosition(id:)` is what made
+    /// folding a comment scroll the page: that modifier does not merely
+    /// report where you are, it *holds* the named view in place, and it
+    /// re-applies that hold whenever the content changes size -- which is
+    /// exactly what opening a conversation does. Asked to keep a file
+    /// whose top is far above the window, it dragged the page back to it.
     @Published var path: String?
+
+    /// A file to go to, held only until the scroll view has gone there.
+    ///
+    /// This is the half of `scrollPosition` worth keeping: setting it
+    /// scrolls, and clearing it straight afterwards leaves the scroll view
+    /// with nothing to hold on to, so the next change of content moves
+    /// only what is below it.
+    @Published var wanted: String?
+
+    /// Sends the diff to a file, from the list beside it or from a tick.
+    func go(to path: String?) {
+        self.path = path
+        wanted = path
+    }
 }
 
 /// How wide the file list beside the diff is.

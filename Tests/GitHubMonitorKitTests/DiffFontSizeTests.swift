@@ -163,3 +163,33 @@ struct LinkedPanelSizeTests {
         #expect(Settings(store: store).linkedPanelHeight == nil)
     }
 }
+
+
+/// Where the diff is, and where it has been asked to go. Two things, not
+/// one: `scrollPosition(id:)` holds whatever it is given, and giving it
+/// back the file you are reading meant every change of content -- opening
+/// a review comment, most of all -- dragged the page to that file's top.
+@MainActor
+@Suite("Going somewhere in the diff, and being somewhere")
+struct DiffPlaceTests {
+    @Test("Being somewhere is not a request to go there")
+    func reportingIsNotGoing() {
+        let place = DiffPlace()
+        place.path = "src/Thing.php"
+
+        // What the scroll view reports leaves nothing for it to hold on
+        // to, so the next thing that grows moves only what is below it.
+        #expect(place.wanted == nil)
+    }
+
+    @Test("Going somewhere sets both")
+    func going() {
+        let place = DiffPlace()
+        place.go(to: "src/Other.php")
+
+        #expect(place.wanted == "src/Other.php")
+        // And the list beside the diff marks it at once, rather than
+        // waiting for the scroll to report back.
+        #expect(place.path == "src/Other.php")
+    }
+}
