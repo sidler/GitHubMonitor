@@ -3,6 +3,26 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
+## Unreleased
+
+- **A linked number is visible again on the row you have selected.** It
+  was drawn in `.secondary`, and inside a selected row SwiftUI resolves a
+  hierarchical style against the selection — so the badge came out white
+  on white. The same trap `ReviewDecision.tint` has carried a warning
+  about since it was written; the colours are concrete now.
+- **The conversation count beside a file matches what the diff shows.**
+  It counted only what was still open, while the diff draws resolved
+  conversations too, folded to a line — so a file showing two could say
+  one, and a file whose remarks had all been settled said nothing at all.
+  It reads `1/4` where those differ and `4` where they do not, and it is
+  grey rather than blue once nothing is waiting on you.
+- **A conversation the list counts is drawn somewhere.** Two ways it was
+  not: a file GitHub sends no diff for kept its badge and showed only the
+  line saying it had no diff, and a remark on a line outside the hunks
+  GitHub chose to send was handed to the view and passed over in silence.
+  Both are gathered at the file's header now, where the outdated ones
+  already were.
+
 ## 1.6.0
 
 - **A linked pull request's number says how it is going.** In the issue

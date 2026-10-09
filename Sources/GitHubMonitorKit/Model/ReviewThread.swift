@@ -82,6 +82,54 @@ public enum ReviewThreadPlacement {
             }
     }
 
+    /// The threads of one file the patch can actually show, in the order
+    /// they should be read.
+    ///
+    /// The patch is asked, not assumed. A review of a large file arrives
+    /// with the hunks GitHub chose to send, and a remark on a line outside
+    /// them has no row to hang on -- handed to the view it was passed over
+    /// in silence, counted in the list beside the diff and drawn nowhere.
+    @MainActor
+    public static func placed(
+        _ threads: [ReviewThread], in path: String, patch: String
+    ) -> [ReviewThread] {
+        let shown = lines(of: patch)
+        return placed(threads, in: path).filter { thread in
+            guard let line = thread.line else { return false }
+            return shown.contains(ThreadLine(side: thread.side, number: line))
+        }
+    }
+
+    /// The threads of one file that have nowhere to go in its patch:
+    /// outdated, unplaced by GitHub, or written against a line the patch
+    /// does not carry.
+    @MainActor
+    public static func stranded(
+        _ threads: [ReviewThread], in path: String, patch: String
+    ) -> [ReviewThread] {
+        let drawn = Set(placed(threads, in: path, patch: patch).map(\.id))
+        return threads
+            .filter { $0.path == path && !drawn.contains($0.id) }
+            .sorted { ($0.line ?? 0, $0.id) < ($1.line ?? 0, $1.id) }
+    }
+
+    /// One line of one of the two files.
+    private struct ThreadLine: Hashable {
+        let side: ReviewThread.Side
+        let number: Int
+    }
+
+    /// Which lines of which file the patch actually carries.
+    @MainActor
+    private static func lines(of patch: String) -> Set<ThreadLine> {
+        var result: Set<ThreadLine> = []
+        for place in DiffCache.shared.numbers(of: patch) {
+            if let old = place.old { result.insert(ThreadLine(side: .old, number: old)) }
+            if let new = place.new { result.insert(ThreadLine(side: .new, number: new)) }
+        }
+        return result
+    }
+
     /// The threads of one file that the patch cannot hold.
     ///
     /// Outdated ones, and any GitHub declined to place. They are gathered
@@ -93,26 +141,42 @@ public enum ReviewThreadPlacement {
             .sorted { ($0.line ?? 0, $0.id) < ($1.line ?? 0, $1.id) }
     }
 
-    /// What a file still has open, for the list beside the diff.
+    /// What a file holds, for the list beside the diff.
     public struct OpenComments: Equatable, Sendable {
         /// Conversations nobody has resolved.
         public let conversations: Int
+        /// Every conversation on the file, resolved ones included.
+        ///
+        /// Both numbers because one of them alone misleads. Only the open
+        /// ones, and the list says 1 where the diff draws four. Only the
+        /// total, and a file whose remarks have all been dealt with looks
+        /// like one nobody has touched.
+        public let total: Int
         /// The remarks those hold, which is a different number as soon as
         /// anybody replies.
         public let comments: Int
 
-        public init(conversations: Int, comments: Int) {
+        public init(conversations: Int, total: Int, comments: Int) {
             self.conversations = conversations
+            self.total = total
             self.comments = comments
         }
 
+        /// What the badge says: `1` where everything open is everything
+        /// there is, `1/4` where it is not.
+        public var text: String {
+            conversations == total ? "\(total)" : "\(conversations)/\(total)"
+        }
+
         /// Spelled out, because a bare number beside a file name could be
-        /// either of the two.
+        /// any of the three.
         public var label: String {
             let threads = conversations == 1
                 ? "1 open conversation" : "\(conversations) open conversations"
+            let all = total == conversations
+                ? "" : total == 1 ? " of 1" : " of \(total)"
             let remarks = comments == 1 ? "1 comment" : "\(comments) comments"
-            return "\(threads), \(remarks)"
+            return "\(threads)\(all), \(remarks)"
         }
     }
 
@@ -127,14 +191,22 @@ public enum ReviewThreadPlacement {
     /// they are gathered at the file's header rather than in its patch --
     /// but unresolved is unresolved, and a file whose list entry said
     /// nothing would be a file nobody opens again.
+    ///
+    /// Resolved ones count towards the total, because the diff draws them:
+    /// a list saying 1 beside a file showing four conversations is a list
+    /// nobody can trust.
     public static func openCounts(_ threads: [ReviewThread]) -> [String: OpenComments] {
-        var counts: [String: (conversations: Int, comments: Int)] = [:]
-        for thread in threads where !thread.isResolved {
-            counts[thread.path, default: (0, 0)].conversations += 1
-            counts[thread.path, default: (0, 0)].comments += thread.comments.count
+        var counts: [String: (conversations: Int, total: Int, comments: Int)] = [:]
+        for thread in threads {
+            counts[thread.path, default: (0, 0, 0)].total += 1
+            guard !thread.isResolved else { continue }
+            counts[thread.path, default: (0, 0, 0)].conversations += 1
+            counts[thread.path, default: (0, 0, 0)].comments += thread.comments.count
         }
         return counts.mapValues {
-            OpenComments(conversations: $0.conversations, comments: $0.comments)
+            OpenComments(
+                conversations: $0.conversations, total: $0.total, comments: $0.comments
+            )
         }
     }
 

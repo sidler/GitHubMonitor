@@ -423,7 +423,9 @@ struct DiffOverlay: View {
                     .padding(.horizontal, 12)
             } else if let patch = file.patch {
                 let mine = threads.filter { $0.path == file.path }
-                let stranded = ReviewThreadPlacement.unplaceable(mine, in: file.path)
+                let stranded = ReviewThreadPlacement.stranded(
+                    mine, in: file.path, patch: patch
+                )
                 if !stranded.isEmpty {
                     OutdatedThreadsView(threads: stranded)
                 }
@@ -444,7 +446,9 @@ struct DiffOverlay: View {
                         available: width,
                         fontSize: fontSize,
                         showsLineNumbers: showsLineNumbers,
-                        threads: ReviewThreadPlacement.placed(mine, in: file.path)
+                        threads: ReviewThreadPlacement.placed(
+                            mine, in: file.path, patch: patch
+                        )
                     )
                     .padding(.vertical, 6)
                 case .unified, .sideBySide:
@@ -453,7 +457,9 @@ struct DiffOverlay: View {
                         language: file.language,
                         fontSize: fontSize,
                         showsLineNumbers: showsLineNumbers,
-                        threads: ReviewThreadPlacement.placed(mine, in: file.path),
+                        threads: ReviewThreadPlacement.placed(
+                            mine, in: file.path, patch: patch
+                        ),
                         column: width
                     )
                     .padding(.vertical, 6)
@@ -463,6 +469,14 @@ struct DiffOverlay: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 12)
+                // Its conversations are still its conversations, and the
+                // list beside this counts them. Without this they were
+                // counted and drawn nowhere: the badge sent you to a file
+                // that said only that it had no diff.
+                let mine = threads.filter { $0.path == file.path }
+                if !mine.isEmpty {
+                    OutdatedThreadsView(threads: mine)
+                }
             }
         }
     }
@@ -857,10 +871,15 @@ struct FileTreeRows: View {
     private func badge(_ open: ReviewThreadPlacement.OpenComments) -> some View {
         HStack(spacing: 2) {
             Image(systemName: "bubble.left.fill")
-            Text(verbatim: "\(open.conversations)").monospacedDigit()
+            Text(verbatim: open.text).monospacedDigit()
         }
         .font(.caption2)
-        .foregroundStyle(.blue)
+        // Blue while something is still waiting on you, grey once it is
+        // all settled: a file whose remarks have been dealt with should
+        // say so without asking for attention a second time.
+        .foregroundStyle(
+            open.conversations > 0 ? Color.blue : Color(nsColor: .secondaryLabelColor)
+        )
         .help(open.label)
     }
 
@@ -871,6 +890,7 @@ struct FileTreeRows: View {
         guard !inside.isEmpty else { return nil }
         return ReviewThreadPlacement.OpenComments(
             conversations: inside.reduce(0) { $0 + $1.conversations },
+            total: inside.reduce(0) { $0 + $1.total },
             comments: inside.reduce(0) { $0 + $1.comments }
         )
     }

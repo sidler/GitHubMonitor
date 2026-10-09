@@ -409,7 +409,10 @@ struct LinkBadge: View {
                 // that is over. Scanning a list of issues, the question
                 // behind the number is whether the answer has landed --
                 // and the number alone does not say.
-                .foregroundStyle(LinkedState.of(first, in: context.state)?.tint ?? .secondary)
+                .foregroundStyle(
+                    LinkedState.of(first, in: context.state)?.tint
+                        ?? Color(nsColor: .secondaryLabelColor)
+                )
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)

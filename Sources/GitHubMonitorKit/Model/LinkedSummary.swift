@@ -40,11 +40,15 @@ public struct LinkedSummary: Hashable, Sendable, Identifiable {
         /// green for open, purple for merged. Everything that is over
         /// without having been merged is grey rather than red -- a closed
         /// issue is not a failure, and a row of red chips would shout.
+        /// A concrete grey rather than `.secondary`: inside a selected
+        /// row SwiftUI resolves a hierarchical style against the
+        /// selection, and the badge came out white on white. The same
+        /// trap `ReviewDecision.tint` carries a warning about.
         public var tint: Color {
             switch self {
             case .open: .green
             case .merged: .purple
-            case .draft, .closed, .notPlanned: .secondary
+            case .draft, .closed, .notPlanned: Color(nsColor: .secondaryLabelColor)
             }
         }
 

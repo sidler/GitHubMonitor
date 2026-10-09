@@ -162,23 +162,32 @@ struct ReviewThreadPlacementTests {
             }
         )
         let counts = ReviewThreadPlacement.openCounts([long, thread("other", line: 2)])
-        #expect(counts["a.swift"] == .init(conversations: 2, comments: 6))
+        #expect(counts["a.swift"] == .init(conversations: 2, total: 2, comments: 6))
+        #expect(counts["a.swift"]?.text == "2")
         #expect(counts["a.swift"]?.label == "2 open conversations, 6 comments")
     }
 
-    /// Resolved is settled, and a list that kept counting it would never
-    /// empty however much work was done.
-    @Test("Resolved conversations are not open")
-    func resolvedDoesNotCount() {
+    /// Resolved is settled, so it is not open -- but the diff still draws
+    /// it, folded to a line. A list that left it out entirely said 1 beside
+    /// a file showing two conversations, which is the mismatch this pair of
+    /// numbers exists to close.
+    @Test("Resolved conversations are not open, but they are still there")
+    func resolvedCountsTowardsTheTotal() {
         let counts = ReviewThreadPlacement.openCounts([
             thread("done", line: 1, resolved: true),
             thread("open", line: 2),
         ])
         #expect(counts["a.swift"]?.conversations == 1)
-        // A file whose conversations are all settled has no badge at all,
-        // rather than a nought beside it.
-        #expect(ReviewThreadPlacement.openCounts([thread("done", line: 1, resolved: true)])
-            .isEmpty)
+        #expect(counts["a.swift"]?.total == 2)
+        #expect(counts["a.swift"]?.text == "1/2")
+        #expect(counts["a.swift"]?.label == "1 open conversation of 2, 1 comment")
+
+        // A file whose conversations are all settled says so rather than
+        // saying nothing: the diff draws them, and the list has to agree.
+        let settled = ReviewThreadPlacement.openCounts(
+            [thread("done", line: 1, resolved: true)]
+        )
+        #expect(settled["a.swift"]?.text == "0/1")
     }
 
     /// GitHub cannot place them any more, so they sit at the file's header
@@ -194,8 +203,10 @@ struct ReviewThreadPlacementTests {
 
     @Test("One conversation reads as one, not as 1 conversations")
     func singular() {
-        #expect(ReviewThreadPlacement.OpenComments(conversations: 1, comments: 1).label
-            == "1 open conversation, 1 comment")
+        #expect(
+            ReviewThreadPlacement.OpenComments(conversations: 1, total: 1, comments: 1).label
+                == "1 open conversation, 1 comment"
+        )
     }
 
     /// Matched on the file's line numbers, not on a position in the patch:
@@ -242,5 +253,97 @@ struct ReviewThreadAnchorTests {
         )
         let onNew = ReviewThreadAnchors.sideBySide(rows: rows, threads: [thread("t", line: 1)])
         #expect(onNew.keys.sorted() == [1])
+    }
+}
+
+
+/// A conversation the list counts has to be drawn somewhere.
+@MainActor
+@Suite("Conversations the patch cannot hold")
+struct StrandedThreadTests {
+    private func thread(
+        _ id: String, line: Int?, side: ReviewThread.Side = .new, outdated: Bool = false
+    ) -> ReviewThread {
+        ReviewThread(
+            id: id, path: "a.swift", line: line, side: side,
+            isResolved: false, isOutdated: outdated,
+            comments: [
+                IssueComment(
+                    id: "c-\(id)", author: "mira", avatarURL: nil,
+                    createdAt: .now, body: "look here"
+                ),
+            ]
+        )
+    }
+
+    /// Two hunks, so the file has lines 10-11 and 40-41 and nothing else.
+    private let patch = """
+    @@ -10,2 +10,2 @@ class Thing
+    -was
+    +is
+    @@ -40,2 +40,2 @@ class Thing
+    -also was
+    +also is
+    """
+
+    @Test("A conversation on a line the patch carries is drawn in it")
+    func inside() {
+        // Line 40 of the new file, not 41: the second hunk's removal
+        // belongs to the old file only, so the new side does not advance.
+        let threads = [thread("a", line: 10), thread("b", line: 40)]
+        let placed = ReviewThreadPlacement.placed(threads, in: "a.swift", patch: patch)
+        #expect(placed.map(\.id) == ["a", "b"])
+        #expect(ReviewThreadPlacement.stranded(threads, in: "a.swift", patch: patch).isEmpty)
+    }
+
+    /// A review of a large file arrives with the hunks GitHub chose to
+    /// send. A remark on a line outside them has no row to hang on, and
+    /// handed to the view it was passed over in silence -- counted in the
+    /// list and drawn nowhere.
+    @Test("A conversation on a line the patch does not carry is not lost")
+    func outside() {
+        let threads = [thread("far", line: 900)]
+        #expect(ReviewThreadPlacement.placed(threads, in: "a.swift", patch: patch).isEmpty)
+        #expect(
+            ReviewThreadPlacement.stranded(threads, in: "a.swift", patch: patch).map(\.id)
+                == ["far"]
+        )
+    }
+
+    @Test("Outdated and unplaced ones are stranded as they always were")
+    func outdatedAndUnplaced() {
+        let threads = [thread("stale", line: 10, outdated: true), thread("nowhere", line: nil)]
+        #expect(ReviewThreadPlacement.placed(threads, in: "a.swift", patch: patch).isEmpty)
+        #expect(
+            Set(ReviewThreadPlacement.stranded(threads, in: "a.swift", patch: patch).map(\.id))
+                == ["stale", "nowhere"]
+        )
+    }
+
+    /// The two sides are counted separately: line 10 of the old file and
+    /// line 10 of the new one are different lines.
+    @Test("A side the patch does not carry is not a match")
+    func sides() {
+        let onOld = [thread("old", line: 10, side: .old)]
+        #expect(ReviewThreadPlacement.placed(onOld, in: "a.swift", patch: patch).map(\.id)
+            == ["old"])
+
+        let beyondOld = [thread("old", line: 900, side: .old)]
+        #expect(ReviewThreadPlacement.placed(beyondOld, in: "a.swift", patch: patch).isEmpty)
+    }
+
+    /// Every conversation is either drawn in the patch or gathered at the
+    /// header. Nothing counted may fall between the two.
+    @Test("Placed and stranded together are all of them")
+    func nothingFallsThrough() {
+        let threads = [
+            thread("a", line: 10), thread("far", line: 900),
+            thread("stale", line: 11, outdated: true), thread("nowhere", line: nil),
+        ]
+        let placed = ReviewThreadPlacement.placed(threads, in: "a.swift", patch: patch)
+        let stranded = ReviewThreadPlacement.stranded(threads, in: "a.swift", patch: patch)
+
+        #expect(placed.count + stranded.count == threads.count)
+        #expect(Set(placed.map(\.id)).isDisjoint(with: Set(stranded.map(\.id))))
     }
 }

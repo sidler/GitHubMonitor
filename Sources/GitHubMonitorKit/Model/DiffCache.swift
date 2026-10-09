@@ -22,6 +22,7 @@ public final class DiffCache {
 
     private var marks: [String: [[ChangedRange]]] = [:]
     private var rows: [String: [DiffSideRow]] = [:]
+    private var numbers: [String: [DiffLineNumber]] = [:]
     private var order: [String] = []
 
     public func emphasis(in patch: String) -> [[ChangedRange]] {
@@ -55,6 +56,23 @@ public final class DiffCache {
     /// In a review of more than sixty-four files that meant the file at the
     /// top of the column -- read on every frame -- was thrown out to make
     /// room for one being scrolled past.
+    /// Which line of which file each line of the patch is.
+    ///
+    /// Kept here with the rest: the unified layout asks for this three
+    /// times in one pass of its body -- once for the lines, once for the
+    /// width of the gutter and once more inside the thread anchoring --
+    /// and the body runs again on every frame of a scroll.
+    public func numbers(of patch: String) -> [DiffLineNumber] {
+        if let known = numbers[patch] {
+            remember(patch)
+            return known
+        }
+        let worked = DiffLineNumbers.read(patch)
+        numbers[patch] = worked
+        remember(patch)
+        return worked
+    }
+
     private func remember(_ patch: String) {
         if let seen = order.firstIndex(of: patch) { order.remove(at: seen) }
         order.append(patch)
@@ -62,6 +80,7 @@ public final class DiffCache {
             let oldest = order.removeFirst()
             marks[oldest] = nil
             rows[oldest] = nil
+            numbers[oldest] = nil
         }
     }
 
@@ -70,6 +89,7 @@ public final class DiffCache {
 
     /// For tests, which must not read what another test left behind.
     func forget() {
+        numbers.removeAll()
         marks = [:]
         rows = [:]
         order = []
