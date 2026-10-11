@@ -143,6 +143,7 @@ struct PopoverView: View {
                     preview: state.previews[item.id],
                     isExpanded: state.expandedNotificationID == item.id,
                     compact: true,
+                    viewer: state.viewer?.login,
                     toggle: { controller.togglePreview(for: item) },
                     markRead: { Task { await controller.markRead(item) } }
                 )

@@ -182,11 +182,12 @@ public enum MarkdownDocument {
     /// is the only label the section below it has.
     static func clean(_ text: String) -> String {
         var result = text
-        result = result.replacingOccurrences(
-            of: "<!--.*?-->",
-            with: "",
-            options: [.regularExpression, .caseInsensitive]
-        )
+        // Across lines, which `.regularExpression` alone will not do: a
+        // dot does not match a newline there, so a pull request template's
+        // instructions -- which run to a paragraph between the markers --
+        // came through whole, `-->` and all. They are written for the
+        // author and are the first thing in nearly every description.
+        result = removingAcrossLines("<!--.*?-->", from: result)
         result = result.replacingOccurrences(
             of: "<summary>(.*?)</summary>",
             with: "#### $1",
@@ -210,6 +211,18 @@ public enum MarkdownDocument {
             options: [.regularExpression, .caseInsensitive]
         )
         return result
+    }
+
+    /// Takes out everything a pattern matches, newlines included.
+    private static func removingAcrossLines(_ pattern: String, from text: String) -> String {
+        guard let expression = try? NSRegularExpression(
+            pattern: pattern, options: [.dotMatchesLineSeparators, .caseInsensitive]
+        ) else { return text }
+        return expression.stringByReplacingMatches(
+            in: text,
+            range: NSRange(text.startIndex..., in: text),
+            withTemplate: ""
+        )
     }
 
     // MARK: - Line kinds

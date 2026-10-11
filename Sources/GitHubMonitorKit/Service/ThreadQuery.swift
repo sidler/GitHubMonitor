@@ -85,6 +85,12 @@ public extension IssueComment {
     /// the body. Case-insensitive, and only where the name ends -- `@sid`
     /// must not match `@avery`.
     func mentions(_ login: String) -> Bool {
+        IssueComment.mentions(login, in: body)
+    }
+
+    /// The same question asked of a body that is not a whole comment --
+    /// the one line a list row shows, say.
+    static func mentions(_ login: String, in body: String) -> Bool {
         guard !login.isEmpty else { return false }
         let needle = "@\(login)".lowercased()
         let text = body.lowercased()

@@ -44,7 +44,7 @@ public struct IssueLabel: Identifiable, Hashable, Sendable {
 ///
 /// A fixed palette rather than a hex value, unlike labels: the organisation
 /// picks one of these eight when it defines the type.
-public enum IssueTypeColor: String, Hashable, Sendable, Codable {
+public enum IssueTypeColor: String, Hashable, Sendable, Codable, CaseIterable {
     case gray = "GRAY"
     case blue = "BLUE"
     case green = "GREEN"

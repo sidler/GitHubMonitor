@@ -485,11 +485,11 @@ struct DiffOverlay: View {
 extension DiffOverlay {
     fileprivate func tint(for state: FileViewedState) -> Color {
         switch state {
-        case .unviewed: Color(nsColor: .secondaryLabelColor)
-        case .viewed: .green
+        case .unviewed: Ink.gray
+        case .viewed: Ink.green
         // The one that needs reading again, and the only one drawn in a
         // colour that asks for attention.
-        case .dismissed: .orange
+        case .dismissed: Ink.orange
         }
     }
 }
@@ -832,7 +832,7 @@ struct FileTreeRows: View {
             if state != .unviewed {
                 Image(systemName: state.symbolName)
                     .font(.caption)
-                    .foregroundStyle(state == .viewed ? Color.green : Color.orange)
+                    .foregroundStyle(state == .viewed ? Ink.green : Ink.orange)
                     .help(state.label)
             }
             Spacer(minLength: 4)
@@ -878,7 +878,7 @@ struct FileTreeRows: View {
         // all settled: a file whose remarks have been dealt with should
         // say so without asking for attention a second time.
         .foregroundStyle(
-            open.conversations > 0 ? Color.blue : Color(nsColor: .secondaryLabelColor)
+            open.conversations > 0 ? Ink.blue : Ink.gray
         )
         .help(open.label)
     }

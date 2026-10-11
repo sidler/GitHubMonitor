@@ -330,3 +330,49 @@ struct MarkdownDocumentTests {
         }
     }
 }
+
+
+/// What a description should not make somebody read.
+@Suite("A template's notes to the author")
+struct MarkdownHiddenTests {
+    @Test("An HTML comment on one line is taken out")
+    func oneLine() {
+        #expect(MarkdownDocument.blocks(from: "<!-- a note -->\nThe text")
+            == [.paragraph("The text")])
+    }
+
+    /// The case that mattered: a pull request template's instructions run
+    /// to a paragraph between the markers, and a dot does not match a
+    /// newline, so the whole block came through with its `-->` on the end.
+    @Test("One spanning several lines is taken out as well")
+    func manyLines() {
+        let body = """
+        <!--
+        When you're not merging into the default branch, please link
+        the issue(s) manually after creating the pull request.
+        -->
+
+        ## Background
+
+        The session table grew an index.
+        """
+        let blocks = MarkdownDocument.blocks(from: body)
+        #expect(blocks == [
+            .heading(level: 2, text: "Background"),
+            .paragraph("The session table grew an index."),
+        ])
+    }
+
+    @Test("Two of them, and text between")
+    func several() {
+        let body = "<!-- one -->Kept<!--\nand\ntwo\n-->Also kept"
+        #expect(MarkdownDocument.blocks(from: body) == [.paragraph("KeptAlso kept")])
+    }
+
+    /// An unclosed marker is a description somebody is still writing, and
+    /// swallowing the rest of it would be worse than showing the marker.
+    @Test("An unclosed marker leaves the text alone")
+    func unclosed() {
+        #expect(MarkdownDocument.blocks(from: "<!-- never closed\nThe text").isEmpty == false)
+    }
+}

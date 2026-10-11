@@ -854,6 +854,50 @@ public final class AppState {
         )
         linkedSummaries["octo/server#9999"] = .missing
 
+        // The conversation behind the mention, so the pane that leads with
+        // the remark naming you has one to lead with.
+        notificationThreads["n1"] = .loaded(
+            IssueDetail(
+                body: """
+                <!--
+                Please describe what this changes and why. Anything between
+                these markers is a note to the author and nobody else.
+                -->
+
+                ## Background
+
+                The session table grew a unique index last release, and the
+                migrations that fill it were written before that.
+                """,
+                comments: [
+                    IssueComment(
+                        id: "nc1", author: "noor",
+                        avatarURL: SampleData.avatar(4),
+                        createdAt: .now.addingTimeInterval(-9000),
+                        body: "Does the order matter here? Both touch the same table."
+                    ),
+                    IssueComment(
+                        id: "nc2", author: "mira",
+                        avatarURL: SampleData.avatar(1),
+                        createdAt: .now.addingTimeInterval(-1800),
+                        body: """
+                        @avery I think the migration for the session table has to
+                        run **before** the index is added, otherwise the unique
+                        constraint fails on existing rows. How should the rows
+                        already there be moved over?
+                        """
+                    ),
+                    IssueComment(
+                        id: "nc3", author: "dara",
+                        avatarURL: SampleData.avatar(3),
+                        createdAt: .now.addingTimeInterval(-900),
+                        body: "Agreed. I will hold the release until that is settled."
+                    ),
+                ],
+                totalComments: 7
+            )
+        )
+
         // Show one preview open, so the expanded layout is exercised too.
         // Written as the real ones are -- a bot's table, a details wrapper,
         // a code fence -- so the Markdown rendering is exercised as well.
@@ -864,8 +908,8 @@ public final class AppState {
                     avatarURL: URL(string: "https://avatars.githubusercontent.com/u/1?v=4")
                 ),
                 body: """
-            I think the migration for the session table has to run **before** the
-            index is added, otherwise the unique constraint fails on existing rows.
+            @avery I think the migration for the session table has to run **before**
+            the index is added, otherwise the unique constraint fails on existing rows.
 
             | Step | Migration | Note |
             |---|---|---|

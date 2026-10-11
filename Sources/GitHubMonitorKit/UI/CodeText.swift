@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// Source, painted.
@@ -71,30 +72,48 @@ struct CodeText: View {
 }
 
 extension CodeToken.Kind {
-    /// System colours, so both themes are covered without a palette of our
-    /// own. Comments are grey rather than the green an editor would use: in a
-    /// pane this narrow the point is to let the eye skip them.
+    /// The hues the system palette uses, at a weight that can be read.
+    ///
+    /// Not `.red`, `.teal` and the rest themselves: those are tuned to
+    /// stand out on a control, not to be read as small text, and measured
+    /// against a white page in light mode they came in at 2.2 to 1 for a
+    /// type and 2.3 for a variable -- against a diff's own tinted band,
+    /// worse. Four and a half to one is where small text stops being work,
+    /// so each hue was darkened in light mode and lightened in dark until
+    /// it cleared that against both of the bands it is ever drawn on --
+    /// the red one is the harder of the two in light mode, the green one
+    /// in dark, so neither alone was enough to tune against.
+    /// The hues are the system's; only the weight has moved.
+    ///
+    /// Comments stay grey rather than the green an editor would use: in a
+    /// pane this narrow the point is to let the eye skip them -- but a
+    /// grey that is still readable, since skipping is the reader's choice
+    /// and not the pane's.
     var tint: Color {
         switch self {
         case .plain: Color(nsColor: .labelColor)
-        case .comment: Color(nsColor: .secondaryLabelColor)
-        case .string: .red
-        case .number: .blue
-        case .keyword: .purple
+        // Grey, but a grey that can be read: the system's secondary label
+        // came in at 3.3 to one over the band behind a removed line, and a
+        // comment is often the line explaining what the change is for.
+        case .comment: Ink.gray
+        case .string: Ink.red
+        case .number: Ink.blue
+        case .keyword: Ink.purple
         // Teal, which is far enough from the purple of the keywords beside
         // it that a signature reads as words and types rather than as one
         // coloured run.
-        case .type: .teal
-        case .tag: .purple
+        case .type: Ink.teal
+        case .tag: Ink.purple
         // Orange and indigo are what is left that reads in both themes
         // without colliding with the four above: a variable is not a
         // string, a number, a keyword or a type, and in PHP it is the word
         // the eye follows down the column.
-        case .variable: .orange
-        case .function: .indigo
+        case .variable: Ink.orange
+        case .function: Ink.indigo
         }
     }
 }
+
 
 /// Lines already painted.
 ///

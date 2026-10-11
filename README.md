@@ -173,9 +173,13 @@ pull request with a review of forty-three files and a couple of thousand
 changed lines, which is where the diff's scrolling is worth looking at.
 `--fail` marks the last
 refresh as failed on top of the sample data, which is how to see what the menu
-bar does when GitHub does not answer. The same switches are read from the
-environment as `GHM_OPEN`, `GHM_SAMPLE`, `GHM_BIG` and `GHM_FAIL`, which is
-what to use
+bar does when GitHub does not answer. `--theme dark` or `--theme light` draws
+the app in one of them whatever the Mac is set to, which is how to look at
+both without changing a system-wide preference — worth doing for anything to
+do with colour, since a contrast that holds in one theme can fail in the
+other. The same switches are read from the
+environment as `GHM_OPEN`, `GHM_SAMPLE`, `GHM_BIG`, `GHM_FAIL` and
+`GHM_THEME`, which is what to use
 when launching the binary directly rather than through `open`.
 
 ### Signing

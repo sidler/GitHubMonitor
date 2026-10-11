@@ -108,6 +108,29 @@ struct NotificationDetailView: View {
     private var conversation: some View {
         switch thread {
         case .loaded(let thread):
+            // First, and before the description: a mention is the one
+            // thing in the pane that is addressed to the reader, and it
+            // used to sit among twenty comments under a description that
+            // is often a template. What somebody has to answer should not
+            // have to be hunted for.
+            //
+            // Shown here and again in its place below, which is deliberate
+            // duplication: the top is the remark to answer, the thread is
+            // the conversation it sits in, and a thread with a hole where
+            // the mention was reads worse than one that repeats it.
+            let mentions = viewer.map { who in
+                thread.comments.filter { $0.mentions(who) }
+            } ?? []
+            if !mentions.isEmpty {
+                section(
+                    mentions.count == 1 ? "Mentions you" : "\(mentions.count) mentions of you"
+                ) {
+                    VStack(alignment: .leading, spacing: 14) {
+                        ForEach(mentions) { comment($0) }
+                    }
+                }
+            }
+
             if !thread.body.isEmpty {
                 section("Description") {
                     MarkdownText(source: thread.body)
@@ -171,8 +194,8 @@ struct NotificationDetailView: View {
                         .font(.caption2.weight(.semibold))
                         .padding(.horizontal, 5)
                         .padding(.vertical, 1)
-                        .background(Color.accentColor.opacity(0.15), in: Capsule())
-                        .foregroundStyle(Color.accentColor)
+                        .background(Ink.wash(.blue, 0.15), in: Capsule())
+                        .foregroundStyle(Ink.blue)
                 }
             }
             MarkdownText(source: comment.body)

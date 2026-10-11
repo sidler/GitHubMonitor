@@ -9,6 +9,9 @@ struct NotificationRow: View {
     /// Whether the message belongs in the row. False in the window, which
     /// has a detail pane to put it in.
     var inlinePreview: Bool = true
+    /// Who to look for in the comment behind the row, so a mention can say
+    /// it is one.
+    var viewer: String?
     let toggle: () -> Void
     let markRead: () -> Void
 
@@ -40,6 +43,28 @@ struct NotificationRow: View {
                 Text(item.title)
                     .font(compact ? .callout : .body)
                     .lineLimit(isExpanded && inlinePreview ? 3 : (compact ? 1 : 2))
+                // A mention is a remark addressed to the reader, and the
+                // list showed only what it was about. The line itself is
+                // the thing being reacted to, so it belongs in the row.
+                //
+                // Only for a mention, and only one line: every row carrying
+                // a sentence would be a list nobody can scan.
+                if item.reason == .mention || item.reason == .teamMention,
+                   let said = mentioned
+                {
+                    HStack(alignment: .firstTextBaseline, spacing: 5) {
+                        if said.isAboutYou {
+                            Image(systemName: "at")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(Ink.blue)
+                        }
+                        Text(said.line)
+                            .font(.caption)
+                            .lineLimit(compact ? 1 : 2)
+                            .foregroundStyle(Color(nsColor: .labelColor))
+                    }
+                }
+
                 HStack(spacing: 8) {
                     Text(item.repository)
                     // Only once the comment behind the thread has been
@@ -68,6 +93,23 @@ struct NotificationRow: View {
                     .padding(.top, 3)
             }
         }
+    }
+
+    /// The remark behind the row, in a line.
+    ///
+    /// What GitHub hands out is the thread's latest comment, which for a
+    /// mention is usually the one that named you and sometimes is not --
+    /// somebody may have written again since. So the row says `@` only
+    /// where the line really does name you, and otherwise shows it as what
+    /// it is: the last thing said.
+    private var mentioned: (line: String, isAboutYou: Bool)? {
+        guard let body = preview?.preview?.body else { return nil }
+        let line = CommentDigest.firstLine(of: body)
+        guard !line.isEmpty else { return nil }
+        let isAboutYou = viewer.map { who in
+            IssueComment.mentions(who, in: body)
+        } ?? false
+        return (line, isAboutYou)
     }
 
     @ViewBuilder

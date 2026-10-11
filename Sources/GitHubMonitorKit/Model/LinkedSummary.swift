@@ -46,9 +46,9 @@ public struct LinkedSummary: Hashable, Sendable, Identifiable {
         /// trap `ReviewDecision.tint` carries a warning about.
         public var tint: Color {
             switch self {
-            case .open: .green
-            case .merged: .purple
-            case .draft, .closed, .notPlanned: Color(nsColor: .secondaryLabelColor)
+            case .open: Ink.green
+            case .merged: Ink.purple
+            case .draft, .closed, .notPlanned: Ink.gray
             }
         }
 

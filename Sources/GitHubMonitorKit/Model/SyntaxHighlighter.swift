@@ -444,7 +444,7 @@ public enum CodeLanguage: String, Hashable, Sendable, CaseIterable {
 
 /// One run of source that is drawn in one colour.
 public struct CodeToken: Hashable, Sendable {
-    public enum Kind: String, Hashable, Sendable {
+    public enum Kind: String, Hashable, Sendable, CaseIterable {
         case plain
         case comment
         case string

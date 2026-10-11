@@ -12,9 +12,9 @@ import SwiftUI
 extension ReviewDecision {
     var tint: Color {
         switch self {
-        case .approved: .green
-        case .changesRequested: .orange
-        case .reviewRequired, .none: Color(nsColor: .secondaryLabelColor)
+        case .approved: Ink.green
+        case .changesRequested: Ink.orange
+        case .reviewRequired, .none: Ink.gray
         }
     }
 }
@@ -22,10 +22,10 @@ extension ReviewDecision {
 extension ChecksStatus {
     var tint: Color {
         switch self {
-        case .success: .green
-        case .failure: .red
-        case .pending: .yellow
-        case .none: Color(nsColor: .secondaryLabelColor)
+        case .success: Ink.green
+        case .failure: Ink.red
+        case .pending: Ink.yellow
+        case .none: Ink.gray
         }
     }
 }
@@ -36,8 +36,8 @@ extension WaitingAge {
     var tint: Color {
         switch self {
         case .fresh: Color.rowDetail
-        case .aging: .orange
-        case .overdue: .red
+        case .aging: Ink.orange
+        case .overdue: Ink.red
         }
     }
 }
@@ -48,8 +48,8 @@ extension MergeStatus {
         // Green is affordable here: only the detail pane draws this one,
         // and there it is one line about one pull request. The lists draw
         // the conflict and nothing else.
-        case .mergeable: .green
-        case .conflicting: .red
+        case .mergeable: Ink.green
+        case .conflicting: Ink.red
         case .unknown: Color(nsColor: .tertiaryLabelColor)
         }
     }
@@ -83,15 +83,16 @@ extension Color {
     ///
     /// Darker than the system's secondary label in light mode, where that
     /// grey on a white list is light enough to be hard work at this size.
-    /// Dark mode keeps the system colour: the same shift there would push
-    /// the line towards the title it is meant to sit behind.
+    /// Lighter than it in dark mode, where the system grey falls to 3.3 to
+    /// one against the grey of a selected row -- the one place a row is
+    /// not drawn on the page's own colour.
     ///
     /// A concrete colour rather than `.secondary`, like everything else a
     /// row draws: inside a selected row SwiftUI resolves hierarchical
     /// styles to white.
     static let rowDetail = Color(nsColor: NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-            ? .secondaryLabelColor
+            ? NSColor(srgbRed: 0.788, green: 0.788, blue: 0.788, alpha: 1)
             : NSColor.labelColor.withAlphaComponent(0.68)
     })
 }
@@ -224,10 +225,10 @@ struct LabelChip: View {
 }
 
 extension IssueTypeColor {
-    /// GitHub's palette, in the system colours closest to it. Concrete
-    /// values, like everything else a row draws: inside a selected row
-    /// SwiftUI resolves hierarchical styles to white.
-    var tint: Color {
+    /// The hue itself, for the wash behind the name. Light, while the name
+    /// on it is dark: a chip drawn in one colour at two strengths is a
+    /// chip nobody can read.
+    var system: Color {
         switch self {
         case .gray: Color(nsColor: .secondaryLabelColor)
         case .blue: .blue
@@ -237,6 +238,22 @@ extension IssueTypeColor {
         case .red: .red
         case .pink: .pink
         case .purple: .purple
+        }
+    }
+
+    /// GitHub's palette, in the system colours closest to it. Concrete
+    /// values, like everything else a row draws: inside a selected row
+    /// SwiftUI resolves hierarchical styles to white.
+    var tint: Color {
+        switch self {
+        case .gray: Ink.gray
+        case .blue: Ink.blue
+        case .green: Ink.green
+        case .yellow: Ink.yellow
+        case .orange: Ink.orange
+        case .red: Ink.red
+        case .pink: Ink.pink
+        case .purple: Ink.purple
         }
     }
 }
@@ -258,7 +275,7 @@ struct IssueTypeChip: View {
             .padding(.horizontal, 5)
             .padding(.vertical, 1)
             .foregroundStyle(type.color.tint)
-            .background(type.color.tint.opacity(0.14), in: Capsule())
+            .background(Ink.wash(type.color.system), in: Capsule())
             .overlay(Capsule().strokeBorder(type.color.tint.opacity(0.45), lineWidth: 1))
             .help("Issue type: \(type.name)")
     }

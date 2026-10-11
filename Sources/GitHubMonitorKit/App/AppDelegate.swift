@@ -95,6 +95,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
+        // Development aid: draws the app in one theme whatever the Mac is
+        // set to, so both can be looked at without changing a system-wide
+        // preference. Checking a colour against the ground it lands on is
+        // the reason this exists.
+        if let theme = devOption("GHM_THEME") {
+            NSApp.appearance = NSAppearance(named: theme == "dark" ? .darkAqua : .aqua)
+        }
+
         // Development aid: opens the detail pane for the first row of
         // whichever list is on screen, so the pane can be inspected without
         // a click.

@@ -358,6 +358,7 @@ struct ContentColumn: View {
                 // The message goes into the detail pane here; expanding the
                 // row in place would push the rest of the list down.
                 inlinePreview: false,
+                viewer: state.viewer?.login,
                 toggle: { controller.inspect(item) },
                 markRead: { Task { await controller.markRead(item) } }
             )

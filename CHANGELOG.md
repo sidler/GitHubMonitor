@@ -3,6 +3,55 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
+## Unreleased
+
+- **Everything the app draws can be read on what it draws it on.** The
+  colours were the system's own, which are tuned to stand out on a
+  control rather than to be read as small text. Measured in light mode: a
+  green tick at 2.2 to one, a yellow check at 1.5, an ageing timestamp at
+  2.3, a linked pull request's number at 2.2, and the name on an issue
+  type at 1.4 against the wash of its own colour. On the grey of a
+  selected row, lower still; in a diff, a comment came in at 3.3 over the
+  band behind a removed line.
+
+  The hues are unchanged — a string is still red, a warning still orange
+  — but each has been walked along its own brightness, darker in light
+  mode and lighter in dark, until it clears 4.5 to one against every
+  ground it is actually drawn on: the page, a selected row, both of a
+  diff's tinted bands, and the wash a chip lays under its own name. One
+  palette now, where four files used to choose separately.
+
+  A test measures all of it, in both themes, so the next change to a
+  colour has to clear the bar too.
+- An issue type's chip takes its wash from the plain hue and its name
+  from the weighted one. The two used to be the same colour at two
+  strengths, which is why a yellow type read at 1.4 to one.
+- The second line of a selected row is readable in dark mode, where the
+  system's secondary grey fell to 3.3 against the selection — the one
+  place a row is not drawn on the page's own colour.
+- A comment in a diff is a grey that can be read. The system's secondary
+  label came in at 3.3 to one over the band behind a removed line, and a
+  comment is often the line explaining what the change is for.
+- For development: `--theme dark` and `--theme light` draw the app in one
+  theme whatever the Mac is set to, so both can be looked at without
+  changing a system-wide preference.
+- **A mention leads the pane it arrives in.** The remark that named you
+  sat among twenty comments under a description that is usually a
+  template, so the one thing in the pane addressed to you was the last
+  thing you found. It comes first now, under its own heading, and stays
+  in its place in the thread below.
+- **The mentions list says what was said.** A row gave the title of the
+  thread and nothing of the remark — which is the content being reacted
+  to. It carries the first line of the comment now, with an `@` where
+  that line really is the one naming you. GitHub hands out the thread's
+  latest comment rather than the one that mentioned you, and sometimes
+  those differ; the row says `@` only when it can tell.
+- A pull request template's notes to the author are hidden, as GitHub
+  hides them. They are written between `<!--` and `-->` and run to a
+  paragraph, and the pattern that was meant to remove them could not
+  match across lines — so every description opened with a block of
+  instructions meant for somebody else, `-->` and all.
+
 ## 1.6.1
 
 - **A linked number is visible again on the row you have selected.** It

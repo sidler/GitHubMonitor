@@ -521,7 +521,10 @@ struct LinkChipRow: View {
         // over: a number alone says a pull request answers this issue
         // without saying whether anybody has merged it, which is the
         // question being asked when the list is scanned.
-        let tint = state(link)?.tint ?? Color.accentColor
+        // Grey where nothing is known yet, rather than the accent: a
+        // chip drawing its own wash under its own colour cannot be read,
+        // whichever accent the Mac is set to.
+        let tint = state(link)?.tint ?? Ink.gray
         return HStack(spacing: 3) {
             Image(systemName: link.kind == .closes ? "link" : "text.quote")
             Text(verbatim: "\(link.reference.number)")
