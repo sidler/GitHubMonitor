@@ -3,7 +3,7 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
-## Unreleased
+## 1.7.0
 
 - **The detail pane counts the remarks on the diff.** It said "0 comments"
   over a review carrying forty of them, because the number it showed was
