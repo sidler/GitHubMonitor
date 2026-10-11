@@ -17,6 +17,12 @@ public enum PullRequestDetailQuery {
           deletions
           changedFiles
           comments { totalCount }
+          # The remarks on the diff, which `comments` is not: that one
+          # counts the conversation tab, and a review can carry forty of
+          # these while that number stays at nought. `first: 1` because
+          # only the total is wanted -- the threads themselves are fetched
+          # when the diff is opened, and not before.
+          reviewThreads(first: 1) { totalCount }
           body
           mergeable
           commits(last: 1) {
@@ -64,6 +70,8 @@ public enum PullRequestDetailQuery {
             deletions: node["deletions"] as? Int ?? 0,
             changedFiles: node["changedFiles"] as? Int ?? 0,
             comments: (node["comments"] as? [String: Any])?["totalCount"] as? Int ?? 0,
+            reviewConversations:
+                (node["reviewThreads"] as? [String: Any])?["totalCount"] as? Int ?? 0,
             body: node["body"] as? String ?? "",
             mergeStatus: PullRequestParser.mergeStatus(node["mergeable"] as? String),
             checks: checks(from: node),

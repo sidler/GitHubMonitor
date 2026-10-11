@@ -236,3 +236,53 @@ struct DescriptionSummaryTests {
         #expect(DescriptionSection.firstLine(of: "\n   \n", besides: title) == nil)
     }
 }
+
+
+/// What the pane means by "comments".
+@Suite("Two kinds of remark on one pull request")
+struct ReviewConversationCountTests {
+    /// Wrapped the way GitHub answers, which is what the parser reads.
+    private func detail(comments: Int, threads: Int) -> [String: Any] {
+        [
+            "node": [
+                "headRefName": "fix/x", "baseRefName": "main",
+                "additions": 301, "deletions": 1, "changedFiles": 14,
+                "comments": ["totalCount": comments],
+                "reviewThreads": ["totalCount": threads],
+                "body": "",
+            ],
+        ]
+    }
+
+    /// The conversation tab and the diff are counted apart. A review can
+    /// carry forty remarks on its lines while the tab stays at nought,
+    /// which is what the pane used to report.
+    @Test("The conversations on the diff are read from the answer")
+    func parsed() throws {
+        let read = try PullRequestDetailQuery.detail(from: detail(comments: 0, threads: 12))
+        #expect(read.comments == 0)
+        #expect(read.reviewConversations == 12)
+    }
+
+    @Test("A query that did not ask gets nought rather than a guess")
+    func missing() throws {
+        var payload = detail(comments: 3, threads: 0)
+        var node = payload["node"] as! [String: Any]
+        node["reviewThreads"] = nil
+        payload["node"] = node
+        #expect(try PullRequestDetailQuery.detail(from: payload).reviewConversations == 0)
+    }
+
+    /// The default keeps every other caller of the initialiser working,
+    /// and means a detail built from somewhere that has no such number
+    /// says so rather than inventing one.
+    @Test("It defaults to none")
+    func defaulted() {
+        let made = PullRequestDetail(
+            headBranch: "a", baseBranch: "b",
+            additions: 1, deletions: 0, changedFiles: 1, comments: 2,
+            body: "", checks: [], reviewers: []
+        )
+        #expect(made.reviewConversations == 0)
+    }
+}

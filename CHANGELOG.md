@@ -5,6 +5,20 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **The detail pane counts the remarks on the diff.** It said "0 comments"
+  over a review carrying forty of them, because the number it showed was
+  GitHub's count for the conversation tab — a different thing, and nought
+  on most pull requests that are reviewed rather than discussed. The pane
+  leads with the conversations on the diff where there are any, which is
+  what the file list beside the diff counts too, and falls back to the
+  conversation where there are none. The tooltip gives both.
+- **A file in the detail pane looks like something to press.** The rows
+  opened the diff and said so only by being blue, in a pane full of blue
+  text that is not a target. Each row ends in a chevron now, and the
+  pointer becomes a hand over it.
+- **A Review button opens the diff** from the Files heading, without
+  having to pick a file to start at first.
+
 - **Everything the app draws can be read on what it draws it on.** The
   colours were the system's own, which are tuned to stand out on a
   control rather than to be read as small text. Measured in light mode: a

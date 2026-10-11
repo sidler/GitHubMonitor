@@ -176,11 +176,26 @@ struct PullRequestDetailView: View {
                 )
                 statistic("+\(detail.additions)", caption: "added", tint: .green)
                 statistic("−\(detail.deletions)", caption: "removed", tint: .red)
-                statistic(
-                    "\(detail.comments)",
-                    caption: detail.comments == 1 ? "comment" : "comments",
-                    tint: .primary
-                )
+                // Whichever of the two there is something to say about.
+                // A pane about a diff should lead with the remarks on the
+                // diff; a pull request nobody has reviewed still has a
+                // conversation worth counting.
+                if detail.reviewConversations > 0 {
+                    statistic(
+                        "\(detail.reviewConversations)",
+                        caption: detail.reviewConversations == 1
+                            ? "conversation" : "conversations",
+                        tint: .primary
+                    )
+                    .help(discussion(detail))
+                } else {
+                    statistic(
+                        "\(detail.comments)",
+                        caption: detail.comments == 1 ? "comment" : "comments",
+                        tint: .primary
+                    )
+                    .help(discussion(detail))
+                }
             }
         } header: {
             sectionTitle("Changes")
@@ -238,7 +253,17 @@ struct PullRequestDetailView: View {
                     }
                 }
             } header: {
-                sectionTitle("Files")
+                sectionTitle("Files") {
+                    if let first = files.first {
+                        Button { openDiff(first) } label: {
+                            Label("Review", systemImage: "rectangle.split.2x1")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.accessoryBar)
+                        .pointerStyle(.link)
+                        .help("Open the diff, starting at the first file")
+                    }
+                }
             }
         case .loading:
             Section {
@@ -283,36 +308,18 @@ struct PullRequestDetailView: View {
     }
 
     private func fileRow(_ file: ChangedFile) -> some View {
-        Button {
-            openDiff(file)
-        } label: {
-            HStack(alignment: .firstTextBaseline, spacing: 7) {
-                Image(systemName: file.change.symbolName)
-                    .foregroundStyle(.secondary)
+        FileRow(file: file, open: { openDiff(file) })
+    }
 
-                Text(file.shortPath)
-                    .foregroundStyle(Color.accentColor)
-                    .lineLimit(1)
-                    .truncationMode(.head)
-
-                Spacer(minLength: 4)
-
-                if file.additions > 0 {
-                    Text(verbatim: "+\(file.additions)")
-                        .foregroundStyle(.green)
-                        .monospacedDigit()
-                }
-                if file.deletions > 0 {
-                    Text(verbatim: "\u{2212}\(file.deletions)")
-                        .foregroundStyle(.red)
-                        .monospacedDigit()
-                }
-            }
-            .font(.caption)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .help("\(file.change.label) \u{2014} \(file.path)")
+    /// Both numbers spelled out, since the row has room for one.
+    private func discussion(_ detail: PullRequestDetail) -> String {
+        let onDiff = detail.reviewConversations == 1
+            ? "1 conversation on the diff"
+            : "\(detail.reviewConversations) conversations on the diff"
+        let inThread = detail.comments == 1
+            ? "1 comment in the conversation"
+            : "\(detail.comments) comments in the conversation"
+        return "\(onDiff), \(inThread)"
     }
 
     private func statistic(_ value: String, caption: String, tint: Color) -> some View {
@@ -407,15 +414,24 @@ struct PullRequestDetailView: View {
     }
 
     private func sectionTitle(_ title: String, trailing: String? = nil) -> some View {
-        HStack {
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-            Spacer()
+        sectionTitle(title) {
             if let trailing {
                 Text(trailing)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+        }
+    }
+
+    /// The same, with something to press at the end of it.
+    private func sectionTitle(
+        _ title: String, @ViewBuilder trailing: () -> some View
+    ) -> some View {
+        HStack {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+            Spacer()
+            trailing()
         }
         .padding(.bottom, 4)
     }
@@ -508,5 +524,58 @@ struct DescriptionSection: View {
             return stripped
         }
         return nil
+    }
+}
+
+
+/// One changed file in the detail pane, which opens the diff at it.
+///
+/// A chevron at the end of every row rather than a highlight under the
+/// pointer: a row that leads somewhere should say so before anybody goes
+/// looking, and the accent colour alone did not -- the pane is full of
+/// accent-coloured text that is not a target. The pointer becomes a hand
+/// as well, which is the other half of the answer but only for whoever is
+/// already there.
+private struct FileRow: View {
+    let file: ChangedFile
+    let open: () -> Void
+
+    var body: some View {
+        Button(action: open) {
+            HStack(alignment: .firstTextBaseline, spacing: 7) {
+                Image(systemName: file.change.symbolName)
+                    .foregroundStyle(.secondary)
+
+                Text(file.shortPath)
+                    .foregroundStyle(Color.accentColor)
+                    .lineLimit(1)
+                    .truncationMode(.head)
+
+                Spacer(minLength: 4)
+
+                if file.additions > 0 {
+                    Text(verbatim: "+\(file.additions)")
+                        .foregroundStyle(Ink.green)
+                        .monospacedDigit()
+                }
+                if file.deletions > 0 {
+                    Text(verbatim: "\u{2212}\(file.deletions)")
+                        .foregroundStyle(Ink.red)
+                        .monospacedDigit()
+                }
+
+                // The same mark a notification row uses for a row that
+                // opens into something.
+                Image(systemName: "chevron.right")
+                    .font(.caption2)
+                    .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+            }
+            .font(.caption)
+            .padding(.vertical, 1)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .pointerStyle(.link)
+        .help("Open the diff at this file \u{2014} \(file.path)")
     }
 }

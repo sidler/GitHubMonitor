@@ -280,6 +280,10 @@ public enum SampleData {
             headBranch: "fix/session-handler-race",
             baseBranch: "main",
             additions: 195, deletions: 76, changedFiles: 6, comments: 4,
+            // What the sample's review threads add up to, so the pane and
+            // the diff beside it agree -- which they did not when the pane
+            // counted only the conversation tab.
+            reviewConversations: 3,
             body: description,
             mergeStatus: .conflicting,
             checks: [

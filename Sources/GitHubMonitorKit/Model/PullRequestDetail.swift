@@ -107,7 +107,14 @@ public struct PullRequestDetail: Hashable, Sendable {
     public let additions: Int
     public let deletions: Int
     public let changedFiles: Int
+    /// Remarks in the conversation, which is not what a review leaves.
     public let comments: Int
+    /// Conversations hanging off the diff's own lines.
+    ///
+    /// Counted apart because the two are different things and a pane
+    /// showing only the first said "0 comments" over a review carrying
+    /// forty of the second.
+    public let reviewConversations: Int
     /// The text the author wrote when opening it, as Markdown.
     ///
     /// Carried here rather than fetched on demand: it is a plain field on
@@ -128,6 +135,7 @@ public struct PullRequestDetail: Hashable, Sendable {
         deletions: Int,
         changedFiles: Int,
         comments: Int,
+        reviewConversations: Int = 0,
         body: String = "",
         mergeStatus: MergeStatus = .unknown,
         checks: [CheckRun],
@@ -139,6 +147,7 @@ public struct PullRequestDetail: Hashable, Sendable {
         self.deletions = deletions
         self.changedFiles = changedFiles
         self.comments = comments
+        self.reviewConversations = reviewConversations
         self.body = body
         self.mergeStatus = mergeStatus
         self.checks = checks
@@ -166,6 +175,7 @@ public struct PullRequestDetail: Hashable, Sendable {
             deletions: deletions,
             changedFiles: changedFiles,
             comments: comments,
+            reviewConversations: reviewConversations,
             body: body,
             mergeStatus: mergeStatus,
             checks: checks,
