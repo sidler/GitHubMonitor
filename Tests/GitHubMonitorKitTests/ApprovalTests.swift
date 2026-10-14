@@ -89,10 +89,10 @@ struct ApprovalTests {
     /// and approving whatever happens to be there when the request lands.
     @Test("The mutation is bound to a commit")
     func mutationShape() {
-        #expect(ApprovalQuery.approveDocument.contains("commitOID: $commit"))
-        #expect(ApprovalQuery.approveDocument.contains("event: APPROVE"))
+        #expect(ApprovalQuery.submitDocument.contains("commitOID: $commit"))
+        #expect(ApprovalQuery.submitDocument.contains("event: $event"))
         // Nothing else: no body, no comments, no threads.
-        #expect(!ApprovalQuery.approveDocument.contains("body"))
+        #expect(!ApprovalQuery.submitDocument.contains("body: "))
     }
 }
 

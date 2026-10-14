@@ -62,6 +62,7 @@ struct DiffOverlay: View {
     /// top. The diff could be scrolled from file to file and barely at all
     /// within one, which with short files looked almost like scrolling.
     @StateObject private var place = DiffPlace()
+    @StateObject private var asked = AskedEvent()
 
     var body: some View {
         ZStack {
@@ -179,13 +180,13 @@ struct DiffOverlay: View {
         }
         .padding(12)
         .alert(
-            "Approve \u{201c}\(review?.title ?? "")\u{201d}?",
+            "\(asked.event.verb) \u{201c}\(review?.title ?? "")\u{201d}?",
             isPresented: Binding(
                 get: { review?.isConfirming ?? false },
                 set: { if !$0 { review?.cancel() } }
             )
         ) {
-            Button("Approve") { Task { await submit() } }
+            Button(asked.event.verb) { Task { await submit() } }
             Button("Cancel", role: .cancel) { review?.cancel() }
         } message: {
             Text(confirmation)
@@ -225,14 +226,51 @@ struct DiffOverlay: View {
                     .foregroundStyle(Ink.orange)
             }
 
-            Button("Request changes\u{2026}") {
-                NSWorkspace.shared.open(pullRequest.appendingPathComponent("files"))
+            // Only where there is something to say. A review that
+            // neither approves nor objects and carries no remarks is an
+            // empty envelope, and GitHub refuses it.
+            if review.remarks > 0 {
+                Button("Comment") { press(review, .comment) }
+                    .disabled(review.isBusy)
+                    .help("Send the remarks without a verdict")
             }
-            .help("Opens the pull request on GitHub, where a review can be written against the lines")
 
-            Button("Approve") { Task { await review.ask() } }
+            Button(review.remarks > 0 ? "Request changes" : "Request changes\u{2026}") {
+                if review.remarks > 0 {
+                    press(review, .requestChanges)
+                } else {
+                    // Nothing written here to send, so this is still the
+                    // errand it always was.
+                    NSWorkspace.shared.open(pullRequest.appendingPathComponent("files"))
+                }
+            }
+            .disabled(review.isBusy)
+            .help(
+                review.remarks > 0
+                    ? "Send the remarks and ask for changes"
+                    : "Opens the pull request on GitHub, where a review can be written against the lines"
+            )
+
+            Button(approveLabel(review)) { press(review, .approve) }
                 .disabled(review.isBusy)
         }
+    }
+
+    /// What the approve button says, which is the one place the count of
+    /// unsent remarks has to be impossible to miss: pressing it sends
+    /// them, and somebody who has forgotten they wrote three would
+    /// otherwise find that out afterwards.
+    private func approveLabel(_ review: ReviewActions) -> String {
+        switch review.remarks {
+        case 0: "Approve"
+        case 1: "Approve with 1 remark"
+        default: "Approve with \(review.remarks) remarks"
+        }
+    }
+
+    private func press(_ review: ReviewActions, _ event: ApprovalQuery.Event) {
+        asked.event = event
+        Task { await review.ask(event) }
     }
 
     private var confirmation: String {
@@ -240,7 +278,9 @@ struct DiffOverlay: View {
         return ApprovalQuery.confirmation(
             repository: review.repository,
             number: review.number,
-            isAutoMergeArmed: review.isAutoMergeArmed
+            isAutoMergeArmed: review.isAutoMergeArmed,
+            event: asked.event,
+            remarks: review.remarks
         )
     }
 
@@ -1095,12 +1135,21 @@ struct ReviewActions {
     let isConfirming: Bool
     /// Why the last attempt wrote nothing, if there was one.
     let failure: String?
+    /// How many remarks are waiting to go with it.
+    let remarks: Int
     /// Looks at the head commit and, if it still matches, raises the
     /// question. Writes nothing either way.
-    let ask: () async -> Void
+    let ask: (ApprovalQuery.Event) async -> Void
     let cancel: () -> Void
-    /// True when GitHub took the approval.
+    /// True when GitHub took the review.
     let approve: () async -> Bool
+}
+
+/// Which of the three the question on screen is asking about, so it can
+/// be worded.
+@MainActor
+final class AskedEvent: ObservableObject {
+    @Published var event: ApprovalQuery.Event = .approve
 }
 
 /// Where the diff is being read, for as long as it is open.

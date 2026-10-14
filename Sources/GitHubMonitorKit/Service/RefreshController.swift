@@ -23,6 +23,10 @@ public final class RefreshController {
     /// second afterwards and wrote the gone account's data back into the
     /// state `signOut()` had just cleared.
     private var accountTasks: [Int: Task<Void, Never>] = [:]
+    /// What the question on screen is asking about. Held here rather than
+    /// in the state the question is drawn from, because it is the
+    /// controller's business and nothing draws it.
+    private var askedEvent: ApprovalQuery.Event = .approve
     private var nextAccountTask = 0
     /// Passed back as If-Modified-Since so unchanged polls cost no rate limit.
     private var lastModified: String?
@@ -1353,7 +1357,10 @@ public final class RefreshController {
     /// The check comes before the question rather than after: confirming
     /// something that then turns out not to have happened is worse than a
     /// moment's wait.
-    public func askToApprove(_ item: PullRequestItem) async {
+    public func askToApprove(
+        _ item: PullRequestItem, event: ApprovalQuery.Event = .approve
+    ) async {
+        askedEvent = event
         guard let service else {
             state.approval = .failed(
                 pullRequestID: item.id,
@@ -1397,10 +1404,34 @@ public final class RefreshController {
             return false
         }
 
+        let draft = state.reviewDrafts[item.id]
+        let remarks = draft?.comments ?? []
+        // The remarks were written against a particular diff. If the
+        // branch has moved since, those line numbers point at other code
+        // -- and attaching somebody's words to code they never read is
+        // the one way this can go wrong that nobody could undo.
+        if let written = draft?.commit, written != commit {
+            state.approval = .failed(
+                pullRequestID: item.id,
+                message: "Somebody pushed since these remarks were written, so they no longer point at the lines they were about. Reopen the diff and look again."
+            )
+            return false
+        }
+
+        let event = askedEvent
         state.approval = .sending(pullRequestID: item.id)
         do {
-            try await service.approve(pullRequestID: item.id, commit: commit)
+            try await service.submitReview(
+                pullRequestID: item.id, commit: commit, event: event, remarks: remarks
+            )
             state.approval = .idle
+            // Sent is sent: an unsent review is worth keeping, and this
+            // one is GitHub's now.
+            discardDraft(for: item.id)
+            guard event == .approve else {
+                accountTask { [weak self] in await self?.refreshApproved(item) }
+                return true
+            }
             // Counted straight away, in the row and in the pane beside it.
             // Not the pull request's own decision: two approvals may be
             // required, and GitHub is the only one who knows.

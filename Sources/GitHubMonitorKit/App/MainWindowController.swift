@@ -339,7 +339,8 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             isBusy: state.approval.isBusy,
             isConfirming: state.approval.isConfirming(item.id),
             failure: state.approval.message(for: item.id),
-            ask: { [controller] in await controller.askToApprove(item) },
+            remarks: state.reviewDrafts[item.id]?.comments.count ?? 0,
+            ask: { [controller] event in await controller.askToApprove(item, event: event) },
             cancel: { [controller] in controller.cancelApproval() },
             approve: { [controller] in await controller.approve(item) }
         )

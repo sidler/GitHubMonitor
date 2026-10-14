@@ -161,3 +161,93 @@ struct DraftStoreTests {
         #expect(store.load(pullRequestID: "PR_kwDOA/b+c=")?.comments.count == 1)
     }
 }
+
+/// Sending a review: what goes with it, and how it is worded before it
+/// goes.
+@Suite("Sending a review")
+struct ReviewSubmissionTests {
+    private let comments = [
+        DraftComment(path: "a.swift", line: 10, side: .new, body: "this leaks"),
+        DraftComment(path: "b.swift", line: 3, side: .old, body: "why was this removed?"),
+    ]
+
+    /// The remarks travel with the review rather than being attached one
+    /// at a time to a pending review, so it either happens or does not.
+    @Test("The remarks are part of the one request")
+    func oneRequest() {
+        #expect(ApprovalQuery.submitDocument.contains("threads: $threads"))
+        #expect(ApprovalQuery.submitDocument.contains("addPullRequestReview"))
+        #expect(!ApprovalQuery.submitDocument.contains("addPullRequestReviewThread"))
+    }
+
+    /// Which file a line belongs to: the new one for nearly everything,
+    /// the old one for a remark on a line that was removed.
+    @Test("Each remark says where it goes")
+    func shape() {
+        let threads = ApprovalQuery.threads(from: comments)
+        #expect(threads.count == 2)
+        #expect(threads[0]["path"] as? String == "a.swift")
+        #expect(threads[0]["line"] as? Int == 10)
+        #expect(threads[0]["side"] as? String == "RIGHT")
+        #expect(threads[0]["body"] as? String == "this leaks")
+        #expect(threads[1]["side"] as? String == "LEFT")
+    }
+
+    @Test("Nothing written, nothing attached")
+    func empty() {
+        #expect(ApprovalQuery.threads(from: []).isEmpty)
+    }
+
+    /// An approval says something by itself. A review that neither
+    /// approves nor objects and carries no remarks is an empty envelope.
+    @Test("Only an approval is worth sending on its own")
+    func standsAlone() {
+        #expect(ApprovalQuery.Event.approve.standsAlone)
+        #expect(!ApprovalQuery.Event.comment.standsAlone)
+        #expect(!ApprovalQuery.Event.requestChanges.standsAlone)
+    }
+
+    @Test("The question says how many remarks go with it")
+    func wording() {
+        let one = ApprovalQuery.confirmation(
+            repository: "octo/platform", number: 7, isAutoMergeArmed: false, remarks: 1
+        )
+        #expect(one.contains("One remark goes with it"))
+
+        let several = ApprovalQuery.confirmation(
+            repository: "octo/platform", number: 7, isAutoMergeArmed: false, remarks: 3
+        )
+        #expect(several.contains("3 remarks go with it"))
+
+        let none = ApprovalQuery.confirmation(
+            repository: "octo/platform", number: 7, isAutoMergeArmed: false
+        )
+        #expect(!none.contains("remark"))
+    }
+
+    @Test("And what it is: approving, objecting, or neither")
+    func verdict() {
+        let changes = ApprovalQuery.confirmation(
+            repository: "octo/platform", number: 7, isAutoMergeArmed: false,
+            event: .requestChanges, remarks: 1
+        )
+        #expect(changes.contains("Asking for changes"))
+        #expect(!changes.contains("An approval"))
+    }
+
+    /// Armed auto-merge is only worth warning about for the one event
+    /// that can set it off.
+    @Test("The auto-merge warning belongs to approving alone")
+    func autoMerge() {
+        #expect(
+            ApprovalQuery.confirmation(
+                repository: "o/p", number: 1, isAutoMergeArmed: true, event: .approve
+            ).contains("Auto-merge")
+        )
+        #expect(
+            !ApprovalQuery.confirmation(
+                repository: "o/p", number: 1, isAutoMergeArmed: true, event: .comment
+            ).contains("Auto-merge")
+        )
+    }
+}

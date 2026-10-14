@@ -266,10 +266,27 @@ public struct GitHubService: Sendable {
     }
 
     /// Approves a pull request, bound to one commit.
-    public func approve(pullRequestID: String, commit: String) async throws {
+    /// Sends a review: what it says about the whole, and whatever
+    /// remarks were written against the lines.
+    ///
+    /// One request. The remarks go with it rather than being attached one
+    /// at a time to a pending review, so this either happens or does not
+    /// -- there is no half-built review left behind on GitHub if
+    /// something goes wrong in the middle.
+    public func submitReview(
+        pullRequestID: String,
+        commit: String,
+        event: ApprovalQuery.Event,
+        remarks: [DraftComment]
+    ) async throws {
         _ = try await client.graphQL(
-            ApprovalQuery.approveDocument,
-            variables: ["id": pullRequestID, "commit": commit]
+            ApprovalQuery.submitDocument,
+            variables: [
+                "id": pullRequestID,
+                "commit": commit,
+                "event": event.rawValue,
+                "threads": ApprovalQuery.threads(from: remarks),
+            ]
         )
     }
 

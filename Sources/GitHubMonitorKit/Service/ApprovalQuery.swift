@@ -53,17 +53,68 @@ public enum ApprovalQuery {
     /// `commitOID` is what binds the approval to what was read. Without it
     /// GitHub attaches the review to whatever the head happens to be when
     /// the request lands.
-    public static let approveDocument = """
-    mutation($id: ID!, $commit: GitObjectID!) {
+    /// What a review says about the whole, beside whatever it says about
+    /// the lines.
+    public enum Event: String, Sendable, CaseIterable {
+        case approve = "APPROVE"
+        case comment = "COMMENT"
+        case requestChanges = "REQUEST_CHANGES"
+
+        /// What the button says, where there is nothing else to mention.
+        public var verb: String {
+            switch self {
+            case .approve: "Approve"
+            case .comment: "Comment"
+            case .requestChanges: "Request changes"
+            }
+        }
+
+        /// Whether it is worth sending with nothing attached. An approval
+        /// is; a review that neither approves nor objects and says
+        /// nothing is an empty envelope, and GitHub refuses it.
+        public var standsAlone: Bool { self == .approve }
+    }
+
+    /// One review, said in one request.
+    ///
+    /// The remarks travel with it as `threads` rather than being attached
+    /// one at a time to a pending review. That is the field GitHub now
+    /// points at -- the older `comments` is on its way out -- and it
+    /// means a review is one call that either happens or does not,
+    /// instead of a pending review that can be left half built if
+    /// something fails in the middle.
+    public static let submitDocument = """
+    mutation(
+      $id: ID!,
+      $commit: GitObjectID!,
+      $event: PullRequestReviewEvent!,
+      $threads: [DraftPullRequestReviewThread!]
+    ) {
       addPullRequestReview(input: {
         pullRequestId: $id,
         commitOID: $commit,
-        event: APPROVE
+        event: $event,
+        threads: $threads
       }) {
         pullRequestReview { state }
       }
     }
     """
+
+    /// The remarks, in the shape the mutation wants them.
+    ///
+    /// `side` is which file the line belongs to: the new one for nearly
+    /// everything, the old one for a remark on a line that was removed.
+    public static func threads(from comments: [DraftComment]) -> [[String: Any]] {
+        comments.map { comment in
+            [
+                "path": comment.path,
+                "line": comment.line,
+                "side": comment.side == .old ? "LEFT" : "RIGHT",
+                "body": comment.body,
+            ]
+        }
+    }
 
     /// What stops an approval before it is sent.
     public enum Refusal: LocalizedError, Equatable {
@@ -107,11 +158,27 @@ public enum ApprovalQuery {
     /// yes -- that pressing this may put the change into the base branch.
     /// The second sentence is the reason this dialog exists at all.
     public static func confirmation(
-        repository: String, number: Int, isAutoMergeArmed: Bool
+        repository: String,
+        number: Int,
+        isAutoMergeArmed: Bool,
+        event: Event = .approve,
+        remarks: Int = 0
     ) -> String {
-        let base = "\(repository) #\(number). "
-            + "An approval is visible to everyone and cannot be taken back."
-        guard isAutoMergeArmed else { return base }
+        var base = "\(repository) #\(number). "
+        if remarks > 0 {
+            base += remarks == 1
+                ? "One remark goes with it. "
+                : "\(remarks) remarks go with it. "
+        }
+        switch event {
+        case .approve:
+            base += "An approval is visible to everyone and cannot be taken back."
+        case .comment:
+            base += "It is visible to everyone and cannot be taken back."
+        case .requestChanges:
+            base += "Asking for changes is visible to everyone and cannot be taken back."
+        }
+        guard isAutoMergeArmed, event == .approve else { return base }
         return base + "\n\nAuto-merge is armed on this pull request: "
             + "if yours is the last approval it needs, it will be merged."
     }

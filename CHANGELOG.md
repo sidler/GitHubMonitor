@@ -13,6 +13,17 @@ What changed in each released version. The app shows this file itself, under
   remark as it is written would notify the author five times about one
   reading. Sending the review is the next step and is not here yet.
 
+  Sending it is one request: the remarks travel with the review rather
+  than being attached one at a time to a pending one, so it either
+  happens or it does not — there is no half-built review left on GitHub
+  if something fails in the middle. Three ways to send: approve, ask for
+  changes, or say the remarks without a verdict. The approve button
+  carries the count, because pressing it sends them and finding that out
+  afterwards is too late. And if somebody has pushed since the remarks
+  were written, it refuses: those line numbers now point at other code,
+  and attaching somebody's words to code they never read is the one
+  mistake here that nobody could undo.
+
   The draft is kept on disk, which is new: it is the first thing this app
   writes that is somebody's own words rather than a copy of something
   GitHub has. Review remarks are the most expensive thing anybody
