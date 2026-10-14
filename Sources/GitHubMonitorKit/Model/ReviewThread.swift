@@ -8,7 +8,7 @@ import Foundation
 /// gets had twice.
 public struct ReviewThread: Identifiable, Hashable, Sendable {
     /// Which file of the diff the thread hangs in.
-    public enum Side: String, Hashable, Sendable {
+    public enum Side: String, Hashable, Sendable, Codable {
         /// The file as it was. A comment on a removed line.
         case old
         /// The file as it will be. Nearly all of them.

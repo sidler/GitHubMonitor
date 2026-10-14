@@ -5,6 +5,7 @@ import Foundation
 public final class RefreshController {
     private let state: AppState
     private let trendStore: TrendStore
+    private let draftStore: DraftStore
     private(set) var service: GitHubService?
     private var timer: Task<Void, Never>?
     private var inFlight: Task<Void, Never>?
@@ -28,9 +29,20 @@ public final class RefreshController {
     /// GitHub's requested minimum interval, which overrides a shorter setting.
     private var githubPollInterval: TimeInterval?
 
-    public init(state: AppState, trendStore: TrendStore = TrendStore()) {
+    public init(
+        state: AppState,
+        trendStore: TrendStore = TrendStore(),
+        draftStore: DraftStore = DraftStore()
+    ) {
         self.state = state
         self.trendStore = trendStore
+        self.draftStore = draftStore
+        // Before anything is fetched: a review somebody was half way
+        // through writing yesterday should be there when the window
+        // opens, not when the first refresh lands.
+        for draft in draftStore.all() {
+            state.reviewDrafts[draft.pullRequestID] = draft
+        }
     }
 
     // MARK: - Lifecycle
@@ -1197,6 +1209,57 @@ public final class RefreshController {
         guard !linksInFlight.contains(reference.id) else { return }
         state.linkedSummaries[reference.id] = nil
         loadLinksIfNeeded([reference])
+    }
+
+    // MARK: - Writing a review
+
+    /// Adds a remark to the review being written for this pull request,
+    /// starting one if there is none.
+    ///
+    /// Kept rather than sent. A reviewer reads a diff, says several
+    /// things, and then says what they think of the whole -- sending each
+    /// remark as it is written would notify the author five times about
+    /// one reading.
+    public func addRemark(
+        to item: PullRequestItem, path: String, line: Int, side: ReviewThread.Side, body: String
+    ) {
+        let written = body.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !written.isEmpty else { return }
+
+        var draft = state.reviewDrafts[item.id]
+            // The commit the first remark was written against. The whole
+            // review is bound to it, the way the approval is: if somebody
+            // pushes while this is half written, these line numbers point
+            // at other code.
+            ?? ReviewDraft(pullRequestID: item.id, commit: item.headCommit)
+        draft.add(
+            DraftComment(path: path, line: line, side: side, body: written)
+        )
+        keep(draft)
+    }
+
+    public func changeRemark(_ id: UUID, in pullRequestID: String, to body: String) {
+        guard var draft = state.reviewDrafts[pullRequestID] else { return }
+        draft.change(id, to: body)
+        keep(draft)
+    }
+
+    public func removeRemark(_ id: UUID, in pullRequestID: String) {
+        guard var draft = state.reviewDrafts[pullRequestID] else { return }
+        draft.remove(id)
+        keep(draft)
+    }
+
+    /// Throws the whole thing away, on purpose and at somebody's word.
+    public func discardDraft(for pullRequestID: String) {
+        state.reviewDrafts[pullRequestID] = nil
+        draftStore.remove(pullRequestID: pullRequestID)
+    }
+
+    /// On screen and on disk in one place, so the two cannot disagree.
+    private func keep(_ draft: ReviewDraft) {
+        state.reviewDrafts[draft.pullRequestID] = draft.isEmpty ? nil : draft
+        draftStore.save(draft)
     }
 
     // MARK: - Merging

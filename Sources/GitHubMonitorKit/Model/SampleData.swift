@@ -318,6 +318,27 @@ public enum SampleData {
         )
     }
 
+    /// A review somebody has started and not sent.
+    ///
+    /// Here because it is a state of the app with no other way to reach
+    /// it: a remark written into the diff is invisible until somebody
+    /// writes one, and the whole point of it is what it looks like
+    /// sitting there unsent.
+    public static func reviewDraft() -> ReviewDraft {
+        ReviewDraft(
+            pullRequestID: "pr-482",
+            commit: "d34db33f",
+            comments: [
+                DraftComment(
+                    path: "src/Filter/UserFilter.php",
+                    line: 18,
+                    side: .new,
+                    body: "`isset` is true for a null id. `array_key_exists` is what this means."
+                )
+            ]
+        )
+    }
+
     /// What a repository offers, for the label picker.
     ///
     /// More than the pull request carries, and more than fit the list, so

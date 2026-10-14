@@ -44,6 +44,10 @@ struct DiffOverlay: View {
     /// Which files have been ticked off, and how to tick one. Nil leaves
     /// the overlay a reader with no checkboxes.
     var viewed: ViewedFiles?
+    /// The review being written for this pull request, if any.
+    var draft: ReviewDraft?
+    /// How to write into it. Nil leaves the diff a reader.
+    var writing: DraftWriting?
 
     @StateObject private var open = OpenFolders()
     @StateObject private var resolved = ShownResolved()
@@ -488,6 +492,9 @@ struct DiffOverlay: View {
                         threads: ReviewThreadPlacement.placed(
                             mine, in: file.path, patch: patch
                         ),
+                        path: file.path,
+                        draft: draft?.comments(in: file.path) ?? [],
+                        writing: writing,
                         column: width
                     )
                     .padding(.vertical, 6)
@@ -560,10 +567,19 @@ struct PatchLines: View {
     var showsLineNumbers: Bool = true
     /// The conversations to draw among the lines they hang on.
     var threads: [ReviewThread] = []
+    /// Which file this is, which a remark has to name.
+    var path: String = ""
+    /// Remarks written about this file but not sent.
+    var draft: [DraftComment] = []
+    /// How to write one. Nil leaves the diff a reader.
+    var writing: DraftWriting?
     /// How wide the column is, for the prose among the code. The patch
     /// itself may be wider and scroll; a comment keeps the column's width
     /// so it reads as prose rather than as a very long line.
     var column: CGFloat = 400
+
+    @StateObject private var target = DraftTarget()
+    @StateObject private var hovered = HoveredRow()
 
     private var lines: [Line] {
         let numbers = showsLineNumbers ? DiffLineNumbers.read(patch) : []
@@ -611,9 +627,54 @@ struct PatchLines: View {
                     }
                     .frame(width: column, alignment: .leading)
                 }
+                if let writing {
+                    drafting(line, writing: writing)
+                        .frame(width: column, alignment: .leading)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// What this row carries of the review being written: the remarks
+    /// already on it, and the box where one is being written.
+    @ViewBuilder
+    private func drafting(_ line: Line, writing: DraftWriting) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(remarks(at: line.number)) { comment in
+                DraftRemarkView(comment: comment, writing: writing, target: target)
+            }
+            if let place = Self.addable(line.number),
+                target.isOpen(line: place.line, side: place.side) {
+                DraftEditorView(
+                    path: path, line: place.line, side: place.side,
+                    writing: writing, target: target
+                )
+            }
+        }
+    }
+
+    private func remarks(at number: DiffLineNumber) -> [DraftComment] {
+        draft.filter { comment in
+            comment.side == .new ? comment.line == number.new : comment.line == number.old
+        }
+    }
+
+    /// Which line of which file a remark on this row would be about.
+    ///
+    /// The new file wherever there is one, which is what GitHub means by
+    /// the right-hand side; a line that was only removed is the other
+    /// one. A row with neither -- a hunk header, a note -- is not a line
+    /// anybody can say anything about.
+    static func addable(_ number: DiffLineNumber) -> (line: Int, side: ReviewThread.Side)? {
+        if let new = number.new { return (new, .new) }
+        if let old = number.old { return (old, .old) }
+        return nil
+    }
+
+    /// The gutter's width, with a plus where the new number would be.
+    static func plus(digits: Int) -> String {
+        String(repeating: " ", count: max(0, digits * 2)) + "+"
     }
 
     private func row(_ line: Line, digits: Int) -> some View {
@@ -621,7 +682,11 @@ struct PatchLines: View {
         let split = DiffWords.split(line.text, emphasis: line.emphasis)
         return HStack(alignment: .top, spacing: 0) {
             if showsLineNumbers {
-                gutter(line.number, digits: digits)
+                if writing != nil, let place = Self.addable(line.number) {
+                    gutterButton(line, digits: digits, place: place)
+                } else {
+                    gutter(line.number, digits: digits)
+                }
             }
 
             // The marker in a column of its own, so a line too long for the
@@ -669,6 +734,43 @@ struct PatchLines: View {
     /// Padded to a set number of digits with figure spaces rather than laid
     /// out with fixed frames: in a monospaced font that is what lines the
     /// columns up, and it costs no measurement.
+    /// The line's number, which turns into a plus under the pointer.
+    ///
+    /// Nothing in the resting diff says a line can be remarked on, which
+    /// is deliberate: a column of pluses beside every line of code is a
+    /// column of noise. It costs nothing to find, because it is where the
+    /// pointer already is.
+    private func gutterButton(
+        _ line: Line, digits: Int, place: (line: Int, side: ReviewThread.Side)
+    ) -> some View {
+        let isHere = hovered.id == line.id
+        return Button {
+            target.open(line: place.line, side: place.side)
+        } label: {
+            Text(
+                verbatim: isHere
+                    ? Self.plus(digits: digits)
+                    : Self.pad(line.number.old, to: digits) + " "
+                        + Self.pad(line.number.new, to: digits)
+            )
+            .font(.system(size: fontSize).monospaced())
+            .foregroundStyle(isHere ? Ink.blue : Color(nsColor: .tertiaryLabelColor))
+            .padding(.leading, 12)
+            .padding(.trailing, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .pointerStyle(.link)
+        .onHover { inside in
+            if inside {
+                hovered.id = line.id
+            } else if hovered.id == line.id {
+                hovered.id = nil
+            }
+        }
+        .help("Write a remark about this line")
+    }
+
     private func gutter(_ number: DiffLineNumber, digits: Int) -> some View {
         Text(verbatim: Self.pad(number.old, to: digits) + " " + Self.pad(number.new, to: digits))
             .font(.system(size: fontSize).monospaced())

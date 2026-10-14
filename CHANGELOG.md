@@ -5,6 +5,20 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **Remarks can be written on the lines of a diff.** The line number
+  turns into a plus under the pointer; a box opens under the line, and
+  what is written there joins a review being drafted for that pull
+  request. Nothing is sent — a reviewer reads a diff, says several
+  things, and then says what they think of the whole, and sending each
+  remark as it is written would notify the author five times about one
+  reading. Sending the review is the next step and is not here yet.
+
+  The draft is kept on disk, which is new: it is the first thing this app
+  writes that is somebody's own words rather than a copy of something
+  GitHub has. Review remarks are the most expensive thing anybody
+  produces in front of this window, and losing them to a quit is the one
+  thing nobody forgives. They are thrown away the moment they are sent —
+  an unsent review is worth keeping, a sent one is GitHub's.
 - **A pull request can be merged from the pane.** One button, which
   offers the ways the repository itself allows — one of them where it
   allows one, a choice only where the team left it open. It asks before

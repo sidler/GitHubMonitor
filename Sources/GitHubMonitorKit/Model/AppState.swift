@@ -275,6 +275,12 @@ public final class AppState {
     /// Where an approval stands, for the one pull request being approved.
     public var approval: ApprovalState = .idle
     public var merging: MergeState = .idle
+    /// Reviews somebody is part way through writing, by pull request.
+    ///
+    /// Also on disk: these are the one thing in this app that is not a
+    /// copy of something GitHub already has, and losing them to a quit is
+    /// the one thing nobody forgives.
+    public var reviewDrafts: [String: ReviewDraft] = [:]
 
     /// The diff being read over the window, if any.
     public var openedDiff: OpenedDiff?
@@ -716,6 +722,7 @@ public final class AppState {
         linkedSummaries = SampleData.linkedSummaries()
         viewedFiles["pr-482"] = SampleData.viewedFiles()
         reviewThreads["pr-482"] = SampleData.reviewThreads()
+        reviewDrafts["pr-482"] = SampleData.reviewDraft()
         // The sample has no account, so nothing would fetch the pictures
         // in a body and both of them would come out as links -- which is
         // only half of what there is to look at. A plain session reaches

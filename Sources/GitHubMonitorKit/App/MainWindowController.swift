@@ -304,7 +304,26 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
                         now != .viewed, path: path, in: opened.pullRequestID
                     )
                 }
-            )
+            ),
+            draft: state.reviewDrafts[opened.pullRequestID],
+            // Only where there is a pull request to write about. A diff
+            // opened for something that has since left the lists can be
+            // read; it cannot be reviewed.
+            writing: item.map { item in
+                DraftWriting(
+                    add: { [controller] path, line, side, body in
+                        controller.addRemark(
+                            to: item, path: path, line: line, side: side, body: body
+                        )
+                    },
+                    change: { [controller] id, body in
+                        controller.changeRemark(id, in: item.id, to: body)
+                    },
+                    remove: { [controller] id in
+                        controller.removeRemark(id, in: item.id)
+                    }
+                )
+            }
         )
     }
 
@@ -592,6 +611,10 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             // but a reload can replace them underneath it.
             _ = state.changedFiles
             _ = state.approval
+            _ = state.merging
+            // A remark written into the diff has to appear in it, and the
+            // overlay is rebuilt rather than mutated.
+            _ = state.reviewDrafts
             _ = state.pullRequestDetails
             _ = state.issueDetails
             _ = state.notificationThreads
