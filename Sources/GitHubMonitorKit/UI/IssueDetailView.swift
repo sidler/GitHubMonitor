@@ -99,31 +99,44 @@ struct IssueDetailView: View {
                 // Wrapping, unlike the row's single line: here there is room
                 // to show every label, and which ones an issue carries is
                 // part of what the pane is for.
-                FlowRow(spacing: 4) {
-                    if let type = item.type {
-                        IssueTypeChip(type: type)
+                if let labelling {
+                    LabelEditor(
+                        editing: labelling,
+                        repository: item.repository,
+                        itemID: item.id,
+                        isPullRequest: false,
+                        current: labels
+                    ) {
+                        chips(labels)
                     }
-                    ForEach(labels) { label in
-                        LabelChip(label: label)
-                    }
-                    if let milestone = item.milestone {
-                        Label(milestone, systemImage: "flag")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    if let labelling {
-                        LabelEditor(
-                            editing: labelling,
-                            repository: item.repository,
-                            itemID: item.id,
-                            isPullRequest: false,
-                            current: labels
-                        )
-                    }
+                } else {
+                    chips(labels)
                 }
             }
         }
         .padding(14)
+    }
+
+    /// What the item is marked with, all of it on as many lines as it
+    /// takes. Unlike the row's single line: here there is room, and which
+    /// ones an issue carries is part of what the pane is for.
+    private func chips(_ labels: [IssueLabel]) -> some View {
+        FlowRow(spacing: 4) {
+            if let type = item.type {
+                IssueTypeChip(type: type)
+            }
+            ForEach(labels) { label in
+                LabelChip(label: label)
+            }
+            if let milestone = item.milestone {
+                Label(milestone, systemImage: "flag")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if labelling != nil {
+                LabelTag()
+            }
+        }
     }
 
     private var footer: some View {

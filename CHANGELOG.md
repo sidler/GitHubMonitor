@@ -5,6 +5,12 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **The labels an item already carries come first in the picker**, and
+  the whole row of them opens it rather than the small tag at its end. A
+  repository here has a hundred and seventy labels and the list shows
+  sixty, so the two or three actually set were as likely as not off the
+  bottom — which made taking one off, the thing a picker is most certain
+  to be asked, the thing it could not do without typing first.
 - **The label picker opens at a usable size.** It took its size from
   whatever was in it at the moment it opened, and what was in it at that
   moment was a spinner — so on a real repository, where the list takes a

@@ -51,6 +51,26 @@ public enum LabelQuery {
         public var isComplete: Bool { labels.count >= total }
     }
 
+    /// The catalogue with the ones already carried brought to the front.
+    ///
+    /// A repository here has a hundred and seventy labels and the list
+    /// shows sixty of them, so the three an item actually carries were
+    /// as likely as not to be off the bottom -- which made the one thing
+    /// the picker is certain to be asked ("take this one off") the one
+    /// thing it could not do without typing. Alphabetical within each
+    /// group, so the rest of the list reads as it always did.
+    public static func ordered(
+        _ labels: [IssueLabel], carrying current: [IssueLabel]
+    ) -> [IssueLabel] {
+        let carried = Set(current.map(\.id))
+        return labels.sorted { left, right in
+            let onLeft = carried.contains(left.id)
+            let onRight = carried.contains(right.id)
+            if onLeft != onRight { return onLeft }
+            return left.name.localizedStandardCompare(right.name) == .orderedAscending
+        }
+    }
+
     public static func catalogue(from payload: [String: Any]) throws -> Catalogue {
         guard
             let repository = payload["repository"] as? [String: Any],

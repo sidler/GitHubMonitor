@@ -97,16 +97,22 @@ struct PullRequestDetailView: View {
             // labels would be the line that broke it. Wrapping, because
             // the point of showing them here is showing all of them.
             if case .loaded(let loaded) = detail, !loaded.labels.isEmpty || labelling != nil {
-                FlowRow(spacing: 4) {
-                    ForEach(loaded.labels) { LabelChip(label: $0) }
-                    if let labelling {
-                        LabelEditor(
-                            editing: labelling,
-                            repository: item.repository,
-                            itemID: item.id,
-                            isPullRequest: true,
-                            current: loaded.labels
-                        )
+                if let labelling {
+                    LabelEditor(
+                        editing: labelling,
+                        repository: item.repository,
+                        itemID: item.id,
+                        isPullRequest: true,
+                        current: loaded.labels
+                    ) {
+                        FlowRow(spacing: 4) {
+                            ForEach(loaded.labels) { LabelChip(label: $0) }
+                            LabelTag()
+                        }
+                    }
+                } else {
+                    FlowRow(spacing: 4) {
+                        ForEach(loaded.labels) { LabelChip(label: $0) }
                     }
                 }
             }

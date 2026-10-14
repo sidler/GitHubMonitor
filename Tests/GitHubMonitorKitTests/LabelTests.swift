@@ -182,3 +182,51 @@ struct LabelOptimismTests {
         #expect(bug.isReal)
     }
 }
+
+/// Where the picker puts the ones already carried.
+@Suite("The order the picker offers labels in")
+struct LabelOrderTests {
+    private func label(_ id: String, _ name: String) -> IssueLabel {
+        IssueLabel(id: id, name: name, color: "cccccc")
+    }
+
+    private var catalogue: [IssueLabel] {
+        [
+            label("LA_1", "Aareal"),
+            label("LA_2", "BCM"),
+            label("LA_3", "Screening"),
+            label("LA_4", "api"),
+            label("LA_5", "Feature"),
+        ]
+    }
+
+    /// The point of it: a repository with a hundred and seventy labels
+    /// shows sixty, so the three an item carries were as likely as not
+    /// off the bottom -- and taking one off is the one thing the picker
+    /// is certain to be asked.
+    @Test("The ones already carried come first")
+    func carriedFirst() {
+        let order = LabelQuery.ordered(
+            catalogue, carrying: [label("LA_3", "Screening"), label("LA_5", "Feature")]
+        )
+        #expect(order.prefix(2).map(\.name) == ["Feature", "Screening"])
+    }
+
+    @Test("Alphabetical within each group, and case is not a sort order")
+    func alphabetical() {
+        let order = LabelQuery.ordered(catalogue, carrying: [])
+        #expect(order.map(\.name) == ["Aareal", "api", "BCM", "Feature", "Screening"])
+    }
+
+    @Test("Carrying nothing leaves the list as the repository gave it, sorted")
+    func nothingCarried() {
+        #expect(LabelQuery.ordered([], carrying: []).isEmpty)
+    }
+
+    @Test("A label carried but not in this page of the list does not appear twice")
+    func carriedButAbsent() {
+        let order = LabelQuery.ordered(catalogue, carrying: [label("LA_99", "elsewhere")])
+        #expect(order.count == catalogue.count)
+        #expect(!order.contains { $0.name == "elsewhere" })
+    }
+}

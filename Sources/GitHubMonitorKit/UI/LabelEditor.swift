@@ -25,13 +25,19 @@ final class TypedText: ObservableObject {
 /// change is shown at once, because waiting a round trip to see a tick
 /// appear is what makes a picker feel broken; if GitHub refuses, the
 /// label goes back where it was, and the Requests tab has the refusal.
-struct LabelEditor: View {
+struct LabelEditor<Row: View>: View {
     let editing: LabelEditing
     let repository: String
     let itemID: String
     let isPullRequest: Bool
-    /// What the item carries now, so the list can tick them.
+    /// What the item carries now, so the list can tick them and put them
+    /// at the top.
     let current: [IssueLabel]
+    /// The chips as the pane draws them. Inside the button rather than
+    /// beside it: a row of labels is what somebody aims at when they
+    /// want to change the labels, and a tag eleven points wide is a
+    /// target you have to find first.
+    @ViewBuilder var row: () -> Row
 
     @StateObject private var open = ViewFlag()
     @StateObject private var typed = TypedText()
@@ -51,13 +57,10 @@ struct LabelEditor: View {
         Button {
             open.isOn.toggle()
         } label: {
-            Image(systemName: "tag")
-                .font(.caption)
-                .contentShape(Rectangle())
+            row().contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .pointerStyle(.link)
-        .foregroundStyle(Color(nsColor: .secondaryLabelColor))
         .help("Add or remove labels")
         .popover(isPresented: $open.isOn, arrowEdge: .bottom) { picker }
         .onChange(of: open.isOn) {
@@ -117,7 +120,9 @@ struct LabelEditor: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
-                        ForEach(catalogue.labels) { row($0) }
+                        ForEach(LabelQuery.ordered(catalogue.labels, carrying: current)) {
+                            entry($0)
+                        }
                     }
                 }
                 .frame(maxHeight: .infinity)
@@ -137,7 +142,7 @@ struct LabelEditor: View {
         }
     }
 
-    private func row(_ label: IssueLabel) -> some View {
+    private func entry(_ label: IssueLabel) -> some View {
         let isOn = current.contains { $0.id == label.id }
         return Button {
             editing.controller.setLabel(
@@ -159,5 +164,19 @@ struct LabelEditor: View {
         }
         .buttonStyle(.plain)
         .pointerStyle(.link)
+    }
+}
+
+
+/// The mark at the end of a row of labels that says the row can be
+/// pressed.
+///
+/// A hint rather than the target: the whole row is the button, and this
+/// is there so somebody knows that before they try.
+struct LabelTag: View {
+    var body: some View {
+        Image(systemName: "tag")
+            .font(.caption)
+            .foregroundStyle(Color(nsColor: .secondaryLabelColor))
     }
 }
