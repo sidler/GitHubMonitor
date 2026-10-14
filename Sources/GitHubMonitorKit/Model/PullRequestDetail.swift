@@ -133,6 +133,25 @@ public struct PullRequestDetail: Hashable, Sendable {
     /// it. Asking for them here also keeps them out of the refresh: this
     /// query is made when somebody opens one, not sixty times an hour.
     public let labels: [IssueLabel]
+
+    /// The same detail with a different set of labels, for showing a
+    /// change before GitHub has confirmed it.
+    public func withLabels(_ labels: [IssueLabel]) -> PullRequestDetail {
+        PullRequestDetail(
+            headBranch: headBranch,
+            baseBranch: baseBranch,
+            additions: additions,
+            deletions: deletions,
+            changedFiles: changedFiles,
+            comments: comments,
+            reviewConversations: reviewConversations,
+            body: body,
+            mergeStatus: mergeStatus,
+            checks: checks,
+            reviewers: reviewers,
+            labels: labels
+        )
+    }
     public let checks: [CheckRun]
     public let reviewers: [ReviewerStatus]
 

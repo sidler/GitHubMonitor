@@ -869,7 +869,8 @@ struct InspectorColumn: View {
                 detail: state.issueDetails[item.id],
                 reload: { controller.reloadIssueDetail(for: item.id) },
                 close: { controller.closeInspector() },
-                linked: LinkedPanelContext(state: state, controller: controller)
+                linked: LinkedPanelContext(state: state, controller: controller),
+                labelling: LabelEditing(state: state, controller: controller)
             )
         } else if case .dashboard = state.sidebarSelection, let detail = state.inspectedWorkload {
             WorkloadDetailView(
@@ -894,7 +895,8 @@ struct InspectorColumn: View {
                         pullRequestID: item.id, path: file.path, files: files, url: item.url
                     )
                 },
-                linked: LinkedPanelContext(state: state, controller: controller)
+                linked: LinkedPanelContext(state: state, controller: controller),
+                labelling: LabelEditing(state: state, controller: controller)
             )
         } else {
             // Kept in the hierarchy while the pane is closing, so nothing is

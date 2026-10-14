@@ -273,6 +273,45 @@ public struct GitHubService: Sendable {
         )
     }
 
+    /// The labels a repository offers, narrowed by what has been typed.
+    ///
+    /// Asked of the repository rather than kept with the lists: labels
+    /// belong to a repository and a queue spans many of them, so holding
+    /// every catalogue would be a lot of somebody else's taxonomy in
+    /// memory for a picker that is shut most of the time.
+    public func labels(
+        inRepository repository: String, matching query: String = ""
+    ) async throws -> LabelQuery.Catalogue {
+        let parts = repository.split(separator: "/", maxSplits: 1).map(String.init)
+        guard parts.count == 2 else {
+            throw GitHubError.decoding("repository is not owner/name: \(repository)")
+        }
+        let payload = try await client.graphQL(
+            LabelQuery.document,
+            variables: [
+                "owner": parts[0],
+                "name": parts[1],
+                // Null rather than an empty string: GitHub takes the
+                // empty string as a search for nothing in particular and
+                // answers with nothing in particular.
+                "query": query.isEmpty ? NSNull() : query,
+            ]
+        )
+        return try LabelQuery.catalogue(from: payload)
+    }
+
+    /// Puts one label on an issue or a pull request, or takes it off.
+    ///
+    /// One at a time, which is how it is pressed. Sending the whole set
+    /// instead would undo anything somebody else changed while this pane
+    /// was open, and a label is not worth a lost-update problem.
+    public func setLabel(_ labelID: String, on itemID: String, to wanted: Bool) async throws {
+        _ = try await client.graphQL(
+            wanted ? LabelQuery.addDocument : LabelQuery.removeDocument,
+            variables: ["id": itemID, "labels": [labelID]]
+        )
+    }
+
     /// The files one pull request touches, with their patches.
     ///
     /// Paged: asking for one page of a hundred and stopping meant a pull

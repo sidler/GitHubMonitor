@@ -121,6 +121,77 @@ public final class RefreshController {
         }
     }
 
+    // MARK: - Labels
+
+    /// Reads a repository's labels for the picker, once per question.
+    ///
+    /// Already asked is already answered: the picker calls this on every
+    /// keystroke, and the answers do not change between two of them.
+    public func loadLabels(for repository: String, matching query: String = "") {
+        let request = LabelRequest(repository: repository, query: query)
+        guard state.repositoryLabels[request] == nil, let service else { return }
+
+        state.repositoryLabels[request] = .loading
+        accountTask { [weak self] in
+            do {
+                let catalogue = try await service.labels(
+                    inRepository: repository, matching: query
+                )
+                guard let self, !Task.isCancelled else { return }
+                state.repositoryLabels[request] = .loaded(catalogue)
+            } catch {
+                guard let self, !Task.isCancelled else { return }
+                state.repositoryLabels[request] = .failed(error.localizedDescription)
+            }
+        }
+    }
+
+    /// Puts a label on an item or takes it off, showing it at once.
+    ///
+    /// Shown before GitHub has agreed, and put back if it does not. This
+    /// is the one write in the app that needs no question in front of it:
+    /// nobody is told, nothing is published, and undoing it is the same
+    /// click again. What it must not do is lie -- so a refusal returns the
+    /// label to where it was, and the Requests tab has what GitHub said.
+    public func setLabel(
+        _ label: IssueLabel, on itemID: String, isPullRequest: Bool, to wanted: Bool
+    ) {
+        guard label.isReal, let service else { return }
+
+        let before = labels(of: itemID, isPullRequest: isPullRequest)
+        var after = before.filter { $0.id != label.id }
+        if wanted { after.append(label) }
+        apply(after.sorted { $0.name < $1.name }, to: itemID, isPullRequest: isPullRequest)
+
+        accountTask { [weak self] in
+            do {
+                try await service.setLabel(label.id, on: itemID, to: wanted)
+            } catch {
+                guard let self, !Task.isCancelled else { return }
+                apply(before, to: itemID, isPullRequest: isPullRequest)
+            }
+        }
+    }
+
+    private func labels(of itemID: String, isPullRequest: Bool) -> [IssueLabel] {
+        if isPullRequest {
+            guard case .loaded(let detail) = state.pullRequestDetails[itemID] else { return [] }
+            return detail.labels
+        }
+        guard case .loaded(let detail) = state.issueDetails[itemID] else { return [] }
+        return detail.labels
+    }
+
+    private func apply(_ labels: [IssueLabel], to itemID: String, isPullRequest: Bool) {
+        if isPullRequest {
+            guard case .loaded(let detail) = state.pullRequestDetails[itemID] else { return }
+            state.pullRequestDetails[itemID] = .loaded(detail.withLabels(labels))
+        } else {
+            guard case .loaded(let detail) = state.issueDetails[itemID] else { return }
+            state.issueDetails[itemID] = .loaded(detail.withLabels(labels))
+        }
+    }
+
     /// Hands every answer from GitHub to the log the Requests tab reads.
     ///
     /// A hop to the main actor per request, which is nothing beside the

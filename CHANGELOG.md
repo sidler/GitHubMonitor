@@ -5,6 +5,22 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **Labels can be set and cleared from the pane.** A tag beside them
+  opens the repository's own list, ticked where the item already carries
+  one; a click puts one on or takes it off. Issues and pull requests
+  both, since GitHub treats them as the same kind of thing here.
+
+  The only thing this app writes without asking first. An approval is
+  public and cannot be taken back, and a merge puts code in a branch —
+  a label tells nobody, changes nothing that runs, and is undone by the
+  same click that set it. What it owes instead is honesty: the change
+  shows at once rather than after a round trip, and if GitHub refuses it,
+  the label goes back where it was and the Requests tab has the reason.
+
+  The list is narrowed by GitHub rather than here, so a repository with
+  four hundred labels stays usable — and when it is showing only part of
+  the set it says so, instead of letting somebody conclude theirs was
+  deleted.
 - **A pull request shows the labels it carries.** It never did: the lists
   ask for them on issues and pass an empty set for pull requests, so a
   team that sorts its work by label could see that everywhere but here.

@@ -305,6 +305,26 @@ public enum SampleData {
         )
     }
 
+    /// What a repository offers, for the label picker.
+    ///
+    /// More than the pull request carries, and more than fit the list, so
+    /// both of the things the picker has to get right -- ticking the ones
+    /// already on, and saying when it is showing only part of the set --
+    /// can be seen without an account.
+    public static func labelCatalogue() -> LabelQuery.Catalogue {
+        LabelQuery.Catalogue(
+            labels: [
+                IssueLabel(id: "LA_1", name: "bug", color: "d73a4a"),
+                IssueLabel(id: "LA_4", name: "documentation", color: "0075ca"),
+                IssueLabel(id: "LA_3", name: "needs decision", color: "fbca04"),
+                IssueLabel(id: "LA_5", name: "performance", color: "0e8a16"),
+                IssueLabel(id: "LA_2", name: "session", color: "0e8a16"),
+                IssueLabel(id: "LA_6", name: "wontfix", color: "ffffff"),
+            ],
+            total: 23
+        )
+    }
+
     /// One small patch, one large enough to stay folded, and a tree deep
     /// enough for the file index to have something to collapse.
     /// Assembles a patch long enough to outrun the column it is read in.

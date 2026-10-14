@@ -13,6 +13,9 @@ struct PullRequestDetailView: View {
     var openDiff: (ChangedFile) -> Void = { _ in }
     /// What the linked-issue panel needs. Nil leaves the pane without one.
     var linked: LinkedPanelContext?
+    /// Where to read this repository's labels and write a change. Nil
+    /// leaves the labels as something to read.
+    var labelling: LabelEditing?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -93,9 +96,18 @@ struct PullRequestDetailView: View {
             // row already says more than an issue row does, and the
             // labels would be the line that broke it. Wrapping, because
             // the point of showing them here is showing all of them.
-            if case .loaded(let loaded) = detail, !loaded.labels.isEmpty {
+            if case .loaded(let loaded) = detail, !loaded.labels.isEmpty || labelling != nil {
                 FlowRow(spacing: 4) {
                     ForEach(loaded.labels) { LabelChip(label: $0) }
+                    if let labelling {
+                        LabelEditor(
+                            editing: labelling,
+                            repository: item.repository,
+                            itemID: item.id,
+                            isPullRequest: true,
+                            current: loaded.labels
+                        )
+                    }
                 }
             }
         }

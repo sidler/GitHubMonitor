@@ -201,6 +201,15 @@ public final class AppState {
     /// retried on every redraw.
     public var reviewThreads: [String: [ReviewThread]] = [:]
 
+    /// A repository's labels as the picker last read them, by
+    /// "owner/name" and by what was typed when it asked.
+    ///
+    /// Keyed by both because the narrowing is GitHub's: typing "bug" is a
+    /// different question with a different answer, and answering it from
+    /// the unnarrowed list would mean holding every label of every
+    /// repository in a queue just in case.
+    public var repositoryLabels: [LabelRequest: LabelCatalogueState] = [:]
+
     /// Every request to GitHub and what came back, for the Requests tab
     /// in Settings. Held in memory only: it answers "what is happening
     /// now", and a log that outlived the question would be a file nobody
@@ -706,6 +715,11 @@ public final class AppState {
         linkedSummaries = SampleData.linkedSummaries()
         viewedFiles["pr-482"] = SampleData.viewedFiles()
         reviewThreads["pr-482"] = SampleData.reviewThreads()
+        // The picker reads this, and the sample has no service to read it
+        // from -- without it the one control in the pane that writes
+        // anything could not be looked at before it shipped.
+        repositoryLabels[LabelRequest(repository: "octo/server", query: "")] =
+            .loaded(SampleData.labelCatalogue())
         if isBigSample {
             changedFiles["pr-482"] = .loaded(ChangedFilesQuery.ordered(SampleData.largeDiff()))
         }

@@ -10,6 +10,9 @@ struct IssueDetailView: View {
     /// What the linked-pull-request panel needs. Nil leaves the pane
     /// without one.
     var linked: LinkedPanelContext?
+    /// Where to read this repository's labels and write a change. Nil
+    /// leaves the labels as something to read.
+    var labelling: LabelEditing?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -92,7 +95,7 @@ struct IssueDetailView: View {
                 return detail.labels
             }()
             let labels = loaded.isEmpty ? item.labels : loaded
-            if item.type != nil || !labels.isEmpty || item.milestone != nil {
+            if item.type != nil || !labels.isEmpty || item.milestone != nil || labelling != nil {
                 // Wrapping, unlike the row's single line: here there is room
                 // to show every label, and which ones an issue carries is
                 // part of what the pane is for.
@@ -107,6 +110,15 @@ struct IssueDetailView: View {
                         Label(milestone, systemImage: "flag")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                    }
+                    if let labelling {
+                        LabelEditor(
+                            editing: labelling,
+                            repository: item.repository,
+                            itemID: item.id,
+                            isPullRequest: false,
+                            current: labels
+                        )
                     }
                 }
             }

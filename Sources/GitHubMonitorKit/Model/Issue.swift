@@ -200,6 +200,14 @@ public struct IssueDetail: Hashable, Sendable {
     /// fits a line, and a pane that offers to change them has to be
     /// looking at all of them.
     public let labels: [IssueLabel]
+
+    /// The same detail with a different set of labels, for showing a
+    /// change before GitHub has confirmed it.
+    public func withLabels(_ labels: [IssueLabel]) -> IssueDetail {
+        IssueDetail(
+            body: body, comments: comments, totalComments: totalComments, labels: labels
+        )
+    }
     /// The newest comments, oldest of those first, so the thread reads
     /// downwards the way it does on GitHub.
     public let comments: [IssueComment]
@@ -304,4 +312,21 @@ public enum IssueFilter {
             return left == right ? lhs.id > rhs.id : left > right
         }
     }
+}
+
+/// Which repository's labels were asked for, and what was typed.
+public struct LabelRequest: Hashable, Sendable {
+    public let repository: String
+    public let query: String
+
+    public init(repository: String, query: String) {
+        self.repository = repository
+        self.query = query
+    }
+}
+
+public enum LabelCatalogueState: Equatable, Sendable {
+    case loading
+    case loaded(LabelQuery.Catalogue)
+    case failed(String)
 }
