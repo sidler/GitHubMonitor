@@ -3,7 +3,7 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
-## Unreleased
+## 1.8.1
 
 - **The list column is drawn where it stands.** With the detail pane open
   it was rendered tens of points to the right of the column it belongs
