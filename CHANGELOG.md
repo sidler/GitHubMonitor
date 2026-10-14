@@ -5,6 +5,12 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **The label picker opens at a usable size.** It took its size from
+  whatever was in it at the moment it opened, and what was in it at that
+  moment was a spinner — so on a real repository, where the list takes a
+  moment to arrive, it came up as a box with nothing in it and no sign
+  that sixty labels had since turned up. It is one size now, whatever
+  state it is in.
 - **Labels can be set and cleared from the pane.** A tag beside them
   opens the repository's own list, ticked where the item already carries
   one; a click puts one on or takes it off. Issues and pull requests

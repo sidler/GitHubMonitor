@@ -312,17 +312,27 @@ public enum SampleData {
     /// already on, and saying when it is showing only part of the set --
     /// can be seen without an account.
     public static func labelCatalogue() -> LabelQuery.Catalogue {
-        LabelQuery.Catalogue(
-            labels: [
-                IssueLabel(id: "LA_1", name: "bug", color: "d73a4a"),
-                IssueLabel(id: "LA_4", name: "documentation", color: "0075ca"),
-                IssueLabel(id: "LA_3", name: "needs decision", color: "fbca04"),
-                IssueLabel(id: "LA_5", name: "performance", color: "0e8a16"),
-                IssueLabel(id: "LA_2", name: "session", color: "0e8a16"),
-                IssueLabel(id: "LA_6", name: "wontfix", color: "ffffff"),
-            ],
-            total: 23
-        )
+        // Named ones first, so the ticks and the colours can be looked
+        // at; then enough filler to overrun the list, because a real
+        // repository answers with sixty of a hundred and seventy and the
+        // picker has to stand up to that. Six of them never did.
+        let named = [
+            IssueLabel(id: "LA_1", name: "bug", color: "d73a4a"),
+            IssueLabel(id: "LA_4", name: "documentation", color: "0075ca"),
+            IssueLabel(id: "LA_3", name: "needs decision", color: "fbca04"),
+            IssueLabel(id: "LA_5", name: "performance", color: "0e8a16"),
+            IssueLabel(id: "LA_2", name: "session", color: "0e8a16"),
+            IssueLabel(id: "LA_6", name: "wontfix", color: "ffffff"),
+        ]
+        let colours = ["5319e7", "1d76db", "b60205", "0e8a16", "fbca04", "c5def5"]
+        let more = (1...54).map { index in
+            IssueLabel(
+                id: "LA_F\(index)",
+                name: "area: module \(index)",
+                color: colours[index % colours.count]
+            )
+        }
+        return LabelQuery.Catalogue(labels: named + more, total: 174)
     }
 
     /// One small patch, one large enough to stay folded, and a tree deep

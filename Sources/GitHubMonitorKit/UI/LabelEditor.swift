@@ -78,22 +78,32 @@ struct LabelEditor: View {
 
             Divider()
 
-            switch answer {
-            case .loaded(let catalogue):
-                list(catalogue)
-            case .failed(let message):
-                Text(message)
-                    .font(.caption)
-                    .foregroundStyle(Ink.red)
-                    .padding(10)
-            case .loading, nil:
-                ProgressView()
-                    .controlSize(.small)
-                    .padding(10)
-                    .frame(maxWidth: .infinity)
+            Group {
+                switch answer {
+                case .loaded(let catalogue):
+                    list(catalogue)
+                case .failed(let message):
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(Ink.red)
+                        .padding(10)
+                case .loading, nil:
+                    ProgressView()
+                        .controlSize(.small)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
-        .frame(width: 280)
+        // One size whatever is in it. A popover measures itself against
+        // its content as it opens and does not grow afterwards, so one
+        // opened while the labels were still on their way kept the size
+        // of the spinner -- which was a box with nothing in it and no way
+        // to tell that sixty labels had since arrived. A fixed box also
+        // gives the list below a height to scroll within; left to itself
+        // inside a popover nothing proposes it one, and it takes the
+        // smallest it can.
+        .frame(width: 300, height: 340)
     }
 
     private func list(_ catalogue: LabelQuery.Catalogue) -> some View {
@@ -103,13 +113,14 @@ struct LabelEditor: View {
                     .font(.caption)
                     .foregroundStyle(Color(nsColor: .secondaryLabelColor))
                     .padding(10)
+                Spacer(minLength: 0)
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(catalogue.labels) { row($0) }
                     }
                 }
-                .frame(maxHeight: 260)
+                .frame(maxHeight: .infinity)
             }
 
             // Said rather than hidden: a repository with four hundred

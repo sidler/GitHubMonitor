@@ -718,8 +718,13 @@ public final class AppState {
         // The picker reads this, and the sample has no service to read it
         // from -- without it the one control in the pane that writes
         // anything could not be looked at before it shipped.
-        repositoryLabels[LabelRequest(repository: "octo/server", query: "")] =
-            .loaded(SampleData.labelCatalogue())
+        // `GHM_NO_LABELS=1` leaves it unanswered, which is how the
+        // picker looks while a real catalogue is on its way -- and that
+        // is the state it was broken in.
+        if ProcessInfo.processInfo.environment["GHM_NO_LABELS"] == nil {
+            repositoryLabels[LabelRequest(repository: "octo/server", query: "")] =
+                .loaded(SampleData.labelCatalogue())
+        }
         if isBigSample {
             changedFiles["pr-482"] = .loaded(ChangedFilesQuery.ordered(SampleData.largeDiff()))
         }
