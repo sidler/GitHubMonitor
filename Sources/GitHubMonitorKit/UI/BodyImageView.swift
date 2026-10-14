@@ -90,6 +90,7 @@ struct BodyImageView: View {
     let alt: String
 
     @StateObject private var loader = BodyImageLoader()
+    @StateObject private var full = ViewFlag()
 
     /// Tall enough to tell what a screenshot is of, short enough that two
     /// of them do not push the text out of the pane. The real thing is a
@@ -99,12 +100,20 @@ struct BodyImageView: View {
     var body: some View {
         Group {
             if let image = loader.image {
-                Button { NSWorkspace.shared.open(url) } label: {
+                Button { full.isOn = true } label: {
                     Image(nsImage: image)
                         .resizable()
                         .interpolation(.high)
                         .scaledToFit()
-                        .frame(maxWidth: .infinity, maxHeight: Self.tallest, alignment: .leading)
+                        // Never larger than it is. A badge twenty points
+                        // tall blown up to the width of the pane is not a
+                        // bigger badge, it is a blurred one -- and it was
+                        // pushing the text it belongs to off the screen.
+                        .frame(
+                            maxWidth: image.size.width,
+                            maxHeight: min(image.size.height, Self.tallest),
+                            alignment: .leading
+                        )
                         .clipShape(RoundedRectangle(cornerRadius: 4))
                         .overlay(
                             RoundedRectangle(cornerRadius: 4)
@@ -113,7 +122,8 @@ struct BodyImageView: View {
                 }
                 .buttonStyle(.plain)
                 .pointerStyle(.link)
-                .help("Open the full size picture")
+                .help("See it full size")
+                .sheet(isPresented: $full.isOn) { viewer(image) }
             } else if loader.isRefused {
                 link
             } else {
@@ -126,6 +136,53 @@ struct BodyImageView: View {
             }
         }
         .task(id: url) { await loader.load(url) }
+    }
+
+    /// The picture at its own size, in the app rather than in a browser.
+    ///
+    /// It is already here: it was fetched to draw the small one, and
+    /// sending somebody to Safari to look at a thing the app is holding
+    /// in memory is the sort of errand an app should be saving them.
+    /// The way out to GitHub stays, for the times the question is about
+    /// the issue rather than the picture.
+    private func viewer(_ image: NSImage) -> some View {
+        VStack(spacing: 0) {
+            Image(nsImage: image)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                // The same rule as the preview: never larger than it is.
+                // Full size means full size, not "as much of the window
+                // as it will stretch to".
+                .frame(maxWidth: image.size.width, maxHeight: image.size.height)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(12)
+
+            Divider()
+
+            HStack(spacing: 8) {
+                if !alt.isEmpty {
+                    Text(alt)
+                        .font(.caption)
+                        .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 8)
+                Button("Open on GitHub") { NSWorkspace.shared.open(url) }
+                Button("Done") { full.isOn = false }
+                    // Escape, which is what anybody looking at a picture
+                    // presses when they have finished looking at it.
+                    .keyboardShortcut(.cancelAction)
+            }
+            .padding(10)
+        }
+        .frame(
+            // Its own size where that fits on a screen, and the screen
+            // where it does not. A screenshot of a whole window is wider
+            // than most of them.
+            width: min(max(image.size.width + 24, 360), 1100),
+            height: min(max(image.size.height + 70, 240), 760)
+        )
     }
 
     private var link: some View {

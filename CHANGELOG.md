@@ -12,8 +12,14 @@ What changed in each released version. The app shows this file itself, under
   deleted outright on the grounds that badges carry nothing in a text
   pane. That was true of the markup and never true of the picture.
 
-  Both forms are the same thing now, drawn at a size that fits the pane,
-  and a click opens the full one. Following one to where it is really
+  Both forms are the same thing now, drawn at a size that fits the pane
+  but never larger than they are — a badge twenty points tall blown up to
+  the width of the pane is not a bigger badge, it is a blurred one. A
+  click opens the full size in the app rather than in a browser: it was
+  already fetched to draw the small one, and sending somebody to Safari
+  to look at something the app is holding is an errand worth saving
+  them. The way out to GitHub is still there, for when the question is
+  about the issue rather than the picture. Following one to where it is really
   kept takes two repairs: GitHub answers with the address HTML-escaped,
   so every part of its signature after the first arrives misnamed, and
   the account's token is dropped at the door — the host it redirects to
@@ -25,11 +31,15 @@ What changed in each released version. The app shows this file itself, under
   already in it. A badge in a table cell still goes out; a line of its
   own is the end of a table.
 - **The labels an item already carries come first in the picker**, and
-  the whole row of them opens it rather than the small tag at its end. A
-  repository here has a hundred and seventy labels and the list shows
-  sixty, so the two or three actually set were as likely as not off the
-  bottom — which made taking one off, the thing a picker is most certain
-  to be asked, the thing it could not do without typing first.
+  are in it at all. A repository here has a hundred and seventy labels
+  and the list shows sixty, so a label late in the alphabet was simply
+  not there — the picker said it was not set, two inches from a pane
+  showing that it was. They are put in at the top whether or not the
+  repository's answer happened to include them, and the whole row of
+  chips opens the picker rather than the small tag at its end.
+
+  While something has been typed the list stays an answer to that
+  question: carried labels that do not match are not quietly added to it.
 - **The label picker opens at a usable size.** It took its size from
   whatever was in it at the moment it opened, and what was in it at that
   moment was a spinner — so on a real repository, where the list takes a

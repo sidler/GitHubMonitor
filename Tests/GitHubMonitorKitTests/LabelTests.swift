@@ -223,11 +223,40 @@ struct LabelOrderTests {
         #expect(LabelQuery.ordered([], carrying: []).isEmpty)
     }
 
-    @Test("A label carried but not in this page of the list does not appear twice")
+    /// A repository here answers with sixty of a hundred and seventy, so a
+    /// label late in the alphabet is simply not in the page -- and the
+    /// picker was saying it was not set, two inches from a pane showing
+    /// that it was.
+    @Test("One carried but missing from the page is put in at the top")
     func carriedButAbsent() {
-        let order = LabelQuery.ordered(catalogue, carrying: [label("LA_99", "elsewhere")])
+        let order = LabelQuery.ordered(catalogue, carrying: [label("LA_99", "Standardisierung")])
+        #expect(order.first?.name == "Standardisierung")
+        #expect(order.count == catalogue.count + 1)
+    }
+
+    @Test("It is not put in twice when the page does hold it")
+    func noDuplicate() {
+        let order = LabelQuery.ordered(catalogue, carrying: [label("LA_3", "Screening")])
         #expect(order.count == catalogue.count)
-        #expect(!order.contains { $0.name == "elsewhere" })
+        #expect(order.filter { $0.name == "Screening" }.count == 1)
+    }
+
+    /// While something has been typed the list is an answer to a
+    /// question, and an answer that quietly includes four things nobody
+    /// asked about is a different kind of wrong.
+    @Test("Narrowed, only what the repository returned is shown")
+    func narrowed() {
+        let order = LabelQuery.ordered(
+            catalogue, carrying: [label("LA_99", "Standardisierung")], narrowed: true
+        )
+        #expect(!order.contains { $0.name == "Standardisierung" })
+        #expect(order.count == catalogue.count)
+    }
+
+    @Test("A label with no id cannot be sent anywhere, so it is not offered")
+    func idless() {
+        let order = LabelQuery.ordered(catalogue, carrying: [IssueLabel(name: "hand made", color: "")])
+        #expect(!order.contains { $0.name == "hand made" })
     }
 }
 

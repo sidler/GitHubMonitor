@@ -272,11 +272,16 @@ public enum SampleData {
     - [ ] Needs the migration to have run
     - Ticked and plain in one list, which is what GitHub does
 
-    Both ways a picture arrives, so both can be looked at: the tag
-    GitHub writes when a file is dragged in, and one that cannot be
-    fetched at all.
+    A small picture stays small — a badge blown up to the width of the
+    pane is not a bigger badge:
+
+    ![a small one](https://avatars.githubusercontent.com/u/9919?s=48)
+
+    The tag GitHub writes when a file is dragged into the box:
 
     <img width="1295" alt="Image" src="https://avatars.githubusercontent.com/u/9919?s=400" />
+
+    And one nothing can fetch, which becomes a way to the browser:
 
     ![a picture nobody can reach](https://github.com/user-attachments/assets/00000000-0000-0000-0000-000000000000)
 

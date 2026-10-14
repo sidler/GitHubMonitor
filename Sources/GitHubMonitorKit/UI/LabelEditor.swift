@@ -120,9 +120,10 @@ struct LabelEditor<Row: View>: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
-                        ForEach(LabelQuery.ordered(catalogue.labels, carrying: current)) {
-                            entry($0)
-                        }
+                        let shown = LabelQuery.ordered(
+                            catalogue.labels, carrying: current, narrowed: !query.isEmpty
+                        )
+                        ForEach(shown) { entry($0) }
                     }
                 }
                 .frame(maxHeight: .infinity)

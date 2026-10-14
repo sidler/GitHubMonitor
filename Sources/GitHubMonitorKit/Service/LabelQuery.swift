@@ -60,15 +60,26 @@ public enum LabelQuery {
     /// thing it could not do without typing. Alphabetical within each
     /// group, so the rest of the list reads as it always did.
     public static func ordered(
-        _ labels: [IssueLabel], carrying current: [IssueLabel]
+        _ labels: [IssueLabel], carrying current: [IssueLabel], narrowed: Bool = false
     ) -> [IssueLabel] {
-        let carried = Set(current.map(\.id))
-        return labels.sorted { left, right in
-            let onLeft = carried.contains(left.id)
-            let onRight = carried.contains(right.id)
-            if onLeft != onRight { return onLeft }
-            return left.name.localizedStandardCompare(right.name) == .orderedAscending
+        let byName: (IssueLabel, IssueLabel) -> Bool = {
+            $0.name.localizedStandardCompare($1.name) == .orderedAscending
         }
+        // The ones the item carries, whether or not this page of the
+        // repository's list happens to hold them -- which for a label
+        // late in the alphabet it will not. The pane two inches away is
+        // showing them; a picker that leaves them out is saying they are
+        // not set.
+        //
+        // Except while something has been typed. Then the list is an
+        // answer to a question, and an answer that quietly includes four
+        // things nobody asked about is a different kind of wrong.
+        let carried = narrowed
+            ? current.filter { label in labels.contains { $0.id == label.id } }
+            : current.filter(\.isReal)
+        let known = Set(carried.map(\.id))
+        return carried.sorted(by: byName)
+            + labels.filter { !known.contains($0.id) }.sorted(by: byName)
     }
 
     public static func catalogue(from payload: [String: Any]) throws -> Catalogue {
