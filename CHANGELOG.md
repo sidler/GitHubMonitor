@@ -3,7 +3,7 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
-## Unreleased
+## 1.8.0
 
 - **A gateway error is asked again before it is believed.** GitHub ends
   any request that runs past ten seconds with a 502 or a 504, which is a
