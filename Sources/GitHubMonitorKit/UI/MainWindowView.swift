@@ -128,24 +128,35 @@ struct ContentColumn: View {
         // by the window controller: a compact toolbar is as tall as whatever
         // the current list puts in it, so a height pushed in from outside
         // described the view before last until the window was resized.
-        GeometryReader { proxy in
-            list
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                // Carry the content's own background up behind the toolbar.
-                // Without it the title bar band is one uniform colour across
-                // both columns and the divider only starts below it; Notes
-                // and Finder run the content background to the top so the
-                // divider is continuous.
-                .background {
-                    Color(nsColor: .textBackgroundColor).ignoresSafeArea()
+        list
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // Carry the content's own background up behind the toolbar.
+            // Without it the title bar band is one uniform colour across
+            // both columns and the divider only starts below it; Notes
+            // and Finder run the content background to the top so the
+            // divider is continuous.
+            .background {
+                Color(nsColor: .textBackgroundColor).ignoresSafeArea()
+            }
+            .overlay(alignment: .top) {
+                // The reader sits inside the overlay, not around the
+                // column. Around the column it put the whole thing --
+                // list and band together -- tens of points to the right
+                // of where the split view had placed it, further with
+                // every drag, while reporting the correct size and no
+                // inset of its own. An overlay is off the layout path,
+                // so the list is measured by the split view and nothing
+                // else, and the band still gets the one number it needs.
+                GeometryReader { proxy in
+                    titleBarBand(
+                        height: proxy.safeAreaInsets.top,
+                        width: proxy.size.width
+                    )
                 }
-                .overlay(alignment: .top) {
-                    titleBarBand(height: proxy.safeAreaInsets.top, width: proxy.size.width)
-                }
-                .safeAreaInset(edge: .bottom, spacing: 0) {
-                    BottomBar { statusBar }
-                }
-        }
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                BottomBar { statusBar }
+            }
     }
 
     @ViewBuilder

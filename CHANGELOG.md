@@ -5,6 +5,15 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **The list column is drawn where it stands.** With the detail pane open
+  it was rendered tens of points to the right of the column it belongs
+  to: a white strip beside the sidebar, and the far end of the rows
+  disappearing under the pane. Every resize pushed it further. The
+  measurements were right the whole time — the column reported its true
+  width and no inset — so the only thing visibly wrong was where the
+  result was put. A `GeometryReader` wrapped around the whole column was
+  doing it; it is only needed for the height of the title band, so it now
+  sits inside that band's overlay, off the path the list is measured on.
 - **Widening the detail pane no longer moves the sidebar.** Pulled past
   the point where the list column had no more room to give, the drag went
   straight through it and into the sidebar, which snapped back to its own
@@ -13,6 +22,11 @@ What changed in each released version. The app shows this file itself, under
   give pushes the divider behind it -- and the sidebar is not part of the
   conversation between those two columns. The drag now stops where the
   list reaches its minimum, and nowhere further.
+
+  Where the drag stops is worked out from how narrow the list column can
+  really be, which is not the number set on it: the counts along its
+  bottom and the title above stop being able to give at a width of their
+  own, and the forty points of difference were coming out of the sidebar.
 
   Which column gives way when the *window* changes size is now said out
   loud as well: the middle one. It takes what a wider window brings and

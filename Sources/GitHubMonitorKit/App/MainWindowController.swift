@@ -122,6 +122,13 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         let contentController = NSHostingController(
             rootView: ContentColumn(state: state, controller: controller)
         )
+        // What this column publishes to Auto Layout is how small it can
+        // be, not how wide it would like to be. The default is the
+        // latter, and the detail pane's ceiling is worked out from the
+        // former: with the wrong one in hand the ceiling allowed a drag
+        // forty points further than the column could actually go, and
+        // AppKit took those forty from the sidebar.
+        contentController.sizingOptions = [.minSize]
         let content = NSSplitViewItem(viewController: contentController)
         content.minimumThickness = Self.listMinimumWidth
         // The middle is the room. It takes what a wider window brings and
@@ -388,9 +395,24 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     /// of the middle of a drag.
     private func capInspectorWidth() {
         guard let inspectorItem, let split = splitViewController else { return }
-        let sidebarWidth = sidebarItem.map { $0.isCollapsed ? 0 : $0.viewController.view.frame.width } ?? 0
+        let sidebarWidth: CGFloat = sidebarItem.map { item in
+            guard !item.isCollapsed else { return 0 }
+            // Before the first layout the view has no width yet, and a
+            // zero there would hand the detail pane the sidebar's room as
+            // though it were free.
+            let drawn = item.viewController.view.frame.width
+            return drawn > 0 ? drawn : item.minimumThickness
+        } ?? 0
         let dividers = split.splitView.dividerThickness * CGFloat(max(0, split.splitViewItems.count - 1))
-        let room = split.splitView.bounds.width - dividers - sidebarWidth - Self.listMinimumWidth
+        // How small the list column can really be, which is not the same
+        // as the number set on it: its own contents -- the counts along
+        // the bottom, the title and the controls above -- stop being able
+        // to give at some width of their own, and AppKit takes the
+        // difference from the sidebar if the ceiling does not know about
+        // it. The column publishes that width because its hosting
+        // controller is set to report its minimum size.
+        let listFloor = max(Self.listMinimumWidth, contentController?.view.fittingSize.width ?? 0)
+        let room = split.splitView.bounds.width - dividers - sidebarWidth - listFloor
         // Never below its own floor: if the window is too narrow for all
         // three at once, that is a fight between the minimums and not
         // something a ceiling should join in on.
