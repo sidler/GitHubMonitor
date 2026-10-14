@@ -171,6 +171,25 @@ public enum ReviewThreadPlacement {
             .sorted { ($0.line ?? 0, $0.id) < ($1.line ?? 0, $1.id) }
     }
 
+    /// The threads of one file, with the settled ones left out unless
+    /// somebody asked for them.
+    ///
+    /// Resolved only, and the distinction is the whole point. A remark
+    /// about code that has since been rewritten but that nobody ever
+    /// answered is still an open question -- it only looks like history.
+    /// Those stay wherever they are, whatever this is set to.
+    public static func asked(
+        _ threads: [ReviewThread], in path: String, showingResolved: Bool
+    ) -> [ReviewThread] {
+        threads.filter { $0.path == path && (showingResolved || !$0.isResolved) }
+    }
+
+    /// How many conversations on one file have been settled, for the
+    /// control that puts them away and says how many it is hiding.
+    public static func settled(_ threads: [ReviewThread], in path: String) -> Int {
+        threads.count { $0.path == path && $0.isResolved }
+    }
+
     /// Where the threads go that GitHub no longer gives a line for.
     ///
     /// The row named is the last one at or before the line the remark was

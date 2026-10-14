@@ -511,3 +511,60 @@ struct AdriftThreadTests {
         #expect(adrift("t", originalLine: 9, hunk: "").context().isEmpty)
     }
 }
+
+/// Putting the settled conversations away, one file at a time.
+@Suite("What a file shows when the settled ones are put away")
+struct SettledThreadTests {
+    private func thread(
+        _ id: String, path: String = "a.swift", resolved: Bool, outdated: Bool = false
+    ) -> ReviewThread {
+        ReviewThread(
+            id: id, path: path, line: 5, side: .new,
+            isResolved: resolved, isOutdated: outdated,
+            comments: [
+                IssueComment(
+                    id: "c-\(id)", author: "mira", avatarURL: nil,
+                    createdAt: .now, body: "look here"
+                ),
+            ]
+        )
+    }
+
+    private var threads: [ReviewThread] {
+        [
+            thread("open", resolved: false),
+            thread("done", resolved: true),
+            thread("stale", resolved: false, outdated: true),
+            thread("both", resolved: true, outdated: true),
+            thread("elsewhere", path: "b.swift", resolved: true),
+        ]
+    }
+
+    @Test("Shut, it keeps everything nobody has settled")
+    func shut() {
+        let shown = ReviewThreadPlacement.asked(threads, in: "a.swift", showingResolved: false)
+        #expect(shown.map(\.id) == ["open", "stale"])
+    }
+
+    /// The one worth stating out loud: a remark about code that has since
+    /// been rewritten and that nobody answered is still somebody's open
+    /// question. It only looks like history.
+    @Test("An outdated conversation nobody answered is not settled")
+    func outdatedIsNotSettled() {
+        let shown = ReviewThreadPlacement.asked(threads, in: "a.swift", showingResolved: false)
+        #expect(shown.contains { $0.id == "stale" })
+    }
+
+    @Test("Asked for, it keeps everything of that file and nothing of another")
+    func asked() {
+        let shown = ReviewThreadPlacement.asked(threads, in: "a.swift", showingResolved: true)
+        #expect(shown.map(\.id) == ["open", "done", "stale", "both"])
+    }
+
+    @Test("The count is of the settled ones, on that file alone")
+    func counted() {
+        #expect(ReviewThreadPlacement.settled(threads, in: "a.swift") == 2)
+        #expect(ReviewThreadPlacement.settled(threads, in: "b.swift") == 1)
+        #expect(ReviewThreadPlacement.settled(threads, in: "c.swift") == 0)
+    }
+}

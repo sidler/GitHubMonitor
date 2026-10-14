@@ -46,6 +46,7 @@ struct DiffOverlay: View {
     var viewed: ViewedFiles?
 
     @StateObject private var open = OpenFolders()
+    @StateObject private var resolved = ShownResolved()
     @StateObject private var sidebar = SidebarWidth()
     /// Which file is at the top of the column, kept here rather than in the
     /// app's state.
@@ -388,6 +389,29 @@ struct DiffOverlay: View {
                 }
 
                 Spacer(minLength: 8)
+
+                // Only where there is something to say. A file nobody
+                // settled anything on should not carry a control that
+                // reads "0 resolved".
+                let settled = ReviewThreadPlacement.settled(threads, in: file.path)
+                if settled > 0 {
+                    Button { resolved.toggle(file.path) } label: {
+                        HStack(spacing: 4) {
+                            Image(
+                                systemName: resolved.isShowing(file.path)
+                                    ? "chevron.down" : "chevron.right"
+                            )
+                            .font(.caption2)
+                            Text(settled == 1 ? "1 resolved" : "\(settled) resolved")
+                        }
+                        .font(.caption)
+                        .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .pointerStyle(.link)
+                    .help("Conversations somebody has already settled, kept out of the way")
+                }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
@@ -422,7 +446,11 @@ struct DiffOverlay: View {
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 12)
             } else if let patch = file.patch {
-                let mine = threads.filter { $0.path == file.path }
+                // What this file has to show, which is everything only
+                // once somebody asks for the settled ones.
+                let mine = ReviewThreadPlacement.asked(
+                    threads, in: file.path, showingResolved: resolved.isShowing(file.path)
+                )
                 let stranded = ReviewThreadPlacement.stranded(
                     mine, in: file.path, patch: patch
                 )
@@ -738,6 +766,29 @@ enum DiffLineKind {
 /// and a tree that arrives shut is a tree to click open before it says
 /// anything. A folder closed by hand stays closed while the overlay is up.
 @MainActor
+/// Which files are showing the conversations somebody has already
+/// settled.
+///
+/// Shut to begin with, one file at a time, and only for as long as the
+/// diff is up -- the same bargain the folders in the tree make. A review
+/// that went well is mostly resolved threads, and reading the diff
+/// afterwards means reading around them; but they are also the record of
+/// why the code looks the way it does, so hiding them for good would be
+/// throwing away the answer along with the question.
+///
+/// Resolved only. A remark about code that has since been rewritten and
+/// that nobody ever answered is still somebody's open question, and it
+/// stays where it is whatever this says.
+final class ShownResolved: ObservableObject {
+    @Published private(set) var showing: Set<String> = []
+
+    func isShowing(_ path: String) -> Bool { showing.contains(path) }
+
+    func toggle(_ path: String) {
+        if showing.contains(path) { showing.remove(path) } else { showing.insert(path) }
+    }
+}
+
 final class OpenFolders: ObservableObject {
     @Published private(set) var shut: Set<String> = []
 

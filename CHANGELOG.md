@@ -5,6 +5,19 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **The settled conversations are out of the way until you ask for
+  them.** A file's header in the diff says how many it is holding — “3
+  resolved” — and the count is the control: one click shows them where
+  they belong, another puts them back. Per file, and only while the diff
+  is open, which is the same bargain the folders in the tree make. A
+  review that went well is mostly settled conversations, and reading the
+  diff afterwards meant reading around them; but they are also the record
+  of why the code looks the way it does, so hiding them for good would
+  throw away the answer along with the question.
+
+  Settled means resolved, and nothing else. A remark about code that has
+  since been rewritten but that nobody ever answered is still somebody's
+  open question — it only looks like history, and it stays where it is.
 - **A conversation about code that has since changed stands where it was
   written.** It used to be swept into a pile under the file's name, and
   since a remark is usually settled by changing the code — which is
