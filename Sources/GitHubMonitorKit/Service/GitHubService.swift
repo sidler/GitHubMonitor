@@ -462,8 +462,15 @@ public struct GitHubService: Sendable {
     /// The first request covers all the searches at once; only the ones with
     /// more to give are asked again, together, so a queue of a hundred and
     /// nine costs two requests rather than two per list.
+    /// - Parameter onPage: Told after each round what has arrived so far,
+    ///   for a caller that would rather show a part than nothing. The whole
+    ///   answer still comes back at the end; this is the same rows, earlier.
+    ///   Main-actor bound because the only thing worth doing with a part of
+    ///   an answer is putting it on screen.
     public func lists(
-        _ searches: [ListSearch], viewer: String? = nil
+        _ searches: [ListSearch],
+        viewer: String? = nil,
+        onPage: (@MainActor (ListResults) -> Void)? = nil
     ) async throws -> (
         results: ListResults,
         unread: [String: Int],
@@ -535,6 +542,10 @@ public struct GitHubService: Sendable {
             if isFirstRound { results.totals = page.totals }
             isFirstRound = false
             results.absorb(page)
+            // Every round, not only the first: what has been absorbed only
+            // grows, so each of these says more than the one before and
+            // none of them takes anything back.
+            if let onPage { await onPage(results) }
 
             let stops = ListParser.pages(from: payload, searches: batch)
             round = round.enumerated().compactMap { position, entry in

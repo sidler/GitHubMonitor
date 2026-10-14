@@ -329,7 +329,25 @@ public final class RefreshController {
             // Not pasted into the queries -- `@me` means something to
             // GitHub already -- but the review requests come back naming
             // people, and only the login says which of them is this person.
-            let fetched = try await service.lists(wanted, viewer: viewer.login)
+            // Whether to put each round on screen as it lands.
+            //
+            // Only while there is nothing there to disturb, which in
+            // practice means the first load after launch -- the one that
+            // used to leave the window empty for as long as every list
+            // took together. On a later refresh the rows stay as they are
+            // until the whole answer is in: a list that shrank to thirty
+            // and grew back would read as the refresh flickering rather
+            // than working.
+            let fillAsItArrives = state.listPullRequests.isEmpty && state.listIssues.isEmpty
+
+            let fetched = try await service.lists(wanted, viewer: viewer.login) { [state] partial in
+                guard fillAsItArrives, !Task.isCancelled else { return }
+                // The rows only. Totals, unread and the budget are what
+                // the finished answer says, and a part of an answer has
+                // no business speaking for them.
+                state.listPullRequests = partial.pullRequests
+                state.listIssues = partial.issues
+            }
             // Cancelled means the token is going or the app is closing.
             // Writing what came back would put a signed-out account's rows
             // back on screen, so nothing is written past this point.

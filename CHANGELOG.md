@@ -26,6 +26,13 @@ What changed in each released version. The app shows this file itself, under
   a window shows; the pages after it still ask for a hundred and still run
   to the same cap, and the counts beside a list come from GitHub's own
   total, which never cared how many rows were fetched.
+
+  And the first page is now shown as soon as it lands, instead of the
+  window staying empty until every list has finished paging. Only on the
+  first load, while there is nothing there to disturb: on a later refresh
+  the rows stay as they are until the whole answer is in, because a list
+  that shrank to thirty and grew back would read as the refresh
+  flickering rather than working.
 - **The detail pane can be dragged as wide as there is room for.** It had
   a ceiling of four hundred points — a guess about how much anybody would
   want, which is not a thing to guess about. An inspector pane in AppKit
