@@ -146,6 +146,48 @@ public struct GitHubClient: Sendable {
     }
 
     @discardableResult
+    /// A picture from a body, which GitHub answers for by sending
+    /// somebody else's address.
+    ///
+    /// Its own call because of what happens after the first answer: the
+    /// redirect goes to a host that is not GitHub, and two things have to
+    /// be true before it is followed. See `following(_:from:)`.
+    public func image(_ url: URL) async throws -> Data {
+        var request = URLRequest(url: url)
+        request.setValue("image/*", forHTTPHeaderField: "Accept")
+        return try await perform(request, delegate: ImageRedirect()).0
+    }
+
+    /// What to send when a picture's address redirects somewhere else.
+    ///
+    /// Two repairs, both of which otherwise end in a picture that never
+    /// arrives for a reason nothing reports.
+    ///
+    /// The address GitHub sends back is HTML-escaped: the ampersands
+    /// between the parts of the query come through as `&amp;`, so every
+    /// parameter after the first is called `amp;X-Amz-Something` and the
+    /// signature covers a request nobody made.
+    ///
+    /// And the token goes no further than GitHub. What a picture
+    /// redirects to is somebody else's host, and the account's
+    /// credential is not theirs to see. Amazon refuses it in any case: a
+    /// signed address and an Authorization header together are two
+    /// authorities where it expects one.
+    static func following(_ request: URLRequest, from origin: URL?) -> URLRequest {
+        var next = request
+        if let url = next.url,
+            url.absoluteString.contains("&amp;"),
+            let repaired = URL(
+                string: url.absoluteString.replacingOccurrences(of: "&amp;", with: "&")
+            ) {
+            next.url = repaired
+        }
+        if next.url?.host != origin?.host {
+            next.setValue(nil, forHTTPHeaderField: "Authorization")
+        }
+        return next
+    }
+
     public func patch(_ url: URL) async throws -> HTTPURLResponse {
         var request = URLRequest(url: url)
         request.httpMethod = "PATCH"
@@ -202,17 +244,24 @@ public struct GitHubClient: Sendable {
         }
     }
 
-    private func perform(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+    private func perform(
+        _ request: URLRequest, delegate: (any URLSessionTaskDelegate)? = nil
+    ) async throws -> (Data, HTTPURLResponse) {
         var request = request
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        // Only where the caller has not said what it wants. A picture is
+        // not JSON, and saying so to the host that serves it costs
+        // nothing where it is ignored.
+        if request.value(forHTTPHeaderField: "Accept") == nil {
+            request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        }
         request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
         request.setValue("GitHubMonitor", forHTTPHeaderField: "User-Agent")
 
         var delays: ArraySlice<Duration> = Self.isRepeatable(request) ? retryDelays[...] : []
         while true {
             do {
-                return try await attempt(request)
+                return try await attempt(request, delegate: delegate)
             } catch let failure as GitHubError {
                 guard
                     case .http(let status, _) = failure,
@@ -235,7 +284,9 @@ public struct GitHubClient: Sendable {
     /// One send. Every attempt is recorded, including the ones that were
     /// followed by another: a log that showed only the last of three
     /// would say the gateway answered first time.
-    private func attempt(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+    private func attempt(
+        _ request: URLRequest, delegate: (any URLSessionTaskDelegate)? = nil
+    ) async throws -> (Data, HTTPURLResponse) {
         let started = Date()
         let method = request.httpMethod ?? "GET"
         let path = request.url?.path ?? "?"
@@ -244,7 +295,7 @@ public struct GitHubClient: Sendable {
         let data: Data
         let response: URLResponse
         do {
-            (data, response) = try await session.data(for: request)
+            (data, response) = try await session.data(for: request, delegate: delegate)
         } catch {
             watch?(RequestRecord(
                 startedAt: started, method: method, path: path, operation: operation,
@@ -390,5 +441,22 @@ public struct GraphQLAnswer {
                 path: (entry["path"] as? [Any] ?? []).compactMap { $0 as? String }
             )
         }
+    }
+}
+
+
+/// Follows a picture's redirect, repaired and without the account's token.
+///
+/// A class because that is what `URLSession` asks for; it holds nothing
+/// and decides nothing -- `GitHubClient.following(_:from:)` does, where it
+/// can be read and tested without a network.
+final class ImageRedirect: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest
+    ) async -> URLRequest? {
+        GitHubClient.following(request, from: task.originalRequest?.url)
     }
 }

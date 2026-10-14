@@ -282,7 +282,7 @@ public struct GitHubService: Sendable {
     /// this is written to fail plainly: whoever asked gets an error and
     /// shows a link to the browser, where the session already is.
     public func image(at url: URL) async throws -> Data {
-        try await client.get(url).0
+        try await client.image(url)
     }
 
     /// The labels a repository offers, narrowed by what has been typed.

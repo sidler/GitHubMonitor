@@ -13,7 +13,12 @@ What changed in each released version. The app shows this file itself, under
   pane. That was true of the markup and never true of the picture.
 
   Both forms are the same thing now, drawn at a size that fits the pane,
-  and a click opens the full one. Where it cannot be fetched — an
+  and a click opens the full one. Following one to where it is really
+  kept takes two repairs: GitHub answers with the address HTML-escaped,
+  so every part of its signature after the first arrives misnamed, and
+  the account's token is dropped at the door — the host it redirects to
+  is somebody else's, and Amazon refuses a signed address carrying a
+  token in any case. Where it cannot be fetched — an
   attachment on a private repository wants a browser session, over a path
   GitHub documents nowhere — there is a link in its place rather than a
   hole or an apology: the browser is one click away with the session

@@ -230,3 +230,57 @@ struct LabelOrderTests {
         #expect(!order.contains { $0.name == "elsewhere" })
     }
 }
+
+/// What happens when a picture's address sends the client somewhere else,
+/// which is what every attachment on a private repository does.
+@Suite("Following a picture to where it is really kept")
+struct ImageRedirectTests {
+    private let github = URL(string: "https://github.com/user-attachments/assets/abc")!
+
+    private func request(_ address: String) -> URLRequest {
+        var request = URLRequest(url: URL(string: address)!)
+        request.setValue("Bearer secret", forHTTPHeaderField: "Authorization")
+        return request
+    }
+
+    /// The token goes no further than GitHub. Another host is somebody
+    /// else's, and Amazon refuses a signed address carrying an
+    /// Authorization header in any case -- two authorities where it
+    /// expects one.
+    @Test("The token is not carried to another host")
+    func dropsTheToken() {
+        let next = GitHubClient.following(
+            request("https://github-production-user-asset.s3.amazonaws.com/a.png"), from: github
+        )
+        #expect(next.value(forHTTPHeaderField: "Authorization") == nil)
+    }
+
+    @Test("A redirect that stays on GitHub keeps it")
+    func keepsItAtHome() {
+        let next = GitHubClient.following(
+            request("https://github.com/somewhere/else"), from: github
+        )
+        #expect(next.value(forHTTPHeaderField: "Authorization") == "Bearer secret")
+    }
+
+    /// GitHub answers with the address HTML-escaped, so every parameter
+    /// after the first arrives named `amp;X-Amz-Something` and the
+    /// signature covers a request nobody made.
+    @Test("The escaped ampersands are put back")
+    func unescapes() {
+        let next = GitHubClient.following(
+            request("https://s3.example.com/a.png?X-Amz-Date=1&amp;X-Amz-Signature=2"),
+            from: github
+        )
+        let address = next.url?.absoluteString ?? ""
+        #expect(address.contains("&X-Amz-Signature=2"))
+        #expect(!address.contains("amp;"))
+    }
+
+    @Test("An address with nothing wrong with it is passed on unchanged")
+    func leavesItAlone() {
+        let plain = "https://s3.example.com/a.png?one=1&two=2"
+        let next = GitHubClient.following(request(plain), from: github)
+        #expect(next.url?.absoluteString == plain)
+    }
+}
