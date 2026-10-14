@@ -56,6 +56,34 @@ struct ReviewThreadView: View {
                 }
 
                 if isOpen {
+                    // The code the remark was about, for a thread that
+                    // could only be put near its place rather than on it.
+                    // Without this the reader has no way to tell that the
+                    // line above is not the subject.
+                    let context = thread.context()
+                    if !context.isEmpty {
+                        VStack(alignment: .leading, spacing: 0) {
+                            ForEach(Array(context.enumerated()), id: \.offset) { index, line in
+                                Text(line)
+                                    .font(.system(size: 11).monospaced())
+                                    // The last line is the one the remark
+                                    // is on -- that is how GitHub cuts a
+                                    // hunk -- so it is the one to read.
+                                    .foregroundStyle(
+                                        index == context.count - 1
+                                            ? Color(nsColor: .labelColor)
+                                            : Color(nsColor: .secondaryLabelColor)
+                                    )
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+                        .padding(.vertical, 3)
+                        .padding(.horizontal, 5)
+                        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 4))
+                    }
+
                     // A hairline between replies, which the padding used
                     // to do on its own. Taking the padding out without
                     // putting something in its place ran one person's
@@ -107,10 +135,11 @@ private struct ReviewCommentView: View {
 
 /// The threads a patch cannot hold, gathered at the file's header.
 ///
-/// GitHub gives no line for a thread whose code has since been rewritten,
-/// and guessing one would put a remark beside code that was never its
-/// subject. Shut to begin with: they are history, and the file's own diff
-/// is what somebody opened it to read.
+/// Only the ones GitHub gives no number for in either file now. A thread
+/// whose code has since been rewritten keeps the line it was written
+/// against and stands there with its own few lines of code; these are the
+/// remainder, which have nothing to stand on at all. Shut to begin with:
+/// the file's own diff is what somebody opened it to read.
 struct OutdatedThreadsView: View {
     let threads: [ReviewThread]
     @StateObject private var disclosure = Disclosure()
@@ -135,7 +164,7 @@ struct OutdatedThreadsView: View {
             }
             .buttonStyle(.plain)
             .pointerStyle(.link)
-            .help("Written against code this file no longer has")
+            .help("Written against a line GitHub no longer finds, in either version")
 
             if isOpen {
                 ForEach(threads) { thread in
@@ -150,8 +179,8 @@ struct OutdatedThreadsView: View {
     private var label: String {
         let count = threads.count
         return count == 1
-            ? "1 comment on code that has since changed"
-            : "\(count) comments on code that has since changed"
+            ? "1 comment GitHub cannot place in this file"
+            : "\(count) comments GitHub cannot place in this file"
     }
 }
 

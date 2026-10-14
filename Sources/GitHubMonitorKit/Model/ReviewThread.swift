@@ -31,6 +31,23 @@ public struct ReviewThread: Identifiable, Hashable, Sendable {
     public let isOutdated: Bool
     public let comments: [IssueComment]
 
+    /// Where it was written, in the file as it stood then.
+    ///
+    /// GitHub keeps this after it has given up on `line`, which it does
+    /// once the code has moved. It is the only thing left that says where
+    /// in the file the remark belongs -- but it counts in a version of
+    /// the file this patch does not carry, so it places a thread roughly
+    /// and never exactly. See `hunk` for what makes up the difference.
+    public let originalLine: Int?
+
+    /// The few lines the remark was written against, as GitHub stored
+    /// them with the first comment.
+    ///
+    /// This is what lets an outdated thread stand anywhere at all: the
+    /// code it is about travels with it, so it does not matter that the
+    /// line beside it today is somebody else's.
+    public let hunk: String?
+
     public init(
         id: String,
         path: String,
@@ -38,7 +55,9 @@ public struct ReviewThread: Identifiable, Hashable, Sendable {
         side: Side,
         isResolved: Bool,
         isOutdated: Bool,
-        comments: [IssueComment]
+        comments: [IssueComment],
+        originalLine: Int? = nil,
+        hunk: String? = nil
     ) {
         self.id = id
         self.path = path
@@ -47,14 +66,42 @@ public struct ReviewThread: Identifiable, Hashable, Sendable {
         self.isResolved = isResolved
         self.isOutdated = isOutdated
         self.comments = comments
+        self.originalLine = originalLine
+        self.hunk = hunk
     }
 
-    /// Whether the diff can show it where it was written.
+    /// Whether the diff can show it at all.
     ///
-    /// A thread with no line has nowhere to go in the patch. Guessing at
-    /// the old number would put it beside whatever happens to be there now,
-    /// which is worse than admitting it floats.
-    public var isPlaceable: Bool { line != nil }
+    /// Either number will do. A thread with neither has nowhere to go and
+    /// is gathered at the file's header instead.
+    public var isPlaceable: Bool { line != nil || originalLine != nil }
+
+    /// Whether it has to be put somewhere near rather than somewhere
+    /// exact, which is also when its own lines of code are worth drawing.
+    public var isAdrift: Bool { line == nil && originalLine != nil }
+
+    /// The line to hang it on, whichever of the two is left.
+    public var anchorLine: Int? { line ?? originalLine }
+
+    /// The tail of the stored hunk: the lines just before the one the
+    /// remark is about, and that line last.
+    ///
+    /// The tail rather than the whole thing, because GitHub cuts a hunk
+    /// so that it ends on the line being commented on, and the start of
+    /// it can run thirty lines back. Four is enough to recognise the
+    /// place without turning a remark into a second diff.
+    public func context(limit: Int = 4) -> [String] {
+        guard let hunk, !hunk.isEmpty else { return [] }
+        let lines = hunk
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map(String.init)
+            // The @@ header says which lines these were in a file nobody
+            // is looking at any more, and it is the first thing to go
+            // when there is room for four lines and not five.
+            .filter { !$0.hasPrefix("@@") }
+        guard !lines.isEmpty else { return [] }
+        return Array(lines.suffix(limit))
+    }
 
     /// What the collapsed form says, for a thread that is resolved.
     public var summary: String {
@@ -70,14 +117,20 @@ public enum ReviewThreadPlacement {
     ///
     /// Unresolved first, because those are the ones asking for something;
     /// within each group by line, so they run down the file the way the
-    /// reader does. Outdated ones never reach the patch and are left out
-    /// here -- the file's header carries them.
+    /// reader does.
+    ///
+    /// Outdated ones are in here now. They used to be sent to the file's
+    /// header, which read as a pile of things nobody could place -- and
+    /// since a remark is usually resolved by changing the code, which is
+    /// what makes GitHub drop its line, that pile was most of the review.
+    /// They are placed by the line they were written against and carry
+    /// their own few lines of code to say what that line held.
     public static func placed(_ threads: [ReviewThread], in path: String) -> [ReviewThread] {
         threads
-            .filter { $0.path == path && $0.isPlaceable && !$0.isOutdated }
+            .filter { $0.path == path && $0.isPlaceable }
             .sorted {
                 $0.isResolved == $1.isResolved
-                    ? ($0.line ?? 0, $0.id) < ($1.line ?? 0, $1.id)
+                    ? ($0.anchorLine ?? 0, $0.id) < ($1.anchorLine ?? 0, $1.id)
                     : !$0.isResolved
             }
     }
@@ -95,7 +148,12 @@ public enum ReviewThreadPlacement {
     ) -> [ReviewThread] {
         let shown = lines(of: patch)
         return placed(threads, in: path).filter { thread in
-            guard let line = thread.line else { return false }
+            // One that still has a line of its own has to be on a line
+            // the patch carries. One adrift is put near rather than on,
+            // so all the patch has to have is somewhere to put it -- but
+            // it does have to have that, or the thread would be counted
+            // beside the diff and drawn nowhere.
+            guard let line = thread.line else { return thread.isAdrift && !shown.isEmpty }
             return shown.contains(ThreadLine(side: thread.side, number: line))
         }
     }
@@ -111,6 +169,37 @@ public enum ReviewThreadPlacement {
         return threads
             .filter { $0.path == path && !drawn.contains($0.id) }
             .sorted { ($0.line ?? 0, $0.id) < ($1.line ?? 0, $1.id) }
+    }
+
+    /// Where the threads go that GitHub no longer gives a line for.
+    ///
+    /// The row named is the last one at or before the line the remark was
+    /// written against, so it lands after the code it followed rather
+    /// than at the top of the file. Approximate on purpose: that number
+    /// counts in a version of the file this patch does not carry, and no
+    /// arithmetic will turn it into a line that is really here. What
+    /// makes it honest is that the thread brings its own lines of code
+    /// with it -- the reader is told what the remark was about rather
+    /// than left to assume it was about whatever is next to it.
+    ///
+    /// Before the first numbered row where it belongs above everything,
+    /// since a remark about line four of a file whose patch starts at
+    /// line ninety still belongs at the top of what is shown.
+    public static func near(
+        _ threads: [ReviewThread], over places: [DiffLineNumber]
+    ) -> [Int: [ReviewThread]] {
+        guard !places.isEmpty else { return [:] }
+        var anchors: [Int: [ReviewThread]] = [:]
+        for thread in threads where thread.isAdrift {
+            guard let wanted = thread.originalLine else { continue }
+            var landed: Int?
+            for (index, place) in places.enumerated() {
+                guard let number = thread.side == .new ? place.new : place.old else { continue }
+                if number <= wanted { landed = index }
+            }
+            anchors[landed ?? 0, default: []].append(thread)
+        }
+        return anchors
     }
 
     /// One line of one of the two files.
@@ -132,12 +221,13 @@ public enum ReviewThreadPlacement {
 
     /// The threads of one file that the patch cannot hold.
     ///
-    /// Outdated ones, and any GitHub declined to place. They are gathered
-    /// at the file's header instead: a remark about code that has since
-    /// been rewritten is often still the remark that mattered.
+    /// The ones GitHub gives no number for at all, in either file. They
+    /// are gathered at the file's header: a remark nobody can place is
+    /// still often the remark that mattered. Outdated ones no longer come
+    /// here -- they keep the line they were written against.
     public static func unplaceable(_ threads: [ReviewThread], in path: String) -> [ReviewThread] {
         threads
-            .filter { $0.path == path && ($0.isOutdated || !$0.isPlaceable) }
+            .filter { $0.path == path && !$0.isPlaceable }
             .sorted { ($0.line ?? 0, $0.id) < ($1.line ?? 0, $1.id) }
     }
 

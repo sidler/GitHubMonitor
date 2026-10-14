@@ -34,7 +34,10 @@ public enum ReviewThreadsQuery {
               isResolved
               isOutdated
               comments(first: \(commentLimit)) {
-                nodes { id createdAt body author { login avatarUrl } }
+                # The hunk only off the first one: every comment in a
+                # thread carries the same few lines, and they are the
+                # longest field in this document.
+                nodes { id createdAt body diffHunk author { login avatarUrl } }
               }
             }
           }
@@ -74,16 +77,20 @@ public enum ReviewThreadsQuery {
         return ReviewThread(
             id: id,
             path: path,
-            // `line` is where the thread is now; `originalLine` is where it
-            // was written. Only the first can be trusted to match the patch
-            // on screen -- the second belongs to whatever the file looked
-            // like then, and placing by it would put a remark beside code
-            // that was never its subject.
+            // `line` is where the thread is now; `originalLine` is where
+            // it was written. Only the first matches the patch on screen.
+            // The second is kept for the threads that have lost the first
+            // -- it places them near rather than on, and the hunk they
+            // carry is what keeps that honest: the reader is shown the
+            // code the remark was about instead of being left to assume
+            // it was about whatever ended up next to it.
             line: node["line"] as? Int,
             side: ReviewThread.Side(apiValue: node["diffSide"] as? String),
             isResolved: node["isResolved"] as? Bool ?? false,
             isOutdated: isOutdated,
-            comments: read
+            comments: read,
+            originalLine: node["originalLine"] as? Int,
+            hunk: comments.first?["diffHunk"] as? String
         )
     }
 }

@@ -537,7 +537,17 @@ public enum SampleData {
                         body: "This compared the ids as numbers, which made "
                             + "`0e123` equal to zero. Please keep them strings."
                     )
-                ]
+                ],
+                // The ordinary shape of an answered remark: the code was
+                // changed to settle it, which is exactly what makes
+                // GitHub drop the line and leave only the one it was
+                // written against -- and the stored hunk, which is what
+                // the diff now draws in its place.
+                originalLine: 20,
+                hunk: "@@ -28,7 +28,7 @@ final class SessionFilter\n"
+                    + "     public function matches(array $row): bool\n"
+                    + "     {\n"
+                    + "-        return $row['session_id'] == $this->id;"
             ),
         ]
     }

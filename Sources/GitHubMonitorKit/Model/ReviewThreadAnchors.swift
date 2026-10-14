@@ -20,6 +20,9 @@ public enum ReviewThreadAnchors {
             let here = ReviewThreadPlacement.on(place, from: threads)
             if !here.isEmpty { anchors[index] = here }
         }
+        for (index, adrift) in ReviewThreadPlacement.near(threads, over: numbers) {
+            anchors[index, default: []] += adrift
+        }
         return anchors
     }
 
@@ -31,8 +34,16 @@ public enum ReviewThreadAnchors {
         rows: [DiffSideRow], threads: [ReviewThread]
     ) -> [Int: [ReviewThread]] {
         var anchors: [Int: [ReviewThread]] = [:]
+        // One entry per row, so an index into this is an index into the
+        // rows -- including the ones that are not a pair, which carry no
+        // numbers and so can never be the nearest line to anything.
+        var places: [DiffLineNumber] = []
         for (index, row) in rows.enumerated() {
-            guard case .pair(let left, let right) = row else { continue }
+            guard case .pair(let left, let right) = row else {
+                places.append(.none)
+                continue
+            }
+            places.append(DiffLineNumber(old: left?.number, new: right?.number))
             var here = ReviewThreadPlacement.on(
                 DiffLineNumber(old: nil, new: right?.number), side: .new, from: threads
             )
@@ -40,6 +51,9 @@ public enum ReviewThreadAnchors {
                 DiffLineNumber(old: left?.number, new: nil), side: .old, from: threads
             )
             if !here.isEmpty { anchors[index] = here }
+        }
+        for (index, adrift) in ReviewThreadPlacement.near(threads, over: places) {
+            anchors[index, default: []] += adrift
         }
         return anchors
     }

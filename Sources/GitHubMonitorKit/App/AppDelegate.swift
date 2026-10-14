@@ -138,7 +138,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // at. In a real account the patch arrives only after a row is
         // inspected, so there this lands on whatever has been opened
         // already; the sample seeds it, which is the case this is for.
-        if devOption("GHM_DIFF") != nil {
+        if let wanted = devOption("GHM_DIFF") {
             Task { [weak self] in
                 for _ in 0..<60 {
                     guard let self else { return }
@@ -161,8 +161,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                         try? await Task.sleep(for: .milliseconds(600))
                         guard let item = state.allPullRequests.first(where: { $0.id == id })
                         else { return }
+                        // `--diff SessionFilter` opens that file; a bare
+                        // `--diff` opens whichever one carries the first
+                        // conversation.
                         let here = state.reviewThreads[id]?.first?.path
-                        let file = files.first { $0.path == here } ?? files[0]
+                        let file = files.first { $0.path.contains(wanted) }
+                            ?? files.first { $0.path == here }
+                            ?? files[0]
                         state.openedDiff = OpenedDiff(
                             pullRequestID: id, path: file.path, files: files, url: item.url
                         )

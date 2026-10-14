@@ -5,6 +5,22 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **A conversation about code that has since changed stands where it was
+  written.** It used to be swept into a pile under the file's name, and
+  since a remark is usually settled by changing the code — which is
+  exactly what makes GitHub drop the line it was on — that pile was most
+  of a finished review. Each one now sits at the line it was written
+  against, and brings the few lines it was about with it: the code as it
+  stood then, taken from what GitHub stored with the remark, with the
+  commented line darker than its neighbours.
+
+  Placed near rather than on, and the difference matters. The line a
+  thread remembers counts in a version of the file the diff no longer
+  carries, so no arithmetic turns it into a line that is really there —
+  it lands after the last line at or before it. Carrying its own code is
+  what makes that honest: nobody has to assume the remark was about
+  whatever ended up next to it. Only a thread GitHub gives no number for
+  in either version is still gathered at the file's header.
 - **A conversation in the diff takes the room it needs and no more.** Each
   one sat in a rounded box with ten points of padding on four sides, a
   twelve-point inset on top of that, and eight between every reply — so a

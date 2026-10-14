@@ -136,14 +136,36 @@ struct ReviewThreadPlacementTests {
         #expect(ReviewThreadPlacement.unplaceable(threads, in: "a.swift").map(\.id) == ["stale"])
     }
 
-    /// An outdated thread that GitHub still gives a line for is gathered
-    /// too: the line it names is in a version of the file nobody is looking
-    /// at, so placing it would put the remark beside unrelated code.
-    @Test("An outdated thread is gathered even when it has a line")
+    /// An outdated thread that GitHub still gives a line for is placed on
+    /// it like any other: outdated says the code moved, and a line GitHub
+    /// is still willing to name is one the patch can hold.
+    @Test("An outdated thread with a line is placed on it")
     func outdatedWithLine() {
         let threads = [thread("stale", line: 9, outdated: true)]
-        #expect(ReviewThreadPlacement.placed(threads, in: "a.swift").isEmpty)
-        #expect(ReviewThreadPlacement.unplaceable(threads, in: "a.swift").count == 1)
+        #expect(ReviewThreadPlacement.placed(threads, in: "a.swift").map(\.id) == ["stale"])
+        #expect(ReviewThreadPlacement.unplaceable(threads, in: "a.swift").isEmpty)
+    }
+
+    /// The common case: the remark was answered by changing the code, so
+    /// GitHub dropped the line and kept only the one it was written
+    /// against. It belongs in the file, not in a pile above it.
+    @Test("One with only an original line is still the file's")
+    func adrift() {
+        let stale = ReviewThread(
+            id: "stale", path: "a.swift", line: nil, side: .new,
+            isResolved: true, isOutdated: true,
+            comments: [
+                IssueComment(
+                    id: "c", author: "mira", avatarURL: nil, createdAt: .now, body: "here"
+                ),
+            ],
+            originalLine: 9
+        )
+        #expect(stale.isPlaceable)
+        #expect(stale.isAdrift)
+        #expect(stale.anchorLine == 9)
+        #expect(ReviewThreadPlacement.placed([stale], in: "a.swift").map(\.id) == ["stale"])
+        #expect(ReviewThreadPlacement.unplaceable([stale], in: "a.swift").isEmpty)
     }
 
     /// Counted by conversation, not by comment: five replies arguing one
@@ -310,13 +332,19 @@ struct StrandedThreadTests {
         )
     }
 
-    @Test("Outdated and unplaced ones are stranded as they always were")
+    /// Only the ones with no number at all are stranded now. An outdated
+    /// thread on a line the patch carries is drawn on it; one with just an
+    /// original line is drawn near it.
+    @Test("Only a conversation with no line at all is stranded")
     func outdatedAndUnplaced() {
         let threads = [thread("stale", line: 10, outdated: true), thread("nowhere", line: nil)]
-        #expect(ReviewThreadPlacement.placed(threads, in: "a.swift", patch: patch).isEmpty)
         #expect(
-            Set(ReviewThreadPlacement.stranded(threads, in: "a.swift", patch: patch).map(\.id))
-                == ["stale", "nowhere"]
+            ReviewThreadPlacement.placed(threads, in: "a.swift", patch: patch).map(\.id)
+                == ["stale"]
+        )
+        #expect(
+            ReviewThreadPlacement.stranded(threads, in: "a.swift", patch: patch).map(\.id)
+                == ["nowhere"]
         )
     }
 
@@ -387,5 +415,99 @@ struct ThreadTintTests {
             thread(resolved: false, outdated: true).tint,
         ]
         #expect(Set(tints).count == 3)
+    }
+}
+
+/// What happens to a conversation GitHub will no longer give a line for,
+/// which is most of the ones anybody ever answered: the code was changed,
+/// and changing it is what loses the line.
+@Suite("A conversation that has lost its line")
+struct AdriftThreadTests {
+    private func adrift(
+        _ id: String, originalLine: Int?, side: ReviewThread.Side = .new, hunk: String? = nil
+    ) -> ReviewThread {
+        ReviewThread(
+            id: id, path: "a.swift", line: nil, side: side,
+            isResolved: true, isOutdated: true,
+            comments: [
+                IssueComment(
+                    id: "c-\(id)", author: "mira", avatarURL: nil,
+                    createdAt: .now, body: "look here"
+                ),
+            ],
+            originalLine: originalLine,
+            hunk: hunk
+        )
+    }
+
+    private let rows = [
+        DiffLineNumber(old: nil, new: 4),
+        DiffLineNumber(old: nil, new: 8),
+        DiffLineNumber(old: nil, new: 12),
+    ]
+
+    @Test("It lands after the last line at or before the one it was written on")
+    func lands() {
+        let found = ReviewThreadPlacement.near([adrift("t", originalLine: 10)], over: rows)
+        #expect(found.keys.sorted() == [1])
+        #expect(found[1]?.map(\.id) == ["t"])
+    }
+
+    @Test("Exactly on a line it is still that line, not the one after")
+    func exactly() {
+        let found = ReviewThreadPlacement.near([adrift("t", originalLine: 8)], over: rows)
+        #expect(found.keys.sorted() == [1])
+    }
+
+    @Test("Written above everything the patch shows, it goes to the top")
+    func above() {
+        let found = ReviewThreadPlacement.near([adrift("t", originalLine: 2)], over: rows)
+        #expect(found.keys.sorted() == [0])
+    }
+
+    @Test("A remark on the old file is matched against the old numbers")
+    func otherSide() {
+        let places = [DiffLineNumber(old: 3, new: nil), DiffLineNumber(old: 9, new: nil)]
+        let found = ReviewThreadPlacement.near(
+            [adrift("t", originalLine: 20, side: .old)], over: places
+        )
+        #expect(found.keys.sorted() == [1])
+    }
+
+    @Test("A patch with no lines gets nothing put in it")
+    func nowhereToPutIt() {
+        #expect(ReviewThreadPlacement.near([adrift("t", originalLine: 5)], over: []).isEmpty)
+    }
+
+    @Test("One that still has a line of its own is not moved near anything")
+    func notAdrift() {
+        let onALine = ReviewThread(
+            id: "t", path: "a.swift", line: 8, side: .new,
+            isResolved: false, isOutdated: true,
+            comments: [
+                IssueComment(
+                    id: "c", author: "mira", avatarURL: nil, createdAt: .now, body: "x"
+                ),
+            ],
+            originalLine: 2
+        )
+        #expect(!onALine.isAdrift)
+        #expect(ReviewThreadPlacement.near([onALine], over: rows).isEmpty)
+    }
+
+    @Test("The code it carries is the tail of the hunk, without the header")
+    func context() {
+        let thread = adrift(
+            "t", originalLine: 9,
+            hunk: "@@ -1,6 +1,6 @@\n a\n b\n c\n-d\n+e"
+        )
+        #expect(thread.context() == [" b", " c", "-d", "+e"])
+        #expect(thread.context(limit: 2) == ["-d", "+e"])
+    }
+
+    @Test("No hunk, nothing to draw")
+    func noContext() {
+        #expect(adrift("t", originalLine: 9).context().isEmpty)
+        #expect(adrift("t", originalLine: 9, hunk: "").context().isEmpty)
     }
 }
