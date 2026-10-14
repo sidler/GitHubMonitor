@@ -15,7 +15,10 @@ struct PullRequestDetailView: View {
     var linked: LinkedPanelContext?
     /// Where to read this repository's labels and write a change. Nil
     /// leaves the labels as something to read.
-    var labelling: LabelEditing?
+    var labelling: PaneWriting?
+    /// Where to ask for a merge. The same thing `labelling` is; named
+    /// separately so a pane can be given one and not the other.
+    var writing: PaneWriting?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -120,6 +123,55 @@ struct PullRequestDetailView: View {
         .padding(14)
     }
 
+    /// The heaviest button in the app, and the only one that puts code
+    /// somewhere other people build from.
+    ///
+    /// What stands in the way is said rather than merely greying it out:
+    /// "Merge" with no explanation, refusing to be pressed, is a worse
+    /// answer than "its checks are still running".
+    @ViewBuilder
+    private func mergeButton(_ writing: PaneWriting) -> some View {
+        let blocker = MergeQuery.blocker(for: item)
+        let methods = writing.state.merging.methods(for: item.id)
+
+        Button {
+            Task { await writing.controller.askToMerge(item) }
+        } label: {
+            Label("Merge", systemImage: "arrow.triangle.merge")
+        }
+        .disabled(blocker != nil || writing.state.merging.isBusy)
+        .help(blocker ?? "Merge this pull request")
+        .confirmationDialog(
+            "Merge #\(item.number) into \(detailBase)?",
+            isPresented: Binding(
+                get: { writing.state.merging.isConfirming(item.id) },
+                set: { if !$0 { writing.controller.cancelMerge() } }
+            ),
+            titleVisibility: .visible
+        ) {
+            // One button per way this repository allows it. Where it
+            // allows only one there is only one, and the question is
+            // then a yes or no rather than a choice nobody has.
+            ForEach(methods, id: \.self) { method in
+                Button(methods.count == 1 ? method.action : method.label) {
+                    Task { await writing.controller.merge(item, using: method) }
+                }
+            }
+            Button("Cancel", role: .cancel) { writing.controller.cancelMerge() }
+        } message: {
+            Text("This cannot be undone from here.")
+        }
+    }
+
+    /// The branch it goes into, for the question. Empty until the detail
+    /// has arrived, which is before the button can be pressed anyway.
+    private var detailBase: String {
+        if case .loaded(let loaded) = detail, !loaded.baseBranch.isEmpty {
+            return loaded.baseBranch
+        }
+        return "its base branch"
+    }
+
     private var footer: some View {
         BottomBar {
             HStack {
@@ -129,6 +181,7 @@ struct PullRequestDetailView: View {
                     Label("Open on GitHub", systemImage: "arrow.up.forward.square")
                 }
                 Spacer()
+                if let writing { mergeButton(writing) }
                 Button(action: reload) {
                     Image(systemName: "arrow.clockwise")
                 }
@@ -186,6 +239,18 @@ struct PullRequestDetailView: View {
                                 .font(.caption)
                         }
                         .foregroundStyle(detail.mergeStatus.tint)
+                    }
+
+                    // Why a merge did not happen, where the merge button
+                    // is looked at. In the app's state rather than the
+                    // pane's, so it survives the rebuild that answering
+                    // GitHub causes.
+                    if let refusal = writing?.state.merging.message(for: item.id) {
+                        HStack(alignment: .firstTextBaseline, spacing: 5) {
+                            branchSymbol("exclamationmark.triangle")
+                            Text(refusal).font(.caption)
+                        }
+                        .foregroundStyle(Ink.orange)
                     }
                 }
             } header: {

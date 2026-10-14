@@ -274,6 +274,7 @@ public final class AppState {
 
     /// Where an approval stands, for the one pull request being approved.
     public var approval: ApprovalState = .idle
+    public var merging: MergeState = .idle
 
     /// The diff being read over the window, if any.
     public var openedDiff: OpenedDiff?
@@ -1206,5 +1207,54 @@ extension AppState {
     /// screen, so it cannot claim more than it shows.
     public func viewedCount(of files: [ChangedFile], in pullRequestID: String) -> Int {
         files.count { viewedState(of: $0.path, in: pullRequestID) == .viewed }
+    }
+}
+
+/// Where a merge stands, built like `ApprovalState` and for the same
+/// reason: every step rebuilds the pane, and a question that lived inside
+/// it would be thrown away by the very change meant to raise it.
+public enum MergeState: Equatable, Sendable {
+    case idle
+    /// Reading the pull request again, before anything is written.
+    case checking(pullRequestID: String)
+    /// The check passed and the question is on screen, with the ways this
+    /// repository allows it to be done.
+    case confirming(pullRequestID: String, methods: [MergeQuery.Method], commit: String)
+    case sending(pullRequestID: String)
+    /// Refused before it was sent, or rejected by GitHub. Either way
+    /// nothing was merged.
+    case failed(pullRequestID: String, message: String)
+
+    public var pullRequestID: String? {
+        switch self {
+        case .idle: nil
+        case .checking(let id), .sending(let id): id
+        case .confirming(let id, _, _): id
+        case .failed(let id, _): id
+        }
+    }
+
+    /// Whether something is in flight, which is when the button must not
+    /// be pressed a second time.
+    public var isBusy: Bool {
+        switch self {
+        case .checking, .sending: true
+        case .idle, .confirming, .failed: false
+        }
+    }
+
+    public func isConfirming(_ id: String) -> Bool {
+        if case .confirming(let mine, _, _) = self { return mine == id }
+        return false
+    }
+
+    public func methods(for id: String) -> [MergeQuery.Method] {
+        if case .confirming(let mine, let methods, _) = self, mine == id { return methods }
+        return []
+    }
+
+    public func message(for id: String) -> String? {
+        if case .failed(let mine, let message) = self, mine == id { return message }
+        return nil
     }
 }

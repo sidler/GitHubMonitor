@@ -273,6 +273,28 @@ public struct GitHubService: Sendable {
         )
     }
 
+    /// What GitHub says about a pull request right before it is merged.
+    public func mergeReadiness(of id: String) async throws -> MergeQuery.Readiness {
+        try MergeQuery.readiness(
+            from: try await client.graphQL(MergeQuery.readinessDocument, variables: ["id": id])
+        )
+    }
+
+    /// Merges it, bound to the commit that was read.
+    ///
+    /// `expectedHeadOid` is the whole point of passing a commit: GitHub
+    /// refuses the merge outright if the branch has moved, so a push
+    /// arriving between the question and the answer cannot be merged by
+    /// somebody who never saw it.
+    public func merge(
+        pullRequestID: String, method: MergeQuery.Method, expectedHead commit: String
+    ) async throws {
+        _ = try await client.graphQL(
+            MergeQuery.mergeDocument,
+            variables: ["id": pullRequestID, "commit": commit, "method": method.rawValue]
+        )
+    }
+
     /// One picture from a body, fetched with the account's token.
     ///
     /// `github.com/user-attachments/...` is not an API endpoint and is

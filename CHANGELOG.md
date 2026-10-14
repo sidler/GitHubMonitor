@@ -5,6 +5,18 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **A pull request can be merged from the pane.** One button, which
+  offers the ways the repository itself allows — one of them where it
+  allows one, a choice only where the team left it open. It asks before
+  it does anything, and says that it cannot be undone from here.
+
+  What is in the way stops the button before any request is made, and
+  says why rather than merely going grey: a conflict, checks that are
+  not green, nobody having approved it. Immediately before the question
+  it reads the pull request again, because somebody may have merged,
+  closed, or pushed to it since the last refresh — and the commit that
+  was read is the commit that is merged, so a push arriving in that
+  moment cannot be merged by somebody who never saw it.
 - **Pictures in a body are pictures.** An issue here often has a section
   whose entire content is a screenshot, and neither way of writing one
   was shown: the `<img>` tag GitHub's own uploader writes when a file is

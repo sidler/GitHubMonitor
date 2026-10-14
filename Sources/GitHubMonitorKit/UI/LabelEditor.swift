@@ -1,8 +1,12 @@
 import SwiftUI
 
-/// What a pane needs to change an item's labels. Nil leaves them as
-/// something to read.
-struct LabelEditing {
+/// What a pane needs to change anything: the state to read and the
+/// controller to ask. Nil leaves the pane a reader.
+///
+/// One of these rather than one per thing that can be written. Labels and
+/// merging both need exactly this, and a second struct with the same two
+/// fields would be two names for one idea.
+struct PaneWriting {
     let state: AppState
     let controller: RefreshController
 }
@@ -26,7 +30,7 @@ final class TypedText: ObservableObject {
 /// appear is what makes a picker feel broken; if GitHub refuses, the
 /// label goes back where it was, and the Requests tab has the refusal.
 struct LabelEditor<Row: View>: View {
-    let editing: LabelEditing
+    let editing: PaneWriting
     let repository: String
     let itemID: String
     let isPullRequest: Bool

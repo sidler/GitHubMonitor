@@ -12,7 +12,7 @@ struct IssueDetailView: View {
     var linked: LinkedPanelContext?
     /// Where to read this repository's labels and write a change. Nil
     /// leaves the labels as something to read.
-    var labelling: LabelEditing?
+    var labelling: PaneWriting?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {

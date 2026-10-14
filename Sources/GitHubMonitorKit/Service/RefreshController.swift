@@ -1199,6 +1199,89 @@ public final class RefreshController {
         loadLinksIfNeeded([reference])
     }
 
+    // MARK: - Merging
+
+    /// Reads the pull request again, and puts the question up if nothing
+    /// is in the way.
+    ///
+    /// The check comes before the question, as with approving: confirming
+    /// something that then turns out not to have happened is worse than a
+    /// moment's wait. It asks for more than the approval does because
+    /// more can have changed -- somebody may have merged it, closed it,
+    /// pushed to it, or broken it against its base since the last
+    /// refresh, and the repository's own rule about how it may be merged
+    /// is a setting rather than a fact.
+    public func askToMerge(_ item: PullRequestItem) async {
+        guard let service else {
+            state.merging = .failed(
+                pullRequestID: item.id,
+                message: GitHubError.noToken.localizedDescription
+            )
+            return
+        }
+        if let blocker = MergeQuery.blocker(for: item) {
+            state.merging = .failed(pullRequestID: item.id, message: blocker)
+            return
+        }
+
+        state.merging = .checking(pullRequestID: item.id)
+        do {
+            let readiness = try await service.mergeReadiness(of: item.id)
+            guard !Task.isCancelled else { return }
+            if let refusal = MergeQuery.refusal(
+                comparing: readiness, against: item.headCommit
+            ) {
+                state.merging = .failed(pullRequestID: item.id, message: refusal)
+                return
+            }
+            state.merging = .confirming(
+                pullRequestID: item.id,
+                methods: readiness.methods,
+                // The commit that was read is the commit that is merged.
+                commit: readiness.commit
+            )
+        } catch {
+            guard !Task.isCancelled else { return }
+            state.merging = .failed(pullRequestID: item.id, message: error.localizedDescription)
+        }
+    }
+
+    /// Puts the question away without merging anything.
+    public func cancelMerge() {
+        if case .confirming = state.merging { state.merging = .idle }
+    }
+
+    /// Merges it, the way that was chosen, at the commit that was read.
+    @discardableResult
+    public func merge(_ item: PullRequestItem, using method: MergeQuery.Method) async -> Bool {
+        guard case .confirming(let id, _, let commit) = state.merging, id == item.id else {
+            return false
+        }
+        guard let service else {
+            state.merging = .failed(
+                pullRequestID: item.id,
+                message: GitHubError.noToken.localizedDescription
+            )
+            return false
+        }
+
+        state.merging = .sending(pullRequestID: item.id)
+        do {
+            try await service.merge(
+                pullRequestID: item.id, method: method, expectedHead: commit
+            )
+            state.merging = .idle
+            // What the lists say about it is now wrong in a way nobody
+            // should have to wait out: it is merged, and the row that
+            // says "waiting on you" is about work that is finished.
+            await refresh()
+            return true
+        } catch {
+            state.merging = .failed(pullRequestID: item.id, message: error.localizedDescription)
+            return false
+        }
+    }
+
     // MARK: - Approving
 
     /// Looks at the head commit, and puts the question up if it still

@@ -870,7 +870,7 @@ struct InspectorColumn: View {
                 reload: { controller.reloadIssueDetail(for: item.id) },
                 close: { controller.closeInspector() },
                 linked: LinkedPanelContext(state: state, controller: controller),
-                labelling: LabelEditing(state: state, controller: controller)
+                labelling: PaneWriting(state: state, controller: controller)
             )
         } else if case .dashboard = state.sidebarSelection, let detail = state.inspectedWorkload {
             WorkloadDetailView(
@@ -896,7 +896,8 @@ struct InspectorColumn: View {
                     )
                 },
                 linked: LinkedPanelContext(state: state, controller: controller),
-                labelling: LabelEditing(state: state, controller: controller)
+                labelling: PaneWriting(state: state, controller: controller),
+                writing: PaneWriting(state: state, controller: controller)
             )
         } else {
             // Kept in the hierarchy while the pane is closing, so nothing is
