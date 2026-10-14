@@ -118,7 +118,7 @@ struct TrendsView: View {
                 if let reason = data.truncationReason {
                     Label(reason, systemImage: "exclamationmark.triangle")
                         .font(.caption)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Ink.orange)
                 }
 
                 ForEach(TrendMetric.allCases, id: \.self) { metric in

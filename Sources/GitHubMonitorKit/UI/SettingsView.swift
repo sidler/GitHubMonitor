@@ -29,6 +29,10 @@ struct SettingsView: View {
             GeneralSettingsView(state: state, settings: state.settings, controller: controller)
                 .tabItem { Label("General", systemImage: "gearshape") }
                 .tag(SettingsTab.general)
+
+            RequestsSettingsView(state: state)
+                .tabItem { Label("Requests", systemImage: "arrow.up.arrow.down.circle") }
+                .tag(SettingsTab.requests)
         }
         .padding(.top, 8)
     }
@@ -67,7 +71,7 @@ private struct FilterSettingsView: View {
                         systemImage: "exclamationmark.triangle"
                     )
                     .font(.caption)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Ink.orange)
                 }
             }
         }
@@ -239,7 +243,7 @@ private struct GeneralSettingsView: View {
                 if let message = loginItem.message {
                     Label(message, systemImage: "info.circle")
                         .font(.caption)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Ink.orange)
                 }
 
                 Text("The login item points at the app's current location, so moving the app afterwards breaks it.")
@@ -258,7 +262,7 @@ private struct GeneralSettingsView: View {
                 HStack(spacing: 8) {
                     Text(verbatim: "\(budget.remaining) of \(budget.limit)")
                         .monospacedDigit()
-                        .foregroundStyle(budget.isLow ? Color.orange : Color(nsColor: .labelColor))
+                        .foregroundStyle(budget.isLow ? Ink.orange : Color(nsColor: .labelColor))
                     if let reset = budget.resetAt {
                         Text("resets \(RelativeTime.clock(reset))")
                             .foregroundStyle(.secondary)

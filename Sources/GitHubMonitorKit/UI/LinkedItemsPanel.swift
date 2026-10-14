@@ -188,7 +188,7 @@ private struct LinkedRow: View {
             HStack(spacing: 7) {
                 Label(message, systemImage: "exclamationmark.triangle")
                     .font(.caption)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Ink.orange)
                     .lineLimit(2)
                 Button("Try again") { controller.reloadLink(link.reference) }
                     .buttonStyle(.accessoryBar)
@@ -282,8 +282,8 @@ private struct LinkedSummaryCard: View {
                     .help(checks.label)
             }
             if let additions = summary.additions, let deletions = summary.deletions {
-                Text(verbatim: "+\(additions)").foregroundStyle(.green).monospacedDigit()
-                Text(verbatim: "\u{2212}\(deletions)").foregroundStyle(.red).monospacedDigit()
+                Text(verbatim: "+\(additions)").foregroundStyle(Ink.green).monospacedDigit()
+                Text(verbatim: "\u{2212}\(deletions)").foregroundStyle(Ink.red).monospacedDigit()
             }
             Spacer(minLength: 0)
         }

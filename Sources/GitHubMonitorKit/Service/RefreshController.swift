@@ -76,7 +76,7 @@ public final class RefreshController {
     }
 
     private func adopt(token: String) {
-        service = GitHubService(token: token)
+        service = GitHubService(token: token, watch: watching())
         state.hasToken = true
     }
 
@@ -118,6 +118,17 @@ public final class RefreshController {
         accountTasks[id] = Task { [weak self] in
             await work()
             self?.accountTasks[id] = nil
+        }
+    }
+
+    /// Hands every answer from GitHub to the log the Requests tab reads.
+    ///
+    /// A hop to the main actor per request, which is nothing beside the
+    /// request itself, and it means the client stays as it was: it knows
+    /// nothing about the app's state, only that somebody wants telling.
+    private func watching() -> @Sendable (RequestRecord) -> Void {
+        { [state] record in
+            Task { @MainActor in state.requests.add(record) }
         }
     }
 

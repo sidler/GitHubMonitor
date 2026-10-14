@@ -3,6 +3,84 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
+## Unreleased
+
+- **A gateway error is asked again before it is believed.** GitHub ends
+  any request that runs past ten seconds with a 502 or a 504, which is a
+  statement about that moment rather than about the request — and the app
+  took it as final. One of them at startup left every list empty until the
+  next refresh, which is up to half an hour away. Now a read is sent again
+  after a second, and once more after three, before the error stands.
+
+  Only requests that change nothing: a 502 says the gateway got no answer,
+  not that nothing happened behind it, and a second send of an approval is
+  a second approval. Reads and queries are repeated, mutations and writes
+  are not. Every attempt appears in the Requests tab, including the ones
+  that were followed by another — a log showing only the answer that
+  worked would say the gateway had been fine.
+- **The first page of each list is smaller.** Every list asks for its
+  first page in the same request, at the same moment, with nothing cached
+  behind it, and each row carries its checks, its reviewers and its
+  timeline. A hundred rows per list was what pushed that one request past
+  GitHub's ten seconds. It asks for thirty now, which is already more than
+  a window shows; the pages after it still ask for a hundred and still run
+  to the same cap, and the counts beside a list come from GitHub's own
+  total, which never cared how many rows were fetched.
+- **The detail pane can be dragged as wide as there is room for.** It had
+  a ceiling of four hundred points — a guess about how much anybody would
+  want, which is not a thing to guess about. An inspector pane in AppKit
+  is fixed at one width unless both ends are said out loud, so taking the
+  ceiling away had left it pinned rather than free. The drag now stops
+  where the list beside it needs the room, and nowhere earlier. Four
+  hundred is still where it opens, and now also as narrow as it goes.
+- **Settings has a Requests tab.** Every request to GitHub and what came
+  back: when, which call, the status, how long it took, what the hourly
+  allowance had left, and — where something went wrong — what GitHub
+  actually said. A 502's body names the part of GitHub that failed, and
+  that body was being thrown away with the error. The successes are kept
+  as well, because a log holding only the failures cannot say whether
+  anything was working in between, which is the first question about an
+  intermittent one. There is a filter for the refusals alone and a button
+  that copies the lot as text.
+
+  All GraphQL calls post to the same path, so each is named by the field
+  its query asks for — `graphql search`, `graphql repository` — which is
+  enough to tell one from another and carries no values. The last few
+  hundred, in memory only: nothing is written to disk.
+- **The files in the pull request pane are in the order the diff reads
+  them in.** They were sorted biggest first, on the reasoning that in a
+  narrow pane the useful question is where the work is — but that list is
+  a way into the diff, each row opens it at that file, and the tree
+  beside the diff is in path order. The two disagreed about what came
+  after what. A list you navigate by has to match the thing it navigates.
+- A file in the pull request pane takes a quiet ground under the pointer,
+  alongside the chevron that was already there.
+- The three numbers a row reports about its reviewers — approvals,
+  objections, awaited — were the last palette still on the system's own
+  colours, and the green was light enough to show it. Five palettes, and
+  the sweep that fixed four read past the file holding the fifth.
+- **The last of the colours that were still the system's own.** The
+  checks and the reviewers in the pull request pane kept a second copy of
+  the palette, written out beside the view that used it, and it had
+  drifted: a green tick there stayed on the system's green at 2.2 to one
+  while the same tick in a row had already been weighted. That copy is
+  gone, and so are thirty other places that reached for `.green`, `.red`
+  or `.orange` directly — a warning triangle, a rate-limit figure, the
+  `+5 −2` beside a file, the tick that says a number was copied. The
+  colours a review state is drawn in now live beside the legend that
+  explains them, like every other palette.
+
+  The bands behind a diff's changed lines and the colours of a chart's
+  series are left as they are: one is the ground the palette was measured
+  against, the other is read by comparing one line with another rather
+  than against the page.
+- **Cmd+Q puts the window away rather than ending the app.** This one
+  lives in the menu bar, where its job is to keep watching after you have
+  finished looking — and Cmd+Q is the keystroke most people press to
+  clear a window off the screen, not a decision to stop the thing
+  running. Quitting is Cmd+Option+Q, still in the app menu where anybody
+  would look for it, and still the Quit button in the menu bar's popover.
+
 ## 1.7.0
 
 - **The detail pane counts the remarks on the diff.** It said "0 comments"

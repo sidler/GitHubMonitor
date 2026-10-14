@@ -255,7 +255,7 @@ struct NotificationDetailView: View {
         case .failed(let message):
             Label(message, systemImage: "exclamationmark.triangle")
                 .font(.callout)
-                .foregroundStyle(.orange)
+                .foregroundStyle(Ink.orange)
         }
     }
 

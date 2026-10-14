@@ -37,7 +37,7 @@ struct ItemNumberLabel: View {
                     Image(systemName: copied.isOn ? "checkmark" : "doc.on.doc")
                         .font(.caption2)
                         .foregroundStyle(
-                            copied.isOn ? AnyShapeStyle(.green) : AnyShapeStyle(.tertiary)
+                            copied.isOn ? AnyShapeStyle(Ink.green) : AnyShapeStyle(.tertiary)
                         )
                 }
                 .contentShape(Rectangle())

@@ -31,7 +31,7 @@ struct IssueDetailView: View {
                     case .failed(let message):
                         VStack(alignment: .leading, spacing: 8) {
                             Label(message, systemImage: "exclamationmark.triangle")
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(Ink.orange)
                                 .font(.callout)
                             Button("Try again", action: reload)
                                 .controlSize(.small)

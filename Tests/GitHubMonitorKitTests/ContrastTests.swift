@@ -85,6 +85,12 @@ struct ContrastTests {
         for status in ChecksStatus.allCases {
             result.append(("checks.\(status)", status.tint))
         }
+        for state in ReviewState.allCases {
+            result.append(("reviewer.\(state)", state.tint))
+        }
+        for kind in ReviewTallyKind.allCases {
+            result.append(("tally.\(kind.rawValue)", kind.tint))
+        }
         for state: LinkedSummary.State in [.open, .draft, .merged, .closed, .notPlanned] {
             result.append(("link.\(state)", state.tint))
         }

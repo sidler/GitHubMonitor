@@ -91,11 +91,24 @@ enum AppMenu {
         )
         menu.addItem(.separator())
 
+        // Command-Q puts the window away; it does not end the app. This
+        // one lives in the menu bar, where its whole job is to keep
+        // watching after you have finished looking -- and the keystroke
+        // every Mac user presses to clear a window off the screen should
+        // not also stop it doing that. Quitting is still here, a modifier
+        // further, and in the menu bar's own popover.
         menu.addItem(
+            withTitle: "Close Window",
+            action: #selector(NSWindow.performClose(_:)),
+            keyEquivalent: "q"
+        )
+
+        let quit = menu.addItem(
             withTitle: "Quit \(appName)",
             action: #selector(NSApplication.terminate(_:)),
             keyEquivalent: "q"
         )
+        quit.keyEquivalentModifierMask = [.command, .option]
 
         item.submenu = menu
         return item

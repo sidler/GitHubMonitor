@@ -22,26 +22,35 @@ struct ChangedFilesTests {
     /// In a narrow pane the useful question is where the work is, so the
     /// file with four hundred changed lines does not make anyone scroll.
     ///
-    /// Ordered as the service orders it -- over the whole set rather than
-    /// page by page, or the second page would start over at the largest.
-    @Test("The biggest change comes first")
+    /// By path, not by size: the list in the pane is a way into the diff,
+    /// and the tree beside the diff is in path order. A list you navigate
+    /// by has to match the thing it navigates.
+    ///
+    /// Ordered over the whole set rather than page by page, or the second
+    /// page would start over at the top of the alphabet.
+    @Test("Files come in path order, whatever their size")
     func order() throws {
         let files = try ChangedFilesQuery.ordered(ChangedFilesQuery.files(from: payload([
-            file("small.php", additions: 1, deletions: 0),
-            file("huge.php", additions: 300, deletions: 100),
-            file("middle.php", additions: 10, deletions: 10),
+            file("src/small.php", additions: 1, deletions: 0),
+            file("README.md", additions: 300, deletions: 100),
+            file("src/Filter/middle.php", additions: 10, deletions: 10),
         ])))
-        #expect(files.map(\.path) == ["huge.php", "middle.php", "small.php"])
-        #expect(files.first?.changedLines == 400)
+        #expect(files.map(\.path) == ["README.md", "src/Filter/middle.php", "src/small.php"])
     }
 
-    @Test("Files of equal size are ordered by path")
-    func tie() throws {
-        let files = try ChangedFilesQuery.ordered(ChangedFilesQuery.files(from: payload([
-            file("b.php", additions: 2, deletions: 0),
-            file("a.php", additions: 1, deletions: 1),
-        ])))
-        #expect(files.map(\.path) == ["a.php", "b.php"])
+    /// The same order the tree beside the diff puts them in, so the two
+    /// cannot drift apart.
+    @Test("It is the order the diff itself uses")
+    func matchesTheDiff() throws {
+        let read = try ChangedFilesQuery.files(from: payload([
+            file("b/x.php", additions: 2, deletions: 0),
+            file("a/y.php", additions: 400, deletions: 1),
+            file("a/x.php", additions: 1, deletions: 1),
+        ]))
+        #expect(
+            ChangedFilesQuery.ordered(read).map(\.path)
+                == OpenedDiff.alphabetical(read).map(\.path)
+        )
     }
 
     /// GitHub sends no patch for a binary file or one it judged too large.

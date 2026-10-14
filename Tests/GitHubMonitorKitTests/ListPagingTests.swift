@@ -31,11 +31,24 @@ struct ListPagingTests {
     }
 
     /// The whole point: a queue of a hundred and nine used to arrive as
-    /// fifty, and the badge counted the fifty.
-    @Test("A search asks for a hundred at a time")
+    /// fifty, and the badge counted the fifty. The first page is smaller
+    /// again now -- it is the one every list asks for at once, and the
+    /// one that ran into GitHub's ten seconds -- so what this guards is
+    /// no longer one number but the shape: a small first page, full ones
+    /// after it, and nothing that stops before the cap.
+    @Test("The first page is small, every page after it is a hundred")
     func pageSize() {
         #expect(ListQuery.pageSize == 100)
-        #expect(ListQuery.document([reviews]).contains("first: 100"))
+        #expect(ListQuery.firstPageSize < ListQuery.pageSize)
+
+        let first = ListQuery.document([reviews])
+        #expect(first.contains("first: \(ListQuery.firstPageSize)"))
+        #expect(!first.contains("first: 100"))
+
+        // A cursor means this list is past its first page, and from there
+        // it asks for as much as GitHub will give.
+        let next = ListQuery.document([reviews], cursors: [0: "abc"])
+        #expect(next.contains("first: 100"))
     }
 
     @Test("A cursor is carried into the next request, and only where given")

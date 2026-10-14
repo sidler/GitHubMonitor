@@ -22,7 +22,7 @@ public struct CheckRun: Identifiable, Hashable, Sendable {
 }
 
 /// Where a reviewer stands.
-public enum ReviewState: String, Hashable, Sendable {
+public enum ReviewState: String, Hashable, Sendable, CaseIterable {
     case approved
     case changesRequested
     case commented

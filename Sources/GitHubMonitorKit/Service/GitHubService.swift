@@ -23,8 +23,12 @@ public struct NotificationFetch: Sendable {
 public struct GitHubService: Sendable {
     private let client: GitHubClient
 
-    public init(token: String, session: URLSession = .shared) {
-        client = GitHubClient(token: token, session: session)
+    public init(
+        token: String,
+        session: URLSession = .shared,
+        watch: (@Sendable (RequestRecord) -> Void)? = nil
+    ) {
+        client = GitHubClient(token: token, session: session, watch: watch)
     }
 
     /// Confirms the token works and reports who it belongs to and what it may
@@ -482,7 +486,14 @@ public struct GitHubService: Sendable {
         var stoppedAtCap: Set<String> = []
         // A page that reports another page while yielding no new rows would
         // otherwise keep this going; the cap counts rows, not requests.
-        var roundsLeft = ListQuery.maximumItems / ListQuery.pageSize + 1
+        //
+        // Counted rather than written down, because the first page is
+        // smaller than the ones after it: one round for it, then as many
+        // full pages as the cap still has room for.
+        var roundsLeft = 1 + {
+            let afterFirst = max(0, ListQuery.maximumItems - ListQuery.firstPageSize)
+            return (afterFirst + ListQuery.pageSize - 1) / ListQuery.pageSize
+        }()
 
         while !round.isEmpty, roundsLeft > 0 {
             roundsLeft -= 1

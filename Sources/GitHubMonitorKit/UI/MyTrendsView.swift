@@ -127,7 +127,7 @@ struct MyTrendsView: View {
                 if let reason = data.truncationReason {
                     Label(reason, systemImage: "exclamationmark.triangle")
                         .font(.caption)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Ink.orange)
                 }
 
                 ForEach(MyTrendMetric.allCases, id: \.self) { metric in
@@ -418,7 +418,7 @@ struct MyTrendsView: View {
         case .failed(let message):
             Label(message, systemImage: "exclamationmark.triangle")
                 .font(.callout)
-                .foregroundStyle(.orange)
+                .foregroundStyle(Ink.orange)
                 .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
         case .loading(nil):
             HStack(spacing: 8) {
@@ -441,7 +441,7 @@ struct MyTrendsView: View {
                 if let reason = data.truncationReason {
                     Label(reason, systemImage: "exclamationmark.triangle")
                         .font(.caption)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Ink.orange)
                 }
                 ranking(Array(
                     data.ranking(includingBots: state.settings.trendsIncludeBots)

@@ -188,7 +188,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     /// ground belongs to the system, so clicking beside it does nothing --
     /// and clicking beside something that covers what you were reading is
     /// the ordinary way to put it away. Over the split rather than inside
-    /// the detail pane, because the pane is 400 points wide.
+    /// the detail pane, which is narrow and can be dragged narrower.
     private func syncDiffOverlay() {
         guard let split = splitViewController?.view else { return }
 
@@ -574,8 +574,33 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             rootView: InspectorColumn(state: state, controller: controller)
         )
         let newItem = NSSplitViewItem(inspectorWithViewController: hosting)
-        newItem.minimumThickness = 280
-        newItem.maximumThickness = 400
+        // A floor but no ceiling. The pane holds a description, a
+        // conversation and a list of files, all of which read better
+        // wider, and on a large screen there is room to spare -- the cap
+        // of four hundred points was a guess about how much anybody would
+        // want, which is not a thing to guess about. The drag stops on its
+        // own when the content column reaches its own minimum.
+        //
+        // Both ends have to be said out loud. An inspector item arrives
+        // with its thickness fixed and, in AppKit's own words, is "not
+        // resizable by default": leaving the maximum alone does not mean
+        // no maximum, it means the 270 it came with. Dropping the line
+        // that said 400 therefore made the pane narrower-minded, not
+        // wider -- a maximum below the minimum is a pane nailed to one
+        // width. Unspecified is what no ceiling is actually called.
+        //
+        // The floor is where the pane opens, since nothing else now says
+        // how wide it should start: four hundred, the width it has always
+        // had. It is also as narrow as it goes, which is the one thing
+        // this trade costs.
+        newItem.minimumThickness = 400
+        newItem.maximumThickness = NSSplitViewItem.unspecifiedDimension
+        // The pane is put up and taken away by the app -- the item is
+        // added when a row is inspected and removed when none is -- so it
+        // should not also shut under the pointer. That would be a second
+        // state the rest of the code knows nothing about. The drag stops
+        // where the content column needs the room instead.
+        newItem.canCollapse = false
         split.addSplitViewItem(newItem)
         inspectorItem = newItem
         syncInspectorSeparator()

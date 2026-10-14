@@ -33,6 +33,7 @@ public enum SettingsTab: String, Hashable, CaseIterable, Sendable {
     case lists
     case filters
     case general
+    case requests
 }
 
 /// A pull request's diff, open over the window.
@@ -199,6 +200,12 @@ public final class AppState {
     /// Empty rather than missing once asked for, so a failed request is not
     /// retried on every redraw.
     public var reviewThreads: [String: [ReviewThread]] = [:]
+
+    /// Every request to GitHub and what came back, for the Requests tab
+    /// in Settings. Held in memory only: it answers "what is happening
+    /// now", and a log that outlived the question would be a file nobody
+    /// asked for carrying somebody's repository names.
+    public var requests = RequestLog()
     /// The conversation behind a notification, fetched when its pane opens.
     /// A mention lives in a comment, so the pane needs more than the one
     /// message the notification points at.
@@ -690,11 +697,18 @@ public final class AppState {
         listIssues[SavedList.Seed.issues] = SampleData.issues()
 
         pullRequestDetails["pr-482"] = .loaded(SampleData.detail())
-        changedFiles["pr-482"] = .loaded(SampleData.changedFiles())
+        // Through the same ordering the service applies, so the sample
+        // shows the order a real review would and not the order these
+        // happen to be written in.
+        changedFiles["pr-482"] = .loaded(
+            ChangedFilesQuery.ordered(SampleData.changedFiles())
+        )
         linkedSummaries = SampleData.linkedSummaries()
         viewedFiles["pr-482"] = SampleData.viewedFiles()
         reviewThreads["pr-482"] = SampleData.reviewThreads()
-        if isBigSample { changedFiles["pr-482"] = .loaded(SampleData.largeDiff()) }
+        if isBigSample {
+            changedFiles["pr-482"] = .loaded(ChangedFilesQuery.ordered(SampleData.largeDiff()))
+        }
 
         notifications = [
             NotificationItem(
@@ -754,7 +768,7 @@ public final class AppState {
         )
         // One small patch, shown without asking, and one large enough to
         // stay folded -- both sides of the rule the pane follows.
-        changedFiles["1"] = .loaded([
+        changedFiles["1"] = .loaded(ChangedFilesQuery.ordered([
             ChangedFile(
                 path: "core/module_system/src/Session/SessionHandler.php",
                 additions: 6, deletions: 2, change: .modified,
@@ -798,7 +812,7 @@ public final class AppState {
                 additions: 140, deletions: 60, change: .modified,
                 patch: "@@ -1,200 +1,280 @@\n" + Array(repeating: "+        $this->assertTrue(true);", count: 40).joined(separator: "\n")
             ),
-        ])
+        ]))
         pullRequestDetails["3"] = .loaded(
             PullRequestDetail(
                 headBranch: "chore/php-8.4",
@@ -897,6 +911,31 @@ public final class AppState {
                 totalComments: 7
             )
         )
+
+        // A few minutes of asking, including the run of gateway errors the
+        // Requests tab exists for: one call failing while the others are
+        // answered is exactly the shape that is hard to see otherwise.
+        requests = RequestLog()
+        let asked: [(Double, String, String?, RequestRecord.Outcome, Double, Int?, String?)] = [
+            (-8, "/graphql", "graphql search", .answered(status: 200), 0.412, 4_982, nil),
+            (-7, "/notifications", nil, .answered(status: 304), 0.088, 4_981, nil),
+            (-6, "/graphql", "graphql repository", .answered(status: 502), 2.140, nil,
+             "Our services aren't available right now. We're working to restore all services as soon as possible."),
+            (-5, "/graphql", "graphql repository", .answered(status: 503), 1.880, nil,
+             "No server is available to handle this request."),
+            (-4, "/graphql", "graphql repository", .answered(status: 200), 0.624, 4_979, nil),
+            (-3, "/repos/octo/server/pulls/482/files", nil, .failed("The request timed out."), 30.0, nil, nil),
+            (-2, "/repos/octo/server/pulls/482/files", nil, .answered(status: 200), 0.733, 4_977, nil),
+            (-1, "/graphql", "graphql viewer", .answered(status: 200), 0.206, 4_976, nil),
+        ]
+        for (minutes, path, operation, outcome, duration, remaining, body) in asked {
+            requests.add(RequestRecord(
+                startedAt: .now.addingTimeInterval(minutes * 60),
+                method: path == "/graphql" ? "POST" : "GET",
+                path: path, operation: operation, outcome: outcome,
+                duration: duration, bytes: 4_210, remaining: remaining, body: body
+            ))
+        }
 
         // Show one preview open, so the expanded layout is exercised too.
         // Written as the real ones are -- a bot's table, a details wrapper,

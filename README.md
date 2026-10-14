@@ -285,7 +285,7 @@ popover tells you what to do.
 
 ## Configuration
 
-Settings are split into four tabs.
+Settings are split into five tabs.
 
 **Account** — the token, and the teams whose review requests count as yours
 (loadable as a checklist from your memberships).
@@ -313,11 +313,30 @@ file and read back, with a confirmation naming what an import would replace.
 | GitHub's hourly budget | What is left of each allowance, and when it resets |
 | Launch at login | Register the app as a login item. The entry points at the app's current location, so moving it afterwards breaks it. |
 
+**Requests**
+
+Every request to GitHub and what came back: when, which call, the status,
+how long it took, what the hourly allowance had left, and — where something
+went wrong — what GitHub actually said. The successes are there as well,
+because a log holding only the failures cannot say whether anything was
+working in between, which is the first question about an intermittent one.
+Copy puts the whole thing on the clipboard as text.
+
+The last few hundred, in memory only. Nothing is written to disk: this
+answers what is happening now, and a file outliving that question would
+carry your repository names around for nobody's benefit.
+
 While the main window is open the app behaves as an ordinary application: it
 appears in the Dock and the app switcher and shows a menu bar with the usual
 shortcuts (Cmd+, for settings, Cmd+R to refresh, Cmd+W to close, and
 Cmd+Option+arrows to move the detail pane down the list). Closing the window
 returns it to a menu bar agent with no Dock icon.
+
+Cmd+Q closes the window too, rather than ending the app. This one lives in
+the menu bar, where its job is to keep watching after you have finished
+looking, and Cmd+Q is the keystroke most people press to clear a window off
+the screen. Quitting is Cmd+Option+Q, and the Quit button in the menu bar's
+own popover.
 
 ## The sample content
 

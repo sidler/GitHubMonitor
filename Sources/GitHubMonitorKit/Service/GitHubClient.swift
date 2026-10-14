@@ -66,10 +66,26 @@ public enum GitHubError: Error, LocalizedError, Equatable {
 public struct GitHubClient: Sendable {
     private let token: String
     private let session: URLSession
+    /// Told about every request and what came back, so a run of gateway
+    /// errors can be looked at rather than guessed at. Set by whoever
+    /// builds the client; nil leaves the client as it was.
+    private let watch: (@Sendable (RequestRecord) -> Void)?
+    /// How long to wait before each further attempt. A property rather
+    /// than the constant itself because it is policy, not law -- and
+    /// because a test for the retrying should not take four seconds to
+    /// find out that it works.
+    private let retryDelays: [Duration]
 
-    public init(token: String, session: URLSession = .shared) {
+    public init(
+        token: String,
+        session: URLSession = .shared,
+        watch: (@Sendable (RequestRecord) -> Void)? = nil,
+        retryDelays: [Duration] = GitHubClient.defaultRetryDelays
+    ) {
+        self.watch = watch
         self.token = token
         self.session = session
+        self.retryDelays = retryDelays
     }
 
     // MARK: - Requests
@@ -138,6 +154,54 @@ public struct GitHubClient: Sendable {
 
     // MARK: - Plumbing
 
+    /// The statuses worth sending again.
+    ///
+    /// All three say the same thing: the gateway did not get an answer
+    /// from what is behind it. That is a statement about this moment, not
+    /// about the request -- unlike a 401 or a 422, which will say the
+    /// same thing however often they are asked.
+    static let retryStatuses: Set<Int> = [502, 503, 504]
+
+    /// How long to wait before each further attempt, and by its length,
+    /// how many there are.
+    ///
+    /// Two, not five. GitHub ends any request that runs past ten seconds
+    /// with a 502 or a 504, and since July 2025 a request that timed out
+    /// also draws extra points from the hour's allowance -- so sending
+    /// the same expensive query over and over is paid for twice and
+    /// likely to time out again at the same place. These two cover the
+    /// gateway that was merely having a moment; past that the error is
+    /// the honest answer.
+    public static let defaultRetryDelays: [Duration] = [.seconds(1), .seconds(3)]
+
+    /// Whether sending this request again could only repeat work, never
+    /// double it.
+    ///
+    /// A 502 says the gateway got no answer, not that nothing happened
+    /// behind it. Approving a pull request twice leaves two approvals, so
+    /// only requests that change nothing are sent again: reads, and the
+    /// GraphQL documents that are not mutations.
+    static func isRepeatable(_ request: URLRequest) -> Bool {
+        switch request.httpMethod ?? "GET" {
+        case "GET":
+            return true
+        case "POST":
+            // Everything the app posts goes to /graphql; anything else
+            // arriving here is new and should opt in deliberately.
+            guard request.url?.path.hasSuffix("/graphql") == true else { return false }
+            guard
+                let body = request.httpBody,
+                let root = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
+                let query = root["query"] as? String
+            else { return false }
+            return !query
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .hasPrefix("mutation")
+        default:
+            return false
+        }
+    }
+
     private func perform(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         var request = request
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -145,17 +209,67 @@ public struct GitHubClient: Sendable {
         request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
         request.setValue("GitHubMonitor", forHTTPHeaderField: "User-Agent")
 
+        var delays: ArraySlice<Duration> = Self.isRepeatable(request) ? retryDelays[...] : []
+        while true {
+            do {
+                return try await attempt(request)
+            } catch let failure as GitHubError {
+                guard
+                    case .http(let status, _) = failure,
+                    Self.retryStatuses.contains(status),
+                    let wait = delays.first
+                else { throw failure }
+                delays = delays.dropFirst()
+                // Waiting is also where a cancelled refresh notices that
+                // it was cancelled; waking up to send another request
+                // would be the one thing it must not do.
+                do {
+                    try await Task.sleep(for: wait)
+                } catch {
+                    throw failure
+                }
+            }
+        }
+    }
+
+    /// One send. Every attempt is recorded, including the ones that were
+    /// followed by another: a log that showed only the last of three
+    /// would say the gateway answered first time.
+    private func attempt(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        let started = Date()
+        let method = request.httpMethod ?? "GET"
+        let path = request.url?.path ?? "?"
+        let operation = Self.operation(of: request)
+
         let data: Data
         let response: URLResponse
         do {
             (data, response) = try await session.data(for: request)
         } catch {
+            watch?(RequestRecord(
+                startedAt: started, method: method, path: path, operation: operation,
+                outcome: .failed(error.localizedDescription),
+                duration: Date().timeIntervalSince(started)
+            ))
             throw GitHubError.transport(error.localizedDescription)
         }
 
         guard let http = response as? HTTPURLResponse else {
             throw GitHubError.decoding("response was not HTTP")
         }
+
+        // Recorded whatever the answer was. A log holding only the
+        // failures cannot say whether anything was working in between,
+        // which is the first question about an intermittent one.
+        let trouble = http.statusCode >= 400
+        watch?(RequestRecord(
+            startedAt: started, method: method, path: path, operation: operation,
+            outcome: .answered(status: http.statusCode),
+            duration: Date().timeIntervalSince(started),
+            bytes: data.count,
+            remaining: http.value(forHTTPHeaderField: "X-RateLimit-Remaining").flatMap(Int.init),
+            body: trouble ? Self.excerpt(of: data) : nil
+        ))
 
         switch http.statusCode {
         case 200..<300, 304:
@@ -172,6 +286,44 @@ public struct GitHubClient: Sendable {
         default:
             throw GitHubError.http(status: http.statusCode, message: Self.message(from: data) ?? "")
         }
+    }
+
+    /// Which document a GraphQL request carries.
+    ///
+    /// They all post to the same path, so without this every one of them
+    /// reads the same in the log. Taken from the query's own first field
+    /// -- `search`, `repository`, `viewer` -- which is as much as is
+    /// needed to tell one call from another, and carries no values.
+    static func operation(of request: URLRequest) -> String? {
+        guard request.url?.path.hasSuffix("/graphql") == true else { return nil }
+        guard
+            let body = request.httpBody,
+            let root = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
+            let query = root["query"] as? String
+        else { return "graphql" }
+
+        guard let open = query.firstIndex(of: "{") else { return "graphql" }
+        let rest = query[query.index(after: open)...]
+            .drop { $0.isWhitespace || $0.isNewline }
+        let field = rest.prefix { $0.isLetter || $0.isNumber || $0 == "_" }
+        return field.isEmpty ? "graphql" : "graphql \(field)"
+    }
+
+    /// The first part of what came back, for a line in the log.
+    ///
+    /// Trimmed because a gateway error can answer with a whole HTML page,
+    /// and the part naming what failed is at the top of it.
+    static func excerpt(of data: Data, limit: Int = 400) -> String? {
+        guard let text = String(data: data, encoding: .utf8) else {
+            return data.isEmpty ? nil : "\(data.count) bytes, not text"
+        }
+        let tidy = text
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\r", with: " ")
+            .split(separator: " ", omittingEmptySubsequences: true)
+            .joined(separator: " ")
+        guard !tidy.isEmpty else { return nil }
+        return tidy.count > limit ? String(tidy.prefix(limit)) + "\u{2026}" : tidy
     }
 
     /// What the REST headers say is left of the hourly allowance.

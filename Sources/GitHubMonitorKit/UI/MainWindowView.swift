@@ -30,7 +30,7 @@ struct SidebarColumn: View {
                             // this is where somebody looks to find out
                             // which of their lists is the one complaining.
                             .foregroundStyle(
-                                state.listFailures[list.id] == nil ? .primary : Color.orange
+                                state.listFailures[list.id] == nil ? Color(nsColor: .labelColor) : Ink.orange
                             )
                             .badge(state.count(of: list))
                             .tag(SidebarSelection.list(id: list.id, repository: nil))
@@ -241,7 +241,7 @@ struct ContentColumn: View {
         if let message = state.listFailures[list.id] {
             HStack(alignment: .firstTextBaseline, spacing: 7) {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Ink.orange)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("GitHub would not run this list's search")
                         .font(.callout.weight(.medium))
@@ -425,7 +425,7 @@ struct ContentColumn: View {
                     "\(pressing.remaining) left",
                     systemImage: "gauge.with.dots.needle.33percent"
                 )
-                .foregroundStyle(pressing.isExhausted ? .red : .orange)
+                .foregroundStyle(pressing.isExhausted ? Ink.red : Ink.orange)
                 .help(budgetHelp(pressing))
                 Divider().frame(height: 11)
             }
@@ -434,7 +434,7 @@ struct ContentColumn: View {
                 ProgressView().controlSize(.small)
             }
             Text(state.statusMessage)
-                .foregroundStyle(state.health.isFailure ? .red : .secondary)
+                .foregroundStyle(state.health.isFailure ? Ink.red : Color(nsColor: .secondaryLabelColor))
 
             Button {
                 Task { await controller.refresh() }

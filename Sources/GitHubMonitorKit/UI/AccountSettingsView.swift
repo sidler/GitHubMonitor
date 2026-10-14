@@ -82,7 +82,7 @@ struct AccountSettingsView: View {
 
             if let message = form.message {
                 Label(message.text, systemImage: message.isFailure ? "xmark.octagon.fill" : "checkmark.circle.fill")
-                    .foregroundStyle(message.isFailure ? .red : .green)
+                    .foregroundStyle(message.isFailure ? Ink.red : Ink.green)
                     .font(.caption)
             }
 

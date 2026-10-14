@@ -170,7 +170,7 @@ struct PopoverView: View {
             Spacer()
             Text(state.statusMessage)
                 .font(.caption)
-                .foregroundStyle(state.health.isFailure ? .red : .secondary)
+                .foregroundStyle(state.health.isFailure ? Ink.red : Color(nsColor: .secondaryLabelColor))
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)

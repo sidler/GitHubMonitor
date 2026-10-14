@@ -42,6 +42,22 @@ extension WaitingAge {
     }
 }
 
+extension ReviewState {
+    /// What one reviewer has said, in the same two steps the checks use.
+    ///
+    /// Commented and dismissed are grey rather than a colour of their
+    /// own: neither is an answer to the question the pane is asking, and
+    /// a third hue beside the two that are would only crowd it.
+    var tint: Color {
+        switch self {
+        case .approved: Ink.green
+        case .changesRequested: Ink.orange
+        case .pending: Ink.yellow
+        case .commented, .dismissed: Ink.gray
+        }
+    }
+}
+
 extension MergeStatus {
     var tint: Color {
         switch self {
@@ -58,10 +74,10 @@ extension MergeStatus {
 extension ReviewTallyKind {
     var tint: Color {
         switch self {
-        case .accepted: .green
-        case .declined: .orange
+        case .accepted: Ink.green
+        case .declined: Ink.orange
         // The others report a verdict; this one reports an absence.
-        case .pending: Color(nsColor: .secondaryLabelColor)
+        case .pending: Ink.gray
         }
     }
 }

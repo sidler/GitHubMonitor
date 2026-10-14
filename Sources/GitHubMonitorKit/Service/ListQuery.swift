@@ -63,6 +63,23 @@ public enum ListQuery {
     /// and the badge and the menu bar counted the half.
     public static let pageSize = 100
 
+    /// What the first page asks for.
+    ///
+    /// Smaller than the pages after it, because the first one is the page
+    /// that breaks. Every list asks for it in the same request, at the
+    /// same moment, with nothing cached behind it -- and GitHub ends any
+    /// request that runs past ten seconds with a 502. Thirty rows per
+    /// list is already more than a window shows; the rest arrives on the
+    /// rounds after, which carry only the lists that still have pages and
+    /// are therefore in no danger of the same wall.
+    ///
+    /// Not the old mistake above in new clothes: that one asked for fifty
+    /// and stopped there. This one stops at nothing -- the rounds after
+    /// it run to the same cap they always did, and the counts beside a
+    /// list come from GitHub's own `issueCount`, which never cared how
+    /// many rows were fetched.
+    public static let firstPageSize = 30
+
     /// How many a single search will page through before it gives up and
     /// says how many are left. A list this long is one to narrow rather
     /// than one to scroll, and every page is another request on every
@@ -79,8 +96,12 @@ public enum ListQuery {
     ) -> String {
         let aliases = searches.enumerated().map { index, search in
             let after = cursors[index].map { ", after: \(PullRequestQuery.jsonString($0))" } ?? ""
+            // No cursor means this is the list's first page, and the
+            // first page is the one asked for alongside every other
+            // list's.
+            let size = cursors[index] == nil ? firstPageSize : pageSize
             return """
-                \(alias(index)): search(query: \(PullRequestQuery.jsonString(search.query)), type: ISSUE, first: \(pageSize)\(after)) {
+                \(alias(index)): search(query: \(PullRequestQuery.jsonString(search.query)), type: ISSUE, first: \(size)\(after)) {
                   issueCount
                   pageInfo { hasNextPage endCursor }
                   ...\(fragmentName(for: search.content))

@@ -37,18 +37,20 @@ public enum ChangedFilesQuery {
         return array.compactMap(file(from:))
     }
 
-    /// Biggest first: in a narrow pane the useful question is where the work
-    /// is, and the file with four hundred changed lines is not the one to
-    /// make someone scroll for.
+    /// By path, which is the order the diff reads in and the order GitHub
+    /// shows.
     ///
-    /// Applied to the whole set rather than page by page, or the second page
-    /// would start over at the largest again.
+    /// This used to put the biggest change first, on the reasoning that in
+    /// a narrow pane the useful question is where the work is. But the
+    /// list in that pane is a way into the diff -- each row opens it at
+    /// that file -- and the tree beside the diff is in path order, so the
+    /// two disagreed about what came after what. A list you navigate by
+    /// has to match the thing it navigates.
+    ///
+    /// Applied to the whole set rather than page by page, or the second
+    /// page would start over at the top of the alphabet.
     public static func ordered(_ files: [ChangedFile]) -> [ChangedFile] {
-        files.sorted { lhs, rhs in
-            lhs.changedLines == rhs.changedLines
-                ? lhs.path.localizedStandardCompare(rhs.path) == .orderedAscending
-                : lhs.changedLines > rhs.changedLines
-        }
+        files.sorted { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
     }
 
     static func file(from node: [String: Any]) -> ChangedFile? {

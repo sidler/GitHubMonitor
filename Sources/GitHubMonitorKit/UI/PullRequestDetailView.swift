@@ -38,7 +38,7 @@ struct PullRequestDetailView: View {
                     case .failed(let message):
                         VStack(alignment: .leading, spacing: 8) {
                             Label(message, systemImage: "exclamationmark.triangle")
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(Ink.orange)
                                 .font(.callout)
                             Button("Try again", action: reload)
                                 .controlSize(.small)
@@ -174,8 +174,8 @@ struct PullRequestDetailView: View {
                     caption: detail.changedFiles == 1 ? "file" : "files",
                     tint: .primary
                 )
-                statistic("+\(detail.additions)", caption: "added", tint: .green)
-                statistic("−\(detail.deletions)", caption: "removed", tint: .red)
+                statistic("+\(detail.additions)", caption: "added", tint: Ink.green)
+                statistic("−\(detail.deletions)", caption: "removed", tint: Ink.red)
                 // Whichever of the two there is something to say about.
                 // A pane about a diff should lead with the remarks on the
                 // diff; a pull request nobody has reviewed still has a
@@ -279,7 +279,7 @@ struct PullRequestDetailView: View {
             Section {
                 Label(message, systemImage: "exclamationmark.triangle")
                     .font(.caption)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Ink.orange)
             } header: {
                 sectionTitle("Files")
             }
@@ -436,24 +436,14 @@ struct PullRequestDetailView: View {
         .padding(.bottom, 4)
     }
 
-    private func tint(for status: ChecksStatus) -> Color {
-        switch status {
-        case .success: .green
-        case .failure: .red
-        case .pending: .yellow
-        case .none: .secondary
-        }
-    }
+    // The colours for a check and for a review live beside the legend
+    // that explains them, with every other colour a row is drawn in.
+    // There used to be a second copy of the first one here, and it had
+    // already drifted: this one stayed on the system's own green, which
+    // is too light to read at this size.
+    private func tint(for status: ChecksStatus) -> Color { status.tint }
 
-    private func tint(for state: ReviewState) -> Color {
-        switch state {
-        case .approved: .green
-        case .changesRequested: .orange
-        case .commented: .secondary
-        case .dismissed: .secondary
-        case .pending: .yellow
-        }
-    }
+    private func tint(for state: ReviewState) -> Color { state.tint }
 }
 
 /// View-local state without `@State`: its macro implementation ships only
@@ -530,15 +520,20 @@ struct DescriptionSection: View {
 
 /// One changed file in the detail pane, which opens the diff at it.
 ///
-/// A chevron at the end of every row rather than a highlight under the
-/// pointer: a row that leads somewhere should say so before anybody goes
-/// looking, and the accent colour alone did not -- the pane is full of
-/// accent-coloured text that is not a target. The pointer becomes a hand
-/// as well, which is the other half of the answer but only for whoever is
-/// already there.
+/// A chevron at the end of every row, a ground under the pointer, and the
+/// pointer itself as a hand. The accent colour alone did not say it: the
+/// pane is full of accent-coloured text that is not a target.
+///
+/// The chevron is the part that matters, because it is there before
+/// anybody goes looking; the ground is for whoever is already on the row.
+///
+/// `@StateObject` rather than `@State`: this package builds without
+/// Xcode, where the `State` macro is not available.
 private struct FileRow: View {
     let file: ChangedFile
     let open: () -> Void
+
+    @StateObject private var hover = ViewFlag()
 
     var body: some View {
         Button(action: open) {
@@ -571,11 +566,17 @@ private struct FileRow: View {
                     .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
             }
             .font(.caption)
-            .padding(.vertical, 1)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 2)
+            .background(
+                hover.isOn ? Color(nsColor: .quaternaryLabelColor).opacity(0.45) : .clear,
+                in: RoundedRectangle(cornerRadius: 4)
+            )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .pointerStyle(.link)
+        .onHover { hover.isOn = $0 }
         .help("Open the diff at this file \u{2014} \(file.path)")
     }
 }

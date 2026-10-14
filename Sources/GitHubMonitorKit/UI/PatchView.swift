@@ -125,10 +125,10 @@ struct DiffOverlay: View {
                     .monospacedDigit()
             }
             if additions > 0 {
-                Text(verbatim: "+\(additions)").foregroundStyle(.green).monospacedDigit()
+                Text(verbatim: "+\(additions)").foregroundStyle(Ink.green).monospacedDigit()
             }
             if deletions > 0 {
-                Text(verbatim: "\u{2212}\(deletions)").foregroundStyle(.red).monospacedDigit()
+                Text(verbatim: "\u{2212}\(deletions)").foregroundStyle(Ink.red).monospacedDigit()
             }
 
             if let subject {
@@ -196,7 +196,7 @@ struct DiffOverlay: View {
         if let message = review.failure {
             // Nothing was written; say why, and leave the button usable.
             Label(message, systemImage: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
+                .foregroundStyle(Ink.orange)
                 .font(.caption)
                 .lineLimit(2)
                 .frame(maxWidth: 320, alignment: .trailing)
@@ -210,14 +210,14 @@ struct DiffOverlay: View {
                 .foregroundStyle(.secondary)
         } else if review.viewerState == .approved {
             Label("Approved", systemImage: "checkmark.seal.fill")
-                .foregroundStyle(.green)
+                .foregroundStyle(Ink.green)
                 .font(.caption)
         } else {
             if review.viewerState == .changesRequested {
                 // The button still works, and this says what it will undo.
                 Text("You asked for changes")
                     .font(.caption)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Ink.orange)
             }
 
             Button("Request changes\u{2026}") {
@@ -841,11 +841,11 @@ struct FileTreeRows: View {
             }
             if file.additions > 0 {
                 Text(verbatim: "+\(file.additions)")
-                    .foregroundStyle(.green).monospacedDigit()
+                    .foregroundStyle(Ink.green).monospacedDigit()
             }
             if file.deletions > 0 {
                 Text(verbatim: "\u{2212}\(file.deletions)")
-                    .foregroundStyle(.red).monospacedDigit()
+                    .foregroundStyle(Ink.red).monospacedDigit()
             }
         }
         .font(.caption)

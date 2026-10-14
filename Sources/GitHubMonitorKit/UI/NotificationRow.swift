@@ -134,7 +134,7 @@ struct NotificationRow: View {
                 }
             case .failed(let message):
                 Label(message, systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Ink.orange)
             }
         }
         .font(.caption)
