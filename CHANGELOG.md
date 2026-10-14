@@ -3,6 +3,22 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
+## Unreleased
+
+- **Widening the detail pane no longer moves the sidebar.** Pulled past
+  the point where the list column had no more room to give, the drag went
+  straight through it and into the sidebar, which snapped back to its own
+  minimum and cut off the names it had been widened to show. That is
+  NSSplitView's own habit -- a divider dragged past what its neighbour can
+  give pushes the divider behind it -- and the sidebar is not part of the
+  conversation between those two columns. The drag now stops where the
+  list reaches its minimum, and nowhere further.
+
+  Which column gives way when the *window* changes size is now said out
+  loud as well: the middle one. It takes what a wider window brings and
+  gives up what the panes beside it need, which is what kept the sidebar
+  and the detail pane at the widths they were set to.
+
 ## 1.8.0
 
 - **A gateway error is asked again before it is believed.** GitHub ends

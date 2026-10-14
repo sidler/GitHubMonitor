@@ -20,6 +20,14 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     private let controller: RefreshController
     private var window: NSWindow?
     private var splitViewController: NSSplitViewController?
+    /// The least the list column may be squeezed to. Named because the
+    /// detail pane's ceiling is worked out from it.
+    private static let listMinimumWidth: CGFloat = 420
+
+    /// Whether a recalculation of the detail pane's ceiling is already
+    /// waiting for the drag to end. Every step of a drag asks for one.
+    private var isCapScheduled = false
+
     private var inspectorItem: NSSplitViewItem?
     private var contentController: NSViewController?
     /// The diff put up over the whole window, while one is open.
@@ -97,6 +105,17 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         )
         sidebar.minimumThickness = 200
         sidebar.maximumThickness = 320
+        // Which column gives way when the window changes size, said out
+        // loud. The lowest holding priority is the first to be taken from
+        // and the first to be given to; left at the default all three are
+        // equal, and then it is the layout engine's business which one
+        // yields. The sidebar holds hardest: it is the one column the
+        // window was asked to keep a width for, and with a ceiling of 320
+        // it cannot usefully absorb anything anyway.
+        //
+        // This is about resizing only. Where a *drag* stops is a separate
+        // matter, and `ColumnsController` is where that is settled.
+        sidebar.holdingPriority = .defaultLow + 10
         split.addSplitViewItem(sidebar)
         sidebarItem = sidebar
 
@@ -104,7 +123,11 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             rootView: ContentColumn(state: state, controller: controller)
         )
         let content = NSSplitViewItem(viewController: contentController)
-        content.minimumThickness = 420
+        content.minimumThickness = Self.listMinimumWidth
+        // The middle is the room. It takes what a wider window brings and
+        // gives up what the panes beside it ask for, down to its own
+        // minimum and no further -- which is where a drag stops.
+        content.holdingPriority = .defaultLow
         split.addSplitViewItem(content)
         self.contentController = contentController
 
@@ -316,6 +339,67 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
 
     @objc private func splitViewDidResize(_ notification: Notification) {
         syncSidebarCollapse()
+        scheduleInspectorCap()
+    }
+
+    /// Works the ceiling out again once the pointer has been let go.
+    ///
+    /// Not now: this is called from inside AppKit's own drag tracking, and
+    /// a constraint changed there left the list column drawn in the wrong
+    /// place -- white down one side, under the detail pane on the other.
+    /// The run loop is in a tracking mode for as long as the button is
+    /// down, so asking for the default mode is asking for afterwards.
+    ///
+    /// Nothing is lost by waiting. What the ceiling is made of -- the
+    /// window's width and the sidebar's -- cannot change while the
+    /// detail pane's own divider is being dragged.
+    private func scheduleInspectorCap() {
+        guard !isCapScheduled else { return }
+        isCapScheduled = true
+        RunLoop.main.perform(inModes: [.default]) { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.isCapScheduled = false
+                self.capInspectorWidth()
+            }
+        }
+    }
+
+    /// How wide the detail pane may be drawn before it would start taking
+    /// room from the sidebar.
+    ///
+    /// NSSplitView, asked to pull a divider past what the pane beside it
+    /// can give, pushes the divider behind it rather than stopping. So
+    /// pulling the detail pane wide went through the list column and on
+    /// into the sidebar, which snapped back to its own minimum and cut off
+    /// the names it had been widened to show. The sidebar is not part of
+    /// the conversation between those two columns and should not be moved
+    /// by it.
+    ///
+    /// A ceiling worked out from what is on screen, rather than a limit on
+    /// the drag itself: the delegate methods that constrain a divider are
+    /// refused by NSSplitViewController, which lays out with constraints
+    /// of its own -- it says so and throws at launch rather than quietly
+    /// ignoring them. Holding priorities are no use either; AppKit's own
+    /// header says they must stay below the priority a divider is dragged
+    /// at, which is to say below the thing they would have to outrank.
+    ///
+    /// Always reached through `scheduleInspectorCap`, which keeps it out
+    /// of the middle of a drag.
+    private func capInspectorWidth() {
+        guard let inspectorItem, let split = splitViewController else { return }
+        let sidebarWidth = sidebarItem.map { $0.isCollapsed ? 0 : $0.viewController.view.frame.width } ?? 0
+        let dividers = split.splitView.dividerThickness * CGFloat(max(0, split.splitViewItems.count - 1))
+        let room = split.splitView.bounds.width - dividers - sidebarWidth - Self.listMinimumWidth
+        // Never below its own floor: if the window is too narrow for all
+        // three at once, that is a fight between the minimums and not
+        // something a ceiling should join in on.
+        let ceiling = max(inspectorItem.minimumThickness, room)
+        // Only on a change. Setting this lays the split view out again,
+        // which is what called this in the first place.
+        if inspectorItem.maximumThickness != ceiling {
+            inspectorItem.maximumThickness = ceiling
+        }
     }
 
     private func syncSidebarCollapse() {
@@ -594,7 +678,18 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         // had. It is also as narrow as it goes, which is the one thing
         // this trade costs.
         newItem.minimumThickness = 400
+        // No ceiling of its own -- `capInspectorWidth` puts one there and
+        // keeps moving it, since how wide this may be is a question about
+        // the window rather than about the pane. It has to be said out
+        // loud all the same: an inspector item arrives with its thickness
+        // fixed and, in AppKit's own words, is "not resizable by
+        // default", so leaving the maximum alone does not mean no maximum,
+        // it means the 270 it came with.
         newItem.maximumThickness = NSSplitViewItem.unspecifiedDimension
+        // Between the sidebar and the middle: a wider window should not
+        // quietly undo the width a drag set here, but if something has to
+        // give it is still not the sidebar.
+        newItem.holdingPriority = .defaultLow + 5
         // The pane is put up and taken away by the app -- the item is
         // added when a row is inspected and removed when none is -- so it
         // should not also shut under the pointer. That would be a second
@@ -605,6 +700,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         inspectorItem = newItem
         syncInspectorSeparator()
         ensureRoomForInspector()
+        capInspectorWidth()
     }
 
     /// Keeps the toolbar's inspector separator with the pane it tracks.
