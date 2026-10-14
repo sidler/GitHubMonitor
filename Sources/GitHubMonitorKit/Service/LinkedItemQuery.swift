@@ -96,7 +96,7 @@ public enum LinkedItemQuery {
         repository { nameWithOwner }
         author { login avatarUrl }
         comments { totalCount }
-        labels(first: \(IssueQuery.labelLimit)) { nodes { name color } }
+        labels(first: \(IssueQuery.labelLimit)) { nodes { id name color } }
       }
       ... on PullRequest {
         __typename

@@ -88,6 +88,16 @@ struct PullRequestDetailView: View {
                     unshown: linked.state.unshownLinks(of: item)
                 )
             }
+
+            // Only the pane carries these, never the row: a pull request
+            // row already says more than an issue row does, and the
+            // labels would be the line that broke it. Wrapping, because
+            // the point of showing them here is showing all of them.
+            if case .loaded(let loaded) = detail, !loaded.labels.isEmpty {
+                FlowRow(spacing: 4) {
+                    ForEach(loaded.labels) { LabelChip(label: $0) }
+                }
+            }
         }
         .padding(14)
     }

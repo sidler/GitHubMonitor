@@ -286,3 +286,55 @@ struct ReviewConversationCountTests {
         #expect(made.reviewConversations == 0)
     }
 }
+
+/// Labels are read where they are offered to be changed, which is the pane,
+/// and they are read with the ids GitHub's mutations insist on.
+@Suite("The labels a pane is allowed to change")
+struct DetailLabelTests {
+    @Test("A pull request's labels come back with their ids")
+    func pullRequest() throws {
+        let payload: [String: Any] = [
+            "node": [
+                "headRefName": "a", "baseRefName": "main",
+                "additions": 1, "deletions": 0, "changedFiles": 1,
+                "comments": ["totalCount": 0],
+                "body": "",
+                "labels": [
+                    "nodes": [
+                        ["id": "LA_1", "name": "bug", "color": "d73a4a"],
+                        ["id": "LA_2", "name": "session", "color": "0e8a16"],
+                    ]
+                ],
+            ]
+        ]
+        let detail = try PullRequestDetailQuery.detail(from: payload)
+
+        #expect(detail.labels.map(\.name) == ["bug", "session"])
+        #expect(detail.labels.map(\.id) == ["LA_1", "LA_2"])
+        #expect(detail.labels.map(\.isReal) == [true, true])
+    }
+
+    /// A label built by hand, or read from a payload written before the id
+    /// was asked for, still has to be drawable -- it just cannot be sent
+    /// back to GitHub, and says so.
+    @Test("Without an id it falls back to the name and admits it")
+    func withoutAnID() {
+        let label = IssueLabel(name: "bug", color: "d73a4a")
+        #expect(label.id == "bug")
+        #expect(!label.isReal)
+    }
+
+    @Test("An issue's labels come back the same way")
+    func issue() throws {
+        let payload: [String: Any] = [
+            "node": [
+                "body": "text",
+                "comments": ["totalCount": 0, "nodes": []],
+                "labels": ["nodes": [["id": "LA_9", "name": "docs", "color": "0075ca"]]],
+            ]
+        ]
+        let detail = try IssueQuery.detail(from: payload)
+
+        #expect(detail.labels.map(\.id) == ["LA_9"])
+    }
+}

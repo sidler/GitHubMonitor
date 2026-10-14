@@ -32,7 +32,7 @@ public enum IssueQuery {
           # The organisation's own types -- Bug, Task, Feature, Epic. Null
           # where none is set, and where the organisation defines none.
           issueType { name color }
-          labels(first: \(labelLimit)) { nodes { name color } }
+          labels(first: \(labelLimit)) { nodes { id name color } }
           # The pull requests that answer it. Closed and merged ones
           # included on purpose: GitHub leaves them out by default, and the
           # merged one is usually the one being looked for.
@@ -59,11 +59,20 @@ public enum IssueQuery {
 
     /// The detail pane's own request: the issue's text and the end of its
     /// thread, for one issue at a time.
+    /// How many labels the pane asks for, against ten for a row.
+    ///
+    /// A row shows what fits on one line and says nothing about the rest;
+    /// a pane that offers to change them cannot be looking at ten of
+    /// twelve. Fifty is past what any issue sensibly carries, and this
+    /// query is made once, when somebody opens the item.
+    public static let detailLabelLimit = 50
+
     public static let detailDocument = """
     query($id: ID!) {
       node(id: $id) {
         ... on Issue {
           body
+          labels(first: \(detailLabelLimit)) { nodes { id name color } }
           comments(last: \(commentLimit)) {
             totalCount
             nodes {
@@ -94,7 +103,8 @@ public enum IssueQuery {
         return IssueDetail(
             body: node["body"] as? String ?? "",
             comments: nodes.compactMap(comment(from:)),
-            totalComments: comments?["totalCount"] as? Int ?? nodes.count
+            totalComments: comments?["totalCount"] as? Int ?? nodes.count,
+            labels: IssueParser.labels(from: node)
         )
     }
 
@@ -165,7 +175,11 @@ public enum IssueParser {
         let nodes = (node["labels"] as? [String: Any])?["nodes"] as? [[String: Any]] ?? []
         return nodes.compactMap { entry in
             guard let name = entry["name"] as? String else { return nil }
-            return IssueLabel(name: name, color: entry["color"] as? String ?? "")
+            return IssueLabel(
+                id: entry["id"] as? String,
+                name: name,
+                color: entry["color"] as? String ?? ""
+            )
         }
     }
 }

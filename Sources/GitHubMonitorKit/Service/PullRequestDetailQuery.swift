@@ -24,6 +24,7 @@ public enum PullRequestDetailQuery {
           # when the diff is opened, and not before.
           reviewThreads(first: 1) { totalCount }
           body
+          labels(first: \(IssueQuery.detailLabelLimit)) { nodes { id name color } }
           mergeable
           commits(last: 1) {
             nodes {
@@ -75,7 +76,8 @@ public enum PullRequestDetailQuery {
             body: node["body"] as? String ?? "",
             mergeStatus: PullRequestParser.mergeStatus(node["mergeable"] as? String),
             checks: checks(from: node),
-            reviewers: reviewers(from: node)
+            reviewers: reviewers(from: node),
+            labels: IssueParser.labels(from: node)
         )
     }
 

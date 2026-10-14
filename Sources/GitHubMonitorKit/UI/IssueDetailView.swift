@@ -84,7 +84,15 @@ struct IssueDetailView: View {
                 )
             }
 
-            if item.type != nil || !item.labels.isEmpty || item.milestone != nil {
+            // The pane's own list where it has arrived, the row's until
+            // then: the row keeps only what fits a line, so an issue with
+            // a dozen labels was showing ten of them here too.
+            let loaded: [IssueLabel] = {
+                guard case .loaded(let detail) = detail else { return [] }
+                return detail.labels
+            }()
+            let labels = loaded.isEmpty ? item.labels : loaded
+            if item.type != nil || !labels.isEmpty || item.milestone != nil {
                 // Wrapping, unlike the row's single line: here there is room
                 // to show every label, and which ones an issue carries is
                 // part of what the pane is for.
@@ -92,7 +100,7 @@ struct IssueDetailView: View {
                     if let type = item.type {
                         IssueTypeChip(type: type)
                     }
-                    ForEach(item.labels) { label in
+                    ForEach(labels) { label in
                         LabelChip(label: label)
                     }
                     if let milestone = item.milestone {

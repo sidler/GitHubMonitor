@@ -106,19 +106,25 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // Development aid: opens the detail pane for the first row of
         // whichever list is on screen, so the pane can be inspected without
         // a click.
-        if devOption("GHM_INSPECT") != nil {
+        // `--inspect 482` opens that one; a bare `--inspect` opens the
+        // first row of whichever list is on screen.
+        if let wanted = devOption("GHM_INSPECT") {
             Task { [weak self] in
                 for _ in 0..<40 {
                     guard let self else { return }
                     if let list = state.selectedList {
                         switch list.content {
                         case .pullRequests:
-                            if let first = state.pullRequests(in: list).first {
+                            let rows = state.pullRequests(in: list)
+                            if let first = rows.first(where: { "\($0.number)" == wanted })
+                                ?? rows.first {
                                 refresh.inspect(first)
                                 return
                             }
                         case .issues:
-                            if let first = state.issues(in: list).first {
+                            let rows = state.issues(in: list)
+                            if let first = rows.first(where: { "\($0.number)" == wanted })
+                                ?? rows.first {
                                 refresh.inspect(first)
                                 return
                             }

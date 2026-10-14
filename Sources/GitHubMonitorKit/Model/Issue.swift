@@ -2,12 +2,23 @@ import Foundation
 
 /// A label on an issue, in the colour GitHub draws it.
 public struct IssueLabel: Identifiable, Hashable, Sendable {
-    public var id: String { name }
+    /// GitHub's node id, which is what the mutations that set and clear
+    /// labels take -- they will not take a name.
+    ///
+    /// Falls back to the name where none was given, which keeps a label
+    /// built by hand identifiable and is the only thing a list built
+    /// before this field existed could have used anyway. A label with no
+    /// id can be shown; it cannot be taken off.
+    public let id: String
     public let name: String
     /// Six hex digits, as GitHub reports them -- without a leading "#".
     public let color: String
 
-    public init(name: String, color: String) {
+    /// Whether GitHub would accept this one in a mutation.
+    public var isReal: Bool { id != name }
+
+    public init(id: String? = nil, name: String, color: String) {
+        self.id = id ?? name
         self.name = name
         self.color = color
     }
@@ -183,6 +194,12 @@ public struct IssueComment: Identifiable, Hashable, Sendable {
 public struct IssueDetail: Hashable, Sendable {
     /// The issue's own text. Empty when it was opened with a title only.
     public let body: String
+    /// Every label it carries, with the ids the mutations need.
+    ///
+    /// Here as well as on the row because the row's list is cut to what
+    /// fits a line, and a pane that offers to change them has to be
+    /// looking at all of them.
+    public let labels: [IssueLabel]
     /// The newest comments, oldest of those first, so the thread reads
     /// downwards the way it does on GitHub.
     public let comments: [IssueComment]
@@ -190,8 +207,14 @@ public struct IssueDetail: Hashable, Sendable {
     /// rather than pretending the thread is as short as what it shows.
     public let totalComments: Int
 
-    public init(body: String, comments: [IssueComment], totalComments: Int) {
+    public init(
+        body: String,
+        comments: [IssueComment],
+        totalComments: Int,
+        labels: [IssueLabel] = []
+    ) {
         self.body = body
+        self.labels = labels
         self.comments = comments
         self.totalComments = totalComments
     }

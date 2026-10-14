@@ -5,6 +5,18 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **A pull request shows the labels it carries.** It never did: the lists
+  ask for them on issues and pass an empty set for pull requests, so a
+  team that sorts its work by label could see that everywhere but here.
+  They are drawn in the pane and not in the row — a pull request row
+  already carries its checks, its reviewers, its draft mark and the
+  issues it closes, and the labels would be the line that broke it.
+
+  Fetched when the item is opened rather than with the lists, so a
+  refresh costs nothing more for them, and fifty of them rather than the
+  row's ten: a pane that will shortly offer to change them cannot be
+  looking at ten of twelve. An issue's pane now shows its full set for
+  the same reason.
 - **The settled conversations are out of the way until you ask for
   them.** A file's header in the diff says how many it is holding — “3
   resolved” — and the count is the control: one click shows them where

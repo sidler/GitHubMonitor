@@ -292,6 +292,15 @@ public enum SampleData {
             ],
             reviewers: [
                 ReviewerStatus(name: "arun", avatarURL: avatar(2), state: .pending, isTeam: false),
+            ],
+            // Ids as GitHub gives them, not names: the mutations that set
+            // and clear labels will not take a name, and a sample whose
+            // labels could never be taken off would be the wrong shape to
+            // build the picker against.
+            labels: [
+                IssueLabel(id: "LA_1", name: "bug", color: "d73a4a"),
+                IssueLabel(id: "LA_2", name: "session", color: "0e8a16"),
+                IssueLabel(id: "LA_3", name: "needs decision", color: "fbca04"),
             ]
         )
     }

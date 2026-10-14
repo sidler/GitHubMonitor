@@ -125,6 +125,14 @@ public struct PullRequestDetail: Hashable, Sendable {
     /// in the background, so a pull request that was still unknown when the
     /// list loaded usually has an answer by the time its pane is opened.
     public let mergeStatus: MergeStatus
+    /// Every label it carries, with the ids the mutations need.
+    ///
+    /// Only here, never on the row. A pull request row already says more
+    /// than an issue row does -- checks, reviewers, the draft mark, the
+    /// issues it closes -- and the labels would be the line that broke
+    /// it. Asking for them here also keeps them out of the refresh: this
+    /// query is made when somebody opens one, not sixty times an hour.
+    public let labels: [IssueLabel]
     public let checks: [CheckRun]
     public let reviewers: [ReviewerStatus]
 
@@ -139,8 +147,10 @@ public struct PullRequestDetail: Hashable, Sendable {
         body: String = "",
         mergeStatus: MergeStatus = .unknown,
         checks: [CheckRun],
-        reviewers: [ReviewerStatus]
+        reviewers: [ReviewerStatus],
+        labels: [IssueLabel] = []
     ) {
+        self.labels = labels
         self.headBranch = headBranch
         self.baseBranch = baseBranch
         self.additions = additions
