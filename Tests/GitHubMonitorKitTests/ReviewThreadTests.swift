@@ -347,3 +347,45 @@ struct StrandedThreadTests {
         #expect(Set(placed.map(\.id)).isDisjoint(with: Set(stranded.map(\.id))))
     }
 }
+
+/// The rule down a thread's left edge is the whole of what tells one state
+/// from another now that the box around it is gone, so what colour it takes
+/// is worth holding still.
+@Suite("The colour a conversation is drawn in")
+@MainActor
+struct ThreadTintTests {
+    private func thread(resolved: Bool, outdated: Bool) -> ReviewThread {
+        ReviewThread(
+            id: "t", path: "a.swift", line: 1, side: .new,
+            isResolved: resolved, isOutdated: outdated,
+            comments: [
+                IssueComment(
+                    id: "c", author: "mira", avatarURL: nil,
+                    createdAt: .now, body: "look here"
+                ),
+            ]
+        )
+    }
+
+    @Test("An open conversation, one that is done, and one about code that has gone")
+    func threeStates() {
+        #expect(thread(resolved: false, outdated: false).tint == Ink.blue)
+        #expect(thread(resolved: true, outdated: false).tint == Ink.gray)
+        #expect(thread(resolved: false, outdated: true).tint == Ink.orange)
+    }
+
+    @Test("Outdated outranks resolved, because it is the older fact about it")
+    func outdatedWins() {
+        #expect(thread(resolved: true, outdated: true).tint == Ink.orange)
+    }
+
+    @Test("No two states share a colour")
+    func allDifferent() {
+        let tints = [
+            thread(resolved: false, outdated: false).tint,
+            thread(resolved: true, outdated: false).tint,
+            thread(resolved: false, outdated: true).tint,
+        ]
+        #expect(Set(tints).count == 3)
+    }
+}

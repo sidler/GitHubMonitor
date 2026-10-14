@@ -24,40 +24,59 @@ struct ReviewThreadView: View {
     private var isOpen: Bool { disclosure.isExpanded }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if thread.isResolved || thread.isOutdated {
-                Button {
-                    withAnimation(.easeOut(duration: 0.15)) { disclosure.isExpanded.toggle() }
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: isOpen ? "chevron.down" : "chevron.right")
-                            .font(.caption2)
-                        Image(systemName: thread.isResolved ? "checkmark.circle" : "clock.arrow.circlepath")
-                        Text(thread.summary)
-                        Spacer(minLength: 0)
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .pointerStyle(.link)
-            }
+        // A rule down the left rather than a box around everything. What
+        // the box was for -- telling a remark apart from the code above
+        // it -- three points of colour do as well, and they say which
+        // kind of remark it is at the same time. The padding a box needs
+        // on four sides is most of what made a conversation of four
+        // replies taller than the hunk it was about.
+        HStack(alignment: .top, spacing: 0) {
+            Rectangle()
+                .fill(thread.tint)
+                .frame(width: 4)
 
-            if isOpen {
-                ForEach(thread.comments) { comment in
-                    ReviewCommentView(comment: comment)
+            VStack(alignment: .leading, spacing: 6) {
+                if thread.isResolved || thread.isOutdated {
+                    Button {
+                        withAnimation(.easeOut(duration: 0.15)) { disclosure.isExpanded.toggle() }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: isOpen ? "chevron.down" : "chevron.right")
+                                .font(.caption2)
+                            Image(systemName: thread.isResolved ? "checkmark.circle" : "clock.arrow.circlepath")
+                            Text(thread.summary)
+                            Spacer(minLength: 0)
+                        }
+                        .font(.caption)
+                        .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .pointerStyle(.link)
+                }
+
+                if isOpen {
+                    // A hairline between replies, which the padding used
+                    // to do on its own. Taking the padding out without
+                    // putting something in its place ran one person's
+                    // remark straight into the next one's.
+                    ForEach(Array(thread.comments.enumerated()), id: \.element.id) { index, comment in
+                        if index > 0 { Divider() }
+                        ReviewCommentView(comment: comment)
+                    }
                 }
             }
+            .padding(.vertical, 6)
+            .padding(.horizontal, 9)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 6))
-        // Inset from the code, so it reads as a note beside the diff rather
-        // than as another kind of line in it.
-        .padding(.horizontal, 12)
-        .padding(.vertical, 4)
-        .opacity(thread.isResolved || thread.isOutdated ? 0.75 : 1)
+        .background(.quaternary.opacity(0.25))
+        .padding(.vertical, 2)
+        // No dimming for the ones that are done. It was a flat quarter
+        // off everything, text included, which is the one thing the
+        // contrast of this app is not allowed to be casual about -- and
+        // with a grey rule and a line naming the state, it was saying a
+        // third time what was already said twice.
     }
 }
 
@@ -66,7 +85,7 @@ private struct ReviewCommentView: View {
     let comment: IssueComment
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 6) {
                 AvatarView(url: comment.avatarURL, size: 16)
                 Text(comment.author).font(.caption.weight(.medium))

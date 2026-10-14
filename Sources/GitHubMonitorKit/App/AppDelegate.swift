@@ -129,6 +129,50 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
+        // Development aid: opens a diff without a hand on the mouse.
+        //
+        // It picks the pull request the sample actually carries a patch
+        // for rather than whichever row happens to be first, and prefers
+        // one somebody left a conversation on -- the threads are drawn in
+        // the diff and nowhere else, so that is what this exists to look
+        // at. In a real account the patch arrives only after a row is
+        // inspected, so there this lands on whatever has been opened
+        // already; the sample seeds it, which is the case this is for.
+        if devOption("GHM_DIFF") != nil {
+            Task { [weak self] in
+                for _ in 0..<60 {
+                    guard let self else { return }
+                    let talked = Set(state.reviewThreads.filter { !$0.value.isEmpty }.keys)
+                    let ready = state.changedFiles
+                        .compactMap { id, files -> (String, [ChangedFile])? in
+                            guard case .loaded(let loaded) = files, !loaded.isEmpty else { return nil }
+                            return (id, loaded)
+                        }
+                        .sorted { talked.contains($0.0) && !talked.contains($1.0) }
+
+                    if let (id, files) = ready.first,
+                        let item = state.allPullRequests.first(where: { $0.id == id }) {
+                        refresh.inspect(item)
+                        refresh.loadReviewThreadsIfNeeded(for: id)
+                        // A turn of the run loop before the overlay goes
+                        // up. Inspecting rebuilds the detail pane, and
+                        // the overlay set in the same breath was gone
+                        // again by the time anything looked.
+                        try? await Task.sleep(for: .milliseconds(600))
+                        guard let item = state.allPullRequests.first(where: { $0.id == id })
+                        else { return }
+                        let here = state.reviewThreads[id]?.first?.path
+                        let file = files.first { $0.path == here } ?? files[0]
+                        state.openedDiff = OpenedDiff(
+                            pullRequestID: id, path: file.path, files: files, url: item.url
+                        )
+                        return
+                    }
+                    try? await Task.sleep(for: .milliseconds(500))
+                }
+            }
+        }
+
         // Development aid: lets the window and popover be opened without a
         // mouse click, e.g. for screenshots during a build.
         if let tab = devOption("GHM_OPEN") {

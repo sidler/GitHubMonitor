@@ -3,6 +3,23 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
+## Unreleased
+
+- **A conversation in the diff takes the room it needs and no more.** Each
+  one sat in a rounded box with ten points of padding on four sides, a
+  twelve-point inset on top of that, and eight between every reply — so a
+  thread of four answers was taller than the hunk it was about. The box is
+  gone. In its place a rule down the left edge, in the colour of what the
+  thread is: blue while it is open, grey once it is resolved, orange for
+  one written against code that has since been rewritten. Replies are told
+  apart by a hairline instead of by distance.
+
+  The quarter of dimming that resolved and outdated threads used to get
+  has gone with it. It took a quarter off the text as well as the chrome,
+  which is the one thing the contrast of this app is not allowed to be
+  casual about — and with a grey rule and a line naming the state, it was
+  saying a third time what had already been said twice.
+
 ## 1.8.1
 
 - **The list column is drawn where it stands.** With the detail pane open

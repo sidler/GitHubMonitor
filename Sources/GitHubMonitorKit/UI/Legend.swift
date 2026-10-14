@@ -82,6 +82,22 @@ extension ReviewTallyKind {
     }
 }
 
+extension ReviewThread {
+    /// The colour of the rule down a thread's left edge.
+    ///
+    /// Three states, in the order they answer "does this still want
+    /// something from me": outdated first, because a remark about code
+    /// that has since been rewritten is a different question from one
+    /// about code that is still there -- and a thread can be both
+    /// outdated and resolved, in which case the older fact is the one
+    /// worth naming. Then resolved, then the ordinary open one.
+    var tint: Color {
+        if isOutdated { return Ink.orange }
+        if isResolved { return Ink.gray }
+        return Ink.blue
+    }
+}
+
 extension LegendSymbol {
     var tint: Color {
         switch self {
