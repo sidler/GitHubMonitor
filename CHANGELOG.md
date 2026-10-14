@@ -5,6 +5,20 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **Pictures in a body are pictures.** An issue here often has a section
+  whose entire content is a screenshot, and neither way of writing one
+  was shown: the `<img>` tag GitHub's own uploader writes when a file is
+  dragged into the box came through as markup, and the markdown form was
+  deleted outright on the grounds that badges carry nothing in a text
+  pane. That was true of the markup and never true of the picture.
+
+  Both forms are the same thing now, drawn at a size that fits the pane,
+  and a click opens the full one. Where it cannot be fetched — an
+  attachment on a private repository wants a browser session, over a path
+  GitHub documents nowhere — there is a link in its place rather than a
+  hole or an apology: the browser is one click away with the session
+  already in it. A badge in a table cell still goes out; a line of its
+  own is the end of a table.
 - **The labels an item already carries come first in the picker**, and
   the whole row of them opens it rather than the small tag at its end. A
   repository here has a hundred and seventy labels and the list shows

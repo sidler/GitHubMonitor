@@ -273,6 +273,18 @@ public struct GitHubService: Sendable {
         )
     }
 
+    /// One picture from a body, fetched with the account's token.
+    ///
+    /// `github.com/user-attachments/...` is not an API endpoint and is
+    /// documented nowhere. On a public repository it needs nothing; on a
+    /// private one it wants the account, and a classic token in the
+    /// header is reported to be enough -- reported, not documented. So
+    /// this is written to fail plainly: whoever asked gets an error and
+    /// shows a link to the browser, where the session already is.
+    public func image(at url: URL) async throws -> Data {
+        try await client.get(url).0
+    }
+
     /// The labels a repository offers, narrowed by what has been typed.
     ///
     /// Asked of the repository rather than kept with the lists: labels

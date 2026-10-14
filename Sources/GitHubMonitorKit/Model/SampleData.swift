@@ -272,6 +272,14 @@ public enum SampleData {
     - [ ] Needs the migration to have run
     - Ticked and plain in one list, which is what GitHub does
 
+    Both ways a picture arrives, so both can be looked at: the tag
+    GitHub writes when a file is dragged in, and one that cannot be
+    fetched at all.
+
+    <img width="1295" alt="Image" src="https://avatars.githubusercontent.com/u/9919?s=400" />
+
+    ![a picture nobody can reach](https://github.com/user-attachments/assets/00000000-0000-0000-0000-000000000000)
+
     Related to #4712, and blocked by #9999 until that is decided.
     """
 

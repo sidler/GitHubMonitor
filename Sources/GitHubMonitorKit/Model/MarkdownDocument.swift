@@ -19,6 +19,10 @@ public enum MarkdownBlock: Hashable, Sendable {
     /// fits into a pane four inches wide.
     case table(header: [String], rows: [[String]])
     case rule
+    /// A picture somebody put in the body, by either of the two ways
+    /// GitHub accepts: markdown, or an `<img>` tag, which is what its own
+    /// uploader writes when a file is dragged into the box.
+    case image(url: URL, alt: String)
 }
 
 /// One item of a bullet list, which on GitHub may be a checkbox.
@@ -81,6 +85,15 @@ public enum MarkdownDocument {
                 blocks.append(.code(
                     body.joined(separator: "\n"), language: CodeLanguage.named(fence)
                 ))
+                continue
+            }
+
+            // A line that is nothing but a picture. `clean` has already
+            // put every one of them on a line of its own, whichever way
+            // it was written, so this is the only shape to look for.
+            if let picture = picture(trimmed) {
+                flushParagraph()
+                blocks.append(.image(url: picture.url, alt: picture.alt))
                 continue
             }
 
@@ -198,13 +211,44 @@ public enum MarkdownDocument {
             with: "\n",
             options: [.regularExpression, .caseInsensitive]
         )
-        // Badges and shields carry no information in a text pane, and their
-        // markup is longer than the line they sit in.
-        result = result.replacingOccurrences(
-            of: "!\\[[^\\]]*\\]\\([^)]*\\)",
-            with: "",
-            options: .regularExpression
-        )
+        // The two ways a picture arrives become one. GitHub's own
+        // uploader writes an `<img>` tag when a file is dragged into the
+        // box, which is what nearly every screenshot in an issue is; the
+        // markdown form is what somebody types. Neither was shown: the
+        // tag came through as markup, because it is not in the list
+        // below, and the markdown form was deleted outright on the
+        // grounds that badges carry nothing in a text pane. That was true
+        // of the markup and is not true of the picture -- half the issues
+        // here have a section whose entire content is a screenshot.
+        //
+        // The alt text of a tag is dropped with it. GitHub writes
+        // `alt="Image"` for every file anybody uploads, which is a label
+        // that says nothing and would sit under every picture.
+        for pattern in ["<img[^>]*\\bsrc=\"([^\"]+)\"[^>]*>", "<img[^>]*\\bsrc='([^']+)'[^>]*>"] {
+            result = result.replacingOccurrences(
+                of: pattern,
+                with: "![]($1)",
+                options: [.regularExpression, .caseInsensitive]
+            )
+        }
+        // Then onto a line of its own, so the view has a block to give a
+        // size to -- except inside a table, where a line of its own is
+        // the end of the table. A badge in a cell goes the way it always
+        // did: out, leaving the column empty but there.
+        let picture = "!\\[[^\\]]*\\]\\([^)\\s]+\\)"
+        result = result
+            .components(separatedBy: .newlines)
+            .map { line in
+                guard !line.trimmingCharacters(in: .whitespaces).hasPrefix("|") else {
+                    return line.replacingOccurrences(
+                        of: picture, with: "", options: .regularExpression
+                    )
+                }
+                return line.replacingOccurrences(
+                    of: "(\(picture))", with: "\n$1\n", options: .regularExpression
+                )
+            }
+            .joined(separator: "\n")
         result = result.replacingOccurrences(
             of: "</?(details|p|div|span|em|strong|blockquote|ul|ol|li|table|thead|tbody|tr|td|th)[^>]*>",
             with: "",
@@ -214,6 +258,33 @@ public enum MarkdownDocument {
     }
 
     /// Takes out everything a pattern matches, newlines included.
+    /// The address and the alt text of a line that holds one picture and
+    /// nothing else.
+    ///
+    /// Nil for anything else, including a line with a picture and words
+    /// beside it -- `clean` has already moved those onto their own line,
+    /// so by the time this is asked the only remaining case is a line
+    /// somebody wrote that merely looks like one.
+    static func picture(_ line: String) -> (url: URL, alt: String)? {
+        guard
+            let expression = try? NSRegularExpression(
+                pattern: "^!\\[([^\\]]*)\\]\\((\\S+)\\)$"
+            ),
+            let match = expression.firstMatch(
+                in: line, range: NSRange(line.startIndex..., in: line)
+            ),
+            let alt = Range(match.range(at: 1), in: line),
+            let address = Range(match.range(at: 2), in: line),
+            // Only the two schemes a picture can actually arrive over.
+            // A `file:` or a bare path in somebody's body is a link to
+            // their own machine, and asking the network for it is a
+            // request nobody meant to make.
+            let url = URL(string: String(line[address])),
+            url.scheme == "https" || url.scheme == "http"
+        else { return nil }
+        return (url, String(line[alt]))
+    }
+
     private static func removingAcrossLines(_ pattern: String, from text: String) -> String {
         guard let expression = try? NSRegularExpression(
             pattern: pattern, options: [.dotMatchesLineSeparators, .caseInsensitive]

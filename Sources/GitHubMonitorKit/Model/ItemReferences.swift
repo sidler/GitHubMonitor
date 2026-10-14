@@ -43,8 +43,10 @@ public enum ItemReferences {
         case .numbered(let items): items
         case .table(let header, let rows): header + rows.flatMap { $0 }
         // A number in a code fence is code, and a number in a quote was
-        // written by someone else somewhere else.
-        case .code, .quote, .rule: []
+        // written by someone else somewhere else. A picture's alt text is
+        // GitHub's own word "Image" nine times in ten, and the number in
+        // its address is an attachment's, not an issue's.
+        case .code, .quote, .rule, .image: []
         }
     }
 

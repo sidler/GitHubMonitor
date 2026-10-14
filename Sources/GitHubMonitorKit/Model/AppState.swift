@@ -715,6 +715,13 @@ public final class AppState {
         linkedSummaries = SampleData.linkedSummaries()
         viewedFiles["pr-482"] = SampleData.viewedFiles()
         reviewThreads["pr-482"] = SampleData.reviewThreads()
+        // The sample has no account, so nothing would fetch the pictures
+        // in a body and both of them would come out as links -- which is
+        // only half of what there is to look at. A plain session reaches
+        // the public one and is refused the other, which is the pair.
+        BodyImageCache.shared.fetch = { url in
+            try await URLSession.shared.data(from: url).0
+        }
         // The picker reads this, and the sample has no service to read it
         // from -- without it the one control in the pane that writes
         // anything could not be looked at before it shipped.

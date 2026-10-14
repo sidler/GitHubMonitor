@@ -85,6 +85,9 @@ struct MarkdownText: View {
 
         case .rule:
             Divider()
+
+        case .image(let url, let alt):
+            BodyImageView(url: url, alt: alt)
         }
     }
 

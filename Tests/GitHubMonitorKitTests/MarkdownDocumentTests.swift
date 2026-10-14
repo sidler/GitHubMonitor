@@ -257,10 +257,15 @@ struct MarkdownDocumentTests {
         )
     }
 
-    @Test("Comments and badges are dropped")
+    @Test("A comment is dropped; a picture becomes a picture")
     func noise() {
         let source = "<!-- renovate-debug: eyJ -->\n![badge](https://example.com/a.svg) done"
-        #expect(MarkdownDocument.blocks(from: source) == [.paragraph(" done")])
+        #expect(
+            MarkdownDocument.blocks(from: source) == [
+                .image(url: URL(string: "https://example.com/a.svg")!, alt: "badge"),
+                .paragraph(" done"),
+            ]
+        )
     }
 
     @Test("A line break tag becomes a line break")
@@ -374,5 +379,62 @@ struct MarkdownHiddenTests {
     @Test("An unclosed marker leaves the text alone")
     func unclosed() {
         #expect(MarkdownDocument.blocks(from: "<!-- never closed\nThe text").isEmpty == false)
+    }
+}
+
+/// The pictures people put in bodies: both ways of writing one, where they
+/// end up, and the two places they must not go.
+@Suite("Pictures in a body")
+struct MarkdownPictureTests {
+    @Test("An img tag and markdown come out the same")
+    func bothForms() {
+        let tag = "<img width=\"1295\" alt=\"Image\" src=\"https://example.com/a.png\" />"
+        #expect(
+            MarkdownDocument.blocks(from: tag)
+                == [.image(url: URL(string: "https://example.com/a.png")!, alt: "")]
+        )
+        #expect(
+            MarkdownDocument.blocks(from: "![shot](https://example.com/a.png)")
+                == [.image(url: URL(string: "https://example.com/a.png")!, alt: "shot")]
+        )
+    }
+
+    /// Lifted out of the sentence, because a block is where the view can
+    /// give it a size.
+    @Test("A picture in a sentence becomes its own block")
+    func liftedOut() {
+        let blocks = MarkdownDocument.blocks(from: "before ![](https://example.com/a.png) after")
+        #expect(blocks.count == 3)
+        #expect(blocks.first == .paragraph("before "))
+        #expect(blocks.last == .paragraph(" after"))
+    }
+
+    /// Not inside a table, where a line of its own is the end of the
+    /// table. A badge in a cell goes out the way it always did, leaving
+    /// the column empty but there.
+    @Test("A badge in a table cell leaves an empty column, not a broken table")
+    func inATable() {
+        let source = [
+            "| Package | Age |",
+            "| --- | --- |",
+            "| prettier | ![age](https://example.com/a.svg) |",
+        ].joined(separator: "\n")
+
+        let blocks = MarkdownDocument.blocks(from: source)
+        #expect(blocks.count == 1)
+        guard case .table(_, let rows) = blocks[0] else {
+            Issue.record("the table did not survive")
+            return
+        }
+        #expect(rows.first?.count == 2)
+    }
+
+    /// A body that names a file on somebody's own machine is not a request
+    /// to go looking for it.
+    @Test("Only http and https are fetched")
+    func onlyTheWeb() {
+        #expect(MarkdownDocument.picture("![](file:///Users/a/shot.png)") == nil)
+        #expect(MarkdownDocument.picture("![](/relative/shot.png)") == nil)
+        #expect(MarkdownDocument.picture("![](https://example.com/a.png)") != nil)
     }
 }

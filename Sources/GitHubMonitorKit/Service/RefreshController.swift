@@ -77,6 +77,13 @@ public final class RefreshController {
 
     private func adopt(token: String) {
         service = GitHubService(token: token, watch: watching())
+        // The pictures in a body are fetched with the account, and the
+        // view that draws them has no business knowing what an account
+        // is. It is handed the one thing it needs.
+        BodyImageCache.shared.fetch = { [service] url in
+            guard let service else { throw GitHubError.noToken }
+            return try await service.image(at: url)
+        }
         state.hasToken = true
     }
 
