@@ -5,6 +5,19 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **The Merge button was grey everywhere, and would not say why.** It
+  refused anything that was not an approved pull request — but a
+  repository that requires no review reports no decision at all, and
+  GitHub merges such a pull request without complaint. So the app was
+  enforcing a rule nobody had made, and enforcing it behind a disabled
+  button whose only explanation was a tooltip: pressing it looked like
+  pressing nothing. What is in the way now is a review that was asked
+  for and is missing, or one that asked for changes — not having been
+  anybody's business to review is not. And the reason, whichever it is,
+  is written above the button instead of in the Branch section at the
+  top of the pane, which is scrolled away by the time anybody is
+  looking at the button.
+
 - **The one-file switch works from inside the diff.** It wrote the
   setting and nothing redrew: the list of things an open diff watches
   knew about the font size, the line numbers and the layout, and not

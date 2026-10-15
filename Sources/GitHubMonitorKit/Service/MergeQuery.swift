@@ -110,7 +110,8 @@ public enum MergeQuery {
     /// asked of GitHub.
     ///
     /// These three are the ones that were chosen: a conflict, checks that
-    /// are not green, and no approval. GitHub refuses most of them itself
+    /// are not green, and a review that was required and is not there.
+    /// GitHub refuses most of them itself
     /// on a protected branch, but a button that offers something and then
     /// reports a refusal is a button that wasted somebody's nerve -- and
     /// on an unprotected branch it would not refuse at all, which is
@@ -124,7 +125,18 @@ public enum MergeQuery {
         case .pending: return "Its checks are still running."
         case .success, .none: break
         }
-        if item.reviewDecision != .approved { return "Nobody has approved it." }
+        // Not "anything that is not an approval". A pull request in a
+        // repository that requires no review comes back with no decision
+        // at all, and GitHub merges it happily -- refusing that here made
+        // the button permanently grey everywhere branch protection is not
+        // switched on, which is most places. What is in the way is a
+        // review that was asked for and is missing, or one that asked for
+        // changes; having been nobody's business to review is not.
+        switch item.reviewDecision {
+        case .changesRequested: return "Somebody has asked for changes."
+        case .reviewRequired: return "It still needs an approving review."
+        case .approved, .none: break
+        }
         return nil
     }
 

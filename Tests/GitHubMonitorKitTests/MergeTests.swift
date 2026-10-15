@@ -41,10 +41,20 @@ struct MergeBlockerTests {
         #expect(MergeQuery.blocker(for: item(checks: .none)) == nil)
     }
 
-    @Test("No approval stops it")
+    @Test("A review that was asked for and is missing stops it")
     func unapproved() {
         #expect(MergeQuery.blocker(for: item(decision: .reviewRequired)) != nil)
         #expect(MergeQuery.blocker(for: item(decision: .changesRequested)) != nil)
+    }
+
+    /// The one that made the button grey everywhere. A repository that
+    /// requires no review reports no decision at all, and GitHub merges
+    /// such a pull request without complaint -- so refusing it here was
+    /// the app inventing a rule the team never made, and it did so
+    /// silently behind a disabled button.
+    @Test("A pull request nobody was asked to review is not blocked")
+    func unreviewed() {
+        #expect(MergeQuery.blocker(for: item(decision: .none)) == nil)
     }
 
     @Test("A draft, or something already closed, is not a thing to merge")

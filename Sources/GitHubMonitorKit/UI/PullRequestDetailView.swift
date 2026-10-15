@@ -55,7 +55,40 @@ struct PullRequestDetailView: View {
                 .padding(14)
             }
 
+            mergeNote
             footer
+        }
+    }
+
+    /// Why the merge button is grey, or why the last press merged
+    /// nothing, said where the button is.
+    ///
+    /// It used to be said in the Branch section at the top of the pane,
+    /// which is scrolled away by the time anybody is looking at the
+    /// button -- so pressing it looked like pressing nothing at all. The
+    /// only other explanation was a tooltip, and a tooltip has to be
+    /// waited for by somebody who already suspects there is something to
+    /// wait for.
+    ///
+    /// A refusal is the louder of the two: it answers a press. A blocker
+    /// is merely the state of the pull request, and says so quietly.
+    @ViewBuilder
+    private var mergeNote: some View {
+        if let writing {
+            let refusal = writing.state.merging.message(for: item.id)
+            if let note = refusal ?? MergeQuery.blocker(for: item) {
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Image(systemName: "exclamationmark.triangle")
+                    Text(note)
+                    Spacer(minLength: 0)
+                }
+                .font(.caption)
+                .foregroundStyle(
+                    refusal == nil ? Color(nsColor: .secondaryLabelColor) : Ink.orange
+                )
+                .padding(.horizontal, 14)
+                .padding(.bottom, 6)
+            }
         }
     }
 
@@ -239,18 +272,6 @@ struct PullRequestDetailView: View {
                                 .font(.caption)
                         }
                         .foregroundStyle(detail.mergeStatus.tint)
-                    }
-
-                    // Why a merge did not happen, where the merge button
-                    // is looked at. In the app's state rather than the
-                    // pane's, so it survives the rebuild that answering
-                    // GitHub causes.
-                    if let refusal = writing?.state.merging.message(for: item.id) {
-                        HStack(alignment: .firstTextBaseline, spacing: 5) {
-                            branchSymbol("exclamationmark.triangle")
-                            Text(refusal).font(.caption)
-                        }
-                        .foregroundStyle(Ink.orange)
                     }
                 }
             } header: {
