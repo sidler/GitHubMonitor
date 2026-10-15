@@ -24,6 +24,15 @@ struct SideBySidePatch: View {
     var showsLineNumbers: Bool = true
     /// The conversations to draw among the lines they hang on.
     var threads: [ReviewThread] = []
+    /// Which file this is, which a remark has to name.
+    var path: String = ""
+    /// Remarks written about this file but not sent.
+    var draft: [DraftComment] = []
+    /// How to write one. Nil leaves the diff a reader.
+    var writing: DraftWriting?
+
+    @StateObject private var target = DraftTarget()
+    @StateObject private var hovered = HoveredRow()
 
     var body: some View {
         let width = columnWidth
@@ -33,10 +42,8 @@ struct SideBySidePatch: View {
                 case .threads(let here):
                     // Prose belongs to the row, not to a column: it is as
                     // wide as the pair of them.
-                    VStack(alignment: .leading, spacing: 0) {
-                        ForEach(here) { ReviewThreadView(thread: $0) }
-                    }
-                    .frame(width: width * 2 + Self.dividerWidth, alignment: .leading)
+                    conversations(here)
+                        .frame(width: width * 2 + Self.dividerWidth, alignment: .leading)
                 default:
                     // Both sides in one row, so a line that wraps on one
                     // side takes the other down with it and the two columns
@@ -47,8 +54,114 @@ struct SideBySidePatch: View {
                         cell(row, side: .new, width: width)
                     }
                     .fixedSize(horizontal: false, vertical: true)
+
+                    if let writing {
+                        drafting(row, writing: writing)
+                            .frame(width: width * 2 + Self.dividerWidth, alignment: .leading)
+                    }
                 }
             }
+        }
+    }
+
+    /// The conversations hanging off one row, and whatever this draft
+    /// has to say about it.
+    ///
+    /// The same shape as the one column has. Reviewing from two columns
+    /// was a reader's seat for a while, which it should not have been:
+    /// which layout suits a patch is a judgement about the patch, not
+    /// about whether you intend to say anything.
+    private func conversations(_ here: [ReviewThread]) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(here) { thread in
+                ReviewThreadView(
+                    thread: thread,
+                    writing: writing,
+                    replies: draft
+                        .filter { $0.replyTo == thread.id }
+                        .sorted { $0.writtenAt < $1.writtenAt },
+                    target: target
+                )
+            }
+        }
+    }
+
+    /// What a row carries of the review being written.
+    @ViewBuilder
+    private func drafting(_ row: Row, writing: DraftWriting) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(remarks(on: row)) { comment in
+                DraftRemarkView(comment: comment, writing: writing, target: target)
+            }
+            if let place = place(of: row), target.isOpen(line: place.line, side: place.side) {
+                DraftEditorView(
+                    path: path, line: place.line, side: place.side,
+                    writing: writing, target: target
+                )
+            }
+        }
+    }
+
+    private func remarks(on row: Row) -> [DraftComment] {
+        guard case .pair(let left, let right) = row.kind else { return [] }
+        return draft.filter { comment in
+            guard !comment.isReply else { return false }
+            return comment.side == .new
+                ? comment.line == right?.number
+                : comment.line == left?.number
+        }
+    }
+
+    /// Which line of which file a remark on this row would be about.
+    private func place(of row: Row) -> (line: Int, side: ReviewThread.Side)? {
+        guard case .pair(let left, let right) = row.kind else { return nil }
+        if let new = right?.number { return (new, .new) }
+        if let old = left?.number { return (old, .old) }
+        return nil
+    }
+
+    /// The line's number, which turns into a plus under the pointer.
+    ///
+    /// One gutter per column, so which of them the pointer is in is part
+    /// of what is remembered -- the same line can be numbered on both
+    /// sides, and only the one being pointed at should offer itself.
+    @ViewBuilder
+    private func gutter(_ row: Row, side: ReviewThread.Side) -> some View {
+        let number = number(row, side: side)
+        let key = "\(row.id)-\(side.rawValue)"
+        let isHere = hovered.holds(key)
+
+        if writing != nil, let number {
+            Button {
+                target.open(line: number, side: side)
+            } label: {
+                Text(verbatim: PatchLines.pad(number, to: gutterDigits))
+                    .font(font)
+                    .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                    .opacity(isHere ? 0 : 1)
+                    .overlay(alignment: .trailing) {
+                        if isHere {
+                            Image(systemName: "plus")
+                                .font(.system(size: max(8, fontSize - 3), weight: .bold))
+                                .foregroundStyle(.white)
+                                .frame(width: fontSize + 5, height: fontSize + 5)
+                                .background(Ink.blue, in: RoundedRectangle(cornerRadius: 3))
+                        }
+                    }
+                    .padding(.leading, 12)
+                    .frame(width: gutterWidth, alignment: .topLeading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .pointerStyle(.link)
+            .onHover { hovered.set(key, $0) }
+            .help("Write a remark about this line")
+        } else {
+            Text(verbatim: PatchLines.pad(number, to: gutterDigits))
+                .font(font)
+                .foregroundStyle(.tertiary)
+                .padding(.leading, 12)
+                .frame(width: gutterWidth, alignment: .topLeading)
         }
     }
 
@@ -58,11 +171,7 @@ struct SideBySidePatch: View {
         let kind = text.map { DiffLineKind(line: $0.whole) }
         return HStack(alignment: .top, spacing: 0) {
             if showsLineNumbers {
-                Text(verbatim: PatchLines.pad(number(row, side: side), to: gutterDigits))
-                    .font(font)
-                    .foregroundStyle(.tertiary)
-                    .padding(.leading, 12)
-                    .frame(width: gutterWidth, alignment: .topLeading)
+                gutter(row, side: side)
             }
 
             if let text {

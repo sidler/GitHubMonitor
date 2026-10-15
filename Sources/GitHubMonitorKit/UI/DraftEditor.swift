@@ -56,9 +56,22 @@ final class DraftTarget: ObservableObject {
 }
 
 /// Which row the pointer is over, so its number can offer itself.
+///
+/// A string rather than a row's number, because two columns have two
+/// gutters and the pointer is in one of them.
 @MainActor
 final class HoveredRow: ObservableObject {
-    @Published var id: Int?
+    @Published var key: String?
+
+    func holds(_ key: String) -> Bool { self.key == key }
+
+    func set(_ key: String, _ inside: Bool) {
+        if inside {
+            self.key = key
+        } else if self.key == key {
+            self.key = nil
+        }
+    }
 }
 
 /// A remark written but not sent.

@@ -614,7 +614,10 @@ struct DiffOverlay: View {
                         showsLineNumbers: showsLineNumbers,
                         threads: ReviewThreadPlacement.placed(
                             mine, in: file.path, patch: patch
-                        )
+                        ),
+                        path: file.path,
+                        draft: draft?.comments(in: file.path) ?? [],
+                        writing: writing
                     )
                     .padding(.vertical, 6)
                 case .unified, .sideBySide:
@@ -896,7 +899,7 @@ struct PatchLines: View {
     private func gutterButton(
         _ line: Line, digits: Int, place: (line: Int, side: ReviewThread.Side)
     ) -> some View {
-        let isHere = hovered.id == line.id
+        let isHere = hovered.holds("\(line.id)")
         return Button {
             target.open(line: place.line, side: place.side)
         } label: {
@@ -928,13 +931,7 @@ struct PatchLines: View {
         }
         .buttonStyle(.plain)
         .pointerStyle(.link)
-        .onHover { inside in
-            if inside {
-                hovered.id = line.id
-            } else if hovered.id == line.id {
-                hovered.id = nil
-            }
-        }
+        .onHover { hovered.set("\(line.id)", $0) }
         .help("Write a remark about this line")
     }
 

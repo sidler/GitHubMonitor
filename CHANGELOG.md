@@ -25,7 +25,10 @@ What changed in each released version. The app shows this file itself, under
   Ticking a file still moves on to the next, as it always did. Switching
   between the two ways of reading keeps the file you were on.
 - **A conversation can be answered, and settled.** Every thread in a
-  diff now carries Reply and Resolve. A reply joins the review being
+  diff now carries Reply and Resolve, in both layouts — reviewing from
+  two columns was a reader's seat until now, which it should not have
+  been: which layout suits a patch is a judgement about the patch, not
+  about whether you intend to say anything. A reply joins the review being
   drafted, the way a new remark does, so one reading of a diff is still
   one notification; resolving goes at once, because nobody is told and
   the same click undoes it.
