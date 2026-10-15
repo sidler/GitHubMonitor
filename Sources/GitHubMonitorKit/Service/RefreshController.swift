@@ -169,6 +169,69 @@ public final class RefreshController {
         }
     }
 
+    // MARK: - Mentions
+
+    /// Reads who may be named with an `@`, once per question.
+    ///
+    /// Asked without a narrowing first, and narrowed only where that page
+    /// turned out not to hold the name being typed -- most repositories
+    /// have fewer mentionable users than one page, and for those the
+    /// whole thing is answered once and filtered here on every keystroke
+    /// after that.
+    public func loadMentions(for repository: String, matching query: String = "") {
+        let request = MentionRequest(repository: repository, query: query)
+        guard state.repositoryMentions[request] == nil, let service else { return }
+
+        state.repositoryMentions[request] = .loading
+        accountTask { [weak self] in
+            do {
+                let catalogue = try await service.mentionableUsers(
+                    inRepository: repository, matching: query
+                )
+                guard let self, !Task.isCancelled else { return }
+                state.repositoryMentions[request] = .loaded(catalogue)
+            } catch {
+                guard let self, !Task.isCancelled else { return }
+                state.repositoryMentions[request] = .failed(error.localizedDescription)
+            }
+        }
+    }
+
+    /// Asks for whatever answering this query will need.
+    ///
+    /// Kept apart from reading the answer because the reading happens
+    /// while a view is being drawn, and a fetch started from there would
+    /// be writing state in the middle of a redraw. The view asks when
+    /// what was typed changes; it reads whenever it draws.
+    public func askForMentions(in repository: String, matching query: String) {
+        loadMentions(for: repository)
+        guard
+            case .loaded(let page) = state.repositoryMentions[
+                MentionRequest(repository: repository, query: "")
+            ],
+            MentionQuery.needsNarrowing(query, in: page)
+        else { return }
+        loadMentions(for: repository, matching: query)
+    }
+
+    /// The names worth offering for what has been typed.
+    ///
+    /// A pure read: the page already in hand, filtered, and the narrowed
+    /// answer where one has arrived.
+    public func mentionCandidates(
+        in repository: String, matching query: String
+    ) -> [MentionableUser] {
+        if case .loaded(let narrowed) = state.repositoryMentions[
+            MentionRequest(repository: repository, query: query)
+        ] {
+            return MentionQuery.matches(query, in: narrowed.users)
+        }
+        guard case .loaded(let page) = state.repositoryMentions[
+            MentionRequest(repository: repository, query: "")
+        ] else { return [] }
+        return MentionQuery.matches(query, in: page.users)
+    }
+
     /// Puts a label on an item or takes it off, showing it at once.
     ///
     /// Shown before GitHub has agreed, and put back if it does not. This
@@ -310,6 +373,13 @@ public final class RefreshController {
         state.reviewThreads = [:]
         state.openedDiff = nil
         state.approval = .idle
+        state.merging = .idle
+        // A repository's labels and the people who may be named in it are
+        // as much the account's business as anything else here: on a
+        // private repository both are a list of a team's work and a list
+        // of its members.
+        state.repositoryLabels = [:]
+        state.repositoryMentions = [:]
         state.inspectedPullRequestID = nil
         state.inspectedIssueID = nil
         state.inspectedNotificationID = nil

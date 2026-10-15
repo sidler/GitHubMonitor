@@ -5,6 +5,24 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **Typing `@` in a comment offers the people it can reach.** The names
+  come from GitHub's own answer to that question — who a mention in
+  *this* repository actually notifies — and the list sits under the box
+  with the login and the real name beside it. A login that starts with
+  what was typed comes first, because typing "an" to reach *annika*
+  should not mean scrolling past *roman* and *susanne*. One request per
+  repository in the ordinary case: the first hundred are filtered here
+  as you type, and GitHub is asked again only where that page is not
+  the whole list and holds nobody matching.
+
+  Under the box rather than at the caret, and a click rather than a
+  keystroke. `TextEditor` publishes its text and nothing else on this
+  toolchain — no insertion point to hang a list from, and no way to let
+  arrow keys reach a list while the box holds the keyboard. Putting the
+  list somewhere that does not pretend to know where the caret is was
+  the honest version. An `@` inside a word is left alone, so an email
+  address is still an email address.
+
 - **Choosing a merge method merged nothing.** The question closed and
   the pull request stayed open, with nothing said. Closing the dialog
   puts the merge state back to *idle*, and it does so straight away,

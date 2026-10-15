@@ -8,6 +8,21 @@ struct DraftWriting {
     let change: (_ id: UUID, _ body: String) -> Void
     let remove: (_ id: UUID) -> Void
     let setResolved: (_ thread: ReviewThread, _ resolved: Bool) -> Void
+    /// Who can be named with an `@` while writing. Nil leaves the editor
+    /// a plain box, which is what it was.
+    var mentioning: Mentioning?
+}
+
+/// Where the editor gets the names it offers.
+///
+/// Two closures rather than a reference to the app's state, because the
+/// diff is handed what it may do and not what it may reach: the same
+/// shape `DraftWriting` already has.
+struct Mentioning {
+    /// Called when what has been typed changes, and allowed to fetch.
+    let ask: (_ query: String) -> Void
+    /// Called while drawing, and not allowed to.
+    let candidates: (_ query: String) -> [MentionableUser]
 }
 
 /// Which line is being written about, and what has been typed so far.
@@ -155,6 +170,8 @@ struct DraftEditorView: View {
                             .strokeBorder(.quaternary, lineWidth: 0.5)
                     )
 
+                mentions
+
                 HStack(spacing: 8) {
                     Text("Kept until you send the review")
                         .font(.caption2)
@@ -172,6 +189,58 @@ struct DraftEditorView: View {
         }
         .background(.quaternary.opacity(0.25))
         .padding(.vertical, 2)
+        .onChange(of: typedMention) {
+            guard let query = typedMention else { return }
+            writing.mentioning?.ask(query)
+        }
+    }
+
+    /// What has been typed after an `@`, where that is what is happening.
+    private var typedMention: String? { MentionTyping.query(in: target.text) }
+
+    /// The names on offer, under the box rather than at the caret.
+    ///
+    /// Under it because `TextEditor` publishes its text and nothing else
+    /// on this toolchain: there is no insertion point to hang a list
+    /// from, and the honest way to say so is to put the list somewhere
+    /// that does not pretend to know. It is a click, not a keystroke,
+    /// for the same reason -- the box keeps the keyboard while it has
+    /// focus, and arrow keys meant for a list would go into the prose.
+    @ViewBuilder
+    private var mentions: some View {
+        if let mentioning = writing.mentioning, let query = typedMention {
+            let people = mentioning.candidates(query)
+            if !people.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(people) { person in
+                        Button {
+                            target.text = MentionTyping.completing(
+                                target.text, with: person.login
+                            )
+                        } label: {
+                            HStack(spacing: 6) {
+                                Text(verbatim: "@\(person.login)")
+                                    .font(.caption.weight(.medium))
+                                if let name = person.name {
+                                    Text(name)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                                Spacer(minLength: 0)
+                            }
+                            .padding(.vertical, 3)
+                            .padding(.horizontal, 6)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .pointerStyle(.link)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 4))
+            }
+        }
     }
 
     private var label: String {

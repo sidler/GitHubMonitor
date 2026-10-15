@@ -395,6 +395,25 @@ public struct GitHubService: Sendable {
         return try LabelQuery.catalogue(from: payload)
     }
 
+    /// Who may be named with an `@` in this repository.
+    public func mentionableUsers(
+        inRepository repository: String, matching query: String = ""
+    ) async throws -> MentionQuery.Catalogue {
+        let parts = repository.split(separator: "/", maxSplits: 1).map(String.init)
+        guard parts.count == 2 else {
+            throw GitHubError.decoding("repository is not owner/name: \(repository)")
+        }
+        let payload = try await client.graphQL(
+            MentionQuery.document,
+            variables: [
+                "owner": parts[0],
+                "name": parts[1],
+                "query": query.isEmpty ? NSNull() : query,
+            ]
+        )
+        return try MentionQuery.catalogue(from: payload)
+    }
+
     /// Puts one label on an issue or a pull request, or takes it off.
     ///
     /// One at a time, which is how it is pressed. Sending the whole set

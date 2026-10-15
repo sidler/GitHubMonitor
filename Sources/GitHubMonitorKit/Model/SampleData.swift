@@ -345,6 +345,28 @@ public enum SampleData {
     /// both of the things the picker has to get right -- ticking the ones
     /// already on, and saying when it is showing only part of the set --
     /// can be seen without an account.
+    /// The people the sample's repository can be told about.
+    ///
+    /// The authors and reviewers the rest of the sample already names,
+    /// so a mention typed into a sample diff completes to somebody who
+    /// appears in it -- plus enough others to make the list a list.
+    public static func mentionCatalogue() -> MentionQuery.Catalogue {
+        let people: [(String, String?)] = [
+            ("mira", "Mira Hollanda"),
+            ("noor", "Noor Siddiqui"),
+            ("arun", "Arun Patel"),
+            ("dara", "Dara Olusegun"),
+            ("annika", "Annika Roth"),
+            ("tomasz", "Tomasz Nowak"),
+            ("susanne", nil),
+            ("roman", "Roman Vogel"),
+        ]
+        return MentionQuery.Catalogue(
+            users: people.map { MentionableUser(login: $0.0, name: $0.1) },
+            total: people.count
+        )
+    }
+
     public static func labelCatalogue() -> LabelQuery.Catalogue {
         // Named ones first, so the ticks and the colours can be looked
         // at; then enough filler to overrun the list, because a real

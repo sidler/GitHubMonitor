@@ -329,7 +329,19 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
                     },
                     setResolved: { [controller] thread, resolved in
                         controller.setResolved(resolved, thread: thread, in: item.id)
-                    }
+                    },
+                    mentioning: Mentioning(
+                        ask: { [controller] query in
+                            controller.askForMentions(
+                                in: item.repository, matching: query
+                            )
+                        },
+                        candidates: { [controller] query in
+                            controller.mentionCandidates(
+                                in: item.repository, matching: query
+                            )
+                        }
+                    )
                 )
             }
         )

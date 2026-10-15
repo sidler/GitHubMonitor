@@ -210,6 +210,13 @@ public final class AppState {
     /// repository in a queue just in case.
     public var repositoryLabels: [LabelRequest: LabelCatalogueState] = [:]
 
+    /// Who may be named with an `@`, per repository and per narrowing.
+    ///
+    /// Kept beside the labels because it is the same kind of thing: a
+    /// fact about a repository that a field wants the instant somebody
+    /// starts typing, and that does not change between two keystrokes.
+    public var repositoryMentions: [MentionRequest: MentionCatalogueState] = [:]
+
     /// Every request to GitHub and what came back, for the Requests tab
     /// in Settings. Held in memory only: it answers "what is happening
     /// now", and a log that outlived the question would be a file nobody
@@ -740,6 +747,11 @@ public final class AppState {
             repositoryLabels[LabelRequest(repository: "octo/server", query: "")] =
                 .loaded(SampleData.labelCatalogue())
         }
+        // The same for the names an `@` offers: without a service there
+        // is nobody to complete to, and the list under the comment box
+        // could not be looked at before it shipped.
+        repositoryMentions[MentionRequest(repository: "octo/server", query: "")] =
+            .loaded(SampleData.mentionCatalogue())
         if isBigSample {
             changedFiles["pr-482"] = .loaded(ChangedFilesQuery.ordered(SampleData.largeDiff()))
         }
