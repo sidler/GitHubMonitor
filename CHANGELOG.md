@@ -14,13 +14,20 @@ What changed in each released version. The app shows this file itself, under
   somebody may well want two columns and one file. Also in Settings and
   the View menu, and remembered, the way the layout is.
 
+  ⌥← and ⌥→ live in the View menu, which is where a key equivalent
+  actually reaches a diff — and they go grey while something is being
+  typed, so they stay the word-left and word-right they have always been
+  in the box where a review remark is written.
+
   The pager counts every file, ticked or not. A “4 of 6” that depended on
   what you had already read would be a number nobody could use, and the
   arrows would mean something different depending on where they had been.
   Ticking a file still moves on to the next, as it always did. Switching
   between the two ways of reading keeps the file you were on.
 - **Remarks can be written on the lines of a diff.** The line number
-  turns into a plus under the pointer; a box opens under the line, and
+  turns into a plus under the pointer — filled and blue, because a plus
+  in the same grey as the numbers it stands among is something you find
+  only if you already knew it was there; a box opens under the line, and
   what is written there joins a review being drafted for that pull
   request. Nothing is sent — a reviewer reads a diff, says several
   things, and then says what they think of the whole, and sending each
