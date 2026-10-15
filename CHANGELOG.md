@@ -3,7 +3,7 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
-## Unreleased
+## 2.1.0
 
 - **The box you write a remark in looks like a box, and its buttons are
   where your hand already is.** Drawn on the conversation's own grey
