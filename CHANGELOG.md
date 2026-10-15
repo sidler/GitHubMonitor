@@ -5,6 +5,15 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **Reply opens its box again.** Moving the conversations to the margin
+  broke it in a way that looked like a dead button and was not: the
+  press arrived and the state took it, but the card was never redrawn.
+  `ReviewThreadView` deliberately does not observe where the box is
+  open — so SwiftUI had every right to skip a view none of whose
+  properties had changed, and the press changed none of them. It is
+  told whether the box belongs to it instead of asking, which is a
+  property that differs, which is what makes the body run again.
+
 - **A line somebody wrote about is marked where the writing is.** A bar
   down the right-hand edge of the code, in the colour of the card
   standing there — blue for an open conversation, grey for a settled

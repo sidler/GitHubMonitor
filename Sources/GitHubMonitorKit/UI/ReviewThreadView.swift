@@ -14,10 +14,18 @@ struct ReviewThreadView: View {
     var writing: DraftWriting?
     /// What this draft already answers it with.
     var replies: [DraftComment]
-    /// Where the box is open, if it is. A plain reference rather than an
-    /// observed one: whoever owns it is redrawn when it changes, and
-    /// this is drawn by them.
+    /// Where the box is open, if it is. A plain reference, used to open
+    /// the box and never read while drawing -- see `isReplying`.
     var target: DraftTarget?
+    /// Whether the box belongs to this conversation right now.
+    ///
+    /// A value rather than a question asked of `target`, and that is the
+    /// whole repair: this view does not observe the target, so SwiftUI
+    /// had every right to skip its body when nothing it holds had
+    /// changed -- and the press that set `replyingTo` changed nothing it
+    /// held. The answer arrives as a property instead, which differs,
+    /// which is what makes the body run again.
+    var isReplying: Bool = false
     /// Drawn as a card at the file's margin rather than between the
     /// lines. The content is the same; what changes is that every
     /// conversation gets a header it can be shut by, and that the card
@@ -36,12 +44,14 @@ struct ReviewThreadView: View {
         writing: DraftWriting? = nil,
         replies: [DraftComment] = [],
         target: DraftTarget? = nil,
+        isReplying: Bool = false,
         inMargin: Bool = false
     ) {
         self.thread = thread
         self.writing = writing
         self.replies = replies
         self.target = target
+        self.isReplying = isReplying
         self.inMargin = inMargin
         _disclosure = StateObject(wrappedValue: Disclosure(isExpanded: !thread.isResolved))
     }
@@ -146,7 +156,7 @@ struct ReviewThreadView: View {
                         }
 
                         Divider()
-                        if target.isReplying(to: thread.id) {
+                        if isReplying {
                             DraftEditorView(
                                 path: thread.path,
                                 line: thread.anchorLine ?? 0,

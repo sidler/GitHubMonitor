@@ -254,6 +254,7 @@ struct MarginColumn: View {
                     writing: writing,
                     replies: replies(thread),
                     target: target,
+                    isReplying: target.isReplying(to: thread.id),
                     inMargin: true
                 )
             case .remark(let comment):
