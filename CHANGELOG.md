@@ -5,6 +5,14 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **The one-file switch works from inside the diff.** It wrote the
+  setting and nothing redrew: the list of things an open diff watches
+  knew about the font size, the line numbers and the layout, and not
+  about this. And switching back to one file left the column at the
+  offset it had while every file was in it — which for one short file is
+  past the end of it, so the page came up blank with a pager over it
+  saying three of six.
+
 - **A diff can be read a file at a time.** A pager beside the file count
   — ‹ 3 of 6 ›, or ⌥← and ⌥→ — and only that file is drawn, which is
   most of what makes a review of forty-three files bearable. The tree

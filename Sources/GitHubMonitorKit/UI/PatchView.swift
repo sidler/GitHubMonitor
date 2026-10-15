@@ -116,11 +116,12 @@ struct DiffOverlay: View {
             if let next { withAnimation(.easeOut(duration: 0.15)) { place.go(to: next) } }
         }
         .onChange(of: paging) {
-            // Switching back to the whole diff goes to the file that was
-            // being read one at a time, rather than to the top. The other
-            // direction needs nothing: paging already draws whichever
-            // file `place` names.
-            if paging == .scroll { place.go(to: place.path) }
+            // Both ways, and the second one is not decoration: going
+            // back to one file leaves the column with the offset it had
+            // while every file was in it, which for one short file is
+            // past the end of it -- a blank page with a pager over it
+            // saying three of six.
+            place.go(to: place.path ?? files.first?.path)
         }
         // Escape is handled by the view that hosts this, so that it stops
         // here instead of reaching the list behind it.

@@ -645,6 +645,11 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             _ = state.settings.diffFontSize
             _ = state.settings.showsDiffLineNumbers
             _ = state.settings.diffLayout
+            // Reading one file at a time or all of them, which has to be
+            // in this list for the same reason the layout is: the
+            // control that changes it sits in the diff, and the diff is
+            // rebuilt rather than told.
+            _ = state.settings.diffPaging
             // The diff is open before the comments arrive, so it has to be
             // rebuilt when they do.
             _ = state.reviewThreads
