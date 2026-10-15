@@ -71,7 +71,20 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             diffLayout: { [state] in state.settings.diffLayout },
             setDiffLayout: { [state] layout in state.settings.diffLayout = layout },
             diffPaging: { [state] in state.settings.diffPaging },
-            setDiffPaging: { [state] paging in state.settings.diffPaging = paging }
+            setDiffPaging: { [state] paging in state.settings.diffPaging = paging },
+            stepDiffFile: { step in
+                NotificationCenter.default.post(
+                    name: .diffStepFile, object: nil, userInfo: ["step": step]
+                )
+            },
+            canStepDiffFile: { [state] in
+                // Only with a diff open, and not while somebody is
+                // typing: a disabled item hands its key equivalent back,
+                // so option-left goes on being word-left in the box where
+                // a review remark is written.
+                guard state.openedDiff != nil else { return false }
+                return !(NSApp.keyWindow?.firstResponder is NSTextView)
+            }
         )
 
         // Sample data is opt-in now that real requests work, so the UI can

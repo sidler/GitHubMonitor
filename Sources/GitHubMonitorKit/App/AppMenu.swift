@@ -22,7 +22,9 @@ enum AppMenu {
         diffLayout: @escaping () -> DiffLayout,
         setDiffLayout: @escaping (DiffLayout) -> Void,
         diffPaging: @escaping () -> DiffPaging,
-        setDiffPaging: @escaping (DiffPaging) -> Void
+        setDiffPaging: @escaping (DiffPaging) -> Void,
+        stepDiffFile: @escaping (Int) -> Void,
+        canStepDiffFile: @escaping () -> Bool
     ) -> NSMenu {
         let main = NSMenu()
 
@@ -40,7 +42,9 @@ enum AppMenu {
             diffLayout: diffLayout,
             setDiffLayout: setDiffLayout,
             diffPaging: diffPaging,
-            setDiffPaging: setDiffPaging
+            setDiffPaging: setDiffPaging,
+            stepDiffFile: stepDiffFile,
+            canStepDiffFile: canStepDiffFile
         ))
         main.addItem(windowMenu())
 
@@ -165,7 +169,9 @@ enum AppMenu {
         diffLayout: @escaping () -> DiffLayout,
         setDiffLayout: @escaping (DiffLayout) -> Void,
         diffPaging: @escaping () -> DiffPaging,
-        setDiffPaging: @escaping (DiffPaging) -> Void
+        setDiffPaging: @escaping (DiffPaging) -> Void,
+        stepDiffFile: @escaping (Int) -> Void,
+        canStepDiffFile: @escaping () -> Bool
     ) -> NSMenuItem {
         let item = NSMenuItem()
         let menu = NSMenu(title: "View")
@@ -224,6 +230,24 @@ enum AppMenu {
             item.isOn = { diffLayout() == option }
             menu.addItem(item)
         }
+
+        // Here rather than on the buttons in the diff itself: a key
+        // equivalent on a SwiftUI button inside a hosted view only fires
+        // while that view holds the keyboard, and the overlay never
+        // does -- which is why the arrows did nothing.
+        let back = ActionItem(
+            title: "Previous File", keyEquivalent: String(UnicodeScalar(NSLeftArrowFunctionKey)!)
+        ) { stepDiffFile(-1) }
+        back.keyEquivalentModifierMask = [.option]
+        back.canRun = canStepDiffFile
+        menu.addItem(back)
+
+        let on = ActionItem(
+            title: "Next File", keyEquivalent: String(UnicodeScalar(NSRightArrowFunctionKey)!)
+        ) { stepDiffFile(1) }
+        on.keyEquivalentModifierMask = [.option]
+        on.canRun = canStepDiffFile
+        menu.addItem(on)
 
         menu.addItem(.separator())
 
@@ -286,6 +310,15 @@ private final class ActionItem: NSMenuItem, NSMenuItemValidation {
     /// time it was changed anywhere else.
     var isOn: (() -> Bool)?
 
+    /// Whether it can be used at all, asked at the same moment.
+    ///
+    /// Worth having for its side effect as much as for the grey: a
+    /// disabled item does not swallow its key equivalent, so \u{2325}\u{2190} stays
+    /// the word-left it has always been while somebody is typing a
+    /// review remark, and only steps through files when nothing is being
+    /// written.
+    var canRun: (() -> Bool)?
+
     init(title: String, keyEquivalent: String, action: @escaping () -> Void) {
         handler = action
         super.init(title: title, action: #selector(run), keyEquivalent: keyEquivalent)
@@ -301,7 +334,7 @@ private final class ActionItem: NSMenuItem, NSMenuItemValidation {
     /// one moment the answer is certain to be current.
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         if let isOn { item.state = isOn() ? .on : .off }
-        return true
+        return canRun?() ?? true
     }
 
     @objc private func run() {

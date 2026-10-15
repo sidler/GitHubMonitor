@@ -75,3 +75,14 @@ public enum DiffPager {
         return file
     }
 }
+
+extension Notification.Name {
+    /// Asked for from the menu, answered by whichever diff is open.
+    ///
+    /// A notification rather than a value in the app's state: where a
+    /// diff is scrolled to is written on every frame of a scroll, and
+    /// putting it where the window controller can see it is what used to
+    /// rebuild the whole overlay mid-scroll. This travels the other way
+    /// and only when a key is pressed.
+    public static let diffStepFile = Notification.Name("GitHubMonitor.diffStepFile")
+}

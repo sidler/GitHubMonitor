@@ -22,7 +22,8 @@ struct AppMenuTests {
             changeDiffFontSize: { _ in }, resetDiffFontSize: {},
             showsDiffLineNumbers: { true }, toggleDiffLineNumbers: {},
             diffLayout: { .unified }, setDiffLayout: { _ in },
-            diffPaging: { .scroll }, setDiffPaging: { _ in }
+            diffPaging: { .scroll }, setDiffPaging: { _ in },
+            stepDiffFile: { _ in }, canStepDiffFile: { true }
         )
     }
 
@@ -70,5 +71,55 @@ struct AppMenuTests {
         let close = try #require(file.submenu?.items.first { $0.title == "Close" })
         #expect(close.keyEquivalent == "w")
         #expect(close.keyEquivalentModifierMask == [.command])
+    }
+}
+
+/// Stepping through a diff's files from the keyboard.
+@Suite("Option-arrow steps through the files of a diff")
+@MainActor
+struct DiffStepMenuTests {
+    private func menu(canStep: @escaping () -> Bool = { true }) -> [NSMenuItem] {
+        _ = NSApplication.shared
+        let main = AppMenu.build(
+            appName: "GitHub Monitor",
+            openSettings: {}, refresh: {}, moveDetail: { _ in }, closeDetail: {},
+            changeDiffFontSize: { _ in }, resetDiffFontSize: {},
+            showsDiffLineNumbers: { true }, toggleDiffLineNumbers: {},
+            diffLayout: { .unified }, setDiffLayout: { _ in },
+            diffPaging: { .scroll }, setDiffPaging: { _ in },
+            stepDiffFile: { _ in }, canStepDiffFile: canStep
+        )
+        // The View menu is the one that carries them.
+        return main.items.first { $0.submenu?.title == "View" }?.submenu?.items ?? []
+    }
+
+    private func item(_ title: String, canStep: @escaping () -> Bool = { true }) -> NSMenuItem? {
+        menu(canStep: canStep).first { $0.title == title }
+    }
+
+    /// On the buttons in the diff they never fired: a key equivalent on a
+    /// SwiftUI button inside a hosted view only works while that view
+    /// holds the keyboard, and the overlay never does.
+    @Test("Both are in the View menu, on the option arrows")
+    func present() throws {
+        let back = try #require(item("Previous File"))
+        let on = try #require(item("Next File"))
+        #expect(back.keyEquivalentModifierMask == [.option])
+        #expect(on.keyEquivalentModifierMask == [.option])
+        #expect(back.keyEquivalent != on.keyEquivalent)
+    }
+
+    /// The point of the grey is what it hands back: a disabled item does
+    /// not swallow its key equivalent, so option-left goes on being
+    /// word-left in the box where a review remark is written.
+    @Test("Disabled where there is nothing to step through")
+    func disabled() throws {
+        let item = try #require(item("Next File", canStep: { false }))
+        let validator = try #require(item as? NSMenuItemValidation)
+        #expect(!validator.validateMenuItem(item))
+
+        let usable = try #require(self.item("Next File", canStep: { true }))
+        let other = try #require(usable as? NSMenuItemValidation)
+        #expect(other.validateMenuItem(usable))
     }
 }

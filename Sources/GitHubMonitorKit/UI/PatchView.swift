@@ -106,6 +106,15 @@ struct DiffOverlay: View {
             if place.path == nil { place.go(to: startingPath) }
             sidebar.width = Settings.clampedSidebarWidth(startingSidebarWidth)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .diffStepFile)) { note in
+            let step = note.userInfo?["step"] as? Int ?? 1
+            let next = step > 0
+                ? DiffPager.file(after: place.path, in: files)
+                : DiffPager.file(before: place.path, in: files)
+            // Useful in both ways of reading: paging draws the next file,
+            // scrolling jumps to it.
+            if let next { withAnimation(.easeOut(duration: 0.15)) { place.go(to: next) } }
+        }
         .onChange(of: paging) {
             // Switching back to the whole diff goes to the file that was
             // being read one at a time, rather than to the top. The other
@@ -260,8 +269,7 @@ struct DiffOverlay: View {
                 Image(systemName: "chevron.left")
             }
             .disabled(back == nil)
-            .keyboardShortcut(.leftArrow, modifiers: .option)
-            .help("The file before this one")
+            .help("The file before this one (\u{2325}\u{2190})")
 
             Text(verbatim: "\(at.at) of \(at.of)")
                 .font(.caption)
@@ -274,8 +282,7 @@ struct DiffOverlay: View {
                 Image(systemName: "chevron.right")
             }
             .disabled(on == nil)
-            .keyboardShortcut(.rightArrow, modifiers: .option)
-            .help("The file after this one")
+            .help("The file after this one (\u{2325}\u{2192})")
         }
         .buttonStyle(.accessoryBar)
     }
@@ -799,11 +806,6 @@ struct PatchLines: View {
         return nil
     }
 
-    /// The gutter's width, with a plus where the new number would be.
-    static func plus(digits: Int) -> String {
-        String(repeating: " ", count: max(0, digits * 2)) + "+"
-    }
-
     private func row(_ line: Line, digits: Int) -> some View {
         let kind = DiffLineKind(line: line.text, insideHunk: line.insideHunk)
         let split = DiffWords.split(line.text, emphasis: line.emphasis)
@@ -875,13 +877,27 @@ struct PatchLines: View {
             target.open(line: place.line, side: place.side)
         } label: {
             Text(
-                verbatim: isHere
-                    ? Self.plus(digits: digits)
-                    : Self.pad(line.number.old, to: digits) + " "
-                        + Self.pad(line.number.new, to: digits)
+                verbatim: Self.pad(line.number.old, to: digits) + " "
+                    + Self.pad(line.number.new, to: digits)
             )
             .font(.system(size: fontSize).monospaced())
-            .foregroundStyle(isHere ? Ink.blue : Color(nsColor: .tertiaryLabelColor))
+            .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+            // The numbers step aside rather than being replaced, so the
+            // code beside them does not shift by a character as the
+            // pointer passes.
+            .opacity(isHere ? 0 : 1)
+            .overlay(alignment: .trailing) {
+                if isHere {
+                    // Filled rather than drawn: a plus in the same grey
+                    // as the numbers it stands among is something you
+                    // find only if you already knew it was there.
+                    Image(systemName: "plus")
+                        .font(.system(size: max(8, fontSize - 3), weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: fontSize + 5, height: fontSize + 5)
+                        .background(Ink.blue, in: RoundedRectangle(cornerRadius: 3))
+                }
+            }
             .padding(.leading, 12)
             .padding(.trailing, 8)
             .contentShape(Rectangle())
