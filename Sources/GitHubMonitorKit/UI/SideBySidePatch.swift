@@ -35,6 +35,9 @@ struct SideBySidePatch: View {
     @ObservedObject var target: DraftTarget
     /// The coordinate space this patch and its margin share.
     var space: String = ""
+    /// Which card is drawn in which colour, so a line can be marked in
+    /// the colour of what is written about it.
+    var marks: [String: Color] = [:]
 
     @StateObject private var hovered = HoveredRow()
 
@@ -51,6 +54,7 @@ struct SideBySidePatch: View {
                     cell(row, side: .new, width: width)
                 }
                 .fixedSize(horizontal: false, vertical: true)
+                .lineMark(row.keys.compactMap { marks[$0] }.first)
                 .marginAnchor(row.keys, in: space)
             }
         }

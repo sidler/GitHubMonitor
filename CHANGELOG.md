@@ -5,6 +5,22 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **A line somebody wrote about is marked where the writing is.** A bar
+  down the right-hand edge of the code, in the colour of the card
+  standing there — blue for an open conversation, grey for a settled
+  one, orange for one whose code has changed, purple for something of
+  yours that is not sent yet. At the edge rather than across the line,
+  because a wash over code is a wash over its contrast; the eye follows
+  the bar across to the card, which is the one thing drawing
+  conversations between the lines never had to explain.
+
+- **The margin is a stack again, not a pile of offsets.** The cards were
+  moved into place with `offset`, which draws a view where its layout
+  says it is not — and a button drawn off its own frame is a button
+  that is awkward to press. They sit in a plain stack with measured
+  spaces between them now, which also means a stale measurement can
+  leave a gap slightly wrong rather than make two cards overlap.
+
 - **The names an `@` offers float at the caret, and the keyboard drives
   them.** They were drawn under the box, which changed its height — so
   the diff moved about as you typed, by as much as the number of people

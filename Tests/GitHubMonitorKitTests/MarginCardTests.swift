@@ -34,6 +34,31 @@ struct MarginCardTests {
         #expect(tops[1] == 324)
     }
 
+    /// The column is a stack of cards with spacers between them, not a
+    /// pile of offset ones: a view moved by `offset` is drawn where its
+    /// layout says it is not, and a button drawn off its own frame is a
+    /// button that is awkward to press.
+    @Test("The gaps add up to the same places")
+    func gapsAgree() {
+        let anchors: [CGFloat] = [40, 80, 400]
+        let heights: [CGFloat] = [200, 60, 60]
+        let gaps = MarginCards.gaps(anchors: anchors, heights: heights, gap: 8)
+        let tops = MarginCards.place(anchors: anchors, heights: heights, gap: 8)
+
+        var at: CGFloat = 0
+        for (index, space) in gaps.enumerated() {
+            at += space
+            #expect(at == tops[index])
+            at += heights[index]
+        }
+    }
+
+    @Test("No gap is ever negative, however stale the measurements are")
+    func noNegativeGaps() {
+        let gaps = MarginCards.gaps(anchors: [0, 5, 6], heights: [300, 300, 300])
+        #expect(gaps.allSatisfy { $0 >= 0 })
+    }
+
     @Test("Nothing to place is no column at all")
     func empty() {
         #expect(MarginCards.place(anchors: [], heights: []).isEmpty)

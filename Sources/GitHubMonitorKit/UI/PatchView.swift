@@ -675,6 +675,9 @@ struct PatchLines: View {
     /// The coordinate space this patch and its margin share, in which a
     /// row reports where it ended up.
     var space: String = ""
+    /// Which card is drawn in which colour, so a line can be marked in
+    /// the colour of what is written about it.
+    var marks: [String: Color] = [:]
 
     @StateObject private var hovered = HoveredRow()
 
@@ -717,8 +720,10 @@ struct PatchLines: View {
         let anchors = anchors
         VStack(alignment: .leading, spacing: 0) {
             ForEach(lines) { line in
+                let keys = keys(for: line, anchors: anchors)
                 row(line, digits: digits)
-                    .marginAnchor(keys(for: line, anchors: anchors), in: space)
+                    .lineMark(keys.compactMap { marks[$0] }.first)
+                    .marginAnchor(keys, in: space)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

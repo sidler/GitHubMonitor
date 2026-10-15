@@ -45,6 +45,30 @@ public enum MarginCards {
         return tops
     }
 
+    /// The room to leave above each card, so that a plain stack of them
+    /// lands where `place` says.
+    ///
+    /// The column is built as a stack with spacers rather than as cards
+    /// pushed around by `offset`, because an offset view is drawn
+    /// somewhere its layout says it is not -- and a button drawn where
+    /// nothing is laid out is a button that is hard to press. It also
+    /// means a stale measurement can only ever leave a gap slightly
+    /// wrong, never make two cards overlap.
+    public static func gaps(
+        anchors: [CGFloat],
+        heights: [CGFloat],
+        gap: CGFloat = gap,
+        from top: CGFloat = 0
+    ) -> [CGFloat] {
+        let tops = place(anchors: anchors, heights: heights, gap: gap, from: top)
+        return tops.enumerated().map { index, at in
+            guard index > 0 else { return max(0, at - top) }
+            let above = tops[index - 1]
+                + (index - 1 < heights.count ? heights[index - 1] : 0)
+            return max(0, at - above)
+        }
+    }
+
     /// How tall the column has to be to hold what is in it.
     ///
     /// A file whose last conversation hangs off its last line would
@@ -74,6 +98,41 @@ struct MarginEntry: Identifiable {
     static func key(forThread id: String) -> String { "t:\(id)" }
     static func key(forRemark id: UUID) -> String { "r:\(id.uuidString)" }
     static let editorKey = "editor"
+}
+
+extension MarginEntry {
+    /// The colour the card is drawn in, and with it the line it is
+    /// about: the two are told apart by nothing else, so they have to
+    /// agree.
+    var tint: Color {
+        switch kind {
+        case .thread(let thread): thread.tint
+        case .remark: Ink.purple
+        case .editor: Ink.purple
+        }
+    }
+}
+
+extension View {
+    /// Marks a line of code that something is written about: a bar down
+    /// the right-hand edge of the column, in the colour of the card that
+    /// stands there.
+    ///
+    /// At the edge rather than across the line because a wash over code
+    /// is a wash over its contrast, and which line a remark is about has
+    /// to be readable at a glance from the margin -- the eye follows the
+    /// bar across, which is the one thing drawing conversations between
+    /// the lines never had to explain.
+    func lineMark(_ tint: Color?) -> some View {
+        overlay(alignment: .trailing) {
+            if let tint {
+                Rectangle()
+                    .fill(tint)
+                    .frame(width: 4)
+                    .allowsHitTesting(false)
+            }
+        }
+    }
 }
 
 /// Where each card's line sits, as the patch measured it.
@@ -148,14 +207,11 @@ struct MarginColumn: View {
     @StateObject private var measured = MarginHeights()
 
     var body: some View {
-        let tops = placed
-        ZStack(alignment: .topLeading) {
-            // A shape rather than nothing: the column has to claim its
-            // height even though everything in it is positioned by hand.
-            Color.clear
-                .frame(height: MarginCards.height(tops: tops, heights: heights))
-
+        let gaps = gaps
+        VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
+                Color.clear
+                    .frame(height: index < gaps.count ? gaps[index] : 0)
                 card(entry)
                     .background(
                         GeometryReader { proxy in
@@ -165,7 +221,6 @@ struct MarginColumn: View {
                             )
                         }
                     )
-                    .offset(y: index < tops.count ? tops[index] : 0)
             }
         }
         .frame(width: MarginCards.width, alignment: .topLeading)
@@ -182,8 +237,8 @@ struct MarginColumn: View {
         entries.map { measured.heights[$0.id] ?? 64 }
     }
 
-    private var placed: [CGFloat] {
-        MarginCards.place(
+    private var gaps: [CGFloat] {
+        MarginCards.gaps(
             anchors: entries.map { anchors[$0.id] ?? 0 },
             heights: heights
         )
@@ -322,6 +377,11 @@ struct FileSheet: View {
 
     private var space: String { "file:\(file.path)" }
 
+    /// Which key is drawn in which colour, so a row can mark itself.
+    private var marks: [String: Color] {
+        Dictionary(uniqueKeysWithValues: entries.map { ($0.id, $0.tint) })
+    }
+
     var body: some View {
         let entries = entries
         HStack(alignment: .top, spacing: 0) {
@@ -367,7 +427,8 @@ struct FileSheet: View {
                 draft: draft,
                 writing: writing,
                 target: target,
-                space: space
+                space: space,
+                marks: marks
             )
             .padding(.vertical, 6)
         case .unified, .sideBySide:
@@ -381,7 +442,8 @@ struct FileSheet: View {
                 draft: draft,
                 writing: writing,
                 target: target,
-                space: space
+                space: space,
+                marks: marks
             )
             .padding(.vertical, 6)
         }
