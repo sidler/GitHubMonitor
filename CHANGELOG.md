@@ -3,6 +3,14 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
+## Unreleased
+
+- **Settled conversations stand in the diff, shut.** The control in each
+  file's header that hid them a file at a time is gone: they were always
+  one line each where they were written, and the question that control
+  answered — "do I want to see the answered ones?" — is one nobody asks
+  while reading a diff. They open on a click, as they did.
+
 ## 2.0.0
 
 - **Typing `@` in a comment offers the people it can reach.** The names

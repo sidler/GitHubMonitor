@@ -540,31 +540,30 @@ struct SettledThreadTests {
         ]
     }
 
-    @Test("Shut, it keeps everything nobody has settled")
-    func shut() {
-        let shown = ReviewThreadPlacement.asked(threads, in: "a.swift", showingResolved: false)
-        #expect(shown.map(\.id) == ["open", "stale"])
-    }
-
-    /// The one worth stating out loud: a remark about code that has since
-    /// been rewritten and that nobody answered is still somebody's open
-    /// question. It only looks like history.
-    @Test("An outdated conversation nobody answered is not settled")
-    func outdatedIsNotSettled() {
-        let shown = ReviewThreadPlacement.asked(threads, in: "a.swift", showingResolved: false)
-        #expect(shown.contains { $0.id == "stale" })
-    }
-
-    @Test("Asked for, it keeps everything of that file and nothing of another")
-    func asked() {
-        let shown = ReviewThreadPlacement.asked(threads, in: "a.swift", showingResolved: true)
+    @Test("Everything of that file, and nothing of another")
+    func inFile() {
+        let shown = ReviewThreadPlacement.inFile(threads, path: "a.swift")
         #expect(shown.map(\.id) == ["open", "done", "stale", "both"])
     }
 
-    @Test("The count is of the settled ones, on that file alone")
-    func counted() {
-        #expect(ReviewThreadPlacement.settled(threads, in: "a.swift") == 2)
-        #expect(ReviewThreadPlacement.settled(threads, in: "b.swift") == 1)
-        #expect(ReviewThreadPlacement.settled(threads, in: "c.swift") == 0)
+    /// The settled ones are drawn as well, shut, where they were
+    /// written. There was a control that hid them a file at a time;
+    /// taking it away is what this guards. A diff that leaves out the
+    /// answered questions answers "why is this like this?" with nothing.
+    @Test("A settled conversation is still drawn")
+    func settledIsShown() {
+        let shown = ReviewThreadPlacement.inFile(threads, path: "a.swift")
+        #expect(shown.contains { $0.id == "done" })
+        #expect(shown.contains { $0.id == "both" })
+    }
+
+    /// Worth stating out loud: a remark about code that has since been
+    /// rewritten and that nobody answered is still somebody's open
+    /// question. It only looks like history.
+    @Test("An outdated conversation nobody answered is not settled")
+    func outdatedIsNotSettled() {
+        let stale = threads.first { $0.id == "stale" }
+        #expect(stale?.isResolved == false)
+        #expect(stale?.isOutdated == true)
     }
 }
