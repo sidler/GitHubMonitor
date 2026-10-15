@@ -15,22 +15,17 @@ struct ReviewThreadView: View {
     /// What this draft already answers it with.
     var replies: [DraftComment]
     /// Where the box is open, if it is. A plain reference, used to open
-    /// the box and never read while drawing -- see `isReplying`.
+    /// the box; never read while drawing -- see `isReplying`.
     var target: DraftTarget?
     /// Whether the box belongs to this conversation right now.
     ///
-    /// A value rather than a question asked of `target`, and that is the
-    /// whole repair: this view does not observe the target, so SwiftUI
-    /// had every right to skip its body when nothing it holds had
-    /// changed -- and the press that set `replyingTo` changed nothing it
-    /// held. The answer arrives as a property instead, which differs,
-    /// which is what makes the body run again.
+    /// Handed in rather than asked of `target`, and the difference is
+    /// not cosmetic. This view does not observe the target, so SwiftUI
+    /// may skip its body when none of the properties it holds has
+    /// changed -- and a press that sets `replyingTo` changes none of
+    /// them. It cost a round of "the Reply button is dead" to learn
+    /// that; a value that differs is what makes a body run again.
     var isReplying: Bool = false
-    /// Drawn as a card at the file's margin rather than between the
-    /// lines. The content is the same; what changes is that every
-    /// conversation gets a header it can be shut by, and that the card
-    /// around it provides the background this used to draw itself.
-    var inMargin: Bool = false
     /// Resolved threads arrive shut. Opened by hand they stay open while
     /// the diff is up, which is the same bargain the file tree makes.
     ///
@@ -44,15 +39,13 @@ struct ReviewThreadView: View {
         writing: DraftWriting? = nil,
         replies: [DraftComment] = [],
         target: DraftTarget? = nil,
-        isReplying: Bool = false,
-        inMargin: Bool = false
+        isReplying: Bool = false
     ) {
         self.thread = thread
         self.writing = writing
         self.replies = replies
         self.target = target
         self.isReplying = isReplying
-        self.inMargin = inMargin
         _disclosure = StateObject(wrappedValue: Disclosure(isExpanded: !thread.isResolved))
     }
 
@@ -71,19 +64,14 @@ struct ReviewThreadView: View {
                 .frame(width: 4)
 
             VStack(alignment: .leading, spacing: 6) {
-                if inMargin || thread.isResolved || thread.isOutdated {
+                if thread.isResolved || thread.isOutdated {
                     Button {
                         withAnimation(.easeOut(duration: 0.15)) { disclosure.isExpanded.toggle() }
                     } label: {
                         HStack(spacing: 6) {
                             Image(systemName: isOpen ? "chevron.down" : "chevron.right")
                                 .font(.caption2)
-                            if thread.isResolved || thread.isOutdated {
-                                Image(
-                                    systemName: thread.isResolved
-                                        ? "checkmark.circle" : "clock.arrow.circlepath"
-                                )
-                            }
+                            Image(systemName: thread.isResolved ? "checkmark.circle" : "clock.arrow.circlepath")
                             Text(thread.summary)
                             Spacer(minLength: 0)
                         }
@@ -93,19 +81,6 @@ struct ReviewThreadView: View {
                     }
                     .buttonStyle(.plain)
                     .pointerStyle(.link)
-                }
-
-                if !isOpen, inMargin, let first = thread.comments.first {
-                    // Shut, a card is still worth reading past: who said
-                    // something and roughly what. One line, because the
-                    // card's whole job is to cost one line until it is
-                    // asked for.
-                    Text(first.body)
-                        .font(.caption)
-                        .foregroundStyle(Color(nsColor: .secondaryLabelColor))
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
                 if isOpen {
@@ -175,8 +150,8 @@ struct ReviewThreadView: View {
             .padding(.horizontal, 9)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .background(inMargin ? Color.clear : Color(nsColor: .quaternaryLabelColor).opacity(0.25))
-        .padding(.vertical, inMargin ? 0 : 2)
+        .background(.quaternary.opacity(0.25))
+        .padding(.vertical, 2)
         // No dimming for the ones that are done. It was a flat quarter
         // off everything, text included, which is the one thing the
         // contrast of this app is not allowed to be casual about -- and

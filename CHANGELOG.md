@@ -5,31 +5,6 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
-- **Reply opens its box again.** Moving the conversations to the margin
-  broke it in a way that looked like a dead button and was not: the
-  press arrived and the state took it, but the card was never redrawn.
-  `ReviewThreadView` deliberately does not observe where the box is
-  open — so SwiftUI had every right to skip a view none of whose
-  properties had changed, and the press changed none of them. It is
-  told whether the box belongs to it instead of asking, which is a
-  property that differs, which is what makes the body run again.
-
-- **A line somebody wrote about is marked where the writing is.** A bar
-  down the right-hand edge of the code, in the colour of the card
-  standing there — blue for an open conversation, grey for a settled
-  one, orange for one whose code has changed, purple for something of
-  yours that is not sent yet. At the edge rather than across the line,
-  because a wash over code is a wash over its contrast; the eye follows
-  the bar across to the card, which is the one thing drawing
-  conversations between the lines never had to explain.
-
-- **The margin is a stack again, not a pile of offsets.** The cards were
-  moved into place with `offset`, which draws a view where its layout
-  says it is not — and a button drawn off its own frame is a button
-  that is awkward to press. They sit in a plain stack with measured
-  spaces between them now, which also means a stale measurement can
-  leave a gap slightly wrong rather than make two cards overlap.
-
 - **The names an `@` offers float at the caret, and the keyboard drives
   them.** They were drawn under the box, which changed its height — so
   the diff moved about as you typed, by as much as the number of people
@@ -46,20 +21,6 @@ What changed in each released version. The app shows this file itself, under
 
   One thing it does not do yet: a list that opens at the very bottom of
   the view is cut off there rather than flipping above the caret.
-
-- **Conversations moved out of the code and to the file's margin.** They
-  were drawn between the lines, which cost the diff its shape: a file
-  with three conversations was twice as long as its own patch, and
-  opening one moved the code out from under you. Now each one is a card
-  down the right-hand side, on the height of the line it is about. A
-  card costs width instead of height, and the only thing a card can move
-  is another card — the code never shifts, whatever you open.
-
-  Settled conversations are a shut card with one line of what was said.
-  Unsent remarks and the box you write them in are cards too, so writing
-  a remark no longer pushes the line you are writing about off the
-  screen. The margin appears only where a file has something at it, and
-  it works the same in one column or two.
 
 - **Settled conversations stand in the diff, shut.** The control in each
   file's header that hid them a file at a time is gone: they were always
