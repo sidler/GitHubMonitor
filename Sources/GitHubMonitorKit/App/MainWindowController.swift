@@ -305,6 +305,8 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
                     )
                 }
             ),
+            paging: state.settings.diffPaging,
+            setPaging: { [state] in state.settings.diffPaging = $0 },
             draft: state.reviewDrafts[opened.pullRequestID],
             // Only where there is a pull request to write about. A diff
             // opened for something that has since left the lists can be

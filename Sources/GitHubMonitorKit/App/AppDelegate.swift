@@ -69,7 +69,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                 state.settings.showsDiffLineNumbers.toggle()
             },
             diffLayout: { [state] in state.settings.diffLayout },
-            setDiffLayout: { [state] layout in state.settings.diffLayout = layout }
+            setDiffLayout: { [state] layout in state.settings.diffLayout = layout },
+            diffPaging: { [state] in state.settings.diffPaging },
+            setDiffPaging: { [state] paging in state.settings.diffPaging = paging }
         )
 
         // Sample data is opt-in now that real requests work, so the UI can

@@ -20,7 +20,9 @@ enum AppMenu {
         showsDiffLineNumbers: @escaping () -> Bool,
         toggleDiffLineNumbers: @escaping () -> Void,
         diffLayout: @escaping () -> DiffLayout,
-        setDiffLayout: @escaping (DiffLayout) -> Void
+        setDiffLayout: @escaping (DiffLayout) -> Void,
+        diffPaging: @escaping () -> DiffPaging,
+        setDiffPaging: @escaping (DiffPaging) -> Void
     ) -> NSMenu {
         let main = NSMenu()
 
@@ -36,7 +38,9 @@ enum AppMenu {
             showsDiffLineNumbers: showsDiffLineNumbers,
             toggleDiffLineNumbers: toggleDiffLineNumbers,
             diffLayout: diffLayout,
-            setDiffLayout: setDiffLayout
+            setDiffLayout: setDiffLayout,
+            diffPaging: diffPaging,
+            setDiffPaging: setDiffPaging
         ))
         main.addItem(windowMenu())
 
@@ -159,7 +163,9 @@ enum AppMenu {
         showsDiffLineNumbers: @escaping () -> Bool,
         toggleDiffLineNumbers: @escaping () -> Void,
         diffLayout: @escaping () -> DiffLayout,
-        setDiffLayout: @escaping (DiffLayout) -> Void
+        setDiffLayout: @escaping (DiffLayout) -> Void,
+        diffPaging: @escaping () -> DiffPaging,
+        setDiffPaging: @escaping (DiffPaging) -> Void
     ) -> NSMenuItem {
         let item = NSMenuItem()
         let menu = NSMenu(title: "View")
@@ -216,6 +222,19 @@ enum AppMenu {
                 title: option.label, keyEquivalent: "", action: { setDiffLayout(option) }
             )
             item.isOn = { diffLayout() == option }
+            menu.addItem(item)
+        }
+
+        menu.addItem(.separator())
+
+        // The same shape for the same reason: two ticked items say which
+        // way the diff is being read, where one switch would only say
+        // what pressing it does.
+        for option in DiffPaging.allCases {
+            let item = ActionItem(
+                title: option.label, keyEquivalent: "", action: { setDiffPaging(option) }
+            )
+            item.isOn = { diffPaging() == option }
             menu.addItem(item)
         }
 

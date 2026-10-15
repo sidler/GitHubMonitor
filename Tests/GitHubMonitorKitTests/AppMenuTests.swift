@@ -21,7 +21,8 @@ struct AppMenuTests {
             openSettings: {}, refresh: {}, moveDetail: { _ in }, closeDetail: {},
             changeDiffFontSize: { _ in }, resetDiffFontSize: {},
             showsDiffLineNumbers: { true }, toggleDiffLineNumbers: {},
-            diffLayout: { .unified }, setDiffLayout: { _ in }
+            diffLayout: { .unified }, setDiffLayout: { _ in },
+            diffPaging: { .scroll }, setDiffPaging: { _ in }
         )
     }
 

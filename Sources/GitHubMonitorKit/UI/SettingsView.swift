@@ -190,6 +190,12 @@ private struct GeneralSettingsView: View {
                     }
                 }
 
+                Picker("Read", selection: $settings.diffPaging) {
+                    ForEach(DiffPaging.allCases, id: \.self) { option in
+                        Text(option.label).tag(option)
+                    }
+                }
+
                 Toggle("Show line numbers", isOn: $settings.showsDiffLineNumbers)
                     .toggleStyle(.switch)
 

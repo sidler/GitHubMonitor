@@ -44,6 +44,11 @@ struct DiffOverlay: View {
     /// Which files have been ticked off, and how to tick one. Nil leaves
     /// the overlay a reader with no checkboxes.
     var viewed: ViewedFiles?
+    /// Whether the diff is read as one scroll or a file at a time.
+    var paging: DiffPaging = .scroll
+    /// How to change that from the header. Nil leaves the control off,
+    /// like `setLayout`.
+    var setPaging: ((DiffPaging) -> Void)?
     /// The review being written for this pull request, if any.
     var draft: ReviewDraft?
     /// How to write into it. Nil leaves the diff a reader.
@@ -101,6 +106,13 @@ struct DiffOverlay: View {
             if place.path == nil { place.go(to: startingPath) }
             sidebar.width = Settings.clampedSidebarWidth(startingSidebarWidth)
         }
+        .onChange(of: paging) {
+            // Switching back to the whole diff goes to the file that was
+            // being read one at a time, rather than to the top. The other
+            // direction needs nothing: paging already draws whichever
+            // file `place` names.
+            if paging == .scroll { place.go(to: place.path) }
+        }
         // Escape is handled by the view that hosts this, so that it stops
         // here instead of reaching the list behind it.
     }
@@ -118,6 +130,16 @@ struct DiffOverlay: View {
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
+    /// Which files the column draws: all of them, or the one being read.
+    ///
+    /// Paging is not scrolling with extra steps -- the others are not
+    /// built at all, which is most of what makes a diff of forty-three
+    /// files bearable.
+    private var shownFiles: [ChangedFile] {
+        guard paging == .oneFile else { return files }
+        return DiffPager.shown(place.path, in: files).map { [$0] } ?? []
+    }
+
     private var header: some View {
         HStack(spacing: 10) {
             Text("\(files.count) file\(files.count == 1 ? "" : "s") changed")
@@ -130,6 +152,14 @@ struct DiffOverlay: View {
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
             }
+            // Beside the counts, because it belongs to what is being
+            // read rather than to the controls for leaving -- and because
+            // the other end of the bar is three review buttons deep.
+            if paging == .oneFile, let place = DiffPager.place(of: place.path, in: files) {
+                Divider().frame(height: 14)
+                pager(place)
+            }
+
             if additions > 0 {
                 Text(verbatim: "+\(additions)").foregroundStyle(Ink.green).monospacedDigit()
             }
@@ -162,6 +192,27 @@ struct DiffOverlay: View {
                 .labelsHidden()
                 .fixedSize()
                 .help("How the patch is laid out")
+            }
+
+            if let setPaging {
+                // Its own control rather than a third option beside the
+                // layout: how many columns a patch has and how many files
+                // are on screen are separate questions, and somebody may
+                // well want two columns and one file.
+                Picker("", selection: Binding(get: { paging }, set: setPaging)) {
+                    ForEach(DiffPaging.allCases, id: \.self) { option in
+                        Image(systemName: option.symbolName)
+                            .help(option.label)
+                            .tag(option)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+                .help("Whether the whole diff scrolls, or one file at a time")
+            }
+
+            if setLayout != nil || setPaging != nil {
                 Divider().frame(height: 14)
             }
 
@@ -191,6 +242,42 @@ struct DiffOverlay: View {
         } message: {
             Text(confirmation)
         }
+    }
+
+    /// Back and forward through the files, with where that is.
+    ///
+    /// Counted over all of them, ticked or not: "4 of 6" that depended on
+    /// what somebody had already read would be a number nobody could use.
+    @ViewBuilder
+    private func pager(_ at: (at: Int, of: Int)) -> some View {
+        let back = DiffPager.file(before: place.path, in: files)
+        let on = DiffPager.file(after: place.path, in: files)
+
+        HStack(spacing: 6) {
+            Button {
+                if let back { withAnimation(.easeOut(duration: 0.15)) { place.go(to: back) } }
+            } label: {
+                Image(systemName: "chevron.left")
+            }
+            .disabled(back == nil)
+            .keyboardShortcut(.leftArrow, modifiers: .option)
+            .help("The file before this one")
+
+            Text(verbatim: "\(at.at) of \(at.of)")
+                .font(.caption)
+                .monospacedDigit()
+                .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+
+            Button {
+                if let on { withAnimation(.easeOut(duration: 0.15)) { place.go(to: on) } }
+            } label: {
+                Image(systemName: "chevron.right")
+            }
+            .disabled(on == nil)
+            .keyboardShortcut(.rightArrow, modifiers: .option)
+            .help("The file after this one")
+        }
+        .buttonStyle(.accessoryBar)
     }
 
     // MARK: - Reviewing
@@ -356,7 +443,7 @@ struct DiffOverlay: View {
                 LazyVStack(
                     alignment: .leading, spacing: 18, pinnedViews: [.sectionHeaders]
                 ) {
-                    ForEach(files) { file in
+                    ForEach(shownFiles) { file in
                         Section {
                             fileBody(file, width: proxy.size.width)
                         } header: {

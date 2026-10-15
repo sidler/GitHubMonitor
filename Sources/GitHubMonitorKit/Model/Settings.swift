@@ -115,6 +115,11 @@ public final class Settings {
         didSet { store.set(diffLayout.rawValue, forKey: Key.diffLayout) }
     }
 
+    /// Whether the diff is read as one scroll or a file at a time.
+    public var diffPaging: DiffPaging {
+        didSet { store.set(diffPaging.rawValue, forKey: Key.diffPaging) }
+    }
+
     /// How wide the file list beside the diff is, in points.
     ///
     /// Remembered, because it is a judgement about the paths in one
@@ -330,6 +335,7 @@ public final class Settings {
         // Unified unless asked otherwise: it is the narrower of the two and
         // what the app has always shown.
         diffLayout = DiffLayout(rawValue: store.string(forKey: Key.diffLayout) ?? "") ?? .unified
+        diffPaging = DiffPaging(rawValue: store.string(forKey: Key.diffPaging) ?? "") ?? .scroll
         linkedPanelWidth = Self.clampedPanelWidth(
             store.object(forKey: Key.linkedPanelWidth) as? Double
                 ?? Self.defaultLinkedPanelWidth
@@ -471,6 +477,7 @@ public final class Settings {
         static let diffFontSize = "diffFontSize"
         static let showsDiffLineNumbers = "showsDiffLineNumbers"
         static let diffLayout = "diffLayout"
+        static let diffPaging = "diffPaging"
         static let diffSidebarWidth = "diffSidebarWidth"
         static let linkedPanelWidth = "linkedPanelWidth"
         static let linkedPanelHeight = "linkedPanelHeight"

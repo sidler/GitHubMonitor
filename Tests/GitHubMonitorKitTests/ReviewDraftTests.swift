@@ -251,3 +251,62 @@ struct ReviewSubmissionTests {
         )
     }
 }
+
+/// Moving a file at a time through a diff.
+@Suite("Paging through the files of a diff")
+struct DiffPagerTests {
+    private func files(_ names: String...) -> [ChangedFile] {
+        names.map {
+            ChangedFile(path: $0, additions: 1, deletions: 0, change: .modified, patch: "@@")
+        }
+    }
+
+    private var three: [ChangedFile] { files("a.swift", "b.swift", "c.swift") }
+
+    /// Counted over all of them, ticked or not: a number that depended on
+    /// what somebody had already read would be a number nobody could use.
+    @Test("Where the pager stands, out of how many")
+    func place() {
+        #expect(DiffPager.place(of: "b.swift", in: three)?.at == 2)
+        #expect(DiffPager.place(of: "b.swift", in: three)?.of == 3)
+        // Nothing read yet is the first of them, not nowhere.
+        #expect(DiffPager.place(of: nil, in: three)?.at == 1)
+        #expect(DiffPager.place(of: "gone.swift", in: three)?.at == 1)
+        #expect(DiffPager.place(of: "a.swift", in: []) == nil)
+    }
+
+    /// No wrapping. A diff has a first file and a last one, and
+    /// pretending otherwise loses the one thing a pager is for.
+    @Test("The arrows stop at both ends")
+    func ends() {
+        #expect(DiffPager.file(before: "a.swift", in: three) == nil)
+        #expect(DiffPager.file(after: "c.swift", in: three) == nil)
+        #expect(DiffPager.file(before: "b.swift", in: three) == "a.swift")
+        #expect(DiffPager.file(after: "b.swift", in: three) == "c.swift")
+    }
+
+    @Test("From nowhere, forward is the first file")
+    func fromNowhere() {
+        #expect(DiffPager.file(after: nil, in: three) == "a.swift")
+        #expect(DiffPager.file(before: nil, in: three) == nil)
+    }
+
+    @Test("What a paging diff draws")
+    func shown() {
+        #expect(DiffPager.shown("b.swift", in: three)?.path == "b.swift")
+        #expect(DiffPager.shown(nil, in: three)?.path == "a.swift")
+        // A file that has gone -- a reload can replace them underneath a
+        // diff -- falls back to the first rather than to nothing.
+        #expect(DiffPager.shown("gone.swift", in: three)?.path == "a.swift")
+        #expect(DiffPager.shown("a.swift", in: []) == nil)
+    }
+
+    /// Two questions, not one: how many columns a patch has and how many
+    /// files are on screen are decided separately.
+    @Test("Paging and layout are separate")
+    func separate() {
+        #expect(DiffPaging.allCases.count == 2)
+        #expect(DiffPaging.scroll.label != DiffPaging.oneFile.label)
+        #expect(DiffPaging.scroll.symbolName != DiffPaging.oneFile.symbolName)
+    }
+}

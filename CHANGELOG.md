@@ -5,6 +5,20 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **A diff can be read a file at a time.** A pager beside the file count
+  — ‹ 3 of 6 ›, or ⌥← and ⌥→ — and only that file is drawn, which is
+  most of what makes a review of forty-three files bearable. The tree
+  beside it still jumps anywhere. Switched in the diff itself, beside the
+  one-column-or-two control but separate from it: how many columns a
+  patch has and how many files are on screen are two questions, and
+  somebody may well want two columns and one file. Also in Settings and
+  the View menu, and remembered, the way the layout is.
+
+  The pager counts every file, ticked or not. A “4 of 6” that depended on
+  what you had already read would be a number nobody could use, and the
+  arrows would mean something different depending on where they had been.
+  Ticking a file still moves on to the next, as it always did. Switching
+  between the two ways of reading keeps the file you were on.
 - **Remarks can be written on the lines of a diff.** The line number
   turns into a plus under the pointer; a box opens under the line, and
   what is written there joins a review being drafted for that pull
