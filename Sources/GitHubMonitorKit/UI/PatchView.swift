@@ -756,10 +756,8 @@ struct PatchLines: View {
             ForEach(lines) { line in
                 row(line, digits: digits)
                 if let here = anchors[line.id] {
-                    VStack(alignment: .leading, spacing: 0) {
-                        ForEach(here) { ReviewThreadView(thread: $0) }
-                    }
-                    .frame(width: column, alignment: .leading)
+                    conversations(here)
+                        .frame(width: column, alignment: .leading)
                 }
                 if let writing {
                     drafting(line, writing: writing)
@@ -788,9 +786,35 @@ struct PatchLines: View {
         }
     }
 
+    /// The conversations hanging off one line.
+    ///
+    /// Its own function because the body around it had grown past what
+    /// the type checker will untangle in one go -- it started guessing
+    /// that a list of lines was a range of integers.
+    private func conversations(_ here: [ReviewThread]) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(here) { thread in
+                ReviewThreadView(
+                    thread: thread,
+                    writing: writing,
+                    replies: draftReplies(to: thread),
+                    target: target
+                )
+            }
+        }
+    }
+
+    /// What the draft answers one conversation with.
+    private func draftReplies(to thread: ReviewThread) -> [DraftComment] {
+        draft.filter { $0.replyTo == thread.id }.sorted { $0.writtenAt < $1.writtenAt }
+    }
+
     private func remarks(at number: DiffLineNumber) -> [DraftComment] {
         draft.filter { comment in
-            comment.side == .new ? comment.line == number.new : comment.line == number.old
+            // A reply is drawn inside the conversation it answers, not
+            // again beneath the line it happens to share with it.
+            guard !comment.isReply else { return false }
+            return comment.side == .new ? comment.line == number.new : comment.line == number.old
         }
     }
 

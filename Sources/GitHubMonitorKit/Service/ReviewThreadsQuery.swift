@@ -94,3 +94,27 @@ public enum ReviewThreadsQuery {
         )
     }
 }
+
+/// Settling a conversation, and unsettling it again.
+///
+/// Both ways, because this is the one write in the app that somebody is
+/// most likely to do by accident: resolving is a single click beside a
+/// thread, and a thread resolved by mistake is a question that quietly
+/// stops being asked.
+public enum ResolveThreadQuery {
+    public static let resolveDocument = """
+    mutation($id: ID!) {
+      resolveReviewThread(input: { threadId: $id }) {
+        thread { isResolved }
+      }
+    }
+    """
+
+    public static let unresolveDocument = """
+    mutation($id: ID!) {
+      unresolveReviewThread(input: { threadId: $id }) {
+        thread { isResolved }
+      }
+    }
+    """
+}

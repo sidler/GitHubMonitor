@@ -318,11 +318,17 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
                             to: item, path: path, line: line, side: side, body: body
                         )
                     },
+                    reply: { [controller] thread, body in
+                        controller.addReply(to: thread, of: item, body: body)
+                    },
                     change: { [controller] id, body in
                         controller.changeRemark(id, in: item.id, to: body)
                     },
                     remove: { [controller] id in
                         controller.removeRemark(id, in: item.id)
+                    },
+                    setResolved: { [controller] thread, resolved in
+                        controller.setResolved(resolved, thread: thread, in: item.id)
                     }
                 )
             }

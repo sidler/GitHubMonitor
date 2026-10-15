@@ -70,6 +70,16 @@ public struct ReviewThread: Identifiable, Hashable, Sendable {
         self.hunk = hunk
     }
 
+    /// The same thread, settled or unsettled, for showing a change
+    /// before GitHub has confirmed it.
+    public func settled(_ resolved: Bool) -> ReviewThread {
+        ReviewThread(
+            id: id, path: path, line: line, side: side,
+            isResolved: resolved, isOutdated: isOutdated, comments: comments,
+            originalLine: originalLine, hunk: hunk
+        )
+    }
+
     /// Whether the diff can show it at all.
     ///
     /// Either number will do. A thread with neither has nowhere to go and

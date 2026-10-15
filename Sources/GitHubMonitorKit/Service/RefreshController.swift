@@ -1254,6 +1254,66 @@ public final class RefreshController {
         keep(draft)
     }
 
+    /// Answers a conversation somebody else began. Kept with the rest of
+    /// the draft rather than sent, which is what makes a review one
+    /// thing rather than a trickle of notifications.
+    public func addReply(
+        to thread: ReviewThread, of item: PullRequestItem, body: String
+    ) {
+        let written = body.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !written.isEmpty else { return }
+
+        var draft = state.reviewDrafts[item.id]
+            ?? ReviewDraft(pullRequestID: item.id, commit: item.headCommit)
+        draft.add(
+            DraftComment(
+                path: thread.path,
+                // Where the thread hangs, so the reply is drawn with it.
+                // A thread GitHub no longer places has no line of its
+                // own; nought is a place in no file, which is as honest
+                // as it gets and never reaches GitHub -- a reply names
+                // its thread and nothing else.
+                line: thread.anchorLine ?? 0,
+                side: thread.side,
+                replyTo: thread.id,
+                body: written
+            )
+        )
+        keep(draft)
+    }
+
+    /// Settles a conversation, or unsettles it.
+    ///
+    /// Sent at once rather than kept with the draft: it is not a remark,
+    /// nobody is notified, and the same click undoes it. What it does
+    /// need is for the diff to agree straight away, so the thread is
+    /// marked here and GitHub is told afterwards.
+    public func setResolved(_ resolved: Bool, thread: ReviewThread, in pullRequestID: String) {
+        guard let service else { return }
+        apply(resolved, to: thread.id, in: pullRequestID)
+
+        accountTask { [weak self] in
+            do {
+                try await service.setResolved(resolved, thread: thread.id)
+            } catch {
+                guard let self, !Task.isCancelled else { return }
+                // Put it back. A thread that looks settled and is not is
+                // a question somebody has stopped seeing.
+                apply(!resolved, to: thread.id, in: pullRequestID)
+                Log.api.error(
+                    "resolve failed: \(error.localizedDescription, privacy: .public)"
+                )
+            }
+        }
+    }
+
+    private func apply(_ resolved: Bool, to threadID: String, in pullRequestID: String) {
+        guard var threads = state.reviewThreads[pullRequestID] else { return }
+        guard let index = threads.firstIndex(where: { $0.id == threadID }) else { return }
+        threads[index] = threads[index].settled(resolved)
+        state.reviewThreads[pullRequestID] = threads
+    }
+
     /// Throws the whole thing away, on purpose and at somebody's word.
     public func discardDraft(for pullRequestID: String) {
         state.reviewDrafts[pullRequestID] = nil
@@ -1421,9 +1481,19 @@ public final class RefreshController {
         let event = askedEvent
         state.approval = .sending(pullRequestID: item.id)
         do {
-            try await service.submitReview(
-                pullRequestID: item.id, commit: commit, event: event, remarks: remarks
-            )
+            if draft?.needsPendingReview == true {
+                try await service.submitReview(
+                    pullRequestID: item.id,
+                    commit: commit,
+                    event: event,
+                    openings: draft?.openings ?? [],
+                    replies: draft?.replies ?? []
+                )
+            } else {
+                try await service.submitReview(
+                    pullRequestID: item.id, commit: commit, event: event, remarks: remarks
+                )
+            }
             state.approval = .idle
             // Sent is sent: an unsent review is worth keeping, and this
             // one is GitHub's now.

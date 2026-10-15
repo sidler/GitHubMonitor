@@ -8,6 +8,16 @@ import SwiftUI
 /// drawn inside its horizontal scroll.
 struct ReviewThreadView: View {
     let thread: ReviewThread
+    /// How to answer it and settle it. Nil leaves it something to read,
+    /// which is what a diff opened for a pull request that has left the
+    /// lists is.
+    var writing: DraftWriting?
+    /// What this draft already answers it with.
+    var replies: [DraftComment]
+    /// Where the box is open, if it is. A plain reference rather than an
+    /// observed one: whoever owns it is redrawn when it changes, and
+    /// this is drawn by them.
+    var target: DraftTarget?
     /// Resolved threads arrive shut. Opened by hand they stay open while
     /// the diff is up, which is the same bargain the file tree makes.
     ///
@@ -16,8 +26,16 @@ struct ReviewThreadView: View {
     /// one the detail pane's folded description uses.
     @StateObject private var disclosure: Disclosure
 
-    init(thread: ReviewThread) {
+    init(
+        thread: ReviewThread,
+        writing: DraftWriting? = nil,
+        replies: [DraftComment] = [],
+        target: DraftTarget? = nil
+    ) {
         self.thread = thread
+        self.writing = writing
+        self.replies = replies
+        self.target = target
         _disclosure = StateObject(wrappedValue: Disclosure(isExpanded: !thread.isResolved))
     }
 
@@ -92,6 +110,30 @@ struct ReviewThreadView: View {
                         if index > 0 { Divider() }
                         ReviewCommentView(comment: comment)
                     }
+
+                    if let writing, let target {
+                        // What this draft has to say to it, under what
+                        // has been said -- where it will appear once it
+                        // is sent.
+                        ForEach(replies) { reply in
+                            Divider()
+                            DraftRemarkView(comment: reply, writing: writing, target: target)
+                        }
+
+                        Divider()
+                        if target.isReplying(to: thread.id) {
+                            DraftEditorView(
+                                path: thread.path,
+                                line: thread.anchorLine ?? 0,
+                                side: thread.side,
+                                thread: thread,
+                                writing: writing,
+                                target: target
+                            )
+                        } else {
+                            actions(writing)
+                        }
+                    }
                 }
             }
             .padding(.vertical, 6)
@@ -105,6 +147,27 @@ struct ReviewThreadView: View {
         // contrast of this app is not allowed to be casual about -- and
         // with a grey rule and a line naming the state, it was saying a
         // third time what was already said twice.
+    }
+}
+
+extension ReviewThreadView {
+    /// What can be done to a conversation from here: answer it, and
+    /// settle it.
+    ///
+    /// Settling goes at once while an answer waits for the review, and
+    /// that is not an inconsistency: an answer is something somebody is
+    /// told, and a resolved mark is bookkeeping the same click undoes.
+    @ViewBuilder
+    fileprivate func actions(_ writing: DraftWriting) -> some View {
+        HStack(spacing: 10) {
+            Button("Reply") { target?.open(reply: thread) }
+            Button(thread.isResolved ? "Unresolve" : "Resolve") {
+                writing.setResolved(thread, !thread.isResolved)
+            }
+            Spacer(minLength: 0)
+        }
+        .font(.caption)
+        .buttonStyle(.accessoryBar)
     }
 }
 

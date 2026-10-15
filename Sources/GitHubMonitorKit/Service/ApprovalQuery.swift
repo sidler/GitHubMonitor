@@ -101,6 +101,65 @@ public enum ApprovalQuery {
     }
     """
 
+    /// The long way round, for a review that answers somebody.
+    ///
+    /// Three requests instead of one, and only taken where a draft holds
+    /// a reply: a reply names a thread, and the mutation that writes one
+    /// wants a review to put it in, which means the review has to exist
+    /// before the reply can be written. So: make it pending, write the
+    /// replies into it, then submit it.
+    ///
+    /// The risk that buys is a pending review left on GitHub if
+    /// something fails in the middle -- visible to nobody but its author,
+    /// and picked up again by the next attempt, but there. That is why
+    /// the common draft, which only ever opens conversations, keeps the
+    /// single request it always had.
+    public static let pendingDocument = """
+    mutation($id: ID!, $commit: GitObjectID!, $threads: [DraftPullRequestReviewThread!]) {
+      addPullRequestReview(input: {
+        pullRequestId: $id,
+        commitOID: $commit,
+        threads: $threads
+      }) {
+        pullRequestReview { id }
+      }
+    }
+    """
+
+    public static func pendingReviewID(from payload: [String: Any]) throws -> String {
+        guard
+            let added = payload["addPullRequestReview"] as? [String: Any],
+            let review = added["pullRequestReview"] as? [String: Any],
+            let id = review["id"] as? String
+        else {
+            throw GitHubError.decoding("GitHub did not say which review it started")
+        }
+        return id
+    }
+
+    public static let replyDocument = """
+    mutation($review: ID!, $thread: ID!, $body: String!) {
+      addPullRequestReviewThreadReply(input: {
+        pullRequestReviewId: $review,
+        pullRequestReviewThreadId: $thread,
+        body: $body
+      }) {
+        comment { id }
+      }
+    }
+    """
+
+    public static let submitPendingDocument = """
+    mutation($review: ID!, $event: PullRequestReviewEvent!) {
+      submitPullRequestReview(input: {
+        pullRequestReviewId: $review,
+        event: $event
+      }) {
+        pullRequestReview { state }
+      }
+    }
+    """
+
     /// The remarks, in the shape the mutation wants them.
     ///
     /// `side` is which file the line belongs to: the new one for nearly

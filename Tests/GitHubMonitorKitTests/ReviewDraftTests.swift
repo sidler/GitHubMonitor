@@ -310,3 +310,147 @@ struct DiffPagerTests {
         #expect(DiffPaging.scroll.symbolName != DiffPaging.oneFile.symbolName)
     }
 }
+
+/// Answering a conversation somebody else began.
+@Suite("A review that answers somebody")
+struct ReviewReplyTests {
+    private func opening(_ line: Int = 10) -> DraftComment {
+        DraftComment(path: "a.swift", line: line, body: "this leaks")
+    }
+
+    private func reply(to thread: String, _ body: String = "fixed") -> DraftComment {
+        DraftComment(path: "a.swift", line: 10, replyTo: thread, body: body)
+    }
+
+    @Test("A reply knows the conversation it belongs to")
+    func knowsItsThread() {
+        #expect(reply(to: "PRRT_1").isReply)
+        #expect(!opening().isReply)
+        #expect(reply(to: "PRRT_1").replyTo == "PRRT_1")
+    }
+
+    /// A draft written before replies existed decodes with none: the
+    /// missing field reads as nil, which is exactly what those are.
+    @Test("An older draft still reads, as a draft of openings")
+    func olderDraft() throws {
+        let json = """
+            {
+              "schema": 1,
+              "pullRequestID": "PR_1",
+              "commit": "abc",
+              "comments": [
+                {
+                  "id": "6B29FC40-CA47-1067-B31D-00DD010662DA",
+                  "path": "a.swift",
+                  "line": 10,
+                  "side": "new",
+                  "body": "look here",
+                  "writtenAt": "2026-10-15T09:00:00Z"
+                }
+              ]
+            }
+            """
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let draft = try decoder.decode(ReviewDraft.self, from: Data(json.utf8))
+
+        #expect(draft.comments.count == 1)
+        #expect(draft.comments.first?.replyTo == nil)
+        #expect(!draft.needsPendingReview)
+    }
+
+    /// The common draft keeps the single request it always had; only one
+    /// with replies in it pays for the detour through a pending review.
+    @Test("Only a draft with replies takes the long way")
+    func whenTheDetourIsNeeded() {
+        var draft = ReviewDraft(pullRequestID: "PR_1", commit: "abc")
+        draft.add(opening())
+        #expect(!draft.needsPendingReview)
+
+        draft.add(reply(to: "PRRT_1"))
+        #expect(draft.needsPendingReview)
+        #expect(draft.openings.count == 1)
+        #expect(draft.replies.count == 1)
+    }
+
+    @Test("What a draft answers one conversation with, oldest first")
+    func perThread() {
+        var draft = ReviewDraft(pullRequestID: "PR_1", commit: "abc")
+        let later = DraftComment(
+            path: "a.swift", line: 10, replyTo: "PRRT_1", body: "and another thing",
+            writtenAt: Date(timeIntervalSince1970: 200)
+        )
+        let earlier = DraftComment(
+            path: "a.swift", line: 10, replyTo: "PRRT_1", body: "fixed",
+            writtenAt: Date(timeIntervalSince1970: 100)
+        )
+        draft.add(later)
+        draft.add(earlier)
+        draft.add(reply(to: "PRRT_2"))
+
+        #expect(draft.replies(to: "PRRT_1").map(\.body) == ["fixed", "and another thing"])
+        #expect(draft.replies(to: "PRRT_2").count == 1)
+        #expect(draft.replies(to: "PRRT_9").isEmpty)
+    }
+
+    @Test("The long way round is three mutations, named")
+    func documents() {
+        #expect(ApprovalQuery.pendingDocument.contains("addPullRequestReview"))
+        // No event, which is what leaves it pending.
+        #expect(!ApprovalQuery.pendingDocument.contains("event"))
+        #expect(ApprovalQuery.replyDocument.contains("addPullRequestReviewThreadReply"))
+        #expect(ApprovalQuery.replyDocument.contains("pullRequestReviewId: $review"))
+        #expect(ApprovalQuery.submitPendingDocument.contains("submitPullRequestReview"))
+    }
+
+    @Test("The review it started is read back by id")
+    func readsTheReviewID() throws {
+        let payload: [String: Any] = [
+            "addPullRequestReview": ["pullRequestReview": ["id": "PRR_7"]]
+        ]
+        #expect(try ApprovalQuery.pendingReviewID(from: payload) == "PRR_7")
+    }
+
+    /// Without it the replies would be written into nothing.
+    @Test("A review GitHub did not name is an error")
+    func noReviewID() {
+        #expect(throws: GitHubError.self) {
+            try ApprovalQuery.pendingReviewID(from: ["addPullRequestReview": NSNull()])
+        }
+    }
+}
+
+/// Settling a conversation, and unsettling it.
+@Suite("Resolving a conversation")
+struct ResolveThreadTests {
+    private var thread: ReviewThread {
+        ReviewThread(
+            id: "PRRT_1", path: "a.swift", line: 10, side: .new,
+            isResolved: false, isOutdated: false,
+            comments: [
+                IssueComment(
+                    id: "c", author: "mira", avatarURL: nil, createdAt: .now, body: "x"
+                ),
+            ]
+        )
+    }
+
+    /// Both ways, because this is the write somebody is most likely to
+    /// do by accident: a thread resolved by mistake is a question that
+    /// quietly stops being asked.
+    @Test("It goes both ways")
+    func bothWays() {
+        #expect(ResolveThreadQuery.resolveDocument.contains("resolveReviewThread"))
+        #expect(ResolveThreadQuery.unresolveDocument.contains("unresolveReviewThread"))
+    }
+
+    @Test("A thread can be marked before GitHub has agreed, keeping all else")
+    func marked() {
+        let settled = thread.settled(true)
+        #expect(settled.isResolved)
+        #expect(settled.id == thread.id)
+        #expect(settled.comments.count == thread.comments.count)
+        #expect(settled.line == thread.line)
+        #expect(!settled.settled(false).isResolved)
+    }
+}

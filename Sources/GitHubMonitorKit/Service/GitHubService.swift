@@ -290,6 +290,50 @@ public struct GitHubService: Sendable {
         )
     }
 
+    /// Sends a review that answers somebody, which takes three
+    /// requests rather than one. See `ApprovalQuery.pendingDocument` for
+    /// why, and for what it costs.
+    public func submitReview(
+        pullRequestID: String,
+        commit: String,
+        event: ApprovalQuery.Event,
+        openings: [DraftComment],
+        replies: [DraftComment]
+    ) async throws {
+        let started = try await client.graphQL(
+            ApprovalQuery.pendingDocument,
+            variables: [
+                "id": pullRequestID,
+                "commit": commit,
+                "threads": ApprovalQuery.threads(from: openings),
+            ]
+        )
+        let review = try ApprovalQuery.pendingReviewID(from: started)
+
+        for reply in replies {
+            guard let thread = reply.replyTo else { continue }
+            _ = try await client.graphQL(
+                ApprovalQuery.replyDocument,
+                variables: ["review": review, "thread": thread, "body": reply.body]
+            )
+        }
+
+        _ = try await client.graphQL(
+            ApprovalQuery.submitPendingDocument,
+            variables: ["review": review, "event": event.rawValue]
+        )
+    }
+
+    /// Settles a conversation on a diff, or unsettles it.
+    public func setResolved(_ resolved: Bool, thread: String) async throws {
+        _ = try await client.graphQL(
+            resolved
+                ? ResolveThreadQuery.resolveDocument
+                : ResolveThreadQuery.unresolveDocument,
+            variables: ["id": thread]
+        )
+    }
+
     /// What GitHub says about a pull request right before it is merged.
     public func mergeReadiness(of id: String) async throws -> MergeQuery.Readiness {
         try MergeQuery.readiness(

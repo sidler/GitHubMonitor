@@ -24,6 +24,17 @@ What changed in each released version. The app shows this file itself, under
   arrows would mean something different depending on where they had been.
   Ticking a file still moves on to the next, as it always did. Switching
   between the two ways of reading keeps the file you were on.
+- **A conversation can be answered, and settled.** Every thread in a
+  diff now carries Reply and Resolve. A reply joins the review being
+  drafted, the way a new remark does, so one reading of a diff is still
+  one notification; resolving goes at once, because nobody is told and
+  the same click undoes it.
+
+  Sending a draft that answers somebody takes three requests instead of
+  one: a reply names a thread, and the mutation that writes one wants a
+  review to put it in, so the review has to exist before the reply can
+  be written. A draft that only opens conversations — which is most of
+  them — keeps the single request it always had.
 - **Remarks can be written on the lines of a diff.** The line number
   turns into a plus under the pointer — filled and blue, because a plus
   in the same grey as the numbers it stands among is something you find

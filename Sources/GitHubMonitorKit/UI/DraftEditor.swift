@@ -4,8 +4,10 @@ import SwiftUI
 /// reader, which is what it was until now.
 struct DraftWriting {
     let add: (_ path: String, _ line: Int, _ side: ReviewThread.Side, _ body: String) -> Void
+    let reply: (_ thread: ReviewThread, _ body: String) -> Void
     let change: (_ id: UUID, _ body: String) -> Void
     let remove: (_ id: UUID) -> Void
+    let setResolved: (_ thread: ReviewThread, _ resolved: Bool) -> Void
 }
 
 /// Which line is being written about, and what has been typed so far.
@@ -20,23 +22,37 @@ final class DraftTarget: ObservableObject {
     @Published var text = ""
     /// The remark being reworded, where it is one that already exists.
     @Published var editing: UUID?
+    /// The conversation being answered, where the box belongs to one
+    /// rather than to a bare line.
+    @Published var replyingTo: String?
 
     func open(line: Int, side: ReviewThread.Side, text: String = "", editing: UUID? = nil) {
         self.line = line
         self.side = side
         self.text = text
         self.editing = editing
+        replyingTo = nil
+    }
+
+    func open(reply thread: ReviewThread, text: String = "", editing: UUID? = nil) {
+        line = nil
+        self.text = text
+        self.editing = editing
+        replyingTo = thread.id
     }
 
     func shut() {
         line = nil
         text = ""
         editing = nil
+        replyingTo = nil
     }
 
     func isOpen(line: Int, side: ReviewThread.Side) -> Bool {
-        self.line == line && self.side == side
+        replyingTo == nil && self.line == line && self.side == side
     }
+
+    func isReplying(to threadID: String) -> Bool { replyingTo == threadID }
 }
 
 /// Which row the pointer is over, so its number can offer itself.
@@ -100,6 +116,10 @@ struct DraftEditorView: View {
     let path: String
     let line: Int
     let side: ReviewThread.Side
+    /// The conversation being answered, where there is one. A reply
+    /// names its thread and nothing else; the file and line go with it
+    /// only so the draft can draw it in the right place.
+    var thread: ReviewThread?
     let writing: DraftWriting
     @ObservedObject var target: DraftTarget
 
@@ -128,7 +148,7 @@ struct DraftEditorView: View {
                         .foregroundStyle(Color(nsColor: .secondaryLabelColor))
                     Spacer(minLength: 8)
                     Button("Cancel") { target.shut() }
-                    Button(target.editing == nil ? "Add" : "Save") { save() }
+                    Button(label) { save() }
                         .disabled(!canSave)
                 }
                 .controlSize(.small)
@@ -141,10 +161,17 @@ struct DraftEditorView: View {
         .padding(.vertical, 2)
     }
 
+    private var label: String {
+        if target.editing != nil { return "Save" }
+        return thread == nil ? "Add" : "Reply"
+    }
+
     private func save() {
         guard canSave else { return }
         if let editing = target.editing {
             writing.change(editing, target.text)
+        } else if let thread {
+            writing.reply(thread, target.text)
         } else {
             writing.add(path, line, side, target.text)
         }
