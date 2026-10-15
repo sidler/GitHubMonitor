@@ -126,17 +126,18 @@ struct DraftRemarkView: View {
                 }
                 .font(.caption)
                 .foregroundStyle(Ink.purple)
+                .controlSize(.small)
                 .buttonStyle(.accessoryBar)
 
                 MarkdownText(source: comment.body, overflowNote: "")
                     .font(.callout)
             }
-            .padding(.vertical, 6)
+            .padding(.vertical, 4)
             .padding(.horizontal, 9)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .background(.quaternary.opacity(0.25))
-        .padding(.vertical, 2)
+        .padding(.vertical, 1)
     }
 }
 
@@ -185,7 +186,7 @@ struct DraftEditorView: View {
                 .fill(Ink.purple)
                 .frame(width: 4)
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 4) {
                 CommentTextView(
                     text: $target.text,
                     caret: caret,
@@ -218,12 +219,12 @@ struct DraftEditorView: View {
                 }
                 .controlSize(.small)
             }
-            .padding(.vertical, 6)
+            .padding(.vertical, 4)
             .padding(.horizontal, 9)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .background(.quaternary.opacity(0.25))
-        .padding(.vertical, 2)
+        .padding(.vertical, 1)
         .onChange(of: query) {
             // A different question: the highlight goes back to the top,
             // and whatever was dismissed was dismissed about something

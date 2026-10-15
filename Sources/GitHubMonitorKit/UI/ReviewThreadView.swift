@@ -63,7 +63,7 @@ struct ReviewThreadView: View {
                 .fill(thread.tint)
                 .frame(width: 4)
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 4) {
                 if thread.isResolved || thread.isOutdated {
                     Button {
                         withAnimation(.easeOut(duration: 0.15)) { disclosure.isExpanded.toggle() }
@@ -146,12 +146,12 @@ struct ReviewThreadView: View {
                     }
                 }
             }
-            .padding(.vertical, 6)
+            .padding(.vertical, 4)
             .padding(.horizontal, 9)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .background(.quaternary.opacity(0.25))
-        .padding(.vertical, 2)
+        .padding(.vertical, 1)
         // No dimming for the ones that are done. It was a flat quarter
         // off everything, text included, which is the one thing the
         // contrast of this app is not allowed to be casual about -- and
@@ -177,6 +177,12 @@ extension ReviewThreadView {
             Spacer(minLength: 0)
         }
         .font(.caption)
+        // The size has to be said out loud: a button in the accessory
+        // bar style takes it from the control size and not from the
+        // font, so `.caption` alone left two full-sized buttons under
+        // every conversation -- most of a line's height each, in a place
+        // where the reading is the point and the actions are an aside.
+        .controlSize(.small)
         .buttonStyle(.accessoryBar)
     }
 }

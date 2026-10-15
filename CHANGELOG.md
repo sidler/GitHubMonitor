@@ -5,6 +5,15 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **A conversation takes up less room, and its buttons stop shouting.**
+  *Reply* and *Resolve* were drawn at full size under every thread:
+  a button in the accessory bar style takes its size from the control
+  size and not from the font it inherits, so asking for caption text
+  changed nothing. They are small now, and the padding around a
+  conversation, around an unsent remark and inside the box you write
+  in is a third lighter. About eighteen points back per conversation,
+  which is most of a line of code.
+
 - **The names an `@` offers float at the caret, and the keyboard drives
   them.** They were drawn under the box, which changed its height — so
   the diff moved about as you typed, by as much as the number of people
