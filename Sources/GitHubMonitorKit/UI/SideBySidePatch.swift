@@ -30,74 +30,28 @@ struct SideBySidePatch: View {
     var draft: [DraftComment] = []
     /// How to write one. Nil leaves the diff a reader.
     var writing: DraftWriting?
+    /// Where the box that writes a remark is open. Owned by the overlay:
+    /// the box is drawn at the margin, and these gutters only open it.
+    @ObservedObject var target: DraftTarget
+    /// The coordinate space this patch and its margin share.
+    var space: String = ""
 
-    @StateObject private var target = DraftTarget()
     @StateObject private var hovered = HoveredRow()
 
     var body: some View {
         let width = columnWidth
         VStack(alignment: .leading, spacing: 0) {
             ForEach(rows) { row in
-                switch row.kind {
-                case .threads(let here):
-                    // Prose belongs to the row, not to a column: it is as
-                    // wide as the pair of them.
-                    conversations(here)
-                        .frame(width: width * 2 + Self.dividerWidth, alignment: .leading)
-                default:
-                    // Both sides in one row, so a line that wraps on one
-                    // side takes the other down with it and the two columns
-                    // cannot drift apart.
-                    HStack(alignment: .top, spacing: 0) {
-                        cell(row, side: .old, width: width)
-                        Divider().frame(width: Self.dividerWidth)
-                        cell(row, side: .new, width: width)
-                    }
-                    .fixedSize(horizontal: false, vertical: true)
-
-                    if let writing {
-                        drafting(row, writing: writing)
-                            .frame(width: width * 2 + Self.dividerWidth, alignment: .leading)
-                    }
+                // Both sides in one row, so a line that wraps on one side
+                // takes the other down with it and the two columns cannot
+                // drift apart.
+                HStack(alignment: .top, spacing: 0) {
+                    cell(row, side: .old, width: width)
+                    Divider().frame(width: Self.dividerWidth)
+                    cell(row, side: .new, width: width)
                 }
-            }
-        }
-    }
-
-    /// The conversations hanging off one row, and whatever this draft
-    /// has to say about it.
-    ///
-    /// The same shape as the one column has. Reviewing from two columns
-    /// was a reader's seat for a while, which it should not have been:
-    /// which layout suits a patch is a judgement about the patch, not
-    /// about whether you intend to say anything.
-    private func conversations(_ here: [ReviewThread]) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(here) { thread in
-                ReviewThreadView(
-                    thread: thread,
-                    writing: writing,
-                    replies: draft
-                        .filter { $0.replyTo == thread.id }
-                        .sorted { $0.writtenAt < $1.writtenAt },
-                    target: target
-                )
-            }
-        }
-    }
-
-    /// What a row carries of the review being written.
-    @ViewBuilder
-    private func drafting(_ row: Row, writing: DraftWriting) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(remarks(on: row)) { comment in
-                DraftRemarkView(comment: comment, writing: writing, target: target)
-            }
-            if let place = place(of: row), target.isOpen(line: place.line, side: place.side) {
-                DraftEditorView(
-                    path: path, line: place.line, side: place.side,
-                    writing: writing, target: target
-                )
+                .fixedSize(horizontal: false, vertical: true)
+                .marginAnchor(row.keys, in: space)
             }
         }
     }
@@ -222,8 +176,6 @@ struct SideBySidePatch: View {
             // Whichever file it is about, the note is short enough to say
             // on both sides and the row needs the same height either way.
             return Piece(whole: line, marker: "", body: line, emphasis: [])
-        case .threads:
-            return nil
         case .pair(let left, let right):
             guard let cell = side == .old ? left : right else { return nil }
             let split = DiffWords.split(cell.text, emphasis: cell.emphasis)
@@ -279,15 +231,18 @@ struct SideBySidePatch: View {
 
         var result: [Row] = []
         for (index, row) in patchRows.enumerated() {
-            switch row {
-            case .hunk(let text): result.append(Row(id: result.count, kind: .hunk(text)))
-            case .note(let text): result.append(Row(id: result.count, kind: .note(text)))
-            case .pair(let left, let right):
-                result.append(Row(id: result.count, kind: .pair(left, right)))
+            let kind: Row.Kind = switch row {
+            case .hunk(let text): .hunk(text)
+            case .note(let text): .note(text)
+            case .pair(let left, let right): .pair(left, right)
             }
-            if let here = anchors[index] {
-                result.append(Row(id: result.count, kind: .threads(here)))
+            var keys = (anchors[index] ?? []).map { MarginEntry.key(forThread: $0.id) }
+            let built = Row(id: result.count, kind: kind, keys: [])
+            keys += remarks(on: built).map { MarginEntry.key(forRemark: $0.id) }
+            if let place = place(of: built), target.isOpen(line: place.line, side: place.side) {
+                keys.append(MarginEntry.editorKey)
             }
+            result.append(Row(id: result.count, kind: kind, keys: keys))
         }
         return result
     }
@@ -304,11 +259,12 @@ struct SideBySidePatch: View {
             case hunk(String)
             case note(String)
             case pair(DiffCell?, DiffCell?)
-            case threads([ReviewThread])
         }
 
         let id: Int
         let kind: Kind
+        /// The cards at the margin that belong beside this row.
+        var keys: [String] = []
 
         var isHunk: Bool { if case .hunk = kind { true } else { false } }
     }

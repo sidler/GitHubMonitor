@@ -540,6 +540,29 @@ struct SettledThreadTests {
         ]
     }
 
+    /// It is the header of every card at the margin now, so it has to be
+    /// true of an open conversation as well. It used to say "resolved"
+    /// about anything that was not outdated, which nothing noticed while
+    /// only settled threads ever showed it.
+    @Test("The summary names the state it is actually in")
+    func summarySpeaksPlainly() {
+        func thread(resolved: Bool, outdated: Bool) -> ReviewThread {
+            ReviewThread(
+                id: "t", path: "a.swift", line: 1, side: .new,
+                isResolved: resolved, isOutdated: outdated,
+                comments: [
+                    IssueComment(
+                        id: "c", author: "a", avatarURL: nil,
+                        createdAt: .now, body: "x"
+                    )
+                ]
+            )
+        }
+        #expect(thread(resolved: false, outdated: false).summary == "1 comment")
+        #expect(thread(resolved: true, outdated: false).summary == "1 comment, resolved")
+        #expect(thread(resolved: false, outdated: true).summary == "1 comment, outdated")
+    }
+
     @Test("Everything of that file, and nothing of another")
     func inFile() {
         let shown = ReviewThreadPlacement.inFile(threads, path: "a.swift")

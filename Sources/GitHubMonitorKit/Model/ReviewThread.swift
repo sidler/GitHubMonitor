@@ -117,7 +117,14 @@ public struct ReviewThread: Identifiable, Hashable, Sendable {
     public var summary: String {
         let count = comments.count
         let what = count == 1 ? "1 comment" : "\(count) comments"
-        return isOutdated ? "\(what), outdated" : "\(what), resolved"
+        // Said for every conversation now, not only the ones that are
+        // done: at the margin each card carries this line as its header.
+        // It used to be written on the assumption that nothing but a
+        // settled or outdated thread would ever show it, and so it called
+        // an open conversation resolved.
+        if isOutdated { return "\(what), outdated" }
+        if isResolved { return "\(what), resolved" }
+        return what
     }
 }
 

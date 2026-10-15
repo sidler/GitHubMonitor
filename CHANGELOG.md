@@ -5,6 +5,20 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **Conversations moved out of the code and to the file's margin.** They
+  were drawn between the lines, which cost the diff its shape: a file
+  with three conversations was twice as long as its own patch, and
+  opening one moved the code out from under you. Now each one is a card
+  down the right-hand side, on the height of the line it is about. A
+  card costs width instead of height, and the only thing a card can move
+  is another card — the code never shifts, whatever you open.
+
+  Settled conversations are a shut card with one line of what was said.
+  Unsent remarks and the box you write them in are cards too, so writing
+  a remark no longer pushes the line you are writing about off the
+  screen. The margin appears only where a file has something at it, and
+  it works the same in one column or two.
+
 - **Settled conversations stand in the diff, shut.** The control in each
   file's header that hid them a file at a time is gone: they were always
   one line each where they were written, and the question that control

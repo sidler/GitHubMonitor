@@ -67,6 +67,10 @@ struct DiffOverlay: View {
     /// within one, which with short files looked almost like scrolling.
     @StateObject private var place = DiffPlace()
     @StateObject private var asked = AskedEvent()
+    /// Where a remark is being written, for the whole overlay rather than
+    /// per file: only one box is open at a time, and the box lives at the
+    /// margin while the gutter that opens it lives in the patch.
+    @StateObject private var target = DraftTarget()
 
     var body: some View {
         ZStack {
@@ -578,38 +582,18 @@ struct DiffOverlay: View {
                 // was added has no old version, so the left column would be
                 // half a window of nothing and every line of the new file
                 // would be squeezed into the other half to face it.
-                switch layout {
-                case .sideBySide where !DiffSideBySide.isOneSided(patch):
-                    SideBySidePatch(
-                        patch: patch,
-                        language: file.language,
-                        available: width,
-                        fontSize: fontSize,
-                        showsLineNumbers: showsLineNumbers,
-                        threads: ReviewThreadPlacement.placed(
-                            mine, in: file.path, patch: patch
-                        ),
-                        path: file.path,
-                        draft: draft?.comments(in: file.path) ?? [],
-                        writing: writing
-                    )
-                    .padding(.vertical, 6)
-                case .unified, .sideBySide:
-                    PatchLines(
-                        patch: patch,
-                        language: file.language,
-                        fontSize: fontSize,
-                        showsLineNumbers: showsLineNumbers,
-                        threads: ReviewThreadPlacement.placed(
-                            mine, in: file.path, patch: patch
-                        ),
-                        path: file.path,
-                        draft: draft?.comments(in: file.path) ?? [],
-                        writing: writing,
-                        column: width
-                    )
-                    .padding(.vertical, 6)
-                }
+                FileSheet(
+                    file: file,
+                    patch: patch,
+                    width: width,
+                    layout: layout,
+                    fontSize: fontSize,
+                    showsLineNumbers: showsLineNumbers,
+                    threads: ReviewThreadPlacement.placed(mine, in: file.path, patch: patch),
+                    draft: draft?.comments(in: file.path) ?? [],
+                    writing: writing,
+                    target: target
+                )
             } else {
                 Text("GitHub sends no diff for this file \u{2014} it is binary, or too large.")
                     .font(.caption)
@@ -684,12 +668,14 @@ struct PatchLines: View {
     var draft: [DraftComment] = []
     /// How to write one. Nil leaves the diff a reader.
     var writing: DraftWriting?
-    /// How wide the column is, for the prose among the code. The patch
-    /// itself may be wider and scroll; a comment keeps the column's width
-    /// so it reads as prose rather than as a very long line.
-    var column: CGFloat = 400
+    /// Where the box that writes a remark is open. Owned by the overlay
+    /// rather than by this view: the box itself is drawn at the margin
+    /// now, and the gutter here is only what opens it.
+    @ObservedObject var target: DraftTarget
+    /// The coordinate space this patch and its margin share, in which a
+    /// row reports where it ended up.
+    var space: String = ""
 
-    @StateObject private var target = DraftTarget()
     @StateObject private var hovered = HoveredRow()
 
     private var lines: [Line] {
@@ -732,58 +718,26 @@ struct PatchLines: View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(lines) { line in
                 row(line, digits: digits)
-                if let here = anchors[line.id] {
-                    conversations(here)
-                        .frame(width: column, alignment: .leading)
-                }
-                if let writing {
-                    drafting(line, writing: writing)
-                        .frame(width: column, alignment: .leading)
-                }
+                    .marginAnchor(keys(for: line, anchors: anchors), in: space)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// What this row carries of the review being written: the remarks
-    /// already on it, and the box where one is being written.
-    @ViewBuilder
-    private func drafting(_ line: Line, writing: DraftWriting) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(remarks(at: line.number)) { comment in
-                DraftRemarkView(comment: comment, writing: writing, target: target)
-            }
-            if let place = Self.addable(line.number),
-                target.isOpen(line: place.line, side: place.side) {
-                DraftEditorView(
-                    path: path, line: place.line, side: place.side,
-                    writing: writing, target: target
-                )
-            }
-        }
-    }
-
-    /// The conversations hanging off one line.
+    /// Which cards at the margin stand beside this row.
     ///
-    /// Its own function because the body around it had grown past what
-    /// the type checker will untangle in one go -- it started guessing
-    /// that a list of lines was a range of integers.
-    private func conversations(_ here: [ReviewThread]) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(here) { thread in
-                ReviewThreadView(
-                    thread: thread,
-                    writing: writing,
-                    replies: draftReplies(to: thread),
-                    target: target
-                )
-            }
+    /// The patch no longer draws any of them; it says where they belong
+    /// and the column opposite does the rest. That is the whole of what
+    /// is left here of conversations, and it is why a file is now as
+    /// long as its patch however much was said about it.
+    private func keys(for line: Line, anchors: [Int: [ReviewThread]]) -> [String] {
+        var keys = (anchors[line.id] ?? []).map { MarginEntry.key(forThread: $0.id) }
+        keys += remarks(at: line.number).map { MarginEntry.key(forRemark: $0.id) }
+        if let place = Self.addable(line.number),
+            target.isOpen(line: place.line, side: place.side) {
+            keys.append(MarginEntry.editorKey)
         }
-    }
-
-    /// What the draft answers one conversation with.
-    private func draftReplies(to thread: ReviewThread) -> [DraftComment] {
-        draft.filter { $0.replyTo == thread.id }.sorted { $0.writtenAt < $1.writtenAt }
+        return keys
     }
 
     private func remarks(at number: DiffLineNumber) -> [DraftComment] {
