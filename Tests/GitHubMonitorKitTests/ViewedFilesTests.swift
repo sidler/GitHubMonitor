@@ -139,6 +139,7 @@ struct ChangelogTests {
             .appendingPathComponent("CHANGELOG.md")
         let text = try String(contentsOf: url, encoding: .utf8)
 
+        #expect(text.contains("## 2.0.0"))
         #expect(text.contains("## 1.8.1"))
         #expect(text.contains("## 1.8.0"))
         #expect(text.contains("## 1.7.0"))
@@ -152,7 +153,7 @@ struct ChangelogTests {
         #expect(text.contains("## 0.1.0"))
         // Newest first, which is what the window title relies on. The
         // "Unreleased" heading above them is not a version and is skipped.
-        #expect(Changelog.newestVersion(in: text) == "1.8.1")
+        #expect(Changelog.newestVersion(in: text) == "2.0.0")
     }
 
     @Test("The newest version is the first heading, whatever follows it")

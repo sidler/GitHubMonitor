@@ -3,7 +3,7 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
-## Unreleased
+## 2.0.0
 
 - **Typing `@` in a comment offers the people it can reach.** The names
   come from GitHub's own answer to that question — who a mention in
