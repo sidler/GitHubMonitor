@@ -175,6 +175,20 @@ struct MergeStateTests {
         #expect(asking.methods(for: "2").isEmpty)
     }
 
+    /// The press that merged nothing. A dialog puts the state back to
+    /// `idle` as it closes, and the chosen button's work starts a turn
+    /// later -- so the commit has to be read while the question is still
+    /// on screen, not when the answer is acted on.
+    @Test("The commit can be carried out of the question, and belongs to it")
+    func commitTravels() {
+        let asking = MergeState.confirming(
+            pullRequestID: "1", methods: [.squash], commit: "abc123"
+        )
+        #expect(asking.commit(for: "1") == "abc123")
+        #expect(asking.commit(for: "2") == nil)
+        #expect(MergeState.idle.commit(for: "1") == nil)
+    }
+
     @Test("So does a refusal")
     func failure() {
         let failed = MergeState.failed(pullRequestID: "1", message: "it conflicts")

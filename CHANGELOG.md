@@ -5,6 +5,16 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **Choosing a merge method merged nothing.** The question closed and
+  the pull request stayed open, with nothing said. Closing the dialog
+  puts the merge state back to *idle*, and it does so straight away,
+  while the chosen button's work only begins a turn of the run loop
+  later — by which time the check that the merge was confirmed found no
+  confirmation and sent the press away in silence. The commit is now
+  carried out of the question while it is on screen, which is also the
+  honest shape of it: what is merged is what was shown. GitHub is still
+  told to refuse anything else.
+
 - **The Merge button was grey everywhere, and would not say why.** It
   refused anything that was not an approved pull request — but a
   repository that requires no review reports no decision at all, and

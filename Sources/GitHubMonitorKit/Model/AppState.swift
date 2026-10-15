@@ -1260,6 +1260,19 @@ public enum MergeState: Equatable, Sendable {
         return []
     }
 
+    /// The commit the question was asked about.
+    ///
+    /// Read by the question itself, while it is being drawn, and carried
+    /// into the answer. Closing a dialog puts this state back to `idle`
+    /// before the chosen button's work begins, so anything that work
+    /// needs has to leave here first -- which is also the honest shape of
+    /// it: what is merged is what the person was shown, not whatever the
+    /// state says a moment later.
+    public func commit(for id: String) -> String? {
+        if case .confirming(let mine, _, let commit) = self, mine == id { return commit }
+        return nil
+    }
+
     public func message(for id: String) -> String? {
         if case .failed(let mine, let message) = self, mine == id { return message }
         return nil

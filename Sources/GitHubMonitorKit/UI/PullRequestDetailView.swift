@@ -166,6 +166,10 @@ struct PullRequestDetailView: View {
     private func mergeButton(_ writing: PaneWriting) -> some View {
         let blocker = MergeQuery.blocker(for: item)
         let methods = writing.state.merging.methods(for: item.id)
+        // Taken out of the state here, while the question is being drawn,
+        // because by the time a button in it is pressed the state has
+        // already been put back.
+        let commit = writing.state.merging.commit(for: item.id)
 
         Button {
             Task { await writing.controller.askToMerge(item) }
@@ -185,9 +189,11 @@ struct PullRequestDetailView: View {
             // One button per way this repository allows it. Where it
             // allows only one there is only one, and the question is
             // then a yes or no rather than a choice nobody has.
-            ForEach(methods, id: \.self) { method in
-                Button(methods.count == 1 ? method.action : method.label) {
-                    Task { await writing.controller.merge(item, using: method) }
+            if let commit {
+                ForEach(methods, id: \.self) { method in
+                    Button(methods.count == 1 ? method.action : method.label) {
+                        Task { await writing.controller.merge(item, using: method, at: commit) }
+                    }
                 }
             }
             Button("Cancel", role: .cancel) { writing.controller.cancelMerge() }

@@ -1380,10 +1380,21 @@ public final class RefreshController {
 
     /// Merges it, the way that was chosen, at the commit that was read.
     @discardableResult
-    public func merge(_ item: PullRequestItem, using method: MergeQuery.Method) async -> Bool {
-        guard case .confirming(let id, _, let commit) = state.merging, id == item.id else {
-            return false
-        }
+    /// The commit is passed in rather than read back out of the state,
+    /// and that is the whole repair: closing a dialog sets this state to
+    /// `idle` synchronously, while the chosen button's work is a `Task`
+    /// that begins a turn later. Reading `.confirming` here therefore
+    /// never found it -- the guard sent every press away, quietly and
+    /// without merging anything, which looked from the outside exactly
+    /// like a button that did nothing.
+    ///
+    /// Nothing is lost by dropping that guard. The commit still comes
+    /// from the question that was on screen, and GitHub is told to
+    /// refuse anything else: `expectedHeadOid` is the real guarantee
+    /// here, not a check this app makes against its own state.
+    public func merge(
+        _ item: PullRequestItem, using method: MergeQuery.Method, at commit: String
+    ) async -> Bool {
         guard let service else {
             state.merging = .failed(
                 pullRequestID: item.id,
