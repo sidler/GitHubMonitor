@@ -203,7 +203,17 @@ struct MarginColumn: View {
                 )
             case .remark(let comment):
                 if let writing {
-                    DraftRemarkView(comment: comment, writing: writing, target: target)
+                    // Reworded in the card it already has, rather than in
+                    // a second one below it: the remark and the box are
+                    // the same remark, and two cards would say so twice.
+                    if target.editing == comment.id {
+                        DraftEditorView(
+                            path: path, line: comment.line, side: comment.side,
+                            writing: writing, target: target
+                        )
+                    } else {
+                        DraftRemarkView(comment: comment, writing: writing, target: target)
+                    }
                 }
             case .editor(let line, let side):
                 if let writing {

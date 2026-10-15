@@ -5,6 +5,23 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **The names an `@` offers float at the caret, and the keyboard drives
+  them.** They were drawn under the box, which changed its height — so
+  the diff moved about as you typed, by as much as the number of people
+  matching. Now the list is an overlay: it appears over what is beside
+  it and nothing shifts. ↑ and ↓ choose, ⏎ inserts, esc puts it away
+  until what has been typed changes, and a ⏎ with no list under it is a
+  new paragraph as it always was.
+
+  The box is an `NSTextView` now rather than SwiftUI's `TextEditor`,
+  which is what made both possible: the caret's position, and a say in
+  what the arrow keys do. It brought something else with it — the
+  mention being completed is the one in front of the caret, so a name
+  can be fixed in the middle of a paragraph instead of only at the end.
+
+  One thing it does not do yet: a list that opens at the very bottom of
+  the view is cut off there rather than flipping above the caret.
+
 - **Conversations moved out of the code and to the file's margin.** They
   were drawn between the lines, which cost the diff its shape: a file
   with three conversations was twice as long as its own patch, and

@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// How a diff writes into the review being drafted. Nil leaves it a
@@ -151,6 +152,29 @@ struct DraftEditorView: View {
     let writing: DraftWriting
     @ObservedObject var target: DraftTarget
 
+    @StateObject private var caret = CaretState()
+    @StateObject private var pick = MentionPick()
+
+    /// The half-typed name in front of the caret, if that is what is in
+    /// front of the caret.
+    private var query: String? {
+        MentionTyping.query(
+            in: target.text,
+            before: MentionTyping.index(ofUTF16: caret.offset, in: target.text)
+        )
+    }
+
+    /// Whom to offer. Nobody while the list has been dismissed for this
+    /// very query -- escape should put it away and leave it away until
+    /// what was typed changes.
+    private var people: [MentionableUser] {
+        guard
+            let query, query != pick.dismissed,
+            let mentioning = writing.mentioning
+        else { return [] }
+        return mentioning.candidates(query)
+    }
+
     private var canSave: Bool {
         !target.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
@@ -162,15 +186,26 @@ struct DraftEditorView: View {
                 .frame(width: 4)
 
             VStack(alignment: .leading, spacing: 6) {
-                TextEditor(text: $target.text)
-                    .font(.callout)
-                    .frame(minHeight: 60)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 4)
-                            .strokeBorder(.quaternary, lineWidth: 0.5)
-                    )
-
-                mentions
+                CommentTextView(
+                    text: $target.text,
+                    caret: caret,
+                    fontSize: NSFont.preferredFont(forTextStyle: .callout).pointSize,
+                    isCompleting: { !people.isEmpty },
+                    onMove: { pick.move($0, count: people.count) },
+                    onCommit: { take() },
+                    onCancel: { pick.dismissed = query }
+                )
+                .frame(minHeight: 60)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 4)
+                        .strokeBorder(.quaternary, lineWidth: 0.5)
+                )
+                // An overlay, not something in the stack: the list has to
+                // be able to appear without the box changing height. That
+                // height is what used to push the whole diff about as
+                // names were typed.
+                .overlay(alignment: .topLeading) { completion }
+                .zIndex(1)
 
                 HStack(spacing: 8) {
                     Text("Kept until you send the review")
@@ -189,58 +224,59 @@ struct DraftEditorView: View {
         }
         .background(.quaternary.opacity(0.25))
         .padding(.vertical, 2)
-        .onChange(of: typedMention) {
-            guard let query = typedMention else { return }
+        .onChange(of: query) {
+            // A different question: the highlight goes back to the top,
+            // and whatever was dismissed was dismissed about something
+            // else.
+            pick.index = 0
+            pick.dismissed = nil
+            guard let query else { return }
             writing.mentioning?.ask(query)
         }
     }
 
-    /// What has been typed after an `@`, where that is what is happening.
-    private var typedMention: String? { MentionTyping.query(in: target.text) }
-
-    /// The names on offer, under the box rather than at the caret.
+    /// The names on offer, floating under the caret.
     ///
-    /// Under it because `TextEditor` publishes its text and nothing else
-    /// on this toolchain: there is no insertion point to hang a list
-    /// from, and the honest way to say so is to put the list somewhere
-    /// that does not pretend to know. It is a click, not a keystroke,
-    /// for the same reason -- the box keeps the keyboard while it has
-    /// focus, and arrow keys meant for a list would go into the prose.
+    /// Under it vertically, which is the part that matters: in a card
+    /// barely wider than the list there is no sideways room to follow a
+    /// caret into, and a list that tried would hang off the edge and be
+    /// cut in half. So it tracks the line being typed on and is held
+    /// inside the box.
     @ViewBuilder
-    private var mentions: some View {
-        if let mentioning = writing.mentioning, let query = typedMention {
-            let people = mentioning.candidates(query)
-            if !people.isEmpty {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(people) { person in
-                        Button {
-                            target.text = MentionTyping.completing(
-                                target.text, with: person.login
-                            )
-                        } label: {
-                            HStack(spacing: 6) {
-                                Text(verbatim: "@\(person.login)")
-                                    .font(.caption.weight(.medium))
-                                if let name = person.name {
-                                    Text(name)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
-                                }
-                                Spacer(minLength: 0)
-                            }
-                            .padding(.vertical, 3)
-                            .padding(.horizontal, 6)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .pointerStyle(.link)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 4))
+    private var completion: some View {
+        if !people.isEmpty {
+            GeometryReader { proxy in
+                MentionList(people: people, selected: pick.index) { take($0) }
+                    .offset(
+                        x: min(
+                            max(0, caret.rect.minX),
+                            max(0, proxy.size.width - MentionList.width)
+                        ),
+                        y: caret.rect.maxY + 3
+                    )
             }
         }
+    }
+
+    /// Takes the highlighted name. Answers whether there was one, so a
+    /// return with no list under it is still a new paragraph.
+    private func take() -> Bool {
+        guard people.indices.contains(pick.index) else { return false }
+        take(people[pick.index])
+        return true
+    }
+
+    private func take(_ person: MentionableUser) {
+        let written = MentionTyping.completing(
+            target.text,
+            with: person.login,
+            before: MentionTyping.index(ofUTF16: caret.offset, in: target.text)
+        )
+        target.text = written.text
+        // The caret belongs behind the name that was just written, not
+        // wherever the new string happens to end.
+        caret.wanted = written.caret
+        pick.index = 0
     }
 
     private var label: String {
@@ -258,5 +294,97 @@ struct DraftEditorView: View {
             writing.add(path, line, side, target.text)
         }
         target.shut()
+    }
+}
+
+/// Which name in the list is highlighted, and whether the list has been
+/// sent away.
+@MainActor
+final class MentionPick: ObservableObject {
+    @Published var index = 0
+    /// What was being typed when somebody pressed escape. The list stays
+    /// away until that changes, rather than coming straight back on the
+    /// next keystroke of the same word.
+    @Published var dismissed: String?
+
+    /// Up or down, round the ends: a list of four is quicker to reach
+    /// from the bottom than by holding the up arrow.
+    func move(_ by: Int, count: Int) {
+        guard count > 0 else { return }
+        index = ((index + by) % count + count) % count
+    }
+}
+
+/// The names, floating at the caret.
+struct MentionList: View {
+    let people: [MentionableUser]
+    let selected: Int
+    let take: (MentionableUser) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(people.enumerated()), id: \.element.id) { index, person in
+                Button { take(person) } label: {
+                    HStack(spacing: 6) {
+                        Text(verbatim: "@\(person.login)")
+                            .font(.caption.weight(.medium))
+                        if let name = person.name {
+                            Text(name)
+                                .font(.caption)
+                                .foregroundStyle(
+                                    index == selected ? .white.opacity(0.8) : .secondary
+                                )
+                                .lineLimit(1)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .foregroundStyle(index == selected ? Color.white : Color(nsColor: .labelColor))
+                    .padding(.vertical, 3)
+                    .padding(.horizontal, 6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        index == selected ? Ink.blue : .clear,
+                        in: RoundedRectangle(cornerRadius: 4)
+                    )
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .pointerStyle(.link)
+            }
+
+            Divider().padding(.vertical, 3)
+
+            HStack(spacing: 9) {
+                key("\u{2191}\u{2193}", "choose")
+                key("\u{21A9}", "insert")
+                key("esc", "close")
+            }
+            .padding(.horizontal, 6)
+            .padding(.bottom, 2)
+        }
+        .padding(4)
+        .frame(width: Self.width)
+        .background(
+            RoundedRectangle(cornerRadius: 7)
+                .fill(Color(nsColor: .windowBackgroundColor))
+                .shadow(color: .black.opacity(0.22), radius: 7, y: 3)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 7).strokeBorder(.quaternary, lineWidth: 0.5)
+        )
+    }
+
+    /// Wide enough for a login and most of a name beside it.
+    static let width: CGFloat = 236
+
+    private func key(_ symbol: String, _ what: String) -> some View {
+        HStack(spacing: 3) {
+            Text(verbatim: symbol)
+                .font(.system(size: 9))
+                .padding(.horizontal, 3)
+                .background(.quaternary, in: RoundedRectangle(cornerRadius: 3))
+            Text(what).font(.system(size: 9.5))
+        }
+        .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
     }
 }

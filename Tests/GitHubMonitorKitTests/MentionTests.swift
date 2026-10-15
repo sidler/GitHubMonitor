@@ -41,6 +41,44 @@ struct MentionTypingTests {
         #expect(MentionTyping.query(in: "@mira and @no") == "no")
     }
 
+    /// The caret is what this gained when the box became an NSTextView.
+    /// A name being fixed in the middle of a paragraph used to be
+    /// invisible, because only the end of the text was ever read.
+    @Test("The mention is the one in front of the caret, not the last one in the text")
+    func atTheCaret() {
+        let text = "ask @mi about the @other thing"
+        let caret = MentionTyping.index(ofUTF16: 7, in: text)   // after "@mi"
+        #expect(MentionTyping.query(in: text, before: caret) == "mi")
+    }
+
+    @Test("Nothing in front of the caret is nothing to complete")
+    func notAtTheCaret() {
+        let text = "ask @mira about it"
+        #expect(
+            MentionTyping.query(in: text, before: MentionTyping.index(ofUTF16: 3, in: text))
+                == nil
+        )
+    }
+
+    @Test("Completing at the caret keeps what came after it, and says where to go")
+    func completesInTheMiddle() {
+        let text = "ask @mi about it"
+        let caret = MentionTyping.index(ofUTF16: 7, in: text)
+        let done = MentionTyping.completing(text, with: "mira", before: caret)
+        // One space, not two: the sentence already had one.
+        #expect(done.text == "ask @mira about it")
+        #expect(done.caret == 9)
+    }
+
+    /// An offset that does not fit the string is not a reason to trap:
+    /// the selection and the text arrive from different places and can
+    /// disagree for one pass.
+    @Test("A caret past the end is treated as the end")
+    func caretOutOfRange() {
+        #expect(MentionTyping.index(ofUTF16: 99, in: "short") == "short".endIndex)
+        #expect(MentionTyping.index(ofUTF16: -1, in: "short") == "short".endIndex)
+    }
+
     @Test("Completing replaces what was typed and leaves room for the rest")
     func completes() {
         #expect(MentionTyping.completing("ask @mi", with: "mira") == "ask @mira ")
