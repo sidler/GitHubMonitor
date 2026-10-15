@@ -197,9 +197,18 @@ struct DraftEditorView: View {
                     onCancel: { pick.dismissed = query }
                 )
                 .frame(minHeight: 60)
+                // A field, and it has to look like one. Drawn on the
+                // conversation's own grey with a hairline round it, the
+                // box was all but invisible -- you could not see where
+                // to start typing without clicking to find out. Paper
+                // under it and a real border round it.
+                .background(
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(Color(nsColor: .textBackgroundColor))
+                )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 4)
-                        .strokeBorder(.quaternary, lineWidth: 0.5)
+                    RoundedRectangle(cornerRadius: 5)
+                        .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1)
                 )
                 // An overlay, not something in the stack: the list has to
                 // be able to appear without the box changing height. That
@@ -208,14 +217,22 @@ struct DraftEditorView: View {
                 .overlay(alignment: .topLeading) { completion }
                 .zIndex(1)
 
-                HStack(spacing: 8) {
+                // Under the left edge of the box, where the writing
+                // started and where the pointer already is. At the right
+                // they were a trip across the whole diff -- and the
+                // wider the window, the longer the trip.
+                //
+                // The one that sends comes first, nearest the text, with
+                // Cancel behind it: that is the order of how often they
+                // are pressed, not the order a sheet would put them in.
+                HStack(spacing: 10) {
+                    Button(label) { save() }
+                        .disabled(!canSave)
+                    Button("Cancel") { target.shut() }
+                    Spacer(minLength: 8)
                     Text("Kept until you send the review")
                         .font(.caption2)
                         .foregroundStyle(Color(nsColor: .secondaryLabelColor))
-                    Spacer(minLength: 8)
-                    Button("Cancel") { target.shut() }
-                    Button(label) { save() }
-                        .disabled(!canSave)
                 }
                 .controlSize(.small)
             }

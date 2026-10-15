@@ -5,6 +5,16 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **The box you write a remark in looks like a box, and its buttons are
+  where your hand already is.** Drawn on the conversation's own grey
+  with a hairline round it, the field was all but invisible — you could
+  not see where to start typing without clicking to find out. It has
+  paper under it and a real border now. *Add* and *Cancel* moved from
+  the right-hand end to under the left edge of the field, where the
+  writing started: at the right they were a trip across the whole diff,
+  and the wider the window the longer the trip. The one that sends
+  comes first, nearest the text.
+
 - **A conversation takes up less room, and its buttons stop shouting.**
   *Reply* and *Resolve* were drawn at full size under every thread:
   a button in the accessory bar style takes its size from the control
