@@ -3,6 +3,17 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
+## Unreleased
+
+- **Taking a label off sometimes did nothing — on screen.** The change
+  was read from, and written to, the detail alone, while the pane falls
+  back to the list's own copy of an issue's labels whenever the detail
+  has none. So the chip could stay where it was while GitHub went ahead
+  and removed the label: the app and the repository disagreed, and the
+  app was the one that looked right. It now reads what the pane reads
+  and writes to both, which also means the row in the list follows a
+  change instead of waiting for the next refresh.
+
 ## 2.2.0
 
 - **The list you are looking at, in the browser, from the bottom bar.**

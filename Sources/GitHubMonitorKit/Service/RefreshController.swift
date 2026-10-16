@@ -245,9 +245,10 @@ public final class RefreshController {
         guard label.isReal, let service else { return }
 
         let before = labels(of: itemID, isPullRequest: isPullRequest)
-        var after = before.filter { $0.id != label.id }
-        if wanted { after.append(label) }
-        apply(after.sorted { $0.name < $1.name }, to: itemID, isPullRequest: isPullRequest)
+        apply(
+            LabelChange.after(before, setting: label, to: wanted),
+            to: itemID, isPullRequest: isPullRequest
+        )
 
         accountTask { [weak self] in
             do {
@@ -259,22 +260,41 @@ public final class RefreshController {
         }
     }
 
+    /// What the item carries now, read the way the pane reads it.
+    ///
+    /// The pane shows the detail's labels and falls back to the list's
+    /// copy while the detail has none. Reading only the detail therefore
+    /// answered "nothing" for an issue whose labels were plainly on
+    /// screen -- and taking a label off a set of nothing left the chip
+    /// where it was while GitHub went ahead and removed it.
     private func labels(of itemID: String, isPullRequest: Bool) -> [IssueLabel] {
         if isPullRequest {
             guard case .loaded(let detail) = state.pullRequestDetails[itemID] else { return [] }
             return detail.labels
         }
-        guard case .loaded(let detail) = state.issueDetails[itemID] else { return [] }
-        return detail.labels
+        if case .loaded(let detail) = state.issueDetails[itemID], !detail.labels.isEmpty {
+            return detail.labels
+        }
+        return state.allIssues.first { $0.id == itemID }?.labels ?? []
     }
 
+    /// Writes the change everywhere the labels are shown.
+    ///
+    /// Both the detail and the list: the pane reads one or the other,
+    /// and the row beside it reads the list. Writing to the detail alone
+    /// left the row saying the old thing until the next refresh, and
+    /// said nothing at all where the detail had not arrived yet.
     private func apply(_ labels: [IssueLabel], to itemID: String, isPullRequest: Bool) {
         if isPullRequest {
             guard case .loaded(let detail) = state.pullRequestDetails[itemID] else { return }
             state.pullRequestDetails[itemID] = .loaded(detail.withLabels(labels))
-        } else {
-            guard case .loaded(let detail) = state.issueDetails[itemID] else { return }
+            return
+        }
+        if case .loaded(let detail) = state.issueDetails[itemID] {
             state.issueDetails[itemID] = .loaded(detail.withLabels(labels))
+        }
+        state.listIssues = state.listIssues.mapValues { items in
+            items.map { $0.id == itemID ? $0.withLabels(labels) : $0 }
         }
     }
 

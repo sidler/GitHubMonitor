@@ -108,7 +108,7 @@ public struct IssueItem: Identifiable, Hashable, Sendable, ListedItem {
     /// How much has been said on it -- the only signal in a row that
     /// something is moving.
     public let comments: Int
-    public let labels: [IssueLabel]
+    public var labels: [IssueLabel]
     /// Nil when the issue is in no milestone, which most are.
     public let milestone: String?
     /// Nil where the organisation has no types, or none was set on this one.
@@ -191,6 +191,38 @@ public struct IssueComment: Identifiable, Hashable, Sendable {
 }
 
 /// What the detail pane shows for one issue, fetched when its row is opened.
+/// Putting a label on an item and taking it off again.
+public enum LabelChange {
+    /// What the item carries once this one is set or cleared.
+    ///
+    /// By id rather than by name: two labels can read alike across
+    /// repositories, and the id is what GitHub is told. Sorted, because
+    /// a label that appears where the eye is not expecting it reads as a
+    /// different label.
+    public static func after(
+        _ current: [IssueLabel], setting label: IssueLabel, to wanted: Bool
+    ) -> [IssueLabel] {
+        var after = current.filter { $0.id != label.id }
+        if wanted { after.append(label) }
+        return after.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+}
+
+extension IssueItem {
+    /// The same issue with different labels, for showing a change before
+    /// GitHub has agreed to it.
+    ///
+    /// The list carries its own copy of an issue's labels, and the pane
+    /// falls back to it whenever the detail has none -- so a change
+    /// written only into the detail is one the pane may go on not
+    /// showing.
+    public func withLabels(_ labels: [IssueLabel]) -> IssueItem {
+        var copy = self
+        copy.labels = labels
+        return copy
+    }
+}
+
 public struct IssueDetail: Hashable, Sendable {
     /// The issue's own text. Empty when it was opened with a title only.
     public let body: String
