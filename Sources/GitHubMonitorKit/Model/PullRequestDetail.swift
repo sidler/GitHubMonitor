@@ -149,11 +149,15 @@ public struct PullRequestDetail: Hashable, Sendable {
             mergeStatus: mergeStatus,
             checks: checks,
             reviewers: reviewers,
-            labels: labels
+            labels: labels,
+            commitCount: commitCount
         )
     }
     public let checks: [CheckRun]
     public let reviewers: [ReviewerStatus]
+    /// How many commits it stands on, which comes free with this query.
+    /// The commits themselves are read only when somebody asks.
+    public let commitCount: Int
 
     public init(
         headBranch: String,
@@ -167,8 +171,10 @@ public struct PullRequestDetail: Hashable, Sendable {
         mergeStatus: MergeStatus = .unknown,
         checks: [CheckRun],
         reviewers: [ReviewerStatus],
-        labels: [IssueLabel] = []
+        labels: [IssueLabel] = [],
+        commitCount: Int = 0
     ) {
+        self.commitCount = commitCount
         self.labels = labels
         self.headBranch = headBranch
         self.baseBranch = baseBranch

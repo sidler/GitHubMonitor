@@ -210,6 +210,13 @@ public final class AppState {
     /// repository in a queue just in case.
     public var repositoryLabels: [LabelRequest: LabelCatalogueState] = [:]
 
+    /// A pull request's commits, once somebody has asked for them.
+    ///
+    /// Kept per pull request and for as long as the window is open: the
+    /// section is shut when a pane opens, so this stays empty for every
+    /// pull request nobody looked into.
+    public var pullRequestCommits: [String: CommitsState] = [:]
+
     /// Who may be named with an `@`, per repository and per narrowing.
     ///
     /// Kept beside the labels because it is the same kind of thing: a
@@ -776,6 +783,10 @@ public final class AppState {
         // could not be looked at before it shipped.
         repositoryMentions[MentionRequest(repository: "octo/server", query: "")] =
             .loaded(SampleData.mentionCatalogue())
+        // Seeded as though somebody had already opened the section: the
+        // sample has no service to read them from, and a list that can
+        // only ever say "loading" is not one anybody can look at.
+        pullRequestCommits["pr-482"] = .loaded(SampleData.commits())
         if isBigSample {
             changedFiles["pr-482"] = .loaded(ChangedFilesQuery.ordered(SampleData.largeDiff()))
         }

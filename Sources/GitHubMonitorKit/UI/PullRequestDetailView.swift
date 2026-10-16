@@ -38,6 +38,16 @@ struct PullRequestDetailView: View {
                         branches(detail)
                         changes(detail)
                         description(detail)
+                        // Between what it says and what it touches:
+                        // first what it is for, then how it got there,
+                        // then which files it moved.
+                        if let writing, detail.commitCount > 0 {
+                            CommitsSection(
+                                pullRequestID: item.id,
+                                total: detail.commitCount,
+                                pane: writing
+                            )
+                        }
                         changedFiles
                         checks(detail)
                         reviewers(detail)
@@ -317,6 +327,17 @@ struct PullRequestDetailView: View {
                         tint: .primary
                     )
                     .help(discussion(detail))
+                }
+                // Free: the detail query already asks for the newest
+                // commit, and a total beside it is one more field. The
+                // commits themselves are read only when somebody opens
+                // the section below.
+                if detail.commitCount > 0 {
+                    statistic(
+                        "\(detail.commitCount)",
+                        caption: detail.commitCount == 1 ? "commit" : "commits",
+                        tint: .primary
+                    )
                 }
             }
         } header: {
@@ -700,5 +721,133 @@ private struct FileRow: View {
         .pointerStyle(.link)
         .onHover { hover.isOn = $0 }
         .help("Open the diff at this file \u{2014} \(file.path)")
+    }
+}
+
+
+/// A pull request's commits, read only once somebody opens them.
+///
+/// Shut when the pane opens, and that is the whole of what makes this
+/// affordable: a pane is opened by arrowing down a list, and a request
+/// per row of a list is a rate limit spent on nothing. The number is
+/// already beside the other numbers, so the section says how many there
+/// are before it has read a single one.
+struct CommitsSection: View {
+    let pullRequestID: String
+    /// How many there are in all, which may be more than were fetched.
+    let total: Int
+    let pane: PaneWriting
+
+    @StateObject private var disclosure = Disclosure()
+
+    private var commits: CommitsState? { pane.state.pullRequestCommits[pullRequestID] }
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $disclosure.isExpanded) {
+            content.padding(.top, 6)
+        } label: {
+            // A button rather than the bare label, for the same reason
+            // the description has one: on macOS only the triangle
+            // toggles a DisclosureGroup.
+            Button {
+                disclosure.isExpanded.toggle()
+            } label: {
+                HStack(spacing: 8) {
+                    Text("Commits")
+                        .font(.subheadline.weight(.semibold))
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+        .onChange(of: disclosure.isExpanded) {
+            guard disclosure.isExpanded else { return }
+            pane.controller.loadCommits(for: pullRequestID)
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch commits {
+        case .loading, nil:
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text("Reading the commits\u{2026}").foregroundStyle(.secondary)
+            }
+            .font(.caption)
+        case .loaded(let commits):
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(commits.enumerated()), id: \.element.id) { index, commit in
+                    if index > 0 { Divider() }
+                    // Newest first, so the one at the top is the one the
+                    // diff and the checks are about.
+                    row(commit, isHead: index == 0)
+                }
+                if total > commits.count {
+                    Text("\(total - commits.count) older ones, on GitHub")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 6)
+                }
+            }
+        case .failed(let message):
+            VStack(alignment: .leading, spacing: 6) {
+                Label(message, systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(Ink.orange)
+                Button("Try again") { pane.controller.reloadCommits(for: pullRequestID) }
+                    .controlSize(.small)
+            }
+            .font(.caption)
+        }
+    }
+
+    private func row(_ commit: PullRequestCommit, isHead: Bool) -> some View {
+        Button {
+            guard let url = commit.url else { return }
+            NSWorkspace.shared.open(url)
+        } label: {
+            HStack(alignment: .top, spacing: 7) {
+                AvatarView(url: commit.avatarURL, size: 15)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(commit.headline)
+                        .font(.caption)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                        .foregroundStyle(Color(nsColor: .labelColor))
+                    HStack(spacing: 5) {
+                        Text(verbatim: commit.abbreviated)
+                            .font(.system(size: 10).monospaced())
+                            .foregroundStyle(Ink.blue)
+                        if !commit.author.isEmpty {
+                            Text(commit.author)
+                        }
+                        Text(RelativeTime.string(for: commit.committedAt))
+                        if isHead {
+                            Text(verbatim: "HEAD")
+                                .font(.system(size: 9, weight: .semibold))
+                                .padding(.horizontal, 3)
+                                .background(.quaternary, in: RoundedRectangle(cornerRadius: 3))
+                        }
+                    }
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+                // Its own checks, which is what makes this more than a
+                // history: it says when the pull request went green.
+                if commit.checks != .none {
+                    Image(systemName: commit.checks.symbolName)
+                        .font(.caption)
+                        .foregroundStyle(commit.checks.tint)
+                        .help(commit.checks.label)
+                }
+            }
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .pointerStyle(.link)
+        .help("Open this commit on GitHub")
     }
 }

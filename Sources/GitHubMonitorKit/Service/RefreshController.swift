@@ -169,6 +169,35 @@ public final class RefreshController {
         }
     }
 
+    // MARK: - Commits
+
+    /// Reads a pull request's commits, once.
+    ///
+    /// Asked for when the section is opened rather than when the pane
+    /// is: a pane is opened by arrowing down a list, and a request per
+    /// row of a list is how a rate limit is spent on nothing.
+    public func loadCommits(for pullRequestID: String) {
+        guard state.pullRequestCommits[pullRequestID] == nil, let service else { return }
+
+        state.pullRequestCommits[pullRequestID] = .loading
+        accountTask { [weak self] in
+            do {
+                let commits = try await service.commits(ofPullRequest: pullRequestID)
+                guard let self, !Task.isCancelled else { return }
+                state.pullRequestCommits[pullRequestID] = .loaded(commits)
+            } catch {
+                guard let self, !Task.isCancelled else { return }
+                state.pullRequestCommits[pullRequestID] = .failed(error.localizedDescription)
+            }
+        }
+    }
+
+    /// Lets them be read again, for the pane's reload button.
+    public func reloadCommits(for pullRequestID: String) {
+        state.pullRequestCommits[pullRequestID] = nil
+        loadCommits(for: pullRequestID)
+    }
+
     // MARK: - Mentions
 
     /// Reads who may be named with an `@`, once per question.
@@ -400,6 +429,7 @@ public final class RefreshController {
         // of its members.
         state.repositoryLabels = [:]
         state.repositoryMentions = [:]
+        state.pullRequestCommits = [:]
         state.inspectedPullRequestID = nil
         state.inspectedIssueID = nil
         state.inspectedNotificationID = nil

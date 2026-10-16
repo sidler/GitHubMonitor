@@ -27,6 +27,10 @@ public enum PullRequestDetailQuery {
           labels(first: \(IssueQuery.detailLabelLimit)) { nodes { id name color } }
           mergeable
           commits(last: 1) {
+            # The number beside the other numbers. One field in a request
+            # already being made; the commits themselves are asked for
+            # only when somebody opens the section.
+            totalCount
             nodes {
               commit {
                 statusCheckRollup {
@@ -77,7 +81,8 @@ public enum PullRequestDetailQuery {
             mergeStatus: PullRequestParser.mergeStatus(node["mergeable"] as? String),
             checks: checks(from: node),
             reviewers: reviewers(from: node),
-            labels: IssueParser.labels(from: node)
+            labels: IssueParser.labels(from: node),
+            commitCount: (node["commits"] as? [String: Any])?["totalCount"] as? Int ?? 0
         )
     }
 

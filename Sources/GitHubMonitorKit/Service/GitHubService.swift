@@ -395,6 +395,13 @@ public struct GitHubService: Sendable {
         return try LabelQuery.catalogue(from: payload)
     }
 
+    /// The commits behind one pull request, newest first.
+    public func commits(ofPullRequest id: String) async throws -> [PullRequestCommit] {
+        try CommitQuery.commits(
+            from: try await client.graphQL(CommitQuery.document, variables: ["id": id])
+        )
+    }
+
     /// Who may be named with an `@` in this repository.
     public func mentionableUsers(
         inRepository repository: String, matching query: String = ""

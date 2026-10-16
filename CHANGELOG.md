@@ -5,6 +5,19 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **A pull request's commits, where they cost nothing until you ask.**
+  The count sits beside the other numbers under *Changes* — it comes
+  free, since the pane's own query already reads the newest commit for
+  its checks. The list underneath is shut when a pane opens and fetches
+  on the first click, because a pane is opened by arrowing down a list
+  and a request per row is a rate limit spent on nothing.
+
+  Newest first, with the head commit marked: the question somebody
+  coming back to a review asks is what arrived since. Each row carries
+  that commit's own checks, which is what makes it more than a history
+  — it says when the pull request went green. A click opens the commit
+  on GitHub.
+
 - **An issue's type and its milestone stop pretending to be labels.**
   They sit in the same line of chips and used to open the label picker
   along with everything else — so clicking *Epic* opened a picker that

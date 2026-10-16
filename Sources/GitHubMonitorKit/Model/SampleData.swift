@@ -30,6 +30,7 @@ public enum SampleData {
 
     static func ago(hours: Double) -> Date { .now.addingTimeInterval(-3600 * hours) }
     static func ago(days: Double) -> Date { .now.addingTimeInterval(-86400 * days) }
+    static func ago(minutes: Double) -> Date { .now.addingTimeInterval(-60 * minutes) }
 
     // MARK: - Pull requests
 
@@ -288,6 +289,45 @@ public enum SampleData {
     Related to #4712, and blocked by #9999 until that is decided.
     """
 
+    /// What the sample's pull request stands on, newest first -- the
+    /// order the pane shows them in.
+    public static func commits() -> [PullRequestCommit] {
+        [
+            PullRequestCommit(
+                oid: "22da5a177503201b9cbbe78802da6353299f74df",
+                abbreviated: "22da5a1",
+                headline: "Merge branch 'main' into fix/session-handler-race",
+                author: "mira", avatarURL: avatar(1),
+                committedAt: ago(minutes: 57), checks: .success,
+                url: URL(string: "https://github.com/octo/server/commit/22da5a1")
+            ),
+            PullRequestCommit(
+                oid: "1c8dd904f1b2c3d4e5f60718293a4b5c6d7e8f90",
+                abbreviated: "1c8dd90",
+                headline: "Review: use array_key_exists for the null id",
+                author: "arun", avatarURL: avatar(2),
+                committedAt: ago(hours: 1), checks: .pending,
+                url: URL(string: "https://github.com/octo/server/commit/1c8dd90")
+            ),
+            PullRequestCommit(
+                oid: "7b20e4d8a9c0b1d2e3f405162738495a6b7c8d9e",
+                abbreviated: "7b20e4d",
+                headline: "Add a regression test for two writers",
+                author: "mira", avatarURL: avatar(1),
+                committedAt: ago(hours: 2), checks: .success,
+                url: URL(string: "https://github.com/octo/server/commit/7b20e4d")
+            ),
+            PullRequestCommit(
+                oid: "a3f91c20b1d2e3f405162738495a6b7c8d9e0f12",
+                abbreviated: "a3f91c2",
+                headline: "Take the lock before reading the session row",
+                author: "mira", avatarURL: avatar(1),
+                committedAt: ago(hours: 3), checks: .failure,
+                url: URL(string: "https://github.com/octo/server/commit/a3f91c2")
+            ),
+        ]
+    }
+
     public static func detail() -> PullRequestDetail {
         PullRequestDetail(
             headBranch: "fix/session-handler-race",
@@ -314,7 +354,8 @@ public enum SampleData {
                 IssueLabel(id: "LA_1", name: "bug", color: "d73a4a"),
                 IssueLabel(id: "LA_2", name: "session", color: "0e8a16"),
                 IssueLabel(id: "LA_3", name: "needs decision", color: "fbca04"),
-            ]
+            ],
+            commitCount: 4
         )
     }
 
