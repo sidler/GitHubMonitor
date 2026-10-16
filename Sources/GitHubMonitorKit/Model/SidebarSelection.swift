@@ -102,3 +102,35 @@ public struct SidebarRepository: Identifiable, Hashable, Sendable {
         collapsingSingle && repositories.count == 1 ? [] : repositories
     }
 }
+
+/// What ⌘R asks for, which is whatever the page in front of you has its
+/// own reload button for.
+///
+/// It used to ask for the lists whatever was on screen. On the three
+/// chart pages that meant the key did something real and invisible: the
+/// lists came in behind a chart that did not move, so the only thing it
+/// looked like was a key that does nothing. Reported from outside as
+/// exactly that -- "⌘R doesn't reload the workload".
+///
+/// A decision rather than a branch inside the controller, because what
+/// it answers is a question about the sidebar and can be asked without
+/// an account, a network or a controller to ask it of.
+public enum RefreshTarget: Equatable, Sendable {
+    /// The pull requests, issues and mentions behind the lists. What the
+    /// timer fetches, and what the bar along the bottom reports on.
+    case lists
+    case workload
+    case trends
+    case myTrends
+
+    public static func showing(_ selection: SidebarSelection) -> RefreshTarget {
+        switch selection {
+        case .dashboard: .workload
+        case .trends: .trends
+        case .myTrends: .myTrends
+        // Settings has nothing of its own to read again, and the lists
+        // are what somebody who pressed it there most likely meant.
+        case .list, .mentions, .settings: .lists
+        }
+    }
+}

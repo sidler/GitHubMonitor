@@ -59,7 +59,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.mainMenu = AppMenu.build(
             appName: "GitHub Monitor",
             openSettings: { windowController.show(selecting: .settings) },
-            refresh: { Task { await refresh.refresh() } },
+            refresh: { Task { await refresh.refreshShown() } },
             moveDetail: { refresh.moveInspection(by: $0) },
             closeDetail: { refresh.closeInspector() },
             changeDiffFontSize: { [state] step in state.settings.changeDiffFontSize(by: step) },

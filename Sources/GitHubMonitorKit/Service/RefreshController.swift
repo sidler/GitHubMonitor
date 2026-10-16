@@ -416,6 +416,20 @@ public final class RefreshController {
 
     /// Coalesces concurrent calls: a manual refresh during a scheduled one
     /// joins it rather than issuing a second set of requests.
+    /// Reads again whatever is on screen.
+    ///
+    /// Each chart page already had a button for this and ⌘R did not
+    /// reach it. The three calls below are exactly the ones those
+    /// buttons make, so the key and the button cannot drift apart.
+    public func refreshShown() async {
+        switch RefreshTarget.showing(state.sidebarSelection) {
+        case .lists: await refresh()
+        case .workload: await loadDashboard()
+        case .trends: await loadTrends(force: true)
+        case .myTrends: await loadMyTrends(force: true)
+        }
+    }
+
     public func refresh() async {
         if let inFlight {
             await inFlight.value

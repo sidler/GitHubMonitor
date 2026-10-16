@@ -3,6 +3,16 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
+## Unreleased
+
+- **⌘R reloads the page you are looking at.** It always asked for the
+  lists, whatever was on screen — so on Workload, Trends and My Trends
+  it did something real and invisible: the lists came in behind a chart
+  that did not move, which from the outside is a key that does nothing.
+  Each of those pages already had its own reload button; ⌘R now makes
+  exactly the call that button makes. Everywhere else it reads the
+  lists, as before. Reported by @marcreichel in #1.
+
 ## 2.1.0
 
 - **The box you write a remark in looks like a box, and its buttons are
