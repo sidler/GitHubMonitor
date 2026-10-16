@@ -3,6 +3,14 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
+## Unreleased
+
+- **The caret is in the box when it opens.** It is opened by somebody
+  who means to write in it — the plus in the gutter, or *Reply* on a
+  conversation — so asking for a click into it first was a click for
+  nothing. In a box that already holds something, a reply being
+  reworded or a remark being edited, the caret goes to the end of it.
+
 ## 2.3.0
 
 - **A pull request's commits, where they cost nothing until you ask.**

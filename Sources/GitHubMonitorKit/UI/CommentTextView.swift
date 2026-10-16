@@ -34,6 +34,12 @@ struct CommentTextView: NSViewRepresentable {
     var fontSize: Double = NSFont.systemFontSize
     /// Whether a list of names is on screen. The arrow keys mean
     /// something else while it is.
+    /// Whether to take the keyboard as soon as it is on screen.
+    ///
+    /// The box is opened by somebody who means to write in it -- the
+    /// plus in the gutter, or Reply on a conversation -- so making them
+    /// click into it afterwards is a click for nothing.
+    var focusesOnAppear: Bool = false
     var isCompleting: () -> Bool = { false }
     /// Up or down through that list.
     var onMove: (Int) -> Void = { _ in }
@@ -84,6 +90,7 @@ struct CommentTextView: NSViewRepresentable {
         if view.font?.pointSize != CGFloat(fontSize) {
             view.font = NSFont.systemFont(ofSize: fontSize)
         }
+        context.coordinator.focusIfWanted(view)
         // Not during the update itself: writing to an observed object
         // while the view that observes it is being built is the one thing
         // SwiftUI asks you not to do.
@@ -96,6 +103,7 @@ struct CommentTextView: NSViewRepresentable {
     final class Coordinator: NSObject, NSTextViewDelegate {
         var parent: CommentTextView
         weak var scroll: NSScrollView?
+        private var hasFocused = false
 
         init(_ parent: CommentTextView) {
             self.parent = parent
@@ -134,6 +142,27 @@ struct CommentTextView: NSViewRepresentable {
                 return true
             default:
                 return false
+            }
+        }
+
+        /// Takes the keyboard, once, as soon as there is a window to
+        /// take it from.
+        ///
+        /// The caret goes to the end of whatever is already there: an
+        /// answer is written after what it answers, and a remark being
+        /// reworded is continued rather than overwritten.
+        func focusIfWanted(_ view: NSTextView) {
+            guard parent.focusesOnAppear, !hasFocused else { return }
+            hasFocused = true
+            DispatchQueue.main.async {
+                guard let window = view.window else {
+                    // No window yet; let the next pass try again.
+                    self.hasFocused = false
+                    return
+                }
+                window.makeFirstResponder(view)
+                let end = view.string.utf16.count
+                view.setSelectedRange(NSRange(location: end, length: 0))
             }
         }
 

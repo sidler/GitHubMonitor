@@ -191,6 +191,7 @@ struct DraftEditorView: View {
                     text: $target.text,
                     caret: caret,
                     fontSize: NSFont.preferredFont(forTextStyle: .callout).pointSize,
+                    focusesOnAppear: true,
                     isCompleting: { !people.isEmpty },
                     onMove: { pick.move($0, count: people.count) },
                     onCommit: { take() },
