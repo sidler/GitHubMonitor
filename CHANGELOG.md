@@ -3,7 +3,7 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
-## Unreleased
+## 2.2.0
 
 - **The list you are looking at, in the browser, from the bottom bar.**
   A small button beside the refresh arrow opens the same list on
