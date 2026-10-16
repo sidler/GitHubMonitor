@@ -106,11 +106,11 @@ struct IssueDetailView: View {
                         itemID: item.id,
                         isPullRequest: false,
                         current: labels
-                    ) {
-                        chips(labels)
+                    ) { open in
+                        chips(labels, open: open)
                     }
                 } else {
-                    chips(labels)
+                    chips(labels, open: nil)
                 }
             }
         }
@@ -120,21 +120,33 @@ struct IssueDetailView: View {
     /// What the item is marked with, all of it on as many lines as it
     /// takes. Unlike the row's single line: here there is room, and which
     /// ones an issue carries is part of what the pane is for.
-    private func chips(_ labels: [IssueLabel]) -> some View {
+    /// The type, the labels and the milestone, wrapping as one line of
+    /// chips -- but only the labels and the tag open the picker.
+    ///
+    /// An issue's type and its milestone are not labels: GitHub will not
+    /// set them with the mutation behind this, and they are not in the
+    /// repository's list of labels. Drawn alike and clickable alike,
+    /// they read as labels that the picker then refuses to show, which
+    /// is how "Epic" came to look like a label nobody could find.
+    private func chips(_ labels: [IssueLabel], open: (() -> Void)?) -> some View {
         FlowRow(spacing: 4) {
             if let type = item.type {
                 IssueTypeChip(type: type)
             }
             ForEach(labels) { label in
-                LabelChip(label: label)
+                if let open {
+                    LabelOpener(open: open) { LabelChip(label: label) }
+                } else {
+                    LabelChip(label: label)
+                }
             }
             if let milestone = item.milestone {
                 Label(milestone, systemImage: "flag")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            if labelling != nil {
-                LabelTag()
+            if let open {
+                LabelOpener(open: open) { LabelTag() }
             }
         }
     }

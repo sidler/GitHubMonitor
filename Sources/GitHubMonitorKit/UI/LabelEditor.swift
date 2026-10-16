@@ -37,11 +37,19 @@ struct LabelEditor<Row: View>: View {
     /// What the item carries now, so the list can tick them and put them
     /// at the top.
     let current: [IssueLabel]
-    /// The chips as the pane draws them. Inside the button rather than
-    /// beside it: a row of labels is what somebody aims at when they
-    /// want to change the labels, and a tag eleven points wide is a
-    /// target you have to find first.
-    @ViewBuilder var row: () -> Row
+    /// The chips as the pane draws them, handed what opens the picker.
+    ///
+    /// The row is not wrapped in one button any more. It used to be, so
+    /// that the whole line was the target rather than a tag eleven
+    /// points wide -- but the same line also carries things that are
+    /// not labels and that this cannot set: an issue's type, its
+    /// milestone. Those read as labels and then did not behave as any:
+    /// clicking "Epic" opened a picker that neither held it nor could.
+    ///
+    /// So each caller says which of its chips opens the picker. They
+    /// stay in one `FlowRow`, which is what keeps the type, the labels
+    /// and the tag wrapping together as one line of chips.
+    @ViewBuilder var row: (@escaping () -> Void) -> Row
 
     @StateObject private var open = ViewFlag()
     @StateObject private var typed = TypedText()
@@ -58,23 +66,16 @@ struct LabelEditor<Row: View>: View {
     }
 
     var body: some View {
-        Button {
-            open.isOn.toggle()
-        } label: {
-            row().contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .pointerStyle(.link)
-        .help("Add or remove labels")
-        .popover(isPresented: $open.isOn, arrowEdge: .bottom) { picker }
-        .onChange(of: open.isOn) {
-            guard open.isOn else { return }
-            editing.controller.loadLabels(for: repository)
-        }
-        .onChange(of: query) {
-            guard open.isOn else { return }
-            editing.controller.loadLabels(for: repository, matching: query)
-        }
+        row { open.isOn.toggle() }
+            .popover(isPresented: $open.isOn, arrowEdge: .bottom) { picker }
+            .onChange(of: open.isOn) {
+                guard open.isOn else { return }
+                editing.controller.loadLabels(for: repository)
+            }
+            .onChange(of: query) {
+                guard open.isOn else { return }
+                editing.controller.loadLabels(for: repository, matching: query)
+            }
     }
 
     private var picker: some View {
@@ -183,5 +184,26 @@ struct LabelTag: View {
         Image(systemName: "tag")
             .font(.caption)
             .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+    }
+}
+
+/// A chip that opens the label picker.
+///
+/// Every label is one, and so is the tag at the end of the row: what
+/// somebody aims at when they want to change the labels is a label, not
+/// an icon eleven points wide. What is not one of these is a chip that
+/// is not a label -- and it stays quiet rather than opening a picker it
+/// has nothing to do with.
+struct LabelOpener<Content: View>: View {
+    let open: () -> Void
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        Button(action: open) {
+            content().contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .pointerStyle(.link)
+        .help("Add or remove labels")
     }
 }

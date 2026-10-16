@@ -140,10 +140,12 @@ struct PullRequestDetailView: View {
                         itemID: item.id,
                         isPullRequest: true,
                         current: loaded.labels
-                    ) {
+                    ) { open in
                         FlowRow(spacing: 4) {
-                            ForEach(loaded.labels) { LabelChip(label: $0) }
-                            LabelTag()
+                            ForEach(loaded.labels) { label in
+                                LabelOpener(open: open) { LabelChip(label: label) }
+                            }
+                            LabelOpener(open: open) { LabelTag() }
                         }
                     }
                 } else {

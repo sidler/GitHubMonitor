@@ -5,6 +5,13 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **An issue's type and its milestone stop pretending to be labels.**
+  They sit in the same line of chips and used to open the label picker
+  along with everything else — so clicking *Epic* opened a picker that
+  neither held it nor could, GitHub having no way to set a type that
+  way. Only the labels and the tag at the end open it now. They all
+  still wrap as one line, which is what that line is for.
+
 - **Taking a label off sometimes did nothing — on screen.** The change
   was read from, and written to, the detail alone, while the pane falls
   back to the list's own copy of an issue's labels whenever the detail
