@@ -3,7 +3,7 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
-## Unreleased
+## 2.3.0
 
 - **A pull request's commits, where they cost nothing until you ask.**
   The count sits beside the other numbers under *Changes* — it comes
