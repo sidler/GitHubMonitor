@@ -195,7 +195,16 @@ struct DraftEditorView: View {
                     isCompleting: { !people.isEmpty },
                     onMove: { pick.move($0, count: people.count) },
                     onCommit: { take() },
-                    onCancel: { pick.dismissed = query }
+                    // One key, two meanings, innermost first: a list
+                    // on screen is what escape is about, and once it is
+                    // gone the box is.
+                    onCancel: {
+                        if people.isEmpty {
+                            target.shut()
+                        } else {
+                            pick.dismissed = query
+                        }
+                    }
                 )
                 .frame(minHeight: 60)
                 // A field, and it has to look like one. Drawn on the
@@ -385,7 +394,11 @@ struct MentionList: View {
         .frame(width: Self.width)
         .background(
             RoundedRectangle(cornerRadius: 7)
-                .fill(Color(nsColor: .windowBackgroundColor))
+                // Opaque. The window's own background colour is not --
+                // over a diff it let the code show through the names,
+                // which made a list of logins unreadable exactly where
+                // it mattered.
+                .fill(Color(nsColor: .controlBackgroundColor))
                 .shadow(color: .black.opacity(0.22), radius: 7, y: 3)
         )
         .overlay(

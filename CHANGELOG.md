@@ -5,6 +5,16 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **Escape closes the box, and nothing further out.** Unhandled, it
+  travelled on to the diff, which took it for "put this away" and shut
+  the whole overlay — with the half-written remark in it. It now means
+  the innermost thing on screen: the list of names where one is up, the
+  box once it is gone, the diff only when neither is.
+
+- **The list of names is opaque.** The window's own background colour
+  is not, so the code behind it showed through the logins — unreadable
+  in exactly the place it had to be read.
+
 - **The caret is in the box when it opens.** It is opened by somebody
   who means to write in it — the plus in the gutter, or *Reply* on a
   conversation — so asking for a click into it first was a click for

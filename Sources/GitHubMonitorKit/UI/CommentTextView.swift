@@ -46,6 +46,7 @@ struct CommentTextView: NSViewRepresentable {
     /// Take the highlighted name. Answers whether it took one -- a return
     /// that completes nothing is a new paragraph, as it always was.
     var onCommit: () -> Bool = { false }
+    /// Escape: the list where one is up, the box otherwise.
     var onCancel: () -> Void = {}
 
     func makeNSView(context: Context) -> NSScrollView {
@@ -126,6 +127,15 @@ struct CommentTextView: NSViewRepresentable {
         /// makes this safe: with no list on screen the box behaves
         /// exactly as it did, return included.
         func textView(_ view: NSTextView, doCommandBy selector: Selector) -> Bool {
+            // Escape is handled whether or not a list is up, and this is
+            // why: unhandled, it travelled on to the diff overlay, which
+            // took it for "put the diff away" and shut the whole thing
+            // -- taking the half-written remark with it. What escape
+            // means here is "this box", and nothing further out.
+            if selector == #selector(NSResponder.cancelOperation(_:)) {
+                parent.onCancel()
+                return true
+            }
             guard parent.isCompleting() else { return false }
             switch selector {
             case #selector(NSResponder.moveUp(_:)):
@@ -137,9 +147,6 @@ struct CommentTextView: NSViewRepresentable {
             case #selector(NSResponder.insertNewline(_:)),
                 #selector(NSResponder.insertTab(_:)):
                 return parent.onCommit()
-            case #selector(NSResponder.cancelOperation(_:)):
-                parent.onCancel()
-                return true
             default:
                 return false
             }
