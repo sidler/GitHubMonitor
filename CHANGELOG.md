@@ -5,6 +5,18 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **The list you are looking at, in the browser, from the bottom bar.**
+  A small button beside the refresh arrow opens the same search on
+  github.com — for the things this app deliberately does not do:
+  editing a query by hand, bulk actions, or showing somebody else what
+  you are looking at. It is built from the search the app actually
+  sent, so the two cannot disagree: the repository filter is in it, and
+  a relative date like "closed in the last week" is already resolved.
+  Standing on one repository's entry in the sidebar, the link opens
+  that repository's share of the list rather than the whole of it. On
+  Mentions it opens your notifications; on the chart pages, which have
+  no search behind them, there is no button.
+
 - **⌘R reloads the page you are looking at.** It always asked for the
   lists, whatever was on screen — so on Workload, Trends and My Trends
   it did something real and invisible: the lists came in behind a chart

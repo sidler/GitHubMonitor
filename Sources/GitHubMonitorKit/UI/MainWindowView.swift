@@ -410,6 +410,24 @@ struct ContentColumn: View {
 
     /// Finder-style status bar: the totals, the legend for the list on
     /// screen, and when it was last checked.
+    /// What the button promises, which depends on what it can keep: a
+    /// list standing on several searches opens as the first of them,
+    /// because GitHub's search cannot express their union.
+    private var openHelp: String {
+        guard case .list = state.sidebarSelection, let list = state.selectedList else {
+            return "Open notifications on GitHub"
+        }
+        let count = GitHubSearchLink.searchCount(
+            for: list, repositoryFilters: state.settings.repositoryFilters
+        )
+        if count > 1 {
+            return "Open the first of this list's \(count) searches on GitHub"
+        }
+        return state.sidebarSelection.repository.map {
+            "Open this list on GitHub, narrowed to \($0)"
+        } ?? "Open this list on GitHub"
+    }
+
     private var statusBar: some View {
         HStack(spacing: 12) {
             // The same switches as the sidebar: a count for a section that
@@ -447,6 +465,22 @@ struct ContentColumn: View {
             Text(state.statusMessage)
                 .foregroundStyle(state.health.isFailure ? Ink.red : Color(nsColor: .secondaryLabelColor))
 
+            // The same list, in the browser, for the things this app
+            // deliberately does not do: editing the query by hand, bulk
+            // actions, or showing somebody else what you are looking at.
+            if let address = state.shownOnGitHub {
+                Button {
+                    NSWorkspace.shared.open(address)
+                } label: {
+                    Image(systemName: "arrow.up.forward.square")
+                }
+                .buttonStyle(.accessoryBar)
+                .help(openHelp)
+            }
+
+            // The lists, whatever page this is: this button belongs to
+            // the line beside it, which reports on the lists and nothing
+            // else. What is on screen has its own reload where it is.
             Button {
                 Task { await controller.refresh() }
             } label: {

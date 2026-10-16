@@ -346,6 +346,30 @@ public final class AppState {
         )
     }
 
+    /// Where what is on screen lives on github.com, or nil where it has
+    /// no address of its own.
+    ///
+    /// Narrowed the way the sidebar is: standing on one repository's
+    /// entry, the link opens that repository's share of the list and not
+    /// the whole of it.
+    public var shownOnGitHub: URL? {
+        switch sidebarSelection {
+        case .list:
+            guard let list = selectedList else { return nil }
+            return GitHubSearchLink.address(
+                for: list,
+                repositoryFilters: settings.repositoryFilters,
+                narrowedTo: sidebarSelection.repository
+            )
+        // Notifications are not a search and have no query to carry
+        // across; the page itself is the equivalent.
+        case .mentions:
+            return URL(string: "https://github.com/notifications")
+        case .dashboard, .trends, .myTrends, .settings:
+            return nil
+        }
+    }
+
     /// What the sidebar, the status bar and the menu bar all count for one
     /// list. One definition, so they cannot drift apart.
     /// How many a list is not showing, because it ran past what the app
