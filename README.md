@@ -6,6 +6,31 @@ lets you do most of the reviewing without leaving it.
 The counts live in the menu bar. A popover gives a short overview; a separate
 window gives the full lists, the diffs, the charts and the settings.
 
+![A tour: the lists, a pull request, its diff, and a remark being written](Docs/screenshots/tour.gif)
+
+## In short
+
+**Review without leaving it**
+
+- Every file's patch in one overlay — one column or two, all files or one at a time
+- Write remarks on lines, gather them into one review, send it when you are done
+- Answer conversations and settle them; `@` offers the people the mention will actually reach
+- Approve, request changes, or merge — each bound to the commit you read, refused if somebody pushed since
+- Set and clear labels, read a pull request's commits, see the pictures in a description
+
+**Know what is waiting**
+
+- Lists you define, in GitHub's own search syntax, as pull requests or issues
+- Rows that answer at a glance: checks, review state, whether it still merges, how long it has waited on *you*
+- Unread mentions, from the notifications API
+- Charts: who is carrying what, how a repository moves over time, and how you yourself review
+
+**Stay out of the way**
+
+- Counts in the menu bar; the window only when you want it
+- What GitHub charged for the last refresh, in plain sight, and polling that stops before the allowance does
+- No account anywhere but GitHub: the token lives in the keychain, and nothing else is contacted
+
 ![The window: a list, a row's detail pane, and what it links to](Docs/screenshots/window.png)
 
 ## What it does
@@ -48,6 +73,11 @@ each line's place in both files.
 
 ![Every file's patch in one overlay, with a tree to jump by](Docs/screenshots/diff.png)
 
+**All the files, or one at a time.** A long scroll is right for a small
+review and wrong for forty-three files, where the file you were reading is
+easier to scroll past than to find again. A pager in the diff's header — or ⌥←
+and ⌥→ — moves a file at a time, and the tree beside it still jumps anywhere.
+
 **Unified or side by side.** One column is what a patch is and fits anywhere;
 two columns put the old file beside the new one, which is what you want when a
 line was edited rather than replaced. Switched from the diff's own header,
@@ -69,6 +99,40 @@ than applied to code you did not see. It asks first, says whether auto-merge is
 armed, and the list and pane carry the approval straight away. "Request
 changes" opens the pull request on GitHub, where a review can be written
 against the lines.
+
+**Remarks on the lines, gathered into one review.** The number in the gutter
+turns into a plus as the pointer passes it; what you write is kept until you
+send the review, so the author is told once rather than five times. Replies to
+a conversation go the same way. Everything unsent survives quitting the app,
+and is bound to the commit it was written against — if somebody pushes while a
+review is half written, it is not quietly attached to code nobody read.
+
+**Conversations where they were written.** Each one stands at its line, settled
+ones shut, with the few lines of code it was about where GitHub no longer gives
+it a place. Answer or settle from the thread itself; settling happens at once,
+an answer waits for the review.
+
+**`@` offers the people it would reach.** Not the members of the repository and
+not whoever has touched it, but GitHub's own answer to who a mention there
+actually notifies. The list appears at the caret and is driven by the keyboard:
+↑ and ↓ choose, ⏎ inserts, escape puts it away.
+
+**Merging.** From the pane, bound to the commit that was read, with the ways
+that repository allows and no others. What stands in the way is said rather
+than greyed out: a conflict, checks that have not passed, a review that was
+asked for and is missing.
+
+**Labels.** The ones an item carries are shown and can be set and cleared from
+the pane, against the repository's own list, searchable where it runs to
+hundreds. The ones already on it come first.
+
+**Pictures in a description** are drawn rather than linked, including the
+private attachments GitHub serves only to somebody signed in. A small picture
+stays small; a click opens it full size without leaving the app.
+
+**A pull request's commits**, newest first, with each one's own checks — so the
+list says not only what was done but when it went green. Read only when you
+open the section; the count beside the other numbers costs nothing.
 
 **Linked issues and pull requests.** What GitHub itself links, plus numbers
 written at the head of a title or in a description. A panel — the same one from
