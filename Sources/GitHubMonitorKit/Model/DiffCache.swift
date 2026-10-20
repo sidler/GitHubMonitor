@@ -23,6 +23,7 @@ public final class DiffCache {
     private var marks: [String: [[ChangedRange]]] = [:]
     private var rows: [String: [DiffSideRow]] = [:]
     private var numbers: [String: [DiffLineNumber]] = [:]
+    private var comments: [String: (language: CodeLanguage?, state: DiffComments)] = [:]
     private var order: [String] = []
 
     public func emphasis(in patch: String) -> [[ChangedRange]] {
@@ -73,6 +74,26 @@ public final class DiffCache {
         return worked
     }
 
+    /// Which of the patch's lines begin inside a block comment.
+    ///
+    /// Kept with the rest for the same reason: it is read inside a body
+    /// that runs again on every frame of a scroll, and the answer depends
+    /// on the whole patch above the line being drawn.
+    ///
+    /// The language is held alongside rather than made part of the key:
+    /// a patch belongs to one file and so to one language, and a key of
+    /// two parts would hold entries the sweep below could not find.
+    public func comments(in patch: String, language: CodeLanguage?) -> DiffComments {
+        if let known = comments[patch], known.language == language {
+            remember(patch)
+            return known.state
+        }
+        let worked = DiffComments.read(patch, language: language)
+        comments[patch] = (language, worked)
+        remember(patch)
+        return worked
+    }
+
     private func remember(_ patch: String) {
         if let seen = order.firstIndex(of: patch) { order.remove(at: seen) }
         order.append(patch)
@@ -81,6 +102,7 @@ public final class DiffCache {
             marks[oldest] = nil
             rows[oldest] = nil
             numbers[oldest] = nil
+            comments[oldest] = nil
         }
     }
 
@@ -92,6 +114,7 @@ public final class DiffCache {
         numbers.removeAll()
         marks = [:]
         rows = [:]
+        comments = [:]
         order = []
     }
 }

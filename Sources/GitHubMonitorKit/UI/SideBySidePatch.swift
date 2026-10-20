@@ -186,6 +186,7 @@ struct SideBySidePatch: View {
                 CodeText(
                     source: text.body,
                     language: row.isHunk ? nil : language,
+                    insideComment: text.insideComment,
                     font: font,
                     emphasis: text.emphasis,
                     emphasisTint: kind?.emphasis ?? .clear
@@ -211,6 +212,9 @@ struct SideBySidePatch: View {
         let marker: String
         let body: String
         let emphasis: [ChangedRange]
+        /// Whether the line above this one, on this side of the patch,
+        /// left a block comment open.
+        var insideComment: Bool = false
     }
 
     private func text(_ row: Row, side: ReviewThread.Side) -> Piece? {
@@ -230,7 +234,10 @@ struct SideBySidePatch: View {
             let split = DiffWords.split(cell.text, emphasis: cell.emphasis)
             return Piece(
                 whole: cell.text, marker: split.marker,
-                body: split.body, emphasis: split.emphasis
+                body: split.body, emphasis: split.emphasis,
+                insideComment: DiffCache.shared
+                    .comments(in: patch, language: language)
+                    .isInsideComment(line: cell.number, side: side)
             )
         }
     }
