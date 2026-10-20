@@ -40,15 +40,26 @@ struct MarkdownText: View {
     @ViewBuilder
     private func view(for block: MarkdownBlock) -> some View {
         switch block {
+        // Every run of prose below -- this heading, the paragraph, the
+        // items of a list -- is fixed in the vertical: `maxWidth:
+        // .infinity` says how wide a paragraph may be and says nothing
+        // about how tall, so one holding anything that cannot be broken
+        // across lines, a link or a long code span or a path, was given
+        // a single line's height and cut off at the right-hand edge with
+        // an ellipsis instead of wrapping onto a second. Asking for the
+        // ideal height at the width on offer is what makes it wrap; the
+        // quote block has said so all along.
         case .heading(let level, let text):
             Text(inline(text))
                 .font(heading(level))
                 .padding(.top, 2)
+                .fixedSize(horizontal: false, vertical: true)
 
         case .paragraph(let text):
             Text(inline(text))
                 .font(.callout)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
 
         case .bullets(let items):
             list(items.map { (marker: Marker(item: $0), text: $0.text) })
@@ -141,6 +152,7 @@ struct MarkdownText: View {
                     Text(inline(item.text))
                         .font(.callout)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
