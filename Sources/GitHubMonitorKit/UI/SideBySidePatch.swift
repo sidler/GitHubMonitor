@@ -44,6 +44,7 @@ struct SideBySidePatch: View {
                     // wide as the pair of them.
                     conversations(here)
                         .frame(width: width * 2 + Self.dividerWidth, alignment: .leading)
+                        .zIndex(here.contains { target.isReplying(to: $0.id) } ? 1 : 0)
                 default:
                     // Both sides in one row, so a line that wraps on one
                     // side takes the other down with it and the two columns
@@ -58,6 +59,7 @@ struct SideBySidePatch: View {
                     if let writing {
                         drafting(row, writing: writing)
                             .frame(width: width * 2 + Self.dividerWidth, alignment: .leading)
+                            .zIndex(isDrafting(row) ? 1 : 0)
                     }
                 }
             }
@@ -111,6 +113,19 @@ struct SideBySidePatch: View {
                 ? comment.line == right?.number
                 : comment.line == left?.number
         }
+    }
+
+    /// Whether the box is open on this row.
+    ///
+    /// Worth knowing only so the row can be lifted above the ones under
+    /// it. The list of names floats out of the box and over the code,
+    /// which is where it belongs -- but a stack paints its children in
+    /// order, and overflowing the bounds does not change the order. The
+    /// rows below were therefore painted on top of the half of the list
+    /// that had left the box, which is what let the diff show through it.
+    private func isDrafting(_ row: Row) -> Bool {
+        guard let place = place(of: row) else { return false }
+        return target.isOpen(line: place.line, side: place.side)
     }
 
     /// Which line of which file a remark on this row would be about.
