@@ -544,6 +544,14 @@ public enum SampleData {
                     ],
                     added: [
                         "#[ModuleId(_system_module_id_)]",
+                        // A docblock whose prose is made of words that are
+                        // also PHP keywords. It is here to be looked at:
+                        // fed to the highlighter a line at a time, every
+                        // line after the first used to come out as code.
+                        "    /**",
+                        "     * The login this filter matches, and the teams it falls back",
+                        "     * to for a review asked of a team rather than of a person.",
+                        "     */",
                         "    public string $login = '';",
                         "    private array $teams = [];",
                         "",

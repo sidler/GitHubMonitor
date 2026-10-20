@@ -5,6 +5,14 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **A comment in the code stays a comment.** The prose inside a
+  docblock was syntax-highlighted as code, so any word that happens to
+  be a keyword — *and*, *for*, *return* — came out purple in the middle
+  of a sentence. The diff hands the highlighter one line at a time, and
+  every line after the opening `/**` arrived with no memory of being
+  inside anything; it carries that now. A `//` inside a string still
+  opens nothing, and a PHP attribute is still an attribute.
+
 - **A diff with a conversation on it scrolls like one without.** The
   arithmetic that works out which line each conversation hangs off was
   redone from the raw patch every time the view was drawn — and the
