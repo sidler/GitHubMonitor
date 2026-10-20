@@ -11,10 +11,19 @@ public enum ReviewThreadAnchors {
     /// Keyed by the line's place in the patch, which is what the view
     /// counts in; the matching itself is on the file's line numbers, which
     /// is what GitHub counts in.
+    /// Handed the line numbers rather than the patch, so that whoever
+    /// calls it decides where they come from.
+    ///
+    /// They used to be read here, from the patch, on every call -- and
+    /// this is the one piece of a patch's arithmetic that runs only when
+    /// somebody has commented on it, which is why a file with a
+    /// conversation on it scrolled worse than the same file without.
+    /// Reading the numbers of a nine-hundred-line patch costs a third of
+    /// a millisecond and the view's body is evaluated again whenever the
+    /// pointer crosses a row; the cache answers in a fiftieth of that.
     public static func unified(
-        patch: String, threads: [ReviewThread]
+        numbers: [DiffLineNumber], threads: [ReviewThread]
     ) -> [Int: [ReviewThread]] {
-        let numbers = DiffLineNumbers.read(patch)
         var anchors: [Int: [ReviewThread]] = [:]
         for (index, place) in numbers.enumerated() {
             let here = ReviewThreadPlacement.on(place, from: threads)

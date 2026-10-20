@@ -262,7 +262,9 @@ struct ReviewThreadAnchorTests {
     @Test("A thread lands on the patch line that carries its number")
     func unified() {
         let patch = "@@ -10,2 +20,2 @@\n context\n+added"
-        let anchors = ReviewThreadAnchors.unified(patch: patch, threads: [thread("t", line: 21)])
+        let anchors = ReviewThreadAnchors.unified(
+            numbers: DiffLineNumbers.read(patch), threads: [thread("t", line: 21)]
+        )
         #expect(anchors.keys.sorted() == [2])
     }
 

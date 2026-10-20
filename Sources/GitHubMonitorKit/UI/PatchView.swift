@@ -151,15 +151,21 @@ struct DiffOverlay: View {
 
     private var header: some View {
         HStack(spacing: 10) {
-            Text("\(files.count) file\(files.count == 1 ? "" : "s") changed")
-                .font(.headline)
-            // The number a review is actually measured against, next to the
-            // one it is measured out of.
+            // No headline saying how many files there are. The number is
+            // in the tick count beside it, in the pager, and in the tree
+            // down the side -- said a fourth time in bold it was only
+            // taking the room the rest needed, and at the window's
+            // narrowest it wrapped onto two lines to do it.
+            //
+            // The number a review is actually measured against, next to
+            // the one it is measured out of.
             if let viewed, viewed.count(of: files) > 0 {
                 Text("\(viewed.count(of: files)) of \(files.count) viewed")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
+                    .lineLimit(1)
+                    .fixedSize()
             }
             // Beside the counts, because it belongs to what is being
             // read rather than to the controls for leaving -- and because
@@ -170,10 +176,18 @@ struct DiffOverlay: View {
             }
 
             if additions > 0 {
-                Text(verbatim: "+\(additions)").foregroundStyle(Ink.green).monospacedDigit()
+                Text(verbatim: "+\(additions)")
+                    .foregroundStyle(Ink.green)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .fixedSize()
             }
             if deletions > 0 {
-                Text(verbatim: "\u{2212}\(deletions)").foregroundStyle(Ink.red).monospacedDigit()
+                Text(verbatim: "\u{2212}\(deletions)")
+                    .foregroundStyle(Ink.red)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .fixedSize()
             }
 
             if let subject {
@@ -271,10 +285,15 @@ struct DiffOverlay: View {
             .disabled(back == nil)
             .help("The file before this one (\u{2325}\u{2190})")
 
+            // The one count the header still leads with, so it carries
+            // the weight the headline used to. On one line whatever the
+            // window does: wrapped over two it read as two numbers
+            // rather than as a place in a sequence.
             Text(verbatim: "\(at.at) of \(at.of)")
-                .font(.caption)
+                .font(.callout.weight(.semibold))
                 .monospacedDigit()
-                .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+                .lineLimit(1)
+                .fixedSize()
 
             Button {
                 if let on { withAnimation(.easeOut(duration: 0.15)) { place.go(to: on) } }
@@ -693,7 +712,9 @@ struct PatchLines: View {
     @StateObject private var hovered = HoveredRow()
 
     private var lines: [Line] {
-        let numbers = showsLineNumbers ? DiffLineNumbers.read(patch) : []
+        // From the cache: this runs again every time the body does, and
+        // the body runs again whenever the pointer crosses a row.
+        let numbers = showsLineNumbers ? DiffCache.shared.numbers(of: patch) : []
         // One column keeps the order the patch was written in -- that order
         // is what a unified diff is -- but the words it marks are found the
         // same way as in two columns, so the two agree.
@@ -717,13 +738,17 @@ struct PatchLines: View {
     /// Which conversations hang off which line of the patch.
     private var anchors: [Int: [ReviewThread]] {
         guard !threads.isEmpty else { return [:] }
-        return ReviewThreadAnchors.unified(patch: patch, threads: threads)
+        return ReviewThreadAnchors.unified(
+            numbers: DiffCache.shared.numbers(of: patch), threads: threads
+        )
     }
 
     /// Set once for the whole file, so the code keeps one left edge rather
     /// than stepping right where the numbers reach three digits.
     private var gutterDigits: Int {
-        showsLineNumbers ? DiffLineNumbers.width(of: DiffLineNumbers.read(patch)) : 0
+        showsLineNumbers
+            ? DiffLineNumbers.width(of: DiffCache.shared.numbers(of: patch))
+            : 0
     }
 
     var body: some View {

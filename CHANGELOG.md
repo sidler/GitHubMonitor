@@ -5,6 +5,22 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **A diff with a conversation on it scrolls like one without.** The
+  arithmetic that works out which line each conversation hangs off was
+  redone from the raw patch every time the view was drawn — and the
+  view is drawn again whenever the pointer crosses a row. It is the one
+  piece of a patch's reckoning that runs *only* when somebody has
+  commented, which is exactly why a commented file scrolled worse than
+  the same file without one. On a nine-hundred-line patch that was
+  three quarters of a millisecond a go; it comes from the cache now, at
+  a fiftieth of the cost, and the line numbers beside it with it.
+
+- **The diff's header fits on one line.** It led with *6 files changed*
+  in bold, which at any ordinary window width wrapped onto two lines
+  and pushed the rest along. The number is already in the tick count
+  beside it, in the pager, and in the tree down the side; the pager now
+  carries the weight instead, and nothing in the bar may wrap.
+
 - **Escape closes the box, and nothing further out.** Unhandled, it
   travelled on to the diff, which took it for "put this away" and shut
   the whole overlay — with the half-written remark in it. It now means
