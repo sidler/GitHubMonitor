@@ -98,28 +98,16 @@ public enum IssueQuery {
         }
 
         let comments = node["comments"] as? [String: Any]
-        let nodes = comments?["nodes"] as? [[String: Any]] ?? []
+        let read = IssueParser.comments(from: node)
 
         return IssueDetail(
             body: node["body"] as? String ?? "",
-            comments: nodes.compactMap(comment(from:)),
-            totalComments: comments?["totalCount"] as? Int ?? nodes.count,
+            comments: read,
+            totalComments: comments?["totalCount"] as? Int ?? read.count,
             labels: IssueParser.labels(from: node)
         )
     }
 
-    static func comment(from node: [String: Any]) -> IssueComment? {
-        guard let id = node["id"] as? String else { return nil }
-        let author = node["author"] as? [String: Any]
-        return IssueComment(
-            id: id,
-            // A deleted account leaves the author null rather than absent.
-            author: author?["login"] as? String ?? "ghost",
-            avatarURL: (author?["avatarUrl"] as? String).flatMap(URL.init(string:)),
-            createdAt: GitHubDate.date(from: node["createdAt"] as? String),
-            body: node["body"] as? String ?? ""
-        )
-    }
 }
 
 /// Reads one issue out of a search result.
@@ -169,6 +157,30 @@ public enum IssueParser {
             let name = type["name"] as? String
         else { return nil }
         return IssueType(name: name, color: IssueTypeColor(apiValue: type["color"] as? String))
+    }
+
+    /// The conversation hanging off an issue or a pull request.
+    ///
+    /// Shared, because the two panes ask GitHub the same question in the
+    /// same words and the only thing that ever differed was which of
+    /// them bothered to read the answer.
+    static func comments(from node: [String: Any]) -> [IssueComment] {
+        let container = node["comments"] as? [String: Any]
+        let nodes = container?["nodes"] as? [[String: Any]] ?? []
+        return nodes.compactMap(comment(from:))
+    }
+
+    static func comment(from node: [String: Any]) -> IssueComment? {
+        guard let id = node["id"] as? String else { return nil }
+        let author = node["author"] as? [String: Any]
+        return IssueComment(
+            id: id,
+            // A deleted account leaves the author null rather than absent.
+            author: author?["login"] as? String ?? "ghost",
+            avatarURL: (author?["avatarUrl"] as? String).flatMap(URL.init(string:)),
+            createdAt: GitHubDate.date(from: node["createdAt"] as? String),
+            body: node["body"] as? String ?? ""
+        )
     }
 
     static func labels(from node: [String: Any]) -> [IssueLabel] {

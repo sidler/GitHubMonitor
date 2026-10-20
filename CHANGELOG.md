@@ -5,6 +5,14 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **What was said about a pull request is now shown, not just counted.**
+  The pane read the conversation tab's total and stopped there, so a
+  remark nobody had hung on a line of the diff -- a question about the
+  approach, an objection, the sentence that decides whether the thing
+  gets merged -- could only be read in a browser. It now reads the same
+  way the issue pane always has: the newest few under the description,
+  with "N older on GitHub" when there are more.
+
 - **A remark that will not fit on one line takes two.** Somebody else's
   comment was sometimes cut off at the right of the column with an
   ellipsis. The thread was never too narrow — a paragraph was told how

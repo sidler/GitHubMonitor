@@ -47,7 +47,7 @@ struct LinkedItemsTests {
     private func detail(body: String) -> PullRequestDetail {
         PullRequestDetail(
             headBranch: "b", baseBranch: "main", additions: 0, deletions: 0,
-            changedFiles: 0, comments: 0, body: body, checks: [], reviewers: []
+            changedFiles: 0, totalComments: 0, body: body, checks: [], reviewers: []
         )
     }
 

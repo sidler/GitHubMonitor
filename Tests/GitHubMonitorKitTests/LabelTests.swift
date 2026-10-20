@@ -144,7 +144,7 @@ struct LabelOptimismTests {
     private var detail: PullRequestDetail {
         PullRequestDetail(
             headBranch: "a", baseBranch: "main",
-            additions: 1, deletions: 0, changedFiles: 1, comments: 0,
+            additions: 1, deletions: 0, changedFiles: 1, totalComments: 0,
             checks: [], reviewers: [], labels: [bug]
         )
     }

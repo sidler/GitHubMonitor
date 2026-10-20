@@ -332,7 +332,25 @@ public enum SampleData {
         PullRequestDetail(
             headBranch: "fix/session-handler-race",
             baseBranch: "main",
-            additions: 195, deletions: 76, changedFiles: 6, comments: 4,
+                        additions: 195, deletions: 76, changedFiles: 6,
+            totalComments: 4,
+            // The conversation tab, which the pane counted long before it
+            // could show it.
+            comments: [
+                IssueComment(
+                    id: "pr-comment-1", author: "arun", avatarURL: avatar(2),
+                    createdAt: ago(hours: 5),
+                    body: "Is the lock held for the whole write, or only for the "
+                        + "`insert`? The migration note in #318 reads as though it "
+                        + "has to cover both."
+                ),
+                IssueComment(
+                    id: "pr-comment-2", author: "mira", avatarURL: avatar(1),
+                    createdAt: ago(hours: 4),
+                    body: "Both now. I moved the `begin` up — see "
+                        + "`SessionHandler::write`."
+                ),
+            ],
             // What the sample's review threads add up to, so the pane and
             // the diff beside it agree -- which they did not when the pane
             // counted only the conversation tab.

@@ -16,7 +16,20 @@ public enum PullRequestDetailQuery {
           additions
           deletions
           changedFiles
-          comments { totalCount }
+          # The conversation tab: what was said about the pull request
+          # rather than about a line of it. The last few, in the request
+          # already being made, the way an issue's are -- a pane that
+          # counted them and would not show them was the one place in
+          # this app where something was said and nowhere read.
+          comments(last: \(IssueQuery.commentLimit)) {
+            totalCount
+            nodes {
+              id
+              createdAt
+              body
+              author { login avatarUrl }
+            }
+          }
           # The remarks on the diff, which `comments` is not: that one
           # counts the conversation tab, and a review can carry forty of
           # these while that number stays at nought. `first: 1` because
@@ -74,7 +87,8 @@ public enum PullRequestDetailQuery {
             additions: node["additions"] as? Int ?? 0,
             deletions: node["deletions"] as? Int ?? 0,
             changedFiles: node["changedFiles"] as? Int ?? 0,
-            comments: (node["comments"] as? [String: Any])?["totalCount"] as? Int ?? 0,
+            totalComments: (node["comments"] as? [String: Any])?["totalCount"] as? Int ?? 0,
+            comments: IssueParser.comments(from: node),
             reviewConversations:
                 (node["reviewThreads"] as? [String: Any])?["totalCount"] as? Int ?? 0,
             body: node["body"] as? String ?? "",

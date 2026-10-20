@@ -352,7 +352,7 @@ extension LinkedSummary {
             createdAt: item.createdAt,
             updatedAt: item.updatedAt,
             body: detail?.body ?? "",
-            comments: detail?.comments ?? 0,
+            comments: detail?.totalComments ?? 0,
             checks: item.checks,
             reviewDecision: item.reviewDecision,
             changedFiles: detail?.changedFiles,

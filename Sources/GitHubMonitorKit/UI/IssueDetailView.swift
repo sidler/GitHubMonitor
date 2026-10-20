@@ -182,39 +182,8 @@ struct IssueDetailView: View {
         }
     }
 
-    @ViewBuilder
     private func thread(of detail: IssueDetail) -> some View {
-        if !detail.comments.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text(detail.totalComments == 1 ? "1 comment" : "\(detail.totalComments) comments")
-                        .font(.subheadline.weight(.semibold))
-                    Spacer()
-                    // Say what is missing rather than quietly showing the
-                    // tail as if it were the whole thread.
-                    if detail.olderComments > 0 {
-                        Text("\(detail.olderComments) older on GitHub")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                ForEach(detail.comments) { comment in
-                    VStack(alignment: .leading, spacing: 5) {
-                        HStack(spacing: 6) {
-                            AvatarView(url: comment.avatarURL, size: 18)
-                            Text(comment.author).font(.caption.weight(.medium))
-                            Text(RelativeTime.string(for: comment.createdAt))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .help(RelativeTime.absolute(comment.createdAt))
-                        }
-                        MarkdownText(source: comment.body)
-                    }
-                    .padding(.top, 2)
-                }
-            }
-        }
+        ConversationView(comments: detail.comments, total: detail.totalComments)
     }
 }
 

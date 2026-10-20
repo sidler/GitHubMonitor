@@ -108,7 +108,20 @@ public struct PullRequestDetail: Hashable, Sendable {
     public let deletions: Int
     public let changedFiles: Int
     /// Remarks in the conversation, which is not what a review leaves.
-    public let comments: Int
+    /// How many were said in the conversation tab, which may be more
+    /// than were read: the detail asks for the last few.
+    public let totalComments: Int
+    /// The conversation itself -- what was said about the pull request
+    /// rather than about a line of it.
+    ///
+    /// Read here and nowhere else until now: the pane counted them and
+    /// then had nothing to show, which made the one thing GitHub calls
+    /// the conversation the one thing this app would not let you read.
+    public let comments: [IssueComment]
+
+    /// How many are on GitHub and not here, so the pane can say so
+    /// rather than quietly showing the tail as the whole thread.
+    public var olderComments: Int { max(0, totalComments - comments.count) }
     /// Conversations hanging off the diff's own lines.
     ///
     /// Counted apart because the two are different things and a pane
@@ -143,6 +156,7 @@ public struct PullRequestDetail: Hashable, Sendable {
             additions: additions,
             deletions: deletions,
             changedFiles: changedFiles,
+            totalComments: totalComments,
             comments: comments,
             reviewConversations: reviewConversations,
             body: body,
@@ -165,7 +179,8 @@ public struct PullRequestDetail: Hashable, Sendable {
         additions: Int,
         deletions: Int,
         changedFiles: Int,
-        comments: Int,
+        totalComments: Int,
+        comments: [IssueComment] = [],
         reviewConversations: Int = 0,
         body: String = "",
         mergeStatus: MergeStatus = .unknown,
@@ -181,6 +196,7 @@ public struct PullRequestDetail: Hashable, Sendable {
         self.additions = additions
         self.deletions = deletions
         self.changedFiles = changedFiles
+        self.totalComments = totalComments
         self.comments = comments
         self.reviewConversations = reviewConversations
         self.body = body
@@ -209,6 +225,7 @@ public struct PullRequestDetail: Hashable, Sendable {
             additions: additions,
             deletions: deletions,
             changedFiles: changedFiles,
+            totalComments: totalComments,
             comments: comments,
             reviewConversations: reviewConversations,
             body: body,

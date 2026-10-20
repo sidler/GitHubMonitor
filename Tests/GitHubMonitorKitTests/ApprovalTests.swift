@@ -168,7 +168,7 @@ struct ApprovalDetailTests {
     private func detail(reviewers: [ReviewerStatus]) -> PullRequestDetail {
         PullRequestDetail(
             headBranch: "fix/thing", baseBranch: "main",
-            additions: 1, deletions: 1, changedFiles: 1, comments: 0,
+            additions: 1, deletions: 1, changedFiles: 1, totalComments: 0,
             checks: [], reviewers: reviewers
         )
     }

@@ -70,7 +70,7 @@ public enum ReviewThreadsQuery {
         let comments = (node["comments"] as? [String: Any])?["nodes"] as? [[String: Any]] ?? []
         // A thread whose every comment was deleted is a row with nothing in
         // it, and the diff is better off without the gap.
-        let read = comments.compactMap(IssueQuery.comment(from:))
+        let read = comments.compactMap(IssueParser.comment(from:))
         guard !read.isEmpty else { return nil }
 
         let isOutdated = node["isOutdated"] as? Bool ?? false

@@ -818,7 +818,7 @@ public final class AppState {
             PullRequestDetail(
                 headBranch: "fix/session-handler-race",
                 baseBranch: "main",
-                additions: 154, deletions: 64, changedFiles: 6, comments: 4,
+                additions: 154, deletions: 64, changedFiles: 6, totalComments: 4,
                 body: """
                 ## What this fixes
 
@@ -898,7 +898,7 @@ public final class AppState {
             PullRequestDetail(
                 headBranch: "chore/php-8.4",
                 baseBranch: "main",
-                additions: 812, deletions: 806, changedFiles: 21, comments: 0,
+                additions: 812, deletions: 806, changedFiles: 21, totalComments: 0,
                 mergeStatus: .mergeable,
                 checks: [CheckRun(name: "composer-audit", status: .pending)],
                 reviewers: []

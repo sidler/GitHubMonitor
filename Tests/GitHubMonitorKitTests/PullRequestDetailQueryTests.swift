@@ -9,7 +9,8 @@ struct PullRequestDetailQueryTests {
         reviews: [[String: Any]] = [],
         requests: [[String: Any]] = [],
         mergeable: String = "MERGEABLE",
-        body: String? = "Adds the export button."
+        body: String? = "Adds the export button.",
+        conversation: [[String: Any]] = []
     ) -> [String: Any] {
         [
             "node": [
@@ -18,7 +19,7 @@ struct PullRequestDetailQueryTests {
                 "additions": 120,
                 "deletions": 45,
                 "changedFiles": 7,
-                "comments": ["totalCount": 3],
+                "comments": ["totalCount": 3, "nodes": conversation],
                 "body": body as Any,
                 "mergeable": mergeable,
                 "commits": ["nodes": [["commit": [
@@ -36,13 +37,45 @@ struct PullRequestDetailQueryTests {
         return node
     }
 
+    /// The tab GitHub itself calls the conversation. The pane counted
+    /// these for a long time and could not show one of them.
+    @Test("The conversation is read, not only counted")
+    func conversation() throws {
+        let detail = try PullRequestDetailQuery.detail(from: payload(conversation: [
+            [
+                "id": "C_1", "createdAt": "2026-10-19T09:00:00Z",
+                "body": "Is the lock held for the whole write?",
+                "author": ["login": "arun", "avatarUrl": "https://a/arun"],
+            ],
+            [
+                "id": "C_2", "createdAt": "2026-10-19T10:00:00Z",
+                "body": "Both now.",
+                "author": ["login": "mira", "avatarUrl": "https://a/mira"],
+            ],
+        ]))
+
+        #expect(detail.comments.map(\.author) == ["arun", "mira"])
+        #expect(detail.comments.first?.body == "Is the lock held for the whole write?")
+        #expect(detail.totalComments == 3)
+        // Three were said and two were asked for, so the pane has one to
+        // account for rather than passing the tail off as the thread.
+        #expect(detail.olderComments == 1)
+    }
+
+    @Test("A pull request nobody has written under has nothing to show")
+    func noConversation() throws {
+        let detail = try PullRequestDetailQuery.detail(from: payload())
+        #expect(detail.comments.isEmpty)
+        #expect(detail.olderComments == 3)
+    }
+
     @Test("Change counts are read across")
     func counts() throws {
         let detail = try PullRequestDetailQuery.detail(from: payload())
         #expect(detail.additions == 120)
         #expect(detail.deletions == 45)
         #expect(detail.changedFiles == 7)
-        #expect(detail.comments == 3)
+        #expect(detail.totalComments == 3)
     }
 
     /// Asked again here rather than carried over from the row: by the time
@@ -260,7 +293,7 @@ struct ReviewConversationCountTests {
     @Test("The conversations on the diff are read from the answer")
     func parsed() throws {
         let read = try PullRequestDetailQuery.detail(from: detail(comments: 0, threads: 12))
-        #expect(read.comments == 0)
+        #expect(read.totalComments == 0)
         #expect(read.reviewConversations == 12)
     }
 
@@ -280,7 +313,7 @@ struct ReviewConversationCountTests {
     func defaulted() {
         let made = PullRequestDetail(
             headBranch: "a", baseBranch: "b",
-            additions: 1, deletions: 0, changedFiles: 1, comments: 2,
+            additions: 1, deletions: 0, changedFiles: 1, totalComments: 2,
             body: "", checks: [], reviewers: []
         )
         #expect(made.reviewConversations == 0)

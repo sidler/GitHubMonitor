@@ -72,7 +72,7 @@ public enum ThreadQuery {
 
         return IssueDetail(
             body: node["body"] as? String ?? "",
-            comments: nodes.compactMap(IssueQuery.comment(from:)),
+            comments: nodes.compactMap(IssueParser.comment(from:)),
             totalComments: comments?["totalCount"] as? Int ?? nodes.count
         )
     }

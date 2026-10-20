@@ -38,9 +38,16 @@ struct PullRequestDetailView: View {
                         branches(detail)
                         changes(detail)
                         description(detail)
-                        // Between what it says and what it touches:
-                        // first what it is for, then how it got there,
-                        // then which files it moved.
+                        // What was said about the pull request as a
+                        // whole, as against about a line of it: the pane
+                        // counted these and showed none of them, so the
+                        // one objection nobody hung on a diff was the
+                        // one you had to open a browser to read.
+                        ConversationView(
+                            comments: detail.comments, total: detail.totalComments
+                        )
+                        // Then how it got there, and then which files it
+                        // moved.
                         if let writing, detail.commitCount > 0 {
                             CommitsSection(
                                 pullRequestID: item.id,
@@ -322,8 +329,8 @@ struct PullRequestDetailView: View {
                     .help(discussion(detail))
                 } else {
                     statistic(
-                        "\(detail.comments)",
-                        caption: detail.comments == 1 ? "comment" : "comments",
+                        "\(detail.totalComments)",
+                        caption: detail.totalComments == 1 ? "comment" : "comments",
                         tint: .primary
                     )
                     .help(discussion(detail))
@@ -459,9 +466,9 @@ struct PullRequestDetailView: View {
         let onDiff = detail.reviewConversations == 1
             ? "1 conversation on the diff"
             : "\(detail.reviewConversations) conversations on the diff"
-        let inThread = detail.comments == 1
+        let inThread = detail.totalComments == 1
             ? "1 comment in the conversation"
-            : "\(detail.comments) comments in the conversation"
+            : "\(detail.totalComments) comments in the conversation"
         return "\(onDiff), \(inThread)"
     }
 
