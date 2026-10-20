@@ -483,10 +483,26 @@ public struct CodeToken: Hashable, Sendable {
 /// tokens always join back into exactly the source they came from, which is
 /// the one property the tests pin down for every language.
 public enum SyntaxHighlighter {
-    public static func tokens(_ source: String, language: CodeLanguage?) -> [CodeToken] {
-        guard let language, !source.isEmpty else {
-            return source.isEmpty ? [] : [CodeToken(text: source, kind: .plain)]
+    public static func tokens(
+        _ source: String, language: CodeLanguage?, insideComment: Bool = false
+    ) -> [CodeToken] {
+        read(source, language: language, insideComment: insideComment).tokens
+    }
+
+    /// The colours, and whether a block comment is still open at the end.
+    ///
+    /// A diff is painted a line at a time, and a line of a docblock read on
+    /// its own is prose that happens to contain `and` and `for`. The caller
+    /// carries the answer from one line to the next so that the second line
+    /// of a comment knows it is still in one.
+    public static func read(
+        _ source: String, language: CodeLanguage?, insideComment: Bool = false
+    ) -> (tokens: [CodeToken], insideComment: Bool) {
+        guard let language else {
+            return (source.isEmpty ? [] : [CodeToken(text: source, kind: .plain)], false)
         }
+        // An empty line in the middle of a comment is still in it.
+        guard !source.isEmpty else { return ([], insideComment) }
 
         // Read once for the whole line rather than once per word or per
         // character. Each is a dictionary lookup now instead of a rebuilt
@@ -498,6 +514,7 @@ public enum SyntaxHighlighter {
         var tokens: [CodeToken] = []
         var plain = ""
         var index = source.startIndex
+        var isOpen = false
 
         func flushPlain() {
             guard !plain.isEmpty else { return }
@@ -509,12 +526,24 @@ public enum SyntaxHighlighter {
             tokens.append(CodeToken(text: text, kind: kind))
         }
 
+        // What a comment opened earlier still covers. Nothing in here is
+        // code, however much of it reads like code: the closing marker is
+        // the only thing being looked for.
+        if insideComment, let marker = language.blockComment {
+            guard let close = source.range(of: marker.close) else {
+                return ([CodeToken(text: source, kind: .comment)], true)
+            }
+            emit(String(source[source.startIndex..<close.upperBound]), .comment)
+            index = close.upperBound
+        }
+
         while index < source.endIndex {
             let rest = source[index...]
 
             if let comment = blockComment(in: rest, language: language) {
-                emit(String(comment), .comment)
-                index = source.index(index, offsetBy: comment.count)
+                emit(String(comment.text), .comment)
+                index = source.index(index, offsetBy: comment.text.count)
+                if !comment.isClosed { isOpen = true }
                 continue
             }
             if let comment = lineComment(in: rest, language: language) {
@@ -591,22 +620,22 @@ public enum SyntaxHighlighter {
         }
 
         flushPlain()
-        return tokens
+        return (tokens, isOpen)
     }
 
     // MARK: - Pieces
 
     private static func blockComment(
         in rest: Substring, language: CodeLanguage
-    ) -> Substring? {
+    ) -> (text: Substring, isClosed: Bool)? {
         guard let marker = language.blockComment, rest.hasPrefix(marker.open) else { return nil }
         let afterOpen = rest.index(rest.startIndex, offsetBy: marker.open.count)
         guard let close = rest[afterOpen...].range(of: marker.close) else {
             // Unterminated: a patch is a fragment, and half a comment is
             // still a comment.
-            return rest
+            return (rest, false)
         }
-        return rest[rest.startIndex..<close.upperBound]
+        return (rest[rest.startIndex..<close.upperBound], true)
     }
 
     private static func lineComment(

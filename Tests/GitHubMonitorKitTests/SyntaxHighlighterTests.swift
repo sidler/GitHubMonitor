@@ -109,6 +109,85 @@ struct SyntaxHighlighterTests {
         #expect(text("/* cut off", .php, of: .comment) == ["/* cut off"])
     }
 
+    /// `and`, `for` and `use` are PHP keywords and ordinary English both,
+    /// and a docblock is full of the second kind. Painted as the first
+    /// they turn a sentence into a row of purple words.
+    @Test("Prose inside a line comment is not code")
+    func proseInLineComment() {
+        let line = "// Moves it and clears what the previous version has, for both forms"
+        #expect(kinds(line, .php) == [.comment])
+    }
+
+    @Test("Prose inside a block comment is not code")
+    func proseInBlockComment() {
+        let line = "/* the scale values stay for both versions */ return 1;"
+        #expect(
+            text(line, .php, of: .comment) == ["/* the scale values stay for both versions */"]
+        )
+        // Only the code after it is code.
+        #expect(text(line, .php, of: .keyword) == ["return"])
+    }
+
+    /// A diff is painted a line at a time, so the second line of a docblock
+    /// arrives with nothing around it: prose, read as PHP. The carry is
+    /// what the line before it has to say.
+    @Test("A block comment stays a comment on every line it covers")
+    func blockCommentAcrossLines() {
+        let lines = [
+            "/**",
+            " * Moves the BIA and clears what only the previous version has, so",
+            " * nothing stays that its form no longer shows. The values are the",
+            " * same for both versions of a project.",
+            " */",
+            "public function move(): void",
+        ]
+        var isOpen = false
+        var painted: [[CodeToken.Kind]] = []
+        for line in lines {
+            let read = SyntaxHighlighter.read(line, language: .php, insideComment: isOpen)
+            painted.append(read.tokens.map(\.kind))
+            isOpen = read.insideComment
+        }
+
+        #expect(painted.dropLast().allSatisfy { $0 == [.comment] })
+        // The comment ends where it says it does, and the code under it is
+        // code again.
+        #expect(!isOpen)
+        #expect(painted.last?.contains(.keyword) == true)
+    }
+
+    @Test("An empty line in the middle of a block comment is still in it")
+    func emptyLineInsideComment() {
+        let read = SyntaxHighlighter.read("", language: .php, insideComment: true)
+        #expect(read.tokens.isEmpty)
+        #expect(read.insideComment)
+    }
+
+    /// A line comment ends with its line, whatever it says.
+    @Test("A line comment carries nothing to the next line")
+    func lineCommentCarriesNothing() {
+        #expect(!SyntaxHighlighter.read("// a /* thing", language: .php).insideComment)
+    }
+
+    /// The slashes in a URL are a URL. Read as a comment they turned the
+    /// rest of the line grey.
+    @Test("A slash-slash inside a string does not open a comment")
+    func slashesInsideString() {
+        let line = "$url = \"https://example.com\"; // the real comment"
+        #expect(text(line, .php, of: .string) == ["\"https://example.com\""])
+        #expect(text(line, .php, of: .comment) == ["// the real comment"])
+    }
+
+    /// The counterpart of the test above it: `#` opens a comment in PHP,
+    /// `#[` opens an attribute, and an attribute is worth seeing.
+    @Test("A hash inside a PHP attribute is not a comment")
+    func hashInsideAttribute() {
+        let line = "#[TableColumn(name: 'title')] private string $title;"
+        #expect(text(line, .php, of: .comment).isEmpty)
+        #expect(text(line, .php, of: .function) == ["TableColumn"])
+        #expect(text(line, .php, of: .variable) == ["$title"])
+    }
+
     @Test("Languages are recognised from a fence and from a file name")
     func naming() {
         #expect(CodeLanguage.named("php") == .php)

@@ -10,6 +10,10 @@ import SwiftUI
 struct CodeText: View {
     let source: String
     let language: CodeLanguage?
+    /// Whether the line above this one left a block comment open. A diff is
+    /// painted a line at a time, and without this the second line of a
+    /// docblock is read as code.
+    var insideComment: Bool = false
     var font: Font = .caption.monospaced()
     /// Stretches of this line that are not in the line it replaced, or that
     /// replaced it. Drawn bold and on a stronger band.
@@ -32,7 +36,10 @@ struct CodeText: View {
 
     fileprivate var attributed: AttributedString {
         var result = AttributedString()
-        for token in SyntaxHighlighter.tokens(source, language: language) {
+        let painted = SyntaxHighlighter.tokens(
+            source, language: language, insideComment: insideComment
+        )
+        for token in painted {
             var piece = AttributedString(token.text)
             piece.foregroundColor = token.kind.tint
             result += piece
@@ -138,6 +145,7 @@ final class PaintedCode {
     private struct Key: Hashable {
         let source: String
         let language: CodeLanguage?
+        let insideComment: Bool
         let emphasis: [ChangedRange]
         let tint: Color
     }
@@ -150,6 +158,7 @@ final class PaintedCode {
     func text(for code: CodeText) -> AttributedString {
         let key = Key(
             source: code.source, language: code.language,
+            insideComment: code.insideComment,
             emphasis: code.emphasis, tint: code.emphasisTint
         )
         if let known = fresh[key] { return known }

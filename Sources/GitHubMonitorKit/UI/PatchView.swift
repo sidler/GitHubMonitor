@@ -693,23 +693,29 @@ struct PatchLines: View {
     @StateObject private var hovered = HoveredRow()
 
     private var lines: [Line] {
-        let numbers = showsLineNumbers ? DiffLineNumbers.read(patch) : []
+        // Numbered even where the gutter is hidden: the number is how a
+        // line is told which comment it is in the middle of, and that is
+        // drawn either way.
+        let numbers = DiffCache.shared.numbers(of: patch)
         // One column keeps the order the patch was written in -- that order
         // is what a unified diff is -- but the words it marks are found the
         // same way as in two columns, so the two agree.
         let marks = DiffCache.shared.emphasis(in: patch)
+        let comments = DiffCache.shared.comments(in: patch, language: language)
         // Numbered and marked over the whole patch before the slice: both
         // depend on what came earlier in the file, and a stretch measured
         // on its own would start counting from one.
         var insideHunk = false
         return patch.components(separatedBy: "\n").enumerated().map { index, text in
             if DiffPatchLine.isHunkHeader(text) { insideHunk = true }
+            let number = index < numbers.count ? numbers[index] : .none
             return Line(
                 id: index,
                 text: text,
                 insideHunk: insideHunk,
-                number: index < numbers.count ? numbers[index] : .none,
-                emphasis: index < marks.count ? marks[index] : []
+                number: showsLineNumbers ? number : .none,
+                emphasis: index < marks.count ? marks[index] : [],
+                insideComment: comments.isInsideComment(number)
             )
         }
     }
@@ -834,6 +840,7 @@ struct PatchLines: View {
                 // reading `-` as punctuation before a keyword. Colour the
                 // code, not the diff.
                 language: kind == .hunk ? nil : language,
+                insideComment: line.insideComment,
                 font: .system(size: fontSize).monospaced(),
                 emphasis: split.emphasis,
                 emphasisTint: kind.emphasis
@@ -937,6 +944,8 @@ struct PatchLines: View {
         let insideHunk: Bool
         let number: DiffLineNumber
         let emphasis: [ChangedRange]
+        /// Whether the line above left a block comment open.
+        let insideComment: Bool
     }
 }
 
