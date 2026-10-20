@@ -769,14 +769,29 @@ struct PatchLines: View {
                 if let here = anchors[line.id] {
                     conversations(here)
                         .frame(width: column, alignment: .leading)
+                        .zIndex(here.contains { target.isReplying(to: $0.id) } ? 1 : 0)
                 }
                 if let writing {
                     drafting(line, writing: writing)
                         .frame(width: column, alignment: .leading)
+                        .zIndex(isDrafting(line) ? 1 : 0)
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Whether the box is open on this row.
+    ///
+    /// Worth knowing only so the row can be lifted above the ones under
+    /// it. The list of names floats out of the box and over the code,
+    /// which is where it belongs -- but a stack paints its children in
+    /// order, and overflowing the bounds does not change the order. The
+    /// rows below were therefore painted on top of the half of the list
+    /// that had left the box, which is what let the diff show through it.
+    private func isDrafting(_ line: Line) -> Bool {
+        guard let place = Self.addable(line.number) else { return false }
+        return target.isOpen(line: place.line, side: place.side)
     }
 
     /// What this row carries of the review being written: the remarks

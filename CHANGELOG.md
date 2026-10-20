@@ -5,6 +5,15 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **The list of names is not painted over any more.** Typing `@` in a
+  remark showed a list with the diff's coloured lines running through
+  it, which read as transparency and was not: the list hangs out of the
+  box it belongs to, and the rows *below* that box are painted after
+  it, straight over the part that had escaped. Leaving your own bounds
+  does not change where you sit in the painting order. The row holding
+  an open box is lifted above its neighbours now, and so is a
+  conversation being replied to, which holds the same box.
+
 - **A comment in the code stays a comment.** The prose inside a
   docblock was syntax-highlighted as code, so any word that happens to
   be a keyword — *and*, *for*, *return* — came out purple in the middle
