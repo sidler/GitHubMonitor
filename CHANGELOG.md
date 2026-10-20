@@ -5,6 +5,26 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **A remark that will not fit on one line takes two.** Somebody else's
+  comment was sometimes cut off at the right of the column with an
+  ellipsis. The thread was never too narrow — a paragraph was told how
+  wide it might be and nothing about growing downwards, so one holding
+  something unbreakable, a URL or a long path or a code span, was given
+  a single line's height and had to truncate. Ordinary prose wrapped,
+  which is why it only happened sometimes.
+
+- **Settling a conversation folds it there and then.** Whether it
+  arrived folded was decided once, when the diff was built, so a
+  conversation resolved while you were looking at it stayed open until
+  the next time. Unsettling opens it again, and the chevron still
+  overrules both — a conversation you opened by hand stays open.
+
+- **The folded line is blue, not grey.** Drawn in the secondary label
+  grey it sat among grey source-code comments and disappeared into
+  them. It is a cyan now, far enough from the blue that marks an
+  unsettled conversation that the two do not read as one mark, and dark
+  enough to clear 4.5:1 on every ground the diff draws on.
+
 - **The list of names is not painted over any more.** Typing `@` in a
   remark showed a list with the diff's coloured lines running through
   it, which read as transparency and was not: the list hangs out of the

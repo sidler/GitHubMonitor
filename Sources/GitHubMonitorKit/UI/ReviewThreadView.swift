@@ -30,9 +30,10 @@ struct ReviewThreadView: View {
     /// the diff is up, which is the same bargain the file tree makes.
     ///
     /// An object rather than `@State`: this package builds without Xcode,
-    /// where the `State` macro is not available. `Disclosure` is the same
-    /// one the detail pane's folded description uses.
-    @StateObject private var disclosure: Disclosure
+    /// where the `State` macro is not available. `ThreadFold` is the same
+    /// kind of thing as the `Disclosure` the detail pane's folded
+    /// description uses, with the rule about resolving written into it.
+    @StateObject private var fold: ThreadFold
 
     init(
         thread: ReviewThread,
@@ -46,10 +47,10 @@ struct ReviewThreadView: View {
         self.replies = replies
         self.target = target
         self.isReplying = isReplying
-        _disclosure = StateObject(wrappedValue: Disclosure(isExpanded: !thread.isResolved))
+        _fold = StateObject(wrappedValue: ThreadFold(isResolved: thread.isResolved))
     }
 
-    private var isOpen: Bool { disclosure.isExpanded }
+    private var isOpen: Bool { fold.isExpanded }
 
     var body: some View {
         // A rule down the left rather than a box around everything. What
@@ -66,7 +67,7 @@ struct ReviewThreadView: View {
             VStack(alignment: .leading, spacing: 4) {
                 if thread.isResolved || thread.isOutdated {
                     Button {
-                        withAnimation(.easeOut(duration: 0.15)) { disclosure.isExpanded.toggle() }
+                        withAnimation(.easeOut(duration: 0.15)) { fold.toggle() }
                     } label: {
                         HStack(spacing: 6) {
                             Image(systemName: isOpen ? "chevron.down" : "chevron.right")
@@ -76,7 +77,16 @@ struct ReviewThreadView: View {
                             Spacer(minLength: 0)
                         }
                         .font(.caption)
-                        .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+                        // This line is the app talking, not the file. In
+                        // grey it sat among the grey of the comments in
+                        // the code above and below it and read as one of
+                        // them. `Ink.cyan` is the light blue: as light
+                        // as one gets while still clearing four and a
+                        // half to one on the green and the red band, and
+                        // lighter and cooler than the `Ink.blue` rule
+                        // that marks a conversation nobody has settled,
+                        // so the two do not read as the same mark.
+                        .foregroundStyle(Ink.cyan)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -157,6 +167,52 @@ struct ReviewThreadView: View {
         // contrast of this app is not allowed to be casual about -- and
         // with a grey rule and a line naming the state, it was saying a
         // third time what was already said twice.
+        //
+        // Settling a conversation from the Resolve button folds it here
+        // and then, the way it would have been drawn had it arrived
+        // settled, and unsettling it opens it again. Watched on
+        // `thread.isResolved` rather than asked of the draft, because
+        // this view does not observe whoever holds that state and would
+        // never hear about it -- the same lesson `isReplying` carries.
+        // `ThreadFold` is what decides; the chevron still overrules it
+        // afterwards.
+        .onChange(of: thread.isResolved) { _, resolved in
+            withAnimation(.easeOut(duration: 0.15)) { fold.settled(resolved: resolved) }
+        }
+    }
+}
+
+/// Whether a conversation is drawn open, and what is allowed to move it.
+///
+/// Two things move it, and the order matters: settling or unsettling a
+/// conversation puts the fold where that state would have put it had the
+/// diff been drawn afresh, and a press of the header overrules that for
+/// as long as the diff is up. So resolving something you are reading
+/// folds it away, and opening it again by hand keeps it open -- a later
+/// redraw with the same resolved state must not shut it a second time,
+/// which is why the state it last acted on is remembered rather than
+/// compared against the fold.
+final class ThreadFold: ObservableObject {
+    @Published private(set) var isExpanded: Bool
+    /// The resolved state the fold was last moved for. Without it every
+    /// redraw would be indistinguishable from a fresh resolve.
+    private var settledAt: Bool
+
+    init(isResolved: Bool) {
+        isExpanded = !isResolved
+        settledAt = isResolved
+    }
+
+    /// Somebody pressed the header.
+    func toggle() {
+        isExpanded.toggle()
+    }
+
+    /// The conversation has been settled or unsettled.
+    func settled(resolved: Bool) {
+        guard resolved != settledAt else { return }
+        settledAt = resolved
+        isExpanded = !resolved
     }
 }
 

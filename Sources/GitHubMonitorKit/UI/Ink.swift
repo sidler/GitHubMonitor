@@ -27,6 +27,18 @@ public enum Ink {
     public static let green = pair(light: 0x0E_67_24, dark: 0x45_E9_6E)
     public static let teal = pair(light: 0x00_63_69, dark: 0x0B_E2_F1)
     public static let blue = pair(light: 0x00_55_A0, dark: 0x85_CA_FF)
+    /// The system's cyan: the light blue, for a line the app writes among
+    /// lines it did not.
+    ///
+    /// Walked the same way as the rest, and it had less room than most.
+    /// In light mode it is about as light as a blue gets before it stops
+    /// clearing four and a half to one on the grounds this app draws on,
+    /// which leaves it a third brighter than `blue` and a dozen degrees
+    /// cooler -- the distance wanted, since `blue` is the rule down an
+    /// unsettled conversation and these two must not read as one mark.
+    /// Cyan sits between `blue` and `teal` because that is where the
+    /// hue is; the weight is what keeps the three apart.
+    public static let cyan = pair(light: 0x00_66_8B, dark: 0x5F_D8_EF)
     public static let indigo = pair(light: 0x46_3B_CA, dark: 0xB8_C0_FF)
     public static let purple = pair(light: 0x8E_14_9E, dark: 0xF4_A2_FF)
     public static let pink = pair(light: 0xA8_0A_28, dark: 0xFF_A6_B8)

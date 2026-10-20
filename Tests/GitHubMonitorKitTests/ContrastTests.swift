@@ -78,6 +78,9 @@ struct ContrastTests {
             ("waiting.overdue", WaitingAge.overdue.tint),
             ("merge.conflicting", MergeStatus.conflicting.tint),
             ("merge.mergeable", MergeStatus.mergeable.tint),
+            // The line a folded conversation is named by, which sits on
+            // the bands as readily as the code does.
+            ("thread.folded", Ink.cyan),
         ]
         for decision in ReviewDecision.allCases {
             result.append(("review.\(decision)", decision.tint))
@@ -184,6 +187,7 @@ struct ContrastTests {
             ("red", Ink.red, .red), ("orange", Ink.orange, .orange),
             ("yellow", Ink.yellow, .yellow), ("green", Ink.green, .green),
             ("teal", Ink.teal, .teal), ("blue", Ink.blue, .blue),
+            ("cyan", Ink.cyan, .cyan),
             ("indigo", Ink.indigo, .indigo), ("purple", Ink.purple, .purple),
             ("pink", Ink.pink, .pink),
         ]
