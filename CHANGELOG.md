@@ -3,7 +3,7 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
-## Unreleased
+## 2.3.1
 
 - **What was said about a pull request is now shown, not just counted.**
   The pane read the conversation tab's total and stopped there, so a
