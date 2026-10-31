@@ -44,7 +44,11 @@ public enum CommentDigest {
     /// Takes the markers off the front of a line and the emphasis out of
     /// the middle, leaving the words.
     private static func strip(_ line: String) -> String {
-        var text = Substring(line)
+        // A conventional comment opens with a picture of its own first
+        // word. Spelled out it is the most useful thing a one-line
+        // summary can lead with; left as it was written it is a hundred
+        // characters of shields.io address before the sentence starts.
+        var text = Substring(ConventionalComment.spelled(line))
 
         // A quote is what somebody is answering, not what they said.
         guard !text.hasPrefix(">") else { return "" }

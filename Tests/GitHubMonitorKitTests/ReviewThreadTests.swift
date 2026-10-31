@@ -592,3 +592,66 @@ struct SettledThreadTests {
         #expect(stale?.isOutdated == true)
     }
 }
+
+/// What a collapsed conversation says about itself. The count alone is
+/// the same sentence on every thread in a file, so telling two of them
+/// apart meant opening both.
+@Suite("The line a shut conversation leaves behind")
+struct ReviewThreadPreviewTests {
+    private func thread(_ bodies: [String], resolved: Bool = true) -> ReviewThread {
+        ReviewThread(
+            id: "t", path: "a.php", line: 4, side: .new,
+            isResolved: resolved, isOutdated: false,
+            comments: bodies.enumerated().map { index, body in
+                IssueComment(
+                    id: "c\(index)", author: "mira", avatarURL: nil,
+                    createdAt: .now, body: body
+                )
+            }
+        )
+    }
+
+    /// The opening remark, not the last one: the last on a settled thread
+    /// is usually somebody agreeing, and "Done" says nothing about what.
+    @Test("The preview is what the conversation opened with")
+    func opening() {
+        let thread = self.thread([
+            "`strcasecmp` on a login is right, but this will also match a renamed account.",
+            "Done.",
+        ])
+        #expect(
+            thread.preview
+                == "strcasecmp on a login is right, but this will also match a renamed account."
+        )
+    }
+
+    /// A badge is a picture of a word. In a one-line preview the word is
+    /// the useful part and the picture is a hundred characters of URL.
+    @Test("A conventional badge is spelled out rather than shown as markdown")
+    func badge() {
+        let body = ConventionalComment.badge(label: "issue", decoration: "blocking")
+            + "The lock is not held for the whole write."
+        #expect(
+            thread([body]).preview
+                == "issue (blocking): The lock is not held for the whole write."
+        )
+    }
+
+    @Test("A conversation with nothing in it previews nothing")
+    func empty() {
+        let bare = ReviewThread(
+            id: "t", path: "a.php", line: 4, side: .new,
+            isResolved: true, isOutdated: false, comments: []
+        )
+        #expect(bare.preview.isEmpty)
+    }
+
+    /// Long enough to say what it was about, short enough for one line.
+    @Test("A long opening remark is cut on a word")
+    func shortened() {
+        let long = String(repeating: "word ", count: 60)
+        let preview = thread([long]).preview
+        #expect(preview.count <= 121)
+        #expect(preview.hasSuffix("\u{2026}"))
+    }
+}

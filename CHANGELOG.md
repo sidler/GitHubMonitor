@@ -5,6 +5,26 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **A shut conversation says what it was about.** The collapsed line read
+  "2 comments, resolved" and nothing else -- which is the same sentence
+  on every settled conversation in the file, so the only way to tell two
+  of them apart was to open both. It now carries the opening remark
+  beside the count, on the same line and in the same height: the first
+  one rather than the last, because the last on a settled thread is
+  usually somebody agreeing and "Done" says nothing about what was done.
+  A remark that opens with a conventional badge is spelled out as its
+  words here, the badge being a hundred characters of address in a place
+  with room for one line.
+
+- **The file tree marks the files that have remarks, not their folders.**
+  A folder used to carry the sum of what its files held, and every level
+  above it carried that sum again -- so one remark on one test drew a
+  bubble on the file, on its folder, on the module and on the repository.
+  In a review of any size the column read as remarks everywhere and
+  pointed at none of them. The mark is where the remark is now. The one
+  thing this gives up: a folder you have closed by hand no longer hints
+  that there is something inside. Folders arrive open.
+
 - **A remark can open with the word that says what it is.** Twelve chips
   above the box -- *praise*, *nitpick*, *suggestion*, *issue*, *todo*,
   *question*, *thought*, *chore*, *note*, *typo*, *polish*, *quibble* --

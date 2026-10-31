@@ -135,6 +135,30 @@ struct ConventionalCommentTests {
         #expect(off.caret(from: on.bodyStart + 3) == 3)
     }
 
+    /// Anywhere a remark is shown as one line of plain text: the badge
+    /// is the right thing in a rendered comment and the wrong thing in a
+    /// summary, where it is a hundred characters of address in front of
+    /// the sentence somebody wrote.
+    @Test("A badge spells out as the words it is a picture of")
+    func spelled() {
+        let body = ConventionalComment.badge(label: "nitpick", decoration: "non-blocking")
+            + "rename this"
+        #expect(ConventionalComment.spelled(body) == "nitpick (non-blocking): rename this")
+
+        let bare = ConventionalComment.badge(label: "praise") + "beautiful test"
+        #expect(ConventionalComment.spelled(bare) == "praise: beautiful test")
+    }
+
+    /// Prose with no head is prose, and a head with no prose is just the
+    /// word -- not a word followed by a colon and nothing.
+    @Test("Spelling out leaves what has no badge alone")
+    func spelledUntouched() {
+        #expect(ConventionalComment.spelled("just a sentence") == "just a sentence")
+        #expect(
+            ConventionalComment.spelled(ConventionalComment.badge(label: "praise")) == "praise"
+        )
+    }
+
     /// The standard's nine, then its three expressive extras.
     @Test("All twelve words and all three decorations are offered")
     func theWholeList() {

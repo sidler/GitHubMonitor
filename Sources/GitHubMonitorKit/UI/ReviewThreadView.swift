@@ -74,6 +74,17 @@ struct ReviewThreadView: View {
                                 .font(.caption2)
                             Image(systemName: thread.isResolved ? "checkmark.circle" : "clock.arrow.circlepath")
                             Text(thread.summary)
+                                .fixedSize()
+                            // What it was about, while it is shut. Open,
+                            // the remark itself is two lines below and
+                            // saying it twice would be the waste of
+                            // space this is meant to avoid.
+                            if !isOpen, !thread.preview.isEmpty {
+                                Text(thread.preview)
+                                    .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                            }
                             Spacer(minLength: 0)
                         }
                         .font(.caption)

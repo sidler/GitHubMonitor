@@ -193,6 +193,19 @@ public enum ConventionalComment {
         return nil
     }
 
+    /// A body with its badge written out as the words it is a picture of.
+    ///
+    /// For anywhere a remark is shown as one line of plain text. The badge
+    /// is the right thing in a rendered comment and the wrong thing in a
+    /// summary, where it is a hundred characters of URL in front of the
+    /// sentence somebody actually wrote.
+    public static func spelled(_ text: String) -> String {
+        guard let head = head(of: text) else { return text }
+        let mark = head.decoration.map { " (\($0))" } ?? ""
+        let rest = String(text.dropFirst(utf16: head.length))
+        return rest.isEmpty ? "\(head.label)\(mark)" : "\(head.label)\(mark): \(rest)"
+    }
+
     /// A head that is already on a body.
     public struct Head: Hashable, Sendable {
         public let label: String

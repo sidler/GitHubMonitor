@@ -126,6 +126,19 @@ public struct ReviewThread: Identifiable, Hashable, Sendable {
         if isResolved { return "\(what), resolved" }
         return what
     }
+
+    /// What the conversation was about, in one line.
+    ///
+    /// The opening remark rather than the last: the last one on a settled
+    /// thread is usually somebody agreeing, and "Done" tells you nothing
+    /// about what was done. Shown beside the collapsed line, which was
+    /// otherwise a count and a count alone -- "2 comments, outdated" is
+    /// the same sentence on every thread in the file, so the only way to
+    /// tell two of them apart was to open both.
+    public var preview: String {
+        guard let first = comments.first else { return "" }
+        return CommentDigest.firstLine(of: first.body, limit: 120)
+    }
 }
 
 /// Which threads belong where in a drawn patch.

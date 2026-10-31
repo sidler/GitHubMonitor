@@ -1203,18 +1203,6 @@ struct FileTreeRows: View {
         .help(open.label)
     }
 
-    /// What a folder holds, so a shut one still says there is something
-    /// inside worth opening.
-    private func folded(_ folder: FileTree.Folder) -> ReviewThreadPlacement.OpenComments? {
-        let inside = folder.files.compactMap { comments[$0.path] }
-        guard !inside.isEmpty else { return nil }
-        return ReviewThreadPlacement.OpenComments(
-            conversations: inside.reduce(0) { $0 + $1.conversations },
-            total: inside.reduce(0) { $0 + $1.total },
-            comments: inside.reduce(0) { $0 + $1.comments }
-        )
-    }
-
     private func folderRow(_ folder: FileTree.Folder, depth: Int) -> some View {
         HStack(spacing: 6) {
             Spacer()
@@ -1227,9 +1215,13 @@ struct FileTreeRows: View {
                 .lineLimit(1)
                 .truncationMode(.head)
             Spacer(minLength: 4)
-            if let open = folded(folder) {
-                badge(open)
-            }
+            // No mark here, deliberately. A folder used to carry the sum
+            // of what its files held, and every level above it carried
+            // that sum again -- so one remark on one test drew a bubble
+            // on the file, on its folder, on the module and on the
+            // repository. In a review of any size the column read as
+            // remarks everywhere and pointed at none of them. The mark
+            // belongs where the remark is.
             Text(verbatim: "\(folder.files.count)")
                 .monospacedDigit()
                 .foregroundStyle(.tertiary)
