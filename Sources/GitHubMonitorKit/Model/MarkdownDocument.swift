@@ -231,11 +231,28 @@ public enum MarkdownDocument {
                 options: [.regularExpression, .caseInsensitive]
             )
         }
+        let picture = "!\\[[^\\]]*\\]\\([^)\\s]+\\)"
+        // A picture that is a link's label loses the link and stays a
+        // picture.
+        //
+        // This is the shape every badge arrives in -- `[![build
+        // passing](img)](target)` -- and the step below used to cut it in
+        // three, because it looks for a picture and does not ask what is
+        // wrapped around it. The `[` was left on one line, the picture
+        // went onto the next, and the `](target)` onto a third, so a
+        // single badge turned into two lines of raw markdown with a
+        // picture wedged between them. Nothing is lost by dropping the
+        // wrapper: a picture is drawn as a picture here and has nowhere
+        // to put a target.
+        result = result.replacingOccurrences(
+            of: "\\[(\(picture))\\]\\([^)\\s]+\\)",
+            with: "$1",
+            options: .regularExpression
+        )
         // Then onto a line of its own, so the view has a block to give a
         // size to -- except inside a table, where a line of its own is
         // the end of the table. A badge in a cell goes the way it always
         // did: out, leaving the column empty but there.
-        let picture = "!\\[[^\\]]*\\]\\([^)\\s]+\\)"
         result = result
             .components(separatedBy: .newlines)
             .map { line in

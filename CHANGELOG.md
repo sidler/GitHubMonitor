@@ -3,6 +3,19 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
+## Unreleased
+
+- **A badge stops arriving in three pieces.** The usual way to write one
+  is a picture wrapped in a link -- `[![issue blocking](...)](...)` --
+  and the step that lifts a picture onto a line of its own to give it a
+  size took the picture without asking what was around it. The `[` was
+  left behind on one line and the `](target)` on another, so a single
+  badge came out as two lines of raw markdown with a picture wedged
+  between them. The link is dropped now and the picture stays a picture,
+  which is all the pane can draw anyway. In a table cell, where a badge
+  is removed rather than lifted out, the empty `[](target)` it used to
+  leave behind goes with it.
+
 ## 2.3.1
 
 - **What was said about a pull request is now shown, not just counted.**

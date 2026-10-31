@@ -429,6 +429,61 @@ struct MarkdownPictureTests {
         #expect(rows.first?.count == 2)
     }
 
+    /// The shape every badge arrives in. Lifting the picture out used to
+    /// cut the link around it in three, leaving a `[` on one line and a
+    /// `](target)` on another with the picture wedged between them.
+    @Test("A badge that is a link is one picture, not three blocks")
+    func linkedBadge() {
+        let source = "[![issue blocking](https://example.com/b.svg)](https://example.com/cc)"
+        #expect(
+            MarkdownDocument.blocks(from: source)
+                == [.image(url: URL(string: "https://example.com/b.svg")!, alt: "issue blocking")]
+        )
+    }
+
+    /// The whole of a real body: a linked badge, then prose. Two blocks,
+    /// and no markdown left showing.
+    @Test("A badge above a paragraph leaves the paragraph alone")
+    func linkedBadgeThenProse() {
+        let source = """
+            [![issue blocking](https://example.com/b.svg)](https://example.com/cc)
+
+            The test cannot go red.
+            """
+        #expect(
+            MarkdownDocument.blocks(from: source)
+                == [
+                    .image(url: URL(string: "https://example.com/b.svg")!, alt: "issue blocking"),
+                    .paragraph("The test cannot go red."),
+                ]
+        )
+    }
+
+    /// The link around it goes too, rather than being left behind as an
+    /// empty `[](target)` in the middle of the row.
+    @Test("A linked badge in a table cell leaves the cell empty")
+    func linkedBadgeInATable() {
+        let source = [
+            "| Package | Age |",
+            "| --- | --- |",
+            "| prettier | [![age](https://example.com/a.svg)](https://example.com/x) |",
+        ].joined(separator: "\n")
+
+        let blocks = MarkdownDocument.blocks(from: source)
+        guard case .table(_, let rows) = blocks.first else {
+            Issue.record("the table did not survive")
+            return
+        }
+        #expect(rows.first == ["prettier", ""])
+    }
+
+    /// An ordinary link is not a picture and keeps its text.
+    @Test("A link around words is left alone")
+    func plainLink() {
+        let source = "see [the notes](https://example.com/n) first"
+        #expect(MarkdownDocument.blocks(from: source) == [.paragraph(source)])
+    }
+
     /// A body that names a file on somebody's own machine is not a request
     /// to go looking for it.
     @Test("Only http and https are fetched")
