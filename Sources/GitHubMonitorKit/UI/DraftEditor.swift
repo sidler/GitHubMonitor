@@ -187,6 +187,10 @@ struct DraftEditorView: View {
                 .frame(width: 4)
 
             VStack(alignment: .leading, spacing: 4) {
+                // Above the box, not below it: the word comes first in
+                // the remark and first in the writing of one.
+                ConventionalCommentBar(text: $target.text, caret: caret)
+
                 CommentTextView(
                     text: $target.text,
                     caret: caret,

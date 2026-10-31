@@ -5,6 +5,22 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **A remark can open with the word that says what it is.** Twelve chips
+  above the box -- *praise*, *nitpick*, *suggestion*, *issue*, *todo*,
+  *question*, *thought*, *chore*, *note*, *typo*, *polish*, *quibble* --
+  and, once one is picked, the three decorations: *non-blocking*,
+  *blocking*, *if-minor*. This is the
+  [Conventional Comments](https://conventionalcomments.org) standard,
+  whose whole point is that the reader learns in one word whether they
+  are being blocked or complimented.
+
+  Written as the badge the browser extension most people run writes, so
+  a remark from here sits beside one of theirs looking the same -- the
+  address and the colours are that extension's, not an approximation of
+  them. Picking a second word replaces the first instead of stacking on
+  it, whichever way the first was written, and pressing the lit chip
+  again takes it off. The caret stays where you were typing.
+
 - **A badge stops arriving in three pieces.** The usual way to write one
   is a picture wrapped in a link -- `[![issue blocking](...)](...)` --
   and the step that lifts a picture onto a line of its own to give it a
