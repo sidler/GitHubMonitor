@@ -86,6 +86,17 @@ public struct ReviewDraft: Hashable, Sendable, Codable {
             .sorted { ($0.line, $0.writtenAt) < ($1.line, $1.writtenAt) }
     }
 
+    /// How many unsent remarks stand on each file.
+    ///
+    /// For the tree beside the diff, which is what somebody scans to
+    /// decide where to go next -- and their own unsent remarks are as
+    /// good a reason to go somewhere as anybody else's.
+    public var countsByPath: [String: Int] {
+        comments.reduce(into: [:]) { counts, comment in
+            counts[comment.path, default: 0] += 1
+        }
+    }
+
     /// What the button that sends it says.
     public var summary: String {
         comments.count == 1 ? "1 remark" : "\(comments.count) remarks"

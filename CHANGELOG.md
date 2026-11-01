@@ -5,6 +5,10 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **Your own unsent remarks are marked in the file tree**, in the same
+  purple they wear in the diff, so you can find your way back to what you
+  have written but not sent.
+
 - **Label a remark with the word that says what it is** — *issue*,
   *suggestion*, *praise* and nine more above the writing box, with
   *blocking*, *non-blocking* and *if-minor* beside them.

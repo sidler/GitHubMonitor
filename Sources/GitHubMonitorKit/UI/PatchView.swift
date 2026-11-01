@@ -421,6 +421,7 @@ struct DiffOverlay: View {
                 open: open,
                 viewed: viewed?.states ?? [:],
                 comments: ReviewThreadPlacement.openCounts(threads),
+                drafts: draft?.countsByPath ?? [:],
                 current: place.path,
                 choose: { place.go(to: $0) }
             )
@@ -1082,6 +1083,10 @@ struct FileTreeRows: View {
     /// what somebody scans to decide where to go next, and an unanswered
     /// remark is the best reason there is to go somewhere.
     var comments: [String: ReviewThreadPlacement.OpenComments] = [:]
+    /// How many unsent remarks of your own stand on each file. Drawn
+    /// apart from the count above it: one is what the review is waiting
+    /// on, the other is what you have not sent yet.
+    var drafts: [String: Int] = [:]
     /// The file the diff is showing, which this list marks.
     var current: String?
     /// What to do when one is picked.
@@ -1156,6 +1161,9 @@ struct FileTreeRows: View {
                     .help(state.label)
             }
             Spacer(minLength: 4)
+            if let mine = drafts[file.path], mine > 0 {
+                draftBadge(mine)
+            }
             if let open = comments[file.path] {
                 badge(open)
             }
@@ -1201,6 +1209,23 @@ struct FileTreeRows: View {
             open.conversations > 0 ? Ink.blue : Ink.gray
         )
         .help(open.label)
+    }
+
+    /// Your own remarks on a file, written and not sent.
+    ///
+    /// The pencil and the purple are what an unsent remark already wears
+    /// where it is drawn in the diff, so the mark in the tree and the
+    /// thing it stands for are recognisably the same. Kept apart from the
+    /// bubble beside it on purpose: a conversation is what the review is
+    /// waiting on, an unsent remark is what everybody else is.
+    private func draftBadge(_ count: Int) -> some View {
+        HStack(spacing: 2) {
+            Image(systemName: "pencil.line")
+            Text(verbatim: "\(count)").monospacedDigit()
+        }
+        .font(.caption2)
+        .foregroundStyle(Ink.purple)
+        .help(count == 1 ? "1 remark not sent yet" : "\(count) remarks not sent yet")
     }
 
     private func folderRow(_ folder: FileTree.Folder, depth: Int) -> some View {

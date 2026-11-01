@@ -23,6 +23,38 @@ struct ReviewDraftTests {
         #expect(draft.comments(in: "c.swift").isEmpty)
     }
 
+    /// For the tree beside the diff. Your own unsent remarks are as good
+    /// a reason to go back to a file as anybody else's conversation, and
+    /// until now the tree said nothing about them.
+    @Test("The draft counts its remarks per file")
+    func perFile() {
+        var draft = ReviewDraft(pullRequestID: "PR_1", commit: "abc")
+        draft.add(comment(line: 30))
+        draft.add(comment(line: 10))
+        draft.add(comment("b.swift", line: 1))
+
+        #expect(draft.countsByPath == ["a.swift": 2, "b.swift": 1])
+    }
+
+    /// A file nobody has written about is absent rather than nought, so
+    /// the tree can ask whether there is a mark at all.
+    @Test("A draft with nothing in it counts nothing")
+    func noneAtAll() {
+        #expect(ReviewDraft(pullRequestID: "PR_1", commit: "abc").countsByPath.isEmpty)
+    }
+
+    /// A reply is a remark you have not sent either, and it stands on the
+    /// file it answers.
+    @Test("Replies are counted with the remarks that open a conversation")
+    func repliesCount() {
+        var draft = ReviewDraft(pullRequestID: "PR_1", commit: "abc")
+        draft.add(comment(line: 10))
+        draft.add(
+            DraftComment(path: "a.swift", line: 12, replyTo: "T_1", body: "agreed")
+        )
+        #expect(draft.countsByPath == ["a.swift": 2])
+    }
+
     /// A remark with nothing left in it is not a remark. GitHub would
     /// refuse it, and leaving it would send somebody an empty comment
     /// with their name on it.
