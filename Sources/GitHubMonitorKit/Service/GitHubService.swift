@@ -403,6 +403,28 @@ public struct GitHubService: Sendable {
     }
 
     /// Who may be named with an `@` in this repository.
+    /// The whole of some files, for the unchanged lines a patch leaves
+    /// out.
+    ///
+    /// Several at once because they cost the same as one: a GraphQL
+    /// query is a point whatever is in it.
+    public func fileContents(
+        inRepository repository: String, blobs: [String]
+    ) async throws -> [String: FileContent] {
+        guard !blobs.isEmpty else { return [:] }
+        let parts = repository.split(separator: "/", maxSplits: 1).map(String.init)
+        guard parts.count == 2 else {
+            throw GitHubError.decoding("repository is not owner/name: \(repository)")
+        }
+        let payload = try await client.graphQL(
+            FileContentQuery.document(count: blobs.count),
+            variables: FileContentQuery.variables(
+                owner: parts[0], name: parts[1], blobs: blobs
+            )
+        )
+        return FileContentQuery.contents(from: payload, blobs: blobs)
+    }
+
     public func mentionableUsers(
         inRepository repository: String, matching query: String = ""
     ) async throws -> MentionQuery.Catalogue {

@@ -418,6 +418,9 @@ public final class RefreshController {
         state.pullRequestDetails = [:]
         state.issueDetails = [:]
         state.changedFiles = [:]
+        // Whole files are an account's source code, as much as a patch is.
+        state.fileContents = [:]
+        state.fileContentsInFlight = []
         state.viewedFiles = [:]
         state.reviewThreads = [:]
         // Every review window with it: each one shows an account's code
@@ -1219,6 +1222,35 @@ public final class RefreshController {
     /// Quiet on failure, for the same reason as the ticks: a diff with no
     /// comments beside it is still a diff, and an error banner over
     /// somebody's review would be worse than their absence.
+    /// Fetches the whole of a file, for the lines a patch leaves out.
+    ///
+    /// Once per blob and never twice at a time: a blob is named by its
+    /// own contents, so what has been read cannot have changed, and a
+    /// second press while the first request is in the air would be a
+    /// second request for the same answer.
+    public func loadFileContent(blob: String, inRepository repository: String) {
+        guard
+            state.fileContents[blob] == nil,
+            !state.fileContentsInFlight.contains(blob)
+        else { return }
+        guard let service else { return }
+        state.fileContentsInFlight.insert(blob)
+        Task { [weak self] in
+            guard let self else { return }
+            defer { state.fileContentsInFlight.remove(blob) }
+            do {
+                let found = try await service.fileContents(
+                    inRepository: repository, blobs: [blob]
+                )
+                for (blob, content) in found { state.fileContents[blob] = content }
+            } catch {
+                // Said where the row is, rather than swallowed: somebody
+                // pressed something and is owed an answer.
+                state.fileContents[blob] = .missing
+            }
+        }
+    }
+
     public func loadReviewThreadsIfNeeded(for id: String) {
         guard state.reviewThreads[id] == nil, let service else { return }
         // Claimed straight away, so reopening the diff while the first

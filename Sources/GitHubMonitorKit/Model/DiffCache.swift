@@ -24,6 +24,7 @@ public final class DiffCache {
     private var rows: [String: [DiffSideRow]] = [:]
     private var numbers: [String: [DiffLineNumber]] = [:]
     private var comments: [String: (language: CodeLanguage?, state: DiffComments)] = [:]
+    private var gaps: [String: (total: Int, found: [DiffGaps.Gap])] = [:]
     private var order: [String] = []
 
     public func emphasis(in patch: String) -> [[ChangedRange]] {
@@ -74,6 +75,28 @@ public final class DiffCache {
         return worked
     }
 
+    /// Where the patch is silent, keyed by the patch and checked against
+    /// the file's length.
+    ///
+    /// Here for the same reason the rest is: it reads the whole patch,
+    /// and the body that asks runs again whenever the pointer crosses a
+    /// row. Worked out afresh in a view body it would be the judder this
+    /// cache was built to stop.
+    ///
+    /// The file's length is held beside the answer rather than made part
+    /// of the key: a patch belongs to one file, and the length only
+    /// changes when the file arrives.
+    public func gaps(in patch: String, fileLines total: Int) -> [DiffGaps.Gap] {
+        if let known = gaps[patch], known.total == total {
+            remember(patch)
+            return known.found
+        }
+        let worked = DiffGaps.gaps(in: patch, fileLines: total)
+        gaps[patch] = (total, worked)
+        remember(patch)
+        return worked
+    }
+
     /// Which of the patch's lines begin inside a block comment.
     ///
     /// Kept with the rest for the same reason: it is read inside a body
@@ -103,6 +126,7 @@ public final class DiffCache {
             rows[oldest] = nil
             numbers[oldest] = nil
             comments[oldest] = nil
+            gaps[oldest] = nil
         }
     }
 
@@ -115,6 +139,7 @@ public final class DiffCache {
         marks = [:]
         rows = [:]
         comments = [:]
+        gaps = [:]
         order = []
     }
 }

@@ -56,6 +56,9 @@ struct DiffOverlay: View {
     var draft: ReviewDraft?
     /// How to write into it. Nil leaves the diff a reader.
     var writing: DraftWriting?
+    /// How to fetch the unchanged lines around a hunk. Nil leaves the
+    /// patch as GitHub sent it, which is what it was.
+    var expanding: FileExpanding?
     /// What the detail pane shows, for the strip down the right-hand
     /// side. Nil leaves the window a diff and nothing else.
     var inspector: PullRequestDetailView?
@@ -669,7 +672,14 @@ struct DiffOverlay: View {
                         path: file.path,
                         draft: draft?.comments(in: file.path) ?? [],
                         writing: writing,
-                        column: width
+                        column: width,
+                        content: file.blob.flatMap { expanding?.content($0) },
+                        isFetchingContent: file.blob.map {
+                            expanding?.isFetching($0) ?? false
+                        } ?? false,
+                        fetchContent: file.canExpand
+                            ? { if let blob = file.blob { expanding?.fetch(blob) } }
+                            : nil
                     )
                     .padding(.vertical, 6)
                 }
@@ -752,8 +762,33 @@ struct PatchLines: View {
     /// so it reads as prose rather than as a very long line.
     var column: CGFloat = 400
 
+    /// The whole file, where it has been fetched, for the lines between
+    /// the hunks. Nil leaves the patch as GitHub sent it.
+    var content: FileContent?
+    var isFetchingContent = false
+    /// Asks for the file. Nil leaves the gaps closed and unoffered.
+    var fetchContent: (() -> Void)?
+
     @StateObject private var target = DraftTarget()
     @StateObject private var hovered = HoveredRow()
+    @StateObject private var expansion = Expansion()
+
+    /// Where the patch is silent, if the file is here to say.
+    ///
+    /// Keyed by the index of the patch line the gap sits above, which is
+    /// the same index the conversations are anchored by -- so the rows
+    /// drawn for a gap are inserted beside the patch's own rows without
+    /// moving any of them.
+    private var gaps: [Int: DiffGaps.Gap] {
+        guard fetchContent != nil else { return [:] }
+        let total = content?.lines?.count ?? 0
+        // Before the file is here the gaps are still worth drawing, so
+        // there is something to press. Only the tail needs its length.
+        // From the cache: this runs again every time the body does, and
+        // the body runs again whenever the pointer crosses a row.
+        let found = DiffCache.shared.gaps(in: patch, fileLines: total)
+        return Dictionary(uniqueKeysWithValues: found.map { ($0.afterPatchLine, $0) })
+    }
 
     private var lines: [Line] {
         // Numbered even where the gutter is hidden: the number is how a
@@ -809,6 +844,9 @@ struct PatchLines: View {
         let anchors = anchors
         VStack(alignment: .leading, spacing: 0) {
             ForEach(lines) { line in
+                if let gap = gaps[line.id] {
+                    expanded(gap, digits: digits)
+                }
                 row(line, digits: digits)
                 if let here = anchors[line.id] {
                     conversations(here)
@@ -821,8 +859,69 @@ struct PatchLines: View {
                         .zIndex(isDrafting(line) ? 1 : 0)
                 }
             }
+            // Whatever follows the last hunk, which has no patch line to
+            // hang off.
+            if let tail = gaps.values.first(where: { $0.afterPatchLine >= lines.count }) {
+                expanded(tail, digits: digits)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// What is drawn where the patch is silent: the lines already opened,
+    /// and a row offering whatever is left.
+    @ViewBuilder
+    private func expanded(_ gap: DiffGaps.Gap, digits: Int) -> some View {
+        let text = content?.lines
+        ForEach(expansion.shown(gap), id: \.lowerBound) { range in
+            ForEach(Array((text?.lines(from: range.lowerBound, through: range.upperBound) ?? [])
+                .enumerated()), id: \.offset) { offset, source in
+                contextRow(
+                    source,
+                    number: DiffLineNumber(
+                        old: range.lowerBound + offset + gap.oldOffset,
+                        new: range.lowerBound + offset
+                    ),
+                    digits: digits
+                )
+            }
+        }
+        if let left = expansion.gap(gap) {
+            ExpanderRow(
+                gap: left,
+                content: content,
+                isLoading: isFetchingContent,
+                open: { expansion.open(gap, $0) },
+                fetch: { fetchContent?() }
+            )
+            .frame(width: column, alignment: .leading)
+        }
+    }
+
+    /// An unchanged line that the patch left out, drawn like the
+    /// unchanged lines it stands among -- because that is what it is.
+    private func contextRow(
+        _ source: String, number: DiffLineNumber, digits: Int
+    ) -> some View {
+        HStack(alignment: .top, spacing: 0) {
+            if showsLineNumbers { gutter(number, digits: digits) }
+            Text(verbatim: " ")
+                .font(.system(size: fontSize).monospaced())
+                .frame(width: markerWidth, alignment: .leading)
+            CodeText(
+                source: source,
+                language: language,
+                // Not known for a line the patch never carried: the
+                // highlighter is handed one line at a time and this one
+                // has no neighbour in the patch to inherit from.
+                insideComment: false,
+                font: .system(size: fontSize).monospaced(),
+                emphasis: [],
+                emphasisTint: .clear
+            )
+            .padding(.trailing, 12)
+        }
+        .padding(.vertical, 1)
     }
 
     /// Whether the box is open on this row.

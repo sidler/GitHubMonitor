@@ -19,14 +19,22 @@ public enum DiffGaps {
         public let afterPatchLine: Int
         public let first: Int
         public let last: Int
+        /// What to add to a new-file line number to get the old one.
+        ///
+        /// Unchanged lines exist in both files at a fixed distance apart,
+        /// and that distance is what the hunk header either side of the
+        /// gap states. Without it the gutter could only honestly fill one
+        /// of its two columns.
+        public let oldOffset: Int
 
         public var id: Int { afterPatchLine }
         public var count: Int { last - first + 1 }
 
-        public init(afterPatchLine: Int, first: Int, last: Int) {
+        public init(afterPatchLine: Int, first: Int, last: Int, oldOffset: Int = 0) {
             self.afterPatchLine = afterPatchLine
             self.first = first
             self.last = last
+            self.oldOffset = oldOffset
         }
     }
 
@@ -41,6 +49,7 @@ public enum DiffGaps {
         // numbering. The first line of a file is one.
         var expected = 1
         var newLine = 0
+        var oldLine = 0
         var index = 0
 
         var rows = patch.components(separatedBy: "\n")
@@ -58,10 +67,12 @@ public enum DiffGaps {
                 guard let starts = DiffLineNumbers.starts(ofHunk: line) else { continue }
                 if starts.new > expected {
                     gaps.append(Gap(
-                        afterPatchLine: index, first: expected, last: starts.new - 1
+                        afterPatchLine: index, first: expected, last: starts.new - 1,
+                        oldOffset: starts.old - starts.new
                     ))
                 }
                 newLine = starts.new - 1
+                oldLine = starts.old - 1
                 expected = starts.new
                 continue
             }
@@ -69,16 +80,27 @@ public enum DiffGaps {
             // Only the two kinds of line that exist in the new file. A
             // removal is not there, and "\ No newline at end of file" is
             // a note about the file rather than a line of it.
+            if line.hasPrefix("-") {
+                guard newLine > 0 else { continue }
+                oldLine += 1
+                continue
+            }
             if line.hasPrefix("+") || line.hasPrefix(" ") || line.isEmpty {
                 guard newLine > 0 || !line.isEmpty else { continue }
                 newLine += 1
+                // An addition exists in the new file only, so it widens
+                // the distance between the two.
+                if !line.hasPrefix("+") { oldLine += 1 }
                 expected = newLine + 1
             }
         }
 
         // Whatever follows the last hunk.
         if total >= expected, newLine > 0 {
-            gaps.append(Gap(afterPatchLine: index, first: expected, last: total))
+            gaps.append(Gap(
+                afterPatchLine: index, first: expected, last: total,
+                oldOffset: oldLine - newLine
+            ))
         }
         return gaps
     }

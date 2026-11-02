@@ -133,6 +133,38 @@ struct DiffGapsTests {
         )
     }
 
+    /// Unchanged lines exist in both files a fixed distance apart, and
+    /// that distance is what the gutter needs to fill both its columns.
+    @Test("A gap knows how far the old file is from the new one")
+    func offset() {
+        // Both hunks sit at the same line in both files, so there is no
+        // distance between them.
+        #expect(DiffGaps.gaps(in: twoHunks, fileLines: 40).allSatisfy { $0.oldOffset == 0 })
+
+        // Three lines went away above the gap, so the old file is three
+        // lines ahead of the new one from there on.
+        let shrunk = """
+            @@ -1,6 +1,3 @@
+             one
+            -two
+            -three
+            -four
+             five
+             six
+            """
+        #expect(DiffGaps.gaps(in: shrunk, fileLines: 9).map(\.oldOffset) == [3])
+
+        // And two lines arrived, so it falls two behind.
+        let grown = """
+            @@ -1,2 +1,4 @@
+             one
+            +added
+            +added again
+             two
+            """
+        #expect(DiffGaps.gaps(in: grown, fileLines: 9).map(\.oldOffset) == [-2])
+    }
+
     @Test("A patch with no hunks claims nothing")
     func empty() {
         #expect(DiffGaps.gaps(in: "", fileLines: 40).isEmpty)

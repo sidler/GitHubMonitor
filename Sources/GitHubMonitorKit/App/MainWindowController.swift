@@ -357,6 +357,19 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
                     )
                 )
             },
+            expanding: item.map { item in
+                FileExpanding(
+                    content: { [state] blob in state.fileContents[blob] },
+                    isFetching: { [state] blob in
+                        state.fileContentsInFlight.contains(blob)
+                    },
+                    fetch: { [controller] blob in
+                        controller.loadFileContent(
+                            blob: blob, inRepository: item.repository
+                        )
+                    }
+                )
+            },
             inspector: item.map { inspector(for: $0, in: opened) },
             showsInspector: state.settings.showsDiffInspector,
             setShowsInspector: { [state] in state.settings.showsDiffInspector = $0 },
@@ -716,8 +729,11 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             // header.
             _ = state.settings.showsDiffInspector
             // The diff is open before the comments arrive, so it has to be
-            // rebuilt when they do.
+            // rebuilt when they do. The same goes for a file fetched to
+            // fill the gaps between its hunks.
             _ = state.reviewThreads
+            _ = state.fileContents
+            _ = state.fileContentsInFlight
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else { return }

@@ -485,12 +485,14 @@ public enum SampleData {
                 +
                 +        return $this->connection->insert(self::TABLE, ['id' => $id, 'data' => $data]);
                      }
-                """
+                """,
+                blob: handlerBlob
             ),
             ChangedFile(
                 path: "src/Session/migrations.yml",
                 additions: 2, deletions: 0, change: .modified,
-                patch: "@@ -4,2 +4,4 @@\n order:\n   - Migration20260901120000\n+  - Migration20260901123000\n+  # runs after the column exists\n"
+                patch: "@@ -4,2 +4,4 @@\n order:\n   - Migration20260901120000\n+  - Migration20260901123000\n+  # runs after the column exists\n",
+                blob: migrationsBlob
             ),
             // Two long patches in a row, deliberately. A file taller than
             // the column is the only way to be reading the middle of one,
@@ -619,6 +621,94 @@ public enum SampleData {
 
     /// One file ticked off, one changed since it was ticked, and the rest
     /// untouched -- all three states the diff has to draw.
+    /// The file the patch above is a patch of, so the rows that fetch the
+    /// code around a hunk have somewhere to fetch from without a token.
+    ///
+    /// Long enough on both sides of the hunk that the gaps are worth
+    /// opening: GitHub sends lines 118 to 129 and says nothing about the
+    /// hundred and seventeen above or the thirty below.
+    public static let handlerBlob = "sample-handler-blob"
+
+    public static func handlerFile() -> FileContent {
+        var lines: [String] = [
+            "<?php",
+            "",
+            "namespace Octo\\Server\\Session;",
+            "",
+            "use Octo\\Server\\Database\\Connection;",
+            "",
+            "/**",
+            " * Keeps a session in the database rather than on disk, so any",
+            " * machine behind the balancer can answer any request.",
+            " */",
+            "class SessionHandler implements SessionHandlerInterface",
+            "{",
+            "    private const TABLE = 'sessions';",
+            "",
+            "    public function __construct(private Connection $connection)",
+            "    {",
+            "    }",
+            "",
+        ]
+        // Filler, so the gaps are long enough to be worth opening.
+        while lines.count < 117 {
+            let n = lines.count
+            lines.append("    // line \(n + 1) of the file, left out of the patch")
+        }
+        lines += [
+            "    public function write(string $id, string $data): bool",
+            "    {",
+            "        // The unique index fails on rows written before 8.3.",
+            "        if ($this->connection->has(self::TABLE, $id)) {",
+            "            return $this->connection->update(self::TABLE, ['data' => $data]);",
+            "        }",
+            "",
+            "        return $this->connection->insert(self::TABLE, ['id' => $id, 'data' => $data]);",
+            "    }",
+            "",
+            "    public function destroy(string $id): bool",
+            "    {",
+            "        return $this->connection->delete(self::TABLE, $id);",
+            "    }",
+            "",
+            "    public function gc(int $lifetime): int",
+            "    {",
+            "        return $this->connection->purge(self::TABLE, $lifetime);",
+            "    }",
+            "}",
+        ]
+        return .text(FileText(lines.joined(separator: "\n")))
+    }
+
+    /// A blob the sample can hand back a whole file for, so the rows
+    /// that fetch the code around a hunk can be worked without a token.
+    public static let migrationsBlob = "sample-migrations-blob"
+
+    /// What that file looks like in full. The patch above accounts for
+    /// lines four and five; everything else here is what the gaps hold.
+    public static func migrationsFile() -> FileContent {
+        .text(FileText("""
+        # Applied in the order below. Do not reorder by hand: the
+        # numbers are timestamps and the runner trusts them.
+        schema: 3
+
+        order:
+          - Migration20260901120000
+          - Migration20260901123000
+          # runs after the column exists
+          - Migration20260902090000
+          - Migration20260902143000
+          - Migration20260903101500
+
+        # Anything under this line has already run everywhere and is
+        # kept so a fresh database can be built from nothing.
+        applied:
+          - Migration20260814090000
+          - Migration20260815113000
+          - Migration20260816154500
+        """))
+    }
+
     public static func viewedFiles() -> [String: FileViewedState] {
         [
             "src/Session/migrations.yml": .viewed,

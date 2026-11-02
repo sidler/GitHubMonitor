@@ -254,6 +254,18 @@ public final class AppState {
     /// rather than inside it: it is a second request, to a different API,
     /// and one arriving should not wait on the other.
     public var changedFiles: [String: ChangedFilesState] = [:]
+
+    /// Whole files, keyed by the blob they were fetched by.
+    ///
+    /// By blob rather than by path and pull request: a blob is named by
+    /// its own contents, so the same file at the same revision in two
+    /// pull requests is one entry. Fetched only when somebody asks to see
+    /// around a hunk -- a review of forty-three files should not pull
+    /// forty-three files nobody opened.
+    public var fileContents: [String: FileContent] = [:]
+    /// Blobs with a request already in the air, so a second press does
+    /// not send a second one.
+    public var fileContentsInFlight: Set<String> = []
     /// Set to whatever the first visible list is at launch; the fallback
     /// only matters until `normaliseSelection()` runs in `init`.
     public var sidebarSelection: SidebarSelection = .dashboard
@@ -790,6 +802,10 @@ public final class AppState {
         )
         linkedSummaries = SampleData.linkedSummaries()
         viewedFiles["pr-482"] = SampleData.viewedFiles()
+        // So the rows that fetch the code around a hunk can be worked
+        // without a token.
+        fileContents[SampleData.migrationsBlob] = SampleData.migrationsFile()
+        fileContents[SampleData.handlerBlob] = SampleData.handlerFile()
         reviewThreads["pr-482"] = SampleData.reviewThreads()
         reviewDrafts["pr-482"] = SampleData.reviewDraft()
         // The sample has no account, so nothing would fetch the pictures
