@@ -324,6 +324,14 @@ public final class AppState {
 
     /// What is left of GitHub's two hourly allowances, as last reported.
     public var budgets = RateBudgets()
+    /// Whether this window is in a tab group showing its tab bar.
+    ///
+    /// The window draws its own title into the content, where AppKit would
+    /// have drawn it. A tab bar puts the same title in the tab, and sits
+    /// between the two -- so the one drawn by hand ends up underneath it.
+    /// With a tab bar there is nothing left for it to say.
+    public var isTabBarVisible = false
+
     /// Whether the content column is scrolled away from its top. The title
     /// bar band only needs a material once rows are passing behind it.
     public var isContentScrolled = false

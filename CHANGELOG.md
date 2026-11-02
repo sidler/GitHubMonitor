@@ -16,6 +16,8 @@ What changed in each released version. The app shows this file itself, under
   the header: description, conversation, commits, checks, reviewers and
   the merge button, without going back to the list window.
 
+- **The tab bar no longer sits on top of the list's title.**
+
 - **Your own unsent remarks are marked in the file tree**, in the same
   purple they wear in the diff, so you can find your way back to what you
   have written but not sent.

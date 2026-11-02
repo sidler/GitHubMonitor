@@ -44,6 +44,10 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     /// The selection the window last reacted to, so a change can be told
     /// from the other state the tracking closure watches.
     private var lastSelection: SidebarSelection?
+    /// Watches the room left below the title bar, which is what a tab bar
+    /// takes from.
+    private var layoutObservation: NSKeyValueObservation?
+
     /// Width constraints on the toolbar's hosted views, kept so each one can
     /// be updated rather than stacking a new constraint on every switch.
     private var toolbarWidths: [NSToolbarItem.Identifier: NSLayoutConstraint] = [:]
@@ -181,6 +185,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         observeSelection()
         observeScrolling()
         observeSidebarCollapse()
+        observeTabBar()
         // Something can already be open when the window is first built --
         // the popover selects as it loads -- and the tracking closure only
         // fires on the next change after that.
@@ -896,6 +901,30 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     }
 
     // MARK: - Window lifecycle
+
+    public func windowDidBecomeMain(_ notification: Notification) {
+        syncTabBar()
+    }
+
+    /// A tab bar coming or going is not a resize.
+    ///
+    /// `windowDidResize` was the obvious hook and the wrong one: the
+    /// window's frame does not change when the bar appears, only the room
+    /// left below the title bar does. `contentLayoutRect` is exactly that
+    /// room, and it is observable.
+    private func observeTabBar() {
+        guard let window else { return }
+        layoutObservation = window.observe(
+            \.contentLayoutRect, options: [.initial, .new]
+        ) { [weak self] _, _ in
+            MainActor.assumeIsolated { self?.syncTabBar() }
+        }
+    }
+
+    private func syncTabBar() {
+        let visible = window?.tabGroup?.isTabBarVisible ?? false
+        if state.isTabBarVisible != visible { state.isTabBarVisible = visible }
+    }
 
     public func windowWillClose(_ notification: Notification) {
         NotificationCenter.default.removeObserver(self, name: NSView.boundsDidChangeNotification, object: nil)

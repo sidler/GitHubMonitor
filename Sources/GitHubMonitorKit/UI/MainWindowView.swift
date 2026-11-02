@@ -198,9 +198,17 @@ struct ContentColumn: View {
                 .fill(state.isContentScrolled ? AnyShapeStyle(.ultraThinMaterial) : AnyShapeStyle(.clear))
                 .animation(.easeOut(duration: 0.15), value: state.isContentScrolled)
 
-            windowTitle
-                .frame(maxWidth: max(80, width - reservedForControls), alignment: .leading)
-                .padding(.leading, titleInset)
+            // Not while a tab bar is up. The band is as tall as the whole
+            // inset above the content, and a tab bar is part of that
+            // inset -- so a title centred in it lands behind the bar
+            // rather than above it. The tab already carries the same
+            // words, which is why there is nothing to move it to: with
+            // tabs, the tab is the title.
+            if !state.isTabBarVisible {
+                windowTitle
+                    .frame(maxWidth: max(80, width - reservedForControls), alignment: .leading)
+                    .padding(.leading, titleInset)
+            }
         }
         .frame(height: height)
         .ignoresSafeArea(edges: .top)
