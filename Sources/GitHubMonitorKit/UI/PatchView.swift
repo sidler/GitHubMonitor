@@ -63,9 +63,14 @@ struct DiffOverlay: View {
     /// like the layout is, so it is answered once rather than per window.
     var showsInspector: Bool = false
     var setShowsInspector: ((Bool) -> Void)?
+    /// How wide that strip starts, and where to write it once it has been
+    /// dragged. Nil leaves the edge fixed.
+    var startingInspectorWidth: Double = Settings.defaultDiffInspectorWidth
+    var setInspectorWidth: ((Double) -> Void)?
 
     @StateObject private var open = OpenFolders()
     @StateObject private var sidebar = SidebarWidth()
+    @StateObject private var inspectorEdge = SidebarWidth()
     /// Which file is at the top of the column, kept here rather than in the
     /// app's state.
     ///
@@ -93,6 +98,7 @@ struct DiffOverlay: View {
             // afterwards is nobody's business but the overlay's.
             if place.path == nil { place.go(to: startingPath) }
             sidebar.width = Settings.clampedSidebarWidth(startingSidebarWidth)
+            inspectorEdge.width = Settings.clampedInspectorWidth(startingInspectorWidth)
         }
         .onReceive(NotificationCenter.default.publisher(for: .diffStepFile)) { note in
             // Only if it was addressed here. Several reviews may be open,
@@ -135,18 +141,21 @@ struct DiffOverlay: View {
                 // of prose, and prose wider than this is harder to read
                 // rather than easier.
                 if showsInspector, let inspector {
-                    Divider()
+                    SidebarHandle(
+                        width: inspectorEdge.width,
+                        side: .trailing,
+                        clamp: Settings.clampedInspectorWidth
+                    ) { chosen in
+                        inspectorEdge.width = chosen
+                        setInspectorWidth?(chosen)
+                    }
                     inspector
-                        .frame(width: Self.inspectorWidth)
+                        .frame(width: inspectorEdge.width)
                 }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
-
-    /// Wide enough for the description and a conversation, narrow enough
-    /// that the diff keeps most of the window.
-    static let inspectorWidth: CGFloat = 266
 
     /// Which files the column draws: all of them, or the one being read.
     ///
@@ -1375,8 +1384,17 @@ final class SidebarWidth: ObservableObject {
 /// the whole diff on every frame of the drag for a number only the line
 /// was waiting on.
 private struct SidebarHandle: View {
+    /// Which side of the window the panel being dragged is on.
+    ///
+    /// It decides the sign of the arithmetic and nothing else: on the
+    /// left, dragging right widens the panel; on the right it narrows it,
+    /// because the edge being moved is its leading edge.
+    enum Side { case leading, trailing }
+
     /// Where the edge is now. It does not move until the hand comes off.
     let width: CGFloat
+    var side: Side = .leading
+    var clamp: @MainActor (Double) -> Double = Settings.clampedSidebarWidth
     let commit: (CGFloat) -> Void
 
     @StateObject private var drag = HandleDrag()
@@ -1405,14 +1423,18 @@ private struct SidebarHandle: View {
             // of the diff wraps to its column, so changing that column on
             // every frame re-wraps the whole file sixty times a second --
             // which is not resizing, it is flickering.
-            .offset(x: (drag.proposed ?? width) - width)
+            .offset(
+                x: ((drag.proposed ?? width) - width) * (side == .leading ? 1 : -1)
+            )
             .gesture(
                 DragGesture(minimumDistance: 1)
                     .onChanged { gesture in
                         drag.isHovering = true
-                        drag.proposed = Settings.clampedSidebarWidth(
-                            width + gesture.translation.width
-                        )
+                        drag.proposed = clamp(Settings.draggedWidth(
+                            from: width,
+                            by: gesture.translation.width,
+                            onTrailingEdge: side == .trailing
+                        ))
                     }
                     .onEnded { _ in
                         if let proposed = drag.proposed { commit(proposed) }

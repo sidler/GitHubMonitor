@@ -359,7 +359,11 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             },
             inspector: item.map { inspector(for: $0, in: opened) },
             showsInspector: state.settings.showsDiffInspector,
-            setShowsInspector: { [state] in state.settings.showsDiffInspector = $0 }
+            setShowsInspector: { [state] in state.settings.showsDiffInspector = $0 },
+            startingInspectorWidth: state.settings.diffInspectorWidth,
+            setInspectorWidth: { [state] width in
+                state.settings.diffInspectorWidth = width
+            }
         )
     }
 

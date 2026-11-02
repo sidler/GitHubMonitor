@@ -14,7 +14,8 @@ What changed in each released version. The app shows this file itself, under
 
 - **The pull request's details beside its diff**, on ⌥⌘I or the button in
   the header: description, conversation, commits, checks, reviewers and
-  the merge button, without going back to the list window.
+  the merge button, without going back to the list window. Drag its edge
+  to set how much of the window it takes; the width is remembered.
 
 - **The tab bar no longer sits on top of the list's title.**
 

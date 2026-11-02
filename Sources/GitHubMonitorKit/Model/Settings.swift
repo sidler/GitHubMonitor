@@ -140,6 +140,28 @@ public final class Settings {
     public static let narrowestDiffSidebar: Double = 160
     public static let widestDiffSidebar: Double = 560
 
+    /// How wide the strip of facts beside a review is, in points.
+    ///
+    /// Remembered for the same reason the file list's width is: how much
+    /// of a window belongs to prose and how much to code is a judgement
+    /// about one person's screen, and nobody wants to make it twice.
+    public var diffInspectorWidth: Double {
+        didSet {
+            let clamped = Self.clampedInspectorWidth(diffInspectorWidth)
+            if clamped != diffInspectorWidth {
+                diffInspectorWidth = clamped
+                return
+            }
+            store.set(diffInspectorWidth, forKey: Key.diffInspectorWidth)
+        }
+    }
+
+    public static let defaultDiffInspectorWidth: Double = 266
+    /// Narrow enough to be a column of facts, not so narrow that a
+    /// heading breaks inside a word.
+    public static let narrowestDiffInspector: Double = 200
+    public static let widestDiffInspector: Double = 620
+
     /// Clamped on the way in as well as out: this is read from
     /// preferences, which anything can write, and a list of no width is a
     /// diff with no way back to its files.
@@ -197,6 +219,23 @@ public final class Settings {
 
     public static func clampedSidebarWidth(_ width: Double) -> Double {
         min(max(width.rounded(), narrowestDiffSidebar), widestDiffSidebar)
+    }
+
+    public static func clampedInspectorWidth(_ width: Double) -> Double {
+        min(max(width.rounded(), narrowestDiffInspector), widestDiffInspector)
+    }
+
+    /// Where a dragged edge puts a panel's width, before clamping.
+    ///
+    /// The sign is the whole of it, and it is easy to get backwards: a
+    /// panel on the left grows as the pointer moves right, because the
+    /// edge being dragged is its trailing one. A panel on the right grows
+    /// as the pointer moves *left*, because the edge being dragged is its
+    /// leading one.
+    public static func draggedWidth(
+        from start: Double, by translation: Double, onTrailingEdge: Bool
+    ) -> Double {
+        start + (onTrailingEdge ? -translation : translation)
     }
 
     /// Whether the diff carries the line numbers of both files.
@@ -356,6 +395,10 @@ public final class Settings {
             store.object(forKey: Key.diffSidebarWidth) as? Double
                 ?? Self.defaultDiffSidebarWidth
         )
+        diffInspectorWidth = Self.clampedInspectorWidth(
+            store.object(forKey: Key.diffInspectorWidth) as? Double
+                ?? Self.defaultDiffInspectorWidth
+        )
         // Absent means on rather than off: a fresh install should show
         // them, and `as? Bool` on a missing key is nil, not false.
         showsDiffLineNumbers = store.object(forKey: Key.showsDiffLineNumbers) as? Bool ?? true
@@ -491,6 +534,7 @@ public final class Settings {
         static let diffLayout = "diffLayout"
         static let diffPaging = "diffPaging"
         static let diffSidebarWidth = "diffSidebarWidth"
+        static let diffInspectorWidth = "diffInspectorWidth"
         static let linkedPanelWidth = "linkedPanelWidth"
         static let linkedPanelHeight = "linkedPanelHeight"
         static let notificationReasons = "notificationReasons"
