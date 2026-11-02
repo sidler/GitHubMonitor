@@ -56,3 +56,43 @@ struct TokenScopesTests {
         #expect(scopes.missing == ["repo"])
     }
 }
+
+/// The settings screen promises what the token will be used for, and the
+/// promise has to match the code. It once said the app wrote "exactly one
+/// thing" for several releases after it had learnt to merge, to label and
+/// to resolve.
+@Suite("What the token is said to be for")
+struct TokenPurposeTests {
+    private var repoPurpose: String {
+        TokenScopes.required.first { $0.scope == "repo" }?.purpose ?? ""
+    }
+
+    /// One line per kind of write the app performs. Adding a mutation
+    /// without naming it here should fail, which is the point.
+    @Test("Every kind of write the app does is named")
+    func namesEveryWrite() {
+        for write in ["remarks", "review", "resolving", "labels", "viewed", "merging"] {
+            #expect(
+                repoPurpose.localizedCaseInsensitiveContains(write),
+                "the repo scope does not say it writes \(write)"
+            )
+        }
+    }
+
+    /// The scope grants write across every repository the account can
+    /// reach, and saying otherwise would be the one misstatement that
+    /// matters here.
+    @Test("The scope is described as the full access it is")
+    func saysItIsFullAccess() {
+        #expect(repoPurpose.localizedCaseInsensitiveContains("full access"))
+        #expect(repoPurpose.localizedCaseInsensitiveContains("private"))
+        #expect(!repoPurpose.localizedCaseInsensitiveContains("exactly one"))
+    }
+
+    @Test("Notifications say both halves of what they are for")
+    func notifications() {
+        let purpose = TokenScopes.required.first { $0.scope == "notifications" }?.purpose
+        #expect(purpose?.contains("read") == true)
+        #expect(purpose?.contains("mark them read") == true)
+    }
+}

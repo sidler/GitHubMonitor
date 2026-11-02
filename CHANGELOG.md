@@ -5,6 +5,10 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **The token's description in Settings lists everything the app writes**
+  with it: remarks and replies, reviews, resolving conversations, labels,
+  viewed ticks and merges.
+
 - **Reviews open in their own window**, with the code running to the
   edges.
 - **Several reviews at once, as tabs.** A tab shows a dot while it holds

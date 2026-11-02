@@ -27,14 +27,24 @@ public struct TokenScopes: Equatable, Sendable {
     ///
     /// `repo` is written as what it is. GitHub's classic scope has no
     /// read-only half: it grants write across every repository the account
-    /// can reach, and the description used to say "read", which was already
-    /// misleading before the app approved anything.
+    /// can reach.
+    ///
+    /// The list of writes is part of the promise, so it has to be kept.
+    /// It said "exactly one thing: the approval you confirm in the diff"
+    /// for several releases after the app had learnt to merge, to label
+    /// and to resolve -- a sentence that was true when it was written and
+    /// a misstatement by the time anybody read it. **Anything added that
+    /// writes to GitHub belongs here**: the mutations live in
+    /// `ApprovalQuery`, `MergeQuery`, `LabelQuery`, `ReviewThreadsQuery`
+    /// and `ViewedFilesQuery`.
     public static let required: [(scope: String, purpose: String)] = [
         (
             "repo",
-            "full access to repositories, including private ones. The app reads pull "
-                + "requests and issues with it, and writes exactly one thing: the approval "
-                + "you confirm in the diff."
+            "full access to repositories, including private ones; GitHub's classic "
+                + "scope has no read-only half. The app reads pull requests and issues, "
+                + "and writes what you ask it to: remarks and replies on a diff, a "
+                + "review (approve, request changes or comment), resolving a "
+                + "conversation, labels, viewed ticks, and merging a pull request."
         ),
         ("notifications", "read notifications and mark them read"),
     ]
