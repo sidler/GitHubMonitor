@@ -3,7 +3,7 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
-## Unreleased
+## 2.4.0
 
 - **The token's description in Settings lists everything the app writes**
   with it: remarks and replies, reviews, resolving conversations, labels,
