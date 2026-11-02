@@ -18,6 +18,9 @@ What changed in each released version. The app shows this file itself, under
 
 - **The tab bar no longer sits on top of the list's title.**
 
+- **No stray divider in the diff's header** before you have ticked a
+  file off.
+
 - **Your own unsent remarks are marked in the file tree**, in the same
   purple they wear in the diff, so you can find your way back to what you
   have written but not sent.

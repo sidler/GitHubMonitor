@@ -158,6 +158,13 @@ struct DiffOverlay: View {
         return DiffPager.shown(place.path, in: files).map { [$0] } ?? []
     }
 
+    /// Whether the tick count is on the bar. The divider after it has
+    /// nothing to divide when it is not.
+    private var showsViewedCount: Bool {
+        guard let viewed else { return false }
+        return viewed.count(of: files) > 0
+    }
+
     private var header: some View {
         HStack(spacing: 10) {
             // No headline saying how many files there are. The number is
@@ -168,7 +175,7 @@ struct DiffOverlay: View {
             //
             // The number a review is actually measured against, next to
             // the one it is measured out of.
-            if let viewed, viewed.count(of: files) > 0 {
+            if showsViewedCount, let viewed {
                 Text("\(viewed.count(of: files)) of \(files.count) viewed")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -180,7 +187,11 @@ struct DiffOverlay: View {
             // read rather than to the controls for leaving -- and because
             // the other end of the bar is three review buttons deep.
             if paging == .oneFile, let place = DiffPager.place(of: place.path, in: files) {
-                Divider().frame(height: 14)
+                // Only where there is something to its left. Until a
+                // file has been ticked off there is no count in front of
+                // it, and a divider dividing the pager from the edge of
+                // the bar is a line nobody drew on purpose.
+                if showsViewedCount { Divider().frame(height: 14) }
                 pager(place)
             }
 
