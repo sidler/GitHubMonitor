@@ -56,6 +56,13 @@ struct DiffOverlay: View {
     var draft: ReviewDraft?
     /// How to write into it. Nil leaves the diff a reader.
     var writing: DraftWriting?
+    /// What the detail pane shows, for the strip down the right-hand
+    /// side. Nil leaves the window a diff and nothing else.
+    var inspector: PullRequestDetailView?
+    /// Whether that strip is on screen, and how to change it. Remembered
+    /// like the layout is, so it is answered once rather than per window.
+    var showsInspector: Bool = false
+    var setShowsInspector: ((Bool) -> Void)?
 
     @StateObject private var open = OpenFolders()
     @StateObject private var sidebar = SidebarWidth()
@@ -122,10 +129,24 @@ struct DiffOverlay: View {
                 index
                 handle
                 diffs
+                // The facts about the pull request, where somebody
+                // reviewing it would otherwise have to go back to the
+                // list window to read them. A fixed width: it is a column
+                // of prose, and prose wider than this is harder to read
+                // rather than easier.
+                if showsInspector, let inspector {
+                    Divider()
+                    inspector
+                        .frame(width: Self.inspectorWidth)
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
+
+    /// Wide enough for the description and a conversation, narrow enough
+    /// that the diff keeps most of the window.
+    static let inspectorWidth: CGFloat = 266
 
     /// Which files the column draws: all of them, or the one being read.
     ///
@@ -236,6 +257,15 @@ struct DiffOverlay: View {
                 Label("All files on GitHub", systemImage: "arrow.up.forward.square")
             }
             .buttonStyle(.accessoryBar)
+
+            if let setShowsInspector, inspector != nil {
+                Button { setShowsInspector(!showsInspector) } label: {
+                    Image(systemName: showsInspector
+                        ? "sidebar.right" : "info.circle")
+                }
+                .buttonStyle(.accessoryBar)
+                .help(showsInspector ? "Hide the details" : "Show the details")
+            }
 
             // No cancel shortcut on it. It carried one while the diff was
             // a card, where escape meant "put this away" -- in a window

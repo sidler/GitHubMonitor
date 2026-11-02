@@ -68,6 +68,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             toggleDiffLineNumbers: { [state] in
                 state.settings.showsDiffLineNumbers.toggle()
             },
+            showsDiffInspector: { [state] in state.settings.showsDiffInspector },
+            toggleDiffInspector: { [state] in
+                state.settings.showsDiffInspector.toggle()
+            },
             diffLayout: { [state] in state.settings.diffLayout },
             setDiffLayout: { [state] layout in state.settings.diffLayout = layout },
             diffPaging: { [state] in state.settings.diffPaging },

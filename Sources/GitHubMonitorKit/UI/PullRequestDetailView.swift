@@ -19,11 +19,28 @@ struct PullRequestDetailView: View {
     /// Where to ask for a merge. The same thing `labelling` is; named
     /// separately so a pane can be given one and not the other.
     var writing: PaneWriting?
+    /// Where this is standing, which decides what it draws around the
+    /// facts rather than which facts it draws.
+    var surround: Surround = .pane
+
+    /// The two places the same facts are wanted.
+    enum Surround {
+        /// Beside the list: its own title bar with a close button, and a
+        /// Files section that opens the diff.
+        case pane
+        /// Inside a review window: the title is the window's, the diff is
+        /// already open and its files are in the tree beside it -- so a
+        /// header and a file list here would each be the second copy of
+        /// something already on screen.
+        case inspector
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            header
-            Divider()
+            if surround == .pane {
+                header
+                Divider()
+            }
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
@@ -55,7 +72,7 @@ struct PullRequestDetailView: View {
                                 pane: writing
                             )
                         }
-                        changedFiles
+                        if surround == .pane { changedFiles }
                         checks(detail)
                         reviewers(detail)
                     case .failed(let message):
@@ -307,7 +324,13 @@ struct PullRequestDetailView: View {
 
     private func changes(_ detail: PullRequestDetail) -> some View {
         Section {
-            HStack(spacing: 14) {
+            // Wrapping rather than a row: five numbers and their captions
+            // do not fit the inspector's two hundred and sixty-six
+            // points, and an HStack answers that by hyphenating the
+            // captions -- "remo-ved", "conversa-tions". In the wider pane
+            // it still comes out as one line, which is what a flow row
+            // does when there is room.
+            FlowRow(spacing: 14) {
                 statistic(
                     "\(detail.changedFiles)",
                     caption: detail.changedFiles == 1 ? "file" : "files",
@@ -481,6 +504,10 @@ struct PullRequestDetailView: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
+        // A caption is one word and stays one word. Offered less width
+        // than it wants it would otherwise break inside the word, which
+        // is how "removed" became "remo-ved" in the inspector.
+        .fixedSize()
     }
 
     @ViewBuilder

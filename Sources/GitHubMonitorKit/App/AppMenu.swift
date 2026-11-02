@@ -19,6 +19,8 @@ enum AppMenu {
         resetDiffFontSize: @escaping () -> Void,
         showsDiffLineNumbers: @escaping () -> Bool,
         toggleDiffLineNumbers: @escaping () -> Void,
+        showsDiffInspector: @escaping () -> Bool,
+        toggleDiffInspector: @escaping () -> Void,
         diffLayout: @escaping () -> DiffLayout,
         setDiffLayout: @escaping (DiffLayout) -> Void,
         diffPaging: @escaping () -> DiffPaging,
@@ -39,6 +41,8 @@ enum AppMenu {
             resetDiffFontSize: resetDiffFontSize,
             showsDiffLineNumbers: showsDiffLineNumbers,
             toggleDiffLineNumbers: toggleDiffLineNumbers,
+            showsDiffInspector: showsDiffInspector,
+            toggleDiffInspector: toggleDiffInspector,
             diffLayout: diffLayout,
             setDiffLayout: setDiffLayout,
             diffPaging: diffPaging,
@@ -166,6 +170,8 @@ enum AppMenu {
         resetDiffFontSize: @escaping () -> Void,
         showsDiffLineNumbers: @escaping () -> Bool,
         toggleDiffLineNumbers: @escaping () -> Void,
+        showsDiffInspector: @escaping () -> Bool,
+        toggleDiffInspector: @escaping () -> Void,
         diffLayout: @escaping () -> DiffLayout,
         setDiffLayout: @escaping (DiffLayout) -> Void,
         diffPaging: @escaping () -> DiffPaging,
@@ -271,6 +277,18 @@ enum AppMenu {
         )
         numbers.isOn = showsDiffLineNumbers
         menu.addItem(numbers)
+
+        // The strip of facts beside a review. In the menu as well as on
+        // the button in the diff's own header, because that is where the
+        // other switches about a diff already are -- and because a menu
+        // item can be reached from the keyboard.
+        let inspector = ActionItem(
+            title: "Show Pull Request Details", keyEquivalent: "i",
+            action: toggleDiffInspector
+        )
+        inspector.keyEquivalentModifierMask = [.command, .option]
+        inspector.isOn = showsDiffInspector
+        menu.addItem(inspector)
         menu.addItem(.separator())
         menu.addItem(
             withTitle: "Toggle Sidebar",

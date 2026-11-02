@@ -351,7 +351,35 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
                         }
                     )
                 )
-            }
+            },
+            inspector: item.map { inspector(for: $0, in: opened) },
+            showsInspector: state.settings.showsDiffInspector,
+            setShowsInspector: { [state] in state.settings.showsDiffInspector = $0 }
+        )
+    }
+
+    /// The detail pane's facts, for the strip down the side of a review.
+    ///
+    /// The same view the main window uses rather than a second one built
+    /// to look like it: two of them would be two places to change
+    /// whenever a pull request gains a field, and the one nobody was
+    /// looking at would be the one that fell behind.
+    private func inspector(
+        for item: PullRequestItem, in opened: OpenedDiff
+    ) -> PullRequestDetailView {
+        PullRequestDetailView(
+            item: item,
+            detail: state.pullRequestDetails[item.id],
+            files: state.changedFiles[item.id],
+            reload: { [controller] in controller.reloadDetail(for: item.id) },
+            // Shuts the strip rather than the window. There is no close
+            // button on it -- the header's own control is the way -- but
+            // the view asks for one and this is the honest answer.
+            close: { [state] in state.settings.showsDiffInspector = false },
+            linked: LinkedPanelContext(state: state, controller: controller),
+            labelling: PaneWriting(state: state, controller: controller),
+            writing: PaneWriting(state: state, controller: controller),
+            surround: .inspector
         )
     }
 
@@ -674,6 +702,10 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             // control that changes it sits in the diff, and the diff is
             // rebuilt rather than told.
             _ = state.settings.diffPaging
+            // Whether the strip of facts is beside the diff, for the same
+            // reason again: the control that opens it is in the diff's own
+            // header.
+            _ = state.settings.showsDiffInspector
             // The diff is open before the comments arrive, so it has to be
             // rebuilt when they do.
             _ = state.reviewThreads

@@ -209,6 +209,16 @@ public final class Settings {
         didSet { store.set(showsDiffLineNumbers, forKey: Key.showsDiffLineNumbers) }
     }
 
+    /// Whether a review window shows what the pane shows -- the
+    /// description, the conversation, the checks, the reviewers.
+    ///
+    /// Off to begin with. It is worth two hundred and sixty-six points of
+    /// code, and the question it answers is asked a few times in a review
+    /// rather than continuously; the diff is what the window is for.
+    public var showsDiffInspector: Bool {
+        didSet { store.set(showsDiffInspector, forKey: Key.showsDiffInspector) }
+    }
+
     /// One press of Larger or Smaller.
     ///
     /// Clamping rather than refusing: a step at the end of the range should
@@ -349,6 +359,7 @@ public final class Settings {
         // Absent means on rather than off: a fresh install should show
         // them, and `as? Bool` on a missing key is nil, not false.
         showsDiffLineNumbers = store.object(forKey: Key.showsDiffLineNumbers) as? Bool ?? true
+        showsDiffInspector = store.object(forKey: Key.showsDiffInspector) as? Bool ?? false
         diffFontSize = Self.clampedFontSize(
             store.object(forKey: Key.diffFontSize) as? Double ?? Self.defaultDiffFontSize
         )
@@ -476,6 +487,7 @@ public final class Settings {
         static let overdueDays = "overdueDays"
         static let diffFontSize = "diffFontSize"
         static let showsDiffLineNumbers = "showsDiffLineNumbers"
+        static let showsDiffInspector = "showsDiffInspector"
         static let diffLayout = "diffLayout"
         static let diffPaging = "diffPaging"
         static let diffSidebarWidth = "diffSidebarWidth"

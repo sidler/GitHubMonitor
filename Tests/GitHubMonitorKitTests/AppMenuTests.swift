@@ -21,6 +21,7 @@ struct AppMenuTests {
             openSettings: {}, refresh: {}, moveDetail: { _ in }, closeDetail: {},
             changeDiffFontSize: { _ in }, resetDiffFontSize: {},
             showsDiffLineNumbers: { true }, toggleDiffLineNumbers: {},
+            showsDiffInspector: { false }, toggleDiffInspector: {},
             diffLayout: { .unified }, setDiffLayout: { _ in },
             diffPaging: { .scroll }, setDiffPaging: { _ in },
             stepDiffFile: { _ in }, canStepDiffFile: { true }
@@ -85,6 +86,7 @@ struct DiffStepMenuTests {
             openSettings: {}, refresh: {}, moveDetail: { _ in }, closeDetail: {},
             changeDiffFontSize: { _ in }, resetDiffFontSize: {},
             showsDiffLineNumbers: { true }, toggleDiffLineNumbers: {},
+            showsDiffInspector: { false }, toggleDiffInspector: {},
             diffLayout: { .unified }, setDiffLayout: { _ in },
             diffPaging: { .scroll }, setDiffPaging: { _ in },
             stepDiffFile: { _ in }, canStepDiffFile: canStep
