@@ -69,36 +69,15 @@ struct DiffOverlay: View {
     @StateObject private var asked = AskedEvent()
 
     var body: some View {
-        ZStack {
-            // The dimmed ground is part of the control: clicking beside a
-            // window that covers what you were reading should put it away,
-            // and reaching for the button is the long way round.
-            Color.black.opacity(0.28)
-                .ignoresSafeArea()
-                .onTapGesture(perform: close)
-
-            card
-                // The shadow belongs to the shape behind the card, not to
-                // the card: `.shadow` on the content shadows everything
-                // drawn in it, so the divider between the file list and the
-                // diff was casting one across the first inch of every patch.
-                .background {
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(.background)
-                        .shadow(color: .black.opacity(0.25), radius: 24, y: 8)
-                }
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10).strokeBorder(.quaternary, lineWidth: 1)
-                )
-                // As large as the window, less a border of ground worth
-                // aiming at: clicking beside the card puts it away, and a
-                // hairline is not something anybody can hit. Nothing is
-                // capped beyond that -- a diff read on a large screen is
-                // exactly where a long file has somewhere to go, and the
-                // height was capped at eleven hundred points for no reason
-                // the comment above it ever gave.
-                .padding(36)
-        }
+        // The whole of whatever holds this, edge to edge. It used to be a
+        // card floating on a dimmed ground, inset by thirty-six points so
+        // that there was somewhere to click beside it -- which cost
+        // seventy-two points of width and the same of height, about seven
+        // per cent of the window, and made a diff look like a dialog to
+        // dismiss rather than an hour's work. It lives in a window of its
+        // own now, where the title bar is the way out and the ground
+        // beside it belongs to whatever is actually behind.
+        content
         .onAppear {
             // Once, so that opening on a file lands on it and scrolling
             // afterwards is nobody's business but the overlay's.
@@ -122,11 +101,14 @@ struct DiffOverlay: View {
             // saying three of six.
             place.go(to: place.path ?? files.first?.path)
         }
-        // Escape is handled by the view that hosts this, so that it stops
-        // here instead of reaching the list behind it.
     }
 
-    private var card: some View {
+    /// The bar of controls, and under it the tree and the patch.
+    ///
+    /// No rounded corners and nothing clipped: the window's own frame is
+    /// the shape now, and a view that rounds its own corners inside a
+    /// square window leaves four grey notches.
+    private var content: some View {
         VStack(spacing: 0) {
             header
             Divider()
@@ -136,7 +118,7 @@ struct DiffOverlay: View {
                 diffs
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     /// Which files the column draws: all of them, or the one being read.

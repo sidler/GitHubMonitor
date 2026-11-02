@@ -5,6 +5,9 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **A diff opens in its own window** instead of as a card over the app,
+  so the code runs to the edges and the lists behind it stay usable.
+
 - **Your own unsent remarks are marked in the file tree**, in the same
   purple they wear in the diff, so you can find your way back to what you
   have written but not sent.

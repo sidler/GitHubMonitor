@@ -30,10 +30,13 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
 
     private var inspectorItem: NSSplitViewItem?
     private var contentController: NSViewController?
-    /// The diff put up over the whole window, while one is open.
-    private var diffOverlay: DiffOverlayView<DiffOverlay>?
-    /// Whatever had the keyboard before the overlay took it.
-    private weak var responderBeforeDiff: NSResponder?
+    /// The window a diff is read in, while one is open.
+    private lazy var reviewWindow: ReviewWindowController = {
+        let controller = ReviewWindowController()
+        controller.onClose = { [weak self] in self?.state.openedDiff = nil }
+        controller.onDidClose = { [weak self] in self?.dropToAccessoryIfNothingIsLeft() }
+        return controller
+    }()
     /// Kept so the collapse of the sidebar can be read back: the title is
     /// drawn in the content column now, and has to step around the traffic
     /// lights that land on top of it when the sidebar goes away.
@@ -212,50 +215,41 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
 
     // MARK: - The diff
 
-    /// Puts the diff over the window, or takes it away.
+    /// Puts the diff in its own window, or takes it away.
     ///
-    /// A view over the split view rather than a sheet: a sheet's dimmed
-    /// ground belongs to the system, so clicking beside it does nothing --
-    /// and clicking beside something that covers what you were reading is
-    /// the ordinary way to put it away. Over the split rather than inside
-    /// the detail pane, which is narrow and can be dragged narrower.
-    private func syncDiffOverlay() {
-        guard let split = splitViewController?.view else { return }
-
+    /// Called again on every pass of the observation, so the open window is
+    /// handed the current state rather than rebuilt: rebuilding would lose
+    /// the scroll position, the open folders and whatever remark is
+    /// half-written in it.
+    private func syncReviewWindow() {
         guard let opened = state.openedDiff else {
-            guard let overlay = diffOverlay else { return }
-            overlay.removeFromSuperview()
-            diffOverlay = nil
-            if let previous = responderBeforeDiff { window?.makeFirstResponder(previous) }
-            responderBeforeDiff = nil
-            // Nothing of the last approval outlives the overlay. A question
-            // left unanswered -- the check came back after someone pressed
-            // Escape -- would otherwise raise itself unprompted the next
-            // time a diff was opened, one Return from approving.
+            guard reviewWindow.isOpen else { return }
+            reviewWindow.dismiss()
+            // Nothing of the last approval outlives the window. A question
+            // left unanswered -- the check came back after somebody closed
+            // it -- would otherwise raise itself unprompted the next time a
+            // diff was opened, one Return from approving.
             if !state.approval.isBusy { state.approval = .idle }
             return
         }
 
-        // Already up: hand it the current state rather than leaving it with
-        // the one it was built from, or a refusal would never reach it.
-        if let overlay = diffOverlay {
-            overlay.rootView = overlayContent(opened)
-            return
-        }
+        let item = state.pullRequest(withID: opened.pullRequestID)
+        reviewWindow.show(
+            overlayContent(opened),
+            title: item.map { "#\($0.number) \($0.title)" } ?? "Review",
+            subtitle: item.map { "\($0.repository) · \($0.author)" } ?? ""
+        )
+    }
 
-        let view = DiffOverlayView(rootView: overlayContent(opened))
-        view.onCancel = { [weak state] in state?.openedDiff = nil }
-        view.translatesAutoresizingMaskIntoConstraints = false
-        split.addSubview(view)
-        NSLayoutConstraint.activate([
-            view.leadingAnchor.constraint(equalTo: split.leadingAnchor),
-            view.trailingAnchor.constraint(equalTo: split.trailingAnchor),
-            view.topAnchor.constraint(equalTo: split.topAnchor),
-            view.bottomAnchor.constraint(equalTo: split.bottomAnchor),
-        ])
-        diffOverlay = view
-        responderBeforeDiff = window?.firstResponder
-        window?.makeFirstResponder(view)
+    /// Back to an agent, but only once there is nothing on screen.
+    ///
+    /// Either window closing asks this. With two of them, the one that
+    /// closes first is no longer the end of the app's visible life -- and
+    /// dropping the policy while a window is still up takes the menu bar
+    /// and the Dock icon away from it.
+    private func dropToAccessoryIfNothingIsLeft() {
+        guard !(window?.isVisible ?? false), !reviewWindow.isOpen else { return }
+        NSApp.setActivationPolicy(.accessory)
     }
 
     /// What the overlay's own panel shows: the pull request being read and
@@ -671,7 +665,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
                 self.selectionDidChange()
                 self.updateTitle()
                 self.syncInspector()
-                self.syncDiffOverlay()
+                self.syncReviewWindow()
                 self.syncToolbarControls()
                 self.observeSelection()
             }
@@ -856,34 +850,11 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     public func windowWillClose(_ notification: Notification) {
         NotificationCenter.default.removeObserver(self, name: NSView.boundsDidChangeNotification, object: nil)
 
-        // Back to an agent once the window is gone. Deferred because the
-        // window is still closing at this point, and switching policy
+        // Back to an agent once nothing is left on screen. Deferred because
+        // the window is still closing at this point, and switching policy
         // mid-close leaves the Dock icon behind.
-        DispatchQueue.main.async {
-            NSApp.setActivationPolicy(.accessory)
+        DispatchQueue.main.async { [weak self] in
+            self?.dropToAccessoryIfNothingIsLeft()
         }
     }
-
-/// Hosts the diff overlay, and stops Escape at it.
-///
-/// Without this the key travels on up the responder chain to the list
-/// underneath, which answers it by closing the detail pane -- so one press
-/// put away two things, and the diff took the pane behind it with it.
-private final class DiffOverlayView<Content: View>: NSHostingView<Content> {
-    var onCancel: (() -> Void)?
-
-    override var acceptsFirstResponder: Bool { true }
-
-    override func cancelOperation(_ sender: Any?) {
-        onCancel?()
-    }
-
-    @MainActor required init(rootView: Content) {
-        super.init(rootView: rootView)
-    }
-
-    @MainActor required dynamic init?(coder: NSCoder) {
-        fatalError("not loaded from a nib")
-    }
-}
 }
