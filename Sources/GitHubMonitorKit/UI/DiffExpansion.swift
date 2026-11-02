@@ -12,6 +12,12 @@ final class Expansion: ObservableObject {
     @Published private var remaining: [Int: DiffGaps.Gap?] = [:]
     /// The lines opened out of each gap, in file order.
     @Published private var opened: [Int: [ClosedRange<Int>]] = [:]
+    /// What somebody pressed before the file was here.
+    ///
+    /// A press means "show me", and whether that needed a request is not
+    /// the reader's business. Without this the first press only fetched
+    /// and a second was needed to open what had arrived.
+    @Published private var pending: [Int: DiffGaps.Opening] = [:]
 
     /// What is still hidden at this gap, or nil once all of it is shown.
     func gap(_ gap: DiffGaps.Gap) -> DiffGaps.Gap? {
@@ -29,6 +35,37 @@ final class Expansion: ObservableObject {
         let (shown, left) = DiffGaps.remainder(of: current, opening: end)
         opened[gap.id, default: []].append(shown)
         remaining[gap.id] = left
+        pending[gap.id] = nil
+    }
+
+    /// Remembers a press made before the file had arrived.
+    func await(_ gap: DiffGaps.Gap, _ end: DiffGaps.Opening) {
+        pending[gap.id] = end
+    }
+
+    func isAwaiting(_ gap: DiffGaps.Gap) -> Bool { pending[gap.id] != nil }
+
+    /// Carries out what was pressed while the file was on its way.
+    func applyPending(_ gaps: [DiffGaps.Gap]) {
+        for gap in gaps {
+            guard let end = pending[gap.id] else { continue }
+            open(gap, end)
+        }
+    }
+
+    /// Whether what is left of a gap sits above the lines already shown.
+    ///
+    /// Opening from the bottom puts the new lines at the bottom of the
+    /// gap, so what is left is above them -- and a row offering it has to
+    /// be above them too, or it sits in the middle of a run of
+    /// consecutive lines saying there is something missing between two
+    /// lines that follow one another.
+    func remainderIsAbove(_ gap: DiffGaps.Gap) -> Bool {
+        guard
+            let left = self.gap(gap),
+            let first = shown(gap).first
+        else { return false }
+        return left.last < first.lowerBound
     }
 }
 
@@ -43,7 +80,6 @@ struct ExpanderRow: View {
     let content: FileContent?
     let isLoading: Bool
     let open: (DiffGaps.Opening) -> Void
-    let fetch: () -> Void
 
     var body: some View {
         HStack(spacing: 8) {
@@ -59,18 +95,18 @@ struct ExpanderRow: View {
                 // for a decision nobody has to make is two things to read.
                 if gap.count > DiffGaps.openWholeUpTo {
                     button("chevron.up", "Show the \(DiffGaps.step) lines above") {
-                        act { open(.bottom) }
+                        open(.bottom)
                     }
                     button("chevron.down", "Show the \(DiffGaps.step) lines below") {
-                        act { open(.top) }
+                        open(.top)
                     }
                     Text("\(gap.count) lines hidden")
                     button("chevron.up.chevron.down", "Show all \(gap.count)") {
-                        act { open(.whole) }
+                        open(.whole)
                     }
                 } else {
                     button("chevron.up.chevron.down", "Show these \(gap.count) lines") {
-                        act { open(.whole) }
+                        open(.whole)
                     }
                     Text(gap.count == 1 ? "1 line hidden" : "\(gap.count) lines hidden")
                 }
@@ -86,14 +122,6 @@ struct ExpanderRow: View {
         .padding(.horizontal, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.quaternary.opacity(0.18))
-    }
-
-    /// Fetch first where it has not happened, then open. The press means
-    /// "show me", and whether that needs a request is not the reader's
-    /// business.
-    private func act(_ opening: () -> Void) {
-        guard content != nil else { return fetch() }
-        opening()
     }
 
     private func button(

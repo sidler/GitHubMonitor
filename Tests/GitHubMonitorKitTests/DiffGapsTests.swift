@@ -335,3 +335,72 @@ struct ChangedFileExpansionTests {
         )
     }
 }
+
+/// What a press on a gap does, including one made before the file has
+/// arrived.
+@MainActor
+@Suite("Opening gaps as a reader does")
+struct ExpansionTests {
+    private func gap(_ first: Int, _ last: Int, id: Int = 0) -> DiffGaps.Gap {
+        DiffGaps.Gap(afterPatchLine: id, first: first, last: last)
+    }
+
+    @Test("A small gap goes entirely and stops offering itself")
+    func small() {
+        let expansion = Expansion()
+        let gap = self.gap(10, 20)
+        expansion.open(gap, .whole)
+        #expect(expansion.shown(gap) == [10...20])
+        #expect(expansion.gap(gap) == nil)
+    }
+
+    /// The press means "show me". Without this the first press only
+    /// fetched and a second was needed to open what had arrived.
+    @Test("A press before the file is here is carried out when it comes")
+    func pending() {
+        let expansion = Expansion()
+        let gap = self.gap(1, 300)
+        expansion.await(gap, .top)
+        #expect(expansion.isAwaiting(gap))
+        #expect(expansion.shown(gap).isEmpty)
+
+        expansion.applyPending([gap])
+        #expect(!expansion.isAwaiting(gap))
+        #expect(expansion.shown(gap) == [1...20])
+    }
+
+    @Test("Nothing is carried out twice")
+    func pendingOnce() {
+        let expansion = Expansion()
+        let gap = self.gap(1, 300)
+        expansion.await(gap, .top)
+        expansion.applyPending([gap])
+        expansion.applyPending([gap])
+        #expect(expansion.shown(gap) == [1...20])
+    }
+
+    /// Opening from the bottom puts the new lines at the bottom of the
+    /// gap, so what is left is above them -- and the row offering it has
+    /// to go above them too, or it sits between two lines that follow one
+    /// another.
+    @Test("The row goes above the lines when what is left is above them")
+    func order() {
+        let expansion = Expansion()
+        let gap = self.gap(1, 300)
+
+        expansion.open(gap, .bottom)
+        #expect(expansion.shown(gap) == [281...300])
+        #expect(expansion.remainderIsAbove(gap))
+
+        let other = self.gap(1, 300, id: 1)
+        expansion.open(other, .top)
+        #expect(expansion.shown(other) == [1...20])
+        #expect(!expansion.remainderIsAbove(other))
+    }
+
+    @Test("A gap nobody has touched has no row to place")
+    func untouched() {
+        let expansion = Expansion()
+        #expect(!expansion.remainderIsAbove(gap(1, 300)))
+    }
+}

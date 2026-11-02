@@ -78,6 +78,13 @@ struct SideBySidePatch: View {
                 }
             }
         }
+        // What was pressed before the file was here, carried out now that
+        // it is. Without this the first press only fetched, and a second
+        // was needed to open what had already arrived.
+        .onChange(of: content) {
+            guard content?.lines != nil else { return }
+            expansion.applyPending(gaps)
+        }
     }
 
     /// The conversations hanging off one row, and whatever this draft
@@ -359,6 +366,9 @@ struct SideBySidePatch: View {
     private func expanded(_ gap: DiffGaps.Gap, width: CGFloat) -> some View {
         let text = content?.lines
         let shown = showsWholeFile ? [gap.first...gap.last] : expansion.shown(gap)
+        // Above the lines where what is left is above them, or the row
+        // sits between two lines that follow one another.
+        if expansion.remainderIsAbove(gap) { expander(gap, width: width) }
         ForEach(shown, id: \.lowerBound) { range in
             ForEach(Array((text?.lines(from: range.lowerBound, through: range.upperBound) ?? [])
                 .enumerated()), id: \.offset) { offset, source in
@@ -373,16 +383,32 @@ struct SideBySidePatch: View {
                 .fixedSize(horizontal: false, vertical: true)
             }
         }
+        if !expansion.remainderIsAbove(gap) { expander(gap, width: width) }
+    }
+
+    @ViewBuilder
+    private func expander(_ gap: DiffGaps.Gap, width: CGFloat) -> some View {
         if let left = expansion.gap(gap), !showsWholeFile {
             ExpanderRow(
                 gap: left,
                 content: content,
-                isLoading: isFetchingContent,
-                open: { expansion.open(gap, $0) },
-                fetch: { fetchContent?() }
+                isLoading: isFetchingContent && expansion.isAwaiting(gap),
+                open: { open(gap, $0) }
             )
             .frame(width: width * 2 + Self.dividerWidth, alignment: .leading)
         }
+    }
+
+    /// A press on a gap. Where the file is not here yet it is remembered
+    /// and carried out when it arrives: the press means "show me", and
+    /// whether that needed a request is not the reader's business.
+    private func open(_ gap: DiffGaps.Gap, _ end: DiffGaps.Opening) {
+        guard content?.lines != nil else {
+            expansion.await(gap, end)
+            fetchContent?()
+            return
+        }
+        expansion.open(gap, end)
     }
 
     private func contextCell(
