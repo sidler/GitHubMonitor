@@ -48,13 +48,42 @@ public struct ChangedFile: Identifiable, Hashable, Sendable {
     public let change: Change
     /// Absent for a binary file, and for one GitHub judged too large to send.
     public let patch: String?
+    /// The file's blob as it stands in the pull request's head commit.
+    ///
+    /// It arrives with the patch and used to be thrown away. It is what
+    /// the whole file can be fetched by -- a blob is named by its own
+    /// contents, so no commit and no path are needed, and a rename does
+    /// not confuse it.
+    public let blob: String?
 
-    public init(path: String, additions: Int, deletions: Int, change: Change, patch: String?) {
+    public init(
+        path: String,
+        additions: Int,
+        deletions: Int,
+        change: Change,
+        patch: String?,
+        blob: String? = nil
+    ) {
         self.path = path
         self.additions = additions
         self.deletions = deletions
         self.change = change
         self.patch = patch
+        self.blob = blob
+    }
+
+    /// Whether there is unchanged code around the patch worth asking for.
+    ///
+    /// A file that was added is all additions and one that was deleted is
+    /// all removals: neither has a line that stayed the same, so there is
+    /// nothing between the hunks to go and get. And without a blob there
+    /// is nowhere to get it from.
+    public var canExpand: Bool {
+        guard blob != nil, patch != nil else { return false }
+        switch change {
+        case .added, .removed: return false
+        default: return true
+        }
     }
 
     public var changedLines: Int { additions + deletions }

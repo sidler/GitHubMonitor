@@ -61,7 +61,10 @@ public enum ChangedFilesQuery {
             deletions: node["deletions"] as? Int ?? 0,
             change: ChangedFile.Change(apiValue: node["status"] as? String),
             // Missing for binaries and for files GitHub judged too large.
-            patch: node["patch"] as? String
+            patch: node["patch"] as? String,
+            // Comes free with the patch, in the same answer. It is what
+            // the unchanged lines around the hunks are fetched by.
+            blob: node["sha"] as? String
         )
     }
 }
