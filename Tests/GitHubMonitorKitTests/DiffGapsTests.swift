@@ -404,3 +404,46 @@ struct ExpansionTests {
         #expect(!expansion.remainderIsAbove(gap(1, 300)))
     }
 }
+
+/// Windows line endings, which arrive in the patch and in the file and
+/// draw every row two lines tall if they are left in.
+@Suite("Carriage returns")
+struct CarriageReturnTests {
+    /// Taken off at the door, so the four places a patch is read all see
+    /// the same thing and the caches keyed by it hold one entry.
+    @Test("A patch arrives without its carriage returns")
+    func patch() {
+        let file = ChangedFilesQuery.file(from: [
+            "filename": "a.php", "status": "modified",
+            "patch": "@@ -1,2 +1,2 @@\r\n one\r\n-old\r\n+new\r\n",
+        ])
+        #expect(file?.patch?.contains("\r") == false)
+        #expect(file?.patch == "@@ -1,2 +1,2 @@\n one\n-old\n+new\n")
+    }
+
+    /// A carriage return inside a line is somebody's data and stays.
+    @Test("Only the ones before a newline go")
+    func onlyAtTheEnd() {
+        #expect(
+            ChangedFilesQuery.unixEndings("a\rb\r\nc") == "a\rb\nc"
+        )
+    }
+
+    @Test("A fetched file is split without them too")
+    func file() {
+        let text = FileText("one\r\ntwo\r\n")
+        #expect(text.lines == ["one", "two"])
+    }
+
+    /// The gap arithmetic reads the patch after it has been normalised,
+    /// but it has to survive one that was not.
+    @Test("The gaps are the same either way")
+    func gaps() {
+        let windows = "@@ -1,2 +1,2 @@\r\n one\r\n-old two\r\n+new two\r\n"
+        let unix = ChangedFilesQuery.unixEndings(windows)
+        #expect(
+            DiffGaps.gaps(in: windows, fileLines: 6).map { $0.first...$0.last }
+                == DiffGaps.gaps(in: unix, fileLines: 6).map { $0.first...$0.last }
+        )
+    }
+}

@@ -53,6 +53,21 @@ public enum ChangedFilesQuery {
         files.sorted { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
     }
 
+    /// A patch with its carriage returns taken off, once, here.
+    ///
+    /// A file written with Windows endings arrives as a patch whose every
+    /// line ends `\r\n`, and the `\r` survives the split into lines --
+    /// where the text view draws it as a line terminator of its own. Every
+    /// row of such a file came out two lines tall, at every font size,
+    /// which is why it only ever happened to some diffs.
+    ///
+    /// Done at the door rather than in each of the four places a patch is
+    /// read: the caches are keyed by the patch string, so a patch
+    /// normalised later would be two keys for one file.
+    static func unixEndings(_ patch: String) -> String {
+        patch.replacingOccurrences(of: "\r\n", with: "\n")
+    }
+
     static func file(from node: [String: Any]) -> ChangedFile? {
         guard let path = node["filename"] as? String else { return nil }
         return ChangedFile(
@@ -61,7 +76,7 @@ public enum ChangedFilesQuery {
             deletions: node["deletions"] as? Int ?? 0,
             change: ChangedFile.Change(apiValue: node["status"] as? String),
             // Missing for binaries and for files GitHub judged too large.
-            patch: node["patch"] as? String,
+            patch: (node["patch"] as? String).map(unixEndings),
             // Comes free with the patch, in the same answer. It is what
             // the unchanged lines around the hunks are fetched by.
             blob: node["sha"] as? String

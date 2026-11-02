@@ -5,6 +5,10 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **A file written with Windows line endings is drawn at the right
+  height.** Every row of such a diff was two lines tall, at every font
+  size, which is why it only happened to some files.
+
 - **The code around a hunk, without leaving the app.** A row between the
   hunks says how many lines are hidden and fetches them from GitHub on a
   press — no clone, and nothing fetched until you ask. One press is

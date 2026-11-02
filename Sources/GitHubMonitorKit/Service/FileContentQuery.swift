@@ -107,7 +107,12 @@ public struct FileText: Equatable, Sendable {
     public let lines: [String]
 
     public init(_ text: String) {
-        var lines = text.components(separatedBy: "\n")
+        // The same carriage returns a patch is stripped of at the door.
+        // A file with Windows endings would otherwise draw every line it
+        // filled a gap with two lines tall.
+        var lines = text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .components(separatedBy: "\n")
         // A file that ends in a newline splits into a last empty piece
         // that is not a line of the file.
         if lines.last == "" { lines.removeLast() }
