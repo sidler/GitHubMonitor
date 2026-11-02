@@ -31,15 +31,29 @@ struct SideBySidePatch: View {
     /// How to write one. Nil leaves the diff a reader.
     var writing: DraftWriting?
 
+    /// The whole file, where it has been fetched, for the lines between
+    /// the hunks. Nil leaves the patch as GitHub sent it.
+    var content: FileContent?
+    var isFetchingContent = false
+    /// Asks for the file. Nil leaves the gaps closed and unoffered.
+    var fetchContent: (() -> Void)?
+    /// Every gap open at once, for a file being read rather than
+    /// reviewed. The rows that offer the gaps go with it: there is
+    /// nothing left for them to offer.
+    var showsWholeFile = false
+
     @StateObject private var target = DraftTarget()
     @StateObject private var hovered = HoveredRow()
+    @StateObject private var expansion = Expansion()
 
     var body: some View {
         let width = columnWidth
         VStack(alignment: .leading, spacing: 0) {
             ForEach(rows) { row in
                 switch row.kind {
-                case .threads(let here):
+                case .gap(let gap):
+                expanded(gap, width: width)
+            case .threads(let here):
                     // Prose belongs to the row, not to a column: it is as
                     // wide as the pair of them.
                     conversations(here)
@@ -242,6 +256,10 @@ struct SideBySidePatch: View {
             // Whichever file it is about, the note is short enough to say
             // on both sides and the row needs the same height either way.
             return Piece(whole: line, marker: "", body: line, emphasis: [])
+        // Neither is a line of the patch: one is a conversation, the
+        // other the app offering code the patch does not carry.
+        case .gap:
+            return nil
         case .threads:
             return nil
         case .pair(let left, let right):
@@ -299,9 +317,20 @@ struct SideBySidePatch: View {
     private var rows: [Row] {
         let patchRows = DiffCache.shared.rows(of: patch)
         let anchors = ReviewThreadAnchors.sideBySide(rows: patchRows, threads: threads)
-
+        // Matched to the hunk each one sits above rather than to a row
+        // index: a removal and the addition answering it are two lines of
+        // the patch and one row here, so the two do not count alike. What
+        // a hunk header states is a line number, and a gap knows the line
+        // number it ends at.
+        var pending = gaps
         var result: [Row] = []
+
         for (index, row) in patchRows.enumerated() {
+            if case .hunk(let text) = row,
+                let starts = DiffLineNumbers.starts(ofHunk: text),
+                let found = pending.firstIndex(where: { $0.last + 1 == starts.new }) {
+                result.append(Row(id: result.count, kind: .gap(pending.remove(at: found))))
+            }
             switch row {
             case .hunk(let text): result.append(Row(id: result.count, kind: .hunk(text)))
             case .note(let text): result.append(Row(id: result.count, kind: .note(text)))
@@ -312,7 +341,73 @@ struct SideBySidePatch: View {
                 result.append(Row(id: result.count, kind: .threads(here)))
             }
         }
+        // Whatever is left is below the last hunk.
+        for gap in pending { result.append(Row(id: result.count, kind: .gap(gap))) }
         return result
+    }
+
+    /// Where the patch is silent, if the file is here to say.
+    private var gaps: [DiffGaps.Gap] {
+        guard fetchContent != nil else { return [] }
+        return DiffCache.shared.gaps(
+            in: patch, fileLines: content?.lines?.count ?? 0
+        )
+    }
+
+    /// The lines already opened at a gap, and a row offering what is left.
+    @ViewBuilder
+    private func expanded(_ gap: DiffGaps.Gap, width: CGFloat) -> some View {
+        let text = content?.lines
+        let shown = showsWholeFile ? [gap.first...gap.last] : expansion.shown(gap)
+        ForEach(shown, id: \.lowerBound) { range in
+            ForEach(Array((text?.lines(from: range.lowerBound, through: range.upperBound) ?? [])
+                .enumerated()), id: \.offset) { offset, source in
+                let new = range.lowerBound + offset
+                // The same text on both sides, because that is what an
+                // unchanged line is. One blob fills two columns.
+                HStack(alignment: .top, spacing: 0) {
+                    contextCell(source, number: new + gap.oldOffset, width: width)
+                    Divider().frame(width: Self.dividerWidth)
+                    contextCell(source, number: new, width: width)
+                }
+                .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        if let left = expansion.gap(gap), !showsWholeFile {
+            ExpanderRow(
+                gap: left,
+                content: content,
+                isLoading: isFetchingContent,
+                open: { expansion.open(gap, $0) },
+                fetch: { fetchContent?() }
+            )
+            .frame(width: width * 2 + Self.dividerWidth, alignment: .leading)
+        }
+    }
+
+    private func contextCell(
+        _ source: String, number: Int, width: CGFloat
+    ) -> some View {
+        HStack(alignment: .top, spacing: 0) {
+            if showsLineNumbers {
+                Text(verbatim: "\(number)")
+                    .font(.system(size: fontSize).monospaced())
+                    .foregroundStyle(.tertiary)
+                    .frame(width: Self.gutterPadding + 14, alignment: .trailing)
+                    .padding(.trailing, 6)
+            }
+            CodeText(
+                source: source,
+                language: language,
+                insideComment: false,
+                font: .system(size: fontSize).monospaced(),
+                emphasis: [],
+                emphasisTint: .clear
+            )
+            Spacer(minLength: 0)
+        }
+        .frame(width: width, alignment: .leading)
+        .padding(.vertical, 1)
     }
 
     private static let absent = Color(nsColor: .quaternaryLabelColor).opacity(0.18)
@@ -328,6 +423,8 @@ struct SideBySidePatch: View {
             case note(String)
             case pair(DiffCell?, DiffCell?)
             case threads([ReviewThread])
+            /// Lines the patch leaves out, and the row offering them.
+            case gap(DiffGaps.Gap)
         }
 
         let id: Int

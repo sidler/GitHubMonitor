@@ -72,6 +72,7 @@ struct DiffOverlay: View {
     var setInspectorWidth: ((Double) -> Void)?
 
     @StateObject private var open = OpenFolders()
+    @StateObject private var whole = WholeFiles()
     @StateObject private var sidebar = SidebarWidth()
     @StateObject private var inspectorEdge = SidebarWidth()
     /// Which file is at the top of the column, kept here rather than in the
@@ -584,6 +585,26 @@ struct DiffOverlay: View {
                     .truncationMode(.head)
                     .textSelection(.enabled)
 
+                // Only where there is something between the hunks to
+                // show. An added file is all additions and has no
+                // unchanged line in it to go and get.
+                if file.canExpand, expanding != nil {
+                    Button {
+                        if let blob = file.blob, !whole.holds(file.path) {
+                            expanding?.fetch(blob)
+                        }
+                        whole.toggle(file.path)
+                    } label: {
+                        Image(systemName: whole.holds(file.path)
+                            ? "arrow.down.right.and.arrow.up.left"
+                            : "arrow.up.left.and.arrow.down.right")
+                    }
+                    .buttonStyle(.accessoryBar)
+                    .help(whole.holds(file.path)
+                        ? "Back to the changed lines"
+                        : "Show the whole file")
+                }
+
                 if let url = file.url(pullRequest: pullRequest) {
                     Button { NSWorkspace.shared.open(url) } label: {
                         Image(systemName: "arrow.up.forward.square")
@@ -657,7 +678,15 @@ struct DiffOverlay: View {
                         ),
                         path: file.path,
                         draft: draft?.comments(in: file.path) ?? [],
-                        writing: writing
+                        writing: writing,
+                        content: file.blob.flatMap { expanding?.content($0) },
+                        isFetchingContent: file.blob.map {
+                            expanding?.isFetching($0) ?? false
+                        } ?? false,
+                        fetchContent: file.canExpand
+                            ? { if let blob = file.blob { expanding?.fetch(blob) } }
+                            : nil,
+                        showsWholeFile: whole.holds(file.path)
                     )
                     .padding(.vertical, 6)
                 case .unified, .sideBySide:
@@ -679,7 +708,8 @@ struct DiffOverlay: View {
                         } ?? false,
                         fetchContent: file.canExpand
                             ? { if let blob = file.blob { expanding?.fetch(blob) } }
-                            : nil
+                            : nil,
+                        showsWholeFile: whole.holds(file.path)
                     )
                     .padding(.vertical, 6)
                 }
@@ -768,6 +798,10 @@ struct PatchLines: View {
     var isFetchingContent = false
     /// Asks for the file. Nil leaves the gaps closed and unoffered.
     var fetchContent: (() -> Void)?
+    /// Every gap open at once, for a file being read rather than
+    /// reviewed. The rows that offer the gaps go with it: there is
+    /// nothing left for them to offer.
+    var showsWholeFile = false
 
     @StateObject private var target = DraftTarget()
     @StateObject private var hovered = HoveredRow()
@@ -873,7 +907,8 @@ struct PatchLines: View {
     @ViewBuilder
     private func expanded(_ gap: DiffGaps.Gap, digits: Int) -> some View {
         let text = content?.lines
-        ForEach(expansion.shown(gap), id: \.lowerBound) { range in
+        let shown = showsWholeFile ? [gap.first...gap.last] : expansion.shown(gap)
+        ForEach(shown, id: \.lowerBound) { range in
             ForEach(Array((text?.lines(from: range.lowerBound, through: range.upperBound) ?? [])
                 .enumerated()), id: \.offset) { offset, source in
                 contextRow(
@@ -886,7 +921,7 @@ struct PatchLines: View {
                 )
             }
         }
-        if let left = expansion.gap(gap) {
+        if let left = expansion.gap(gap), !showsWholeFile {
             ExpanderRow(
                 gap: left,
                 content: content,

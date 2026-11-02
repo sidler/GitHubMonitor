@@ -108,6 +108,23 @@ struct ExpanderRow: View {
     }
 }
 
+/// Which files are being read whole rather than hunk by hunk.
+///
+/// Per file, and only while the diff is open. Not a setting: "show me
+/// all of this one" is a thing you mean about the file in front of you,
+/// and a diff of forty-three files told to fetch all of them would be
+/// forty-three requests nobody asked for.
+@MainActor
+final class WholeFiles: ObservableObject {
+    @Published private var paths: Set<String> = []
+
+    func holds(_ path: String) -> Bool { paths.contains(path) }
+
+    func toggle(_ path: String) {
+        if paths.contains(path) { paths.remove(path) } else { paths.insert(path) }
+    }
+}
+
 /// How a diff gets at the unchanged lines around its hunks.
 ///
 /// Three closures rather than a reference to the app's state, the same

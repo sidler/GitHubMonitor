@@ -5,6 +5,11 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **The code around a hunk, without leaving the app.** A row between the
+  hunks says how many lines are hidden and fetches them from GitHub on a
+  press — no clone, and nothing fetched until you ask. The file header
+  has a button for the whole file at once.
+
 - **A diff opens in its own window** instead of as a card over the app,
   so the code runs to the edges and the lists behind it stay usable.
 
