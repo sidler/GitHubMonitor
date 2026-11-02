@@ -9,10 +9,15 @@ struct LargeDiffTests {
     /// thousand changed lines, several hunks apiece. One hunk per file hid
     /// the thing that mattered, which is how many separately scrolling
     /// columns the two-column layout ends up drawing.
+    ///
+    /// And one file of the other shape, added later: two thousand lines of
+    /// patch in a single hunk. Forty-three middling files say nothing
+    /// about one enormous one, which is the case that juddered.
     @Test("The sample is the size it is meant to be")
     func shape() {
         let files = SampleData.largeDiff()
-        #expect(files.count == 43)
+        #expect(files.count == 44)
+        #expect(files.contains { $0.path == SampleData.hugeFile().path })
 
         let lines = files.reduce(0) { $0 + ($1.patch?.components(separatedBy: "\n").count ?? 0) }
         #expect(lines > 1500)
@@ -76,7 +81,12 @@ struct LargeDiffTests {
     /// of many scroll views, which is what makes this worth counting.
     @Test("The blocks a file is cut into follow its hunks")
     func blocksPerFile() {
-        for file in SampleData.largeDiff() {
+        // The huge file is deliberately one hunk: its point is length,
+        // not how many pieces it falls into.
+        let refactoring = SampleData.largeDiff().filter {
+            $0.path != SampleData.hugeFile().path
+        }
+        for file in refactoring {
             let rows = DiffSideBySide.rows(of: file.patch!)
             let hunks = rows.count { if case .hunk = $0 { return true } else { return false } }
             #expect(hunks >= 3)
@@ -97,5 +107,53 @@ struct LargeDiffTests {
             }
             #expect(accounted == file.patch!.components(separatedBy: "\n").count)
         }
+    }
+}
+
+/// The single enormous file, which is a different shape of problem from
+/// forty-three middling ones.
+@MainActor
+@Suite("One very large file")
+struct HugeFileTests {
+    @Test("Two thousand lines of patch with a thousand changes in them")
+    func size() {
+        let file = SampleData.hugeFile()
+        let rows = file.patch?.components(separatedBy: "\n") ?? []
+        #expect(rows.count > 2000)
+        #expect(rows.count { $0.hasPrefix("+") } == 1000)
+        #expect(rows.count { $0.hasPrefix("-") } == 1000)
+        #expect(file.additions == 1000)
+        #expect(file.deletions == 1000)
+    }
+
+    /// Everything a view body asks for comes from the cache after the
+    /// first time, which is what keeps a scroll from repeating the work.
+    @Test("Every reading of it is cached")
+    func cached() {
+        let patch = SampleData.hugeFile().patch!
+        DiffCache.shared.forget()
+
+        let numbers = DiffCache.shared.numbers(of: patch)
+        let marks = DiffCache.shared.emphasis(in: patch)
+        let comments = DiffCache.shared.comments(in: patch, language: .php)
+        let built = DiffCache.shared.lines(of: patch, language: .php) {
+            [PatchLine(
+                id: 0, text: "x", insideHunk: true, number: .none,
+                emphasis: [], insideComment: false
+            )]
+        }
+
+        // Asked again, the same answers come back without being worked
+        // out a second time -- which the line array proves by building
+        // something different if it is asked to build at all.
+        #expect(DiffCache.shared.numbers(of: patch).count == numbers.count)
+        #expect(DiffCache.shared.emphasis(in: patch).count == marks.count)
+        #expect(
+            DiffCache.shared.comments(in: patch, language: .php)
+                .isInsideComment(line: 1, side: .new) == comments.isInsideComment(line: 1, side: .new)
+        )
+        #expect(
+            DiffCache.shared.lines(of: patch, language: .php) { [] }.count == built.count
+        )
     }
 }

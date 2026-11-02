@@ -811,6 +811,25 @@ public enum SampleData {
     /// whether the diff still scrolls smoothly -- cannot be measured
     /// anywhere but in the running window. `--big` opens the overlay on
     /// it.
+    /// One file of the size that made the diff judder: two thousand
+    /// lines of patch with a thousand changed lines in them.
+    ///
+    /// The rest of the large sample is forty-three files of about a
+    /// hundred lines each, which is the shape of a refactoring and says
+    /// nothing about a single enormous file. Both are worth having.
+    public static func hugeFile() -> ChangedFile {
+        var lines = ["@@ -1,2000 +1,2000 @@ class GeneratedReportBuilder"]
+        for i in 0..<1000 {
+            lines.append("-        $this->row[\(i)] = $old->value(\(i), self::LEGACY);")
+            lines.append("+        $this->row[\(i)] = $new->total(\(i), self::CURRENT);")
+        }
+        return ChangedFile(
+            path: "core/module_reports/src/Builder/GeneratedReportBuilder.php",
+            additions: 1000, deletions: 1000, change: .modified,
+            patch: lines.joined(separator: "\n")
+        )
+    }
+
     public static func largeDiff() -> [ChangedFile] {
         // Paths as deep as a real module gets. Three levels was the shape
         // of the first version of this, and at three levels the list looks
@@ -867,7 +886,7 @@ public enum SampleData {
                 change: .modified,
                 patch: lines.joined(separator: "\n")
             )
-        }
+        } + [hugeFile()]
     }
 
     // MARK: - Linked items
