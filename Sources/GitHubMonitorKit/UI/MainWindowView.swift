@@ -925,9 +925,9 @@ struct InspectorColumn: View {
                     // query carries every comment body, and this is the
                     // first moment anybody will read them.
                     controller.loadReviewThreadsIfNeeded(for: item.id)
-                    state.openedDiff = OpenedDiff(
+                    state.openDiff(OpenedDiff(
                         pullRequestID: item.id, path: file.path, files: files, url: item.url
-                    )
+                    ))
                 },
                 linked: LinkedPanelContext(state: state, controller: controller),
                 labelling: PaneWriting(state: state, controller: controller),

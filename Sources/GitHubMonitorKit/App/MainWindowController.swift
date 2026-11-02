@@ -30,12 +30,12 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
 
     private var inspectorItem: NSSplitViewItem?
     private var contentController: NSViewController?
-    /// The window a diff is read in, while one is open.
-    private lazy var reviewWindow: ReviewWindowController = {
-        let controller = ReviewWindowController()
-        controller.onClose = { [weak self] in self?.state.openedDiff = nil }
-        controller.onDidClose = { [weak self] in self?.dropToAccessoryIfNothingIsLeft() }
-        return controller
+    /// The windows diffs are read in, one per pull request.
+    private(set) lazy var reviewWindows: ReviewWindows = {
+        let windows = ReviewWindows()
+        windows.onClose = { [weak self] id in self?.state.closeDiff(id) }
+        windows.onDidClose = { [weak self] in self?.dropToAccessoryIfNothingIsLeft() }
+        return windows
     }()
     /// Kept so the collapse of the sidebar can be read back: the title is
     /// drawn in the content column now, and has to step around the traffic
@@ -158,6 +158,11 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         // Notes and Finder. The split view's safe area keeps scrolling
         // content from running under the toolbar.
         window.titlebarAppearsTransparent = true
+        // The same identifier the review windows carry, so "Merge All
+        // Windows" can gather the lot into one. It does not put them
+        // together by itself: a review opens beside the other reviews, and
+        // whether the list joins them is the reader's business.
+        window.tabbingIdentifier = ReviewWindows.tabbingIdentifier
 
         let toolbar = NSToolbar(identifier: "main")
         toolbar.delegate = self
@@ -222,23 +227,31 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     /// the scroll position, the open folders and whatever remark is
     /// half-written in it.
     private func syncReviewWindow() {
-        guard let opened = state.openedDiff else {
-            guard reviewWindow.isOpen else { return }
-            reviewWindow.dismiss()
-            // Nothing of the last approval outlives the window. A question
-            // left unanswered -- the check came back after somebody closed
-            // it -- would otherwise raise itself unprompted the next time a
-            // diff was opened, one Return from approving.
-            if !state.approval.isBusy { state.approval = .idle }
-            return
+        // Gone from the state: taken down. Signing out empties the list at
+        // once, so this is also what closes them all.
+        let wanted = Set(state.openedDiffs.map(\.pullRequestID))
+        for id in reviewWindows.shownIDs where !wanted.contains(id) {
+            reviewWindows.dismiss(id)
+        }
+        if !reviewWindows.isShowing, !state.approval.isBusy {
+            // Nothing of the last approval outlives the last window. A
+            // question left unanswered -- the check came back after
+            // somebody closed it -- would otherwise raise itself
+            // unprompted the next time a diff was opened, one Return from
+            // approving.
+            state.approval = .idle
         }
 
-        let item = state.pullRequest(withID: opened.pullRequestID)
-        reviewWindow.show(
-            overlayContent(opened),
-            title: item.map { "#\($0.number) \($0.title)" } ?? "Review",
-            subtitle: item.map { "\($0.repository) · \($0.author)" } ?? ""
-        )
+        for opened in state.openedDiffs {
+            let item = state.pullRequest(withID: opened.pullRequestID)
+            reviewWindows.show(
+                overlayContent(opened),
+                for: opened.pullRequestID,
+                title: item.map { "#\($0.number) \($0.title)" } ?? "Review",
+                subtitle: item.map { "\($0.repository) · \($0.author)" } ?? "",
+                unsent: state.reviewDrafts[opened.pullRequestID]?.comments.count ?? 0
+            )
+        }
     }
 
     /// Back to an agent, but only once there is nothing on screen.
@@ -248,7 +261,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
     /// dropping the policy while a window is still up takes the menu bar
     /// and the Dock icon away from it.
     private func dropToAccessoryIfNothingIsLeft() {
-        guard !(window?.isVisible ?? false), !reviewWindow.isOpen else { return }
+        guard !(window?.isVisible ?? false), !reviewWindows.isShowing else { return }
         NSApp.setActivationPolicy(.accessory)
     }
 
@@ -275,10 +288,11 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         return DiffOverlay(
             files: opened.files,
             pullRequest: opened.url,
+            pullRequestID: opened.pullRequestID,
             startingPath: opened.path,
             startingSidebarWidth: state.settings.diffSidebarWidth,
             setSidebarWidth: { [state] width in state.settings.diffSidebarWidth = width },
-            close: { [weak state] in state?.openedDiff = nil },
+            close: { [weak state] in state?.closeDiff(opened.pullRequestID) },
             review: item.map(reviewActions(for:)),
             subject: item.map(subject(for:)),
             fontSize: state.settings.diffFontSize,
@@ -559,7 +573,11 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         guard let toolbar = window?.toolbar else { return }
         let index = toolbar.items.firstIndex { $0.itemIdentifier == Self.controlsItem }
 
-        if state.sidebarSelection.hasToolbarControls, state.openedDiff == nil {
+        // No longer asks whether a diff is open. It used to, because the
+        // diff lay over this window and its own controls would have been
+        // the second set on screen; a diff in a window of its own leaves
+        // this window's toolbar to this window.
+        if state.sidebarSelection.hasToolbarControls {
             guard index == nil else { return }
             // Before the inspector's separator, which is what holds the
             // controls over the list rather than over the detail pane.
@@ -621,7 +639,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             _ = state.inspectedPullRequestID
             _ = state.inspectedIssueID
             _ = state.inspectedNotificationID
-            _ = state.openedDiff
+            _ = state.openedDiffs
             // The overlay is opened from a row that already has the files,
             // but a reload can replace them underneath it.
             _ = state.changedFiles

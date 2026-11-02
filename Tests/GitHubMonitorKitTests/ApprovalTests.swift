@@ -299,10 +299,10 @@ struct ApprovalPersistenceTests {
         state.hasToken = true
         state.listPullRequests[list.id] = [item("1")]
         state.changedFiles["1"] = .loaded([])
-        state.openedDiff = OpenedDiff(
+        state.openDiff(OpenedDiff(
             pullRequestID: "1", path: nil, files: [],
             url: URL(string: "https://github.com/octo/platform/pull/1")!
-        )
+        ))
         state.approval = .confirming(pullRequestID: "1")
         state.inspectedPullRequestID = "1"
         state.linkedSummaries["octo/platform#9"] = .missing
@@ -323,7 +323,7 @@ struct ApprovalPersistenceTests {
         )
         controller.signOut()
 
-        #expect(state.openedDiff == nil)
+        #expect(state.openedDiffs.isEmpty)
         #expect(state.changedFiles.isEmpty)
         #expect(state.listPullRequests.isEmpty)
         #expect(state.inspectedPullRequestID == nil)

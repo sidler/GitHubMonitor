@@ -14,6 +14,9 @@ import SwiftUI
 struct DiffOverlay: View {
     let files: [ChangedFile]
     let pullRequest: URL
+    /// Which pull request this is, so a menu command meant for the review
+    /// the keyboard is in does not reach the other windows as well.
+    var pullRequestID: String = ""
     /// The file to put at the top when the overlay opens. After that the
     /// overlay keeps its own place.
     let startingPath: String?
@@ -85,6 +88,9 @@ struct DiffOverlay: View {
             sidebar.width = Settings.clampedSidebarWidth(startingSidebarWidth)
         }
         .onReceive(NotificationCenter.default.publisher(for: .diffStepFile)) { note in
+            // Only if it was addressed here. Several reviews may be open,
+            // and they all listen on the same name.
+            guard note.userInfo?["pullRequest"] as? String == pullRequestID else { return }
             let step = note.userInfo?["step"] as? Int ?? 1
             let next = step > 0
                 ? DiffPager.file(after: place.path, in: files)

@@ -420,7 +420,10 @@ public final class RefreshController {
         state.changedFiles = [:]
         state.viewedFiles = [:]
         state.reviewThreads = [:]
-        state.openedDiff = nil
+        // Every review window with it: each one shows an account's code
+        // and its conversations, and those may not stand after a sign-out.
+        // Whatever was written and not sent stays on disk.
+        state.openedDiffs = []
         state.approval = .idle
         state.merging = .idle
         // A repository's labels and the people who may be named in it are

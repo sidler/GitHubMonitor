@@ -296,8 +296,31 @@ public final class AppState {
     /// the one thing nobody forgives.
     public var reviewDrafts: [String: ReviewDraft] = [:]
 
-    /// The diff being read over the window, if any.
-    public var openedDiff: OpenedDiff?
+    /// The diffs being read, one window each, oldest first.
+    ///
+    /// A list rather than one, because a review is a window now and a
+    /// window is not the sort of thing there is only one of. At most one
+    /// entry per pull request: two windows on the same diff would be two
+    /// views of one unsent draft, which is two truths about one thing.
+    public var openedDiffs: [OpenedDiff] = []
+
+    /// Whether any diff is open at all.
+    public var isReadingADiff: Bool { !openedDiffs.isEmpty }
+
+    /// Opens one, or hands an open one a newer copy of itself.
+    public func openDiff(_ diff: OpenedDiff) {
+        if let index = openedDiffs.firstIndex(where: {
+            $0.pullRequestID == diff.pullRequestID
+        }) {
+            openedDiffs[index] = diff
+        } else {
+            openedDiffs.append(diff)
+        }
+    }
+
+    public func closeDiff(_ pullRequestID: String) {
+        openedDiffs.removeAll { $0.pullRequestID == pullRequestID }
+    }
 
     /// What is left of GitHub's two hourly allowances, as last reported.
     public var budgets = RateBudgets()
@@ -1210,9 +1233,12 @@ extension AppState {
     @discardableResult
     public func reveal(_ reference: ItemReference) -> Bool {
         guard let found = located(reference) else { return false }
-        // Whatever was being read is not what is being gone to. A diff left
-        // open over the list would cover the row this just selected.
-        openedDiff = nil
+        // Open reviews are left alone. They used to be shut here, because a
+        // diff lay over the window and would have covered the row this
+        // selects -- a window of its own covers nothing, and shutting
+        // somebody's half-read review to select a row elsewhere would be a
+        // rude answer to a small request.
+        //
         // Off any repository narrowing: the item may well be in a
         // repository the sidebar is not currently filtered to, and landing
         // on a list that does not show it would look like nothing happened.

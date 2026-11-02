@@ -72,17 +72,29 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             setDiffLayout: { [state] layout in state.settings.diffLayout = layout },
             diffPaging: { [state] in state.settings.diffPaging },
             setDiffPaging: { [state] paging in state.settings.diffPaging = paging },
-            stepDiffFile: { step in
+            stepDiffFile: { [windowController] step in
+                // Addressed to one review, not broadcast. With several
+                // windows open an unaddressed notification reached every
+                // one of them, so a single option-right paged all of them
+                // at once -- including the ones nobody was looking at.
+                guard
+                    let id = windowController.reviewWindows
+                        .pullRequestID(of: NSApp.keyWindow)
+                else { return }
                 NotificationCenter.default.post(
-                    name: .diffStepFile, object: nil, userInfo: ["step": step]
+                    name: .diffStepFile, object: nil,
+                    userInfo: ["step": step, "pullRequest": id]
                 )
             },
-            canStepDiffFile: { [state] in
-                // Only with a diff open, and not while somebody is
-                // typing: a disabled item hands its key equivalent back,
-                // so option-left goes on being word-left in the box where
-                // a review remark is written.
-                guard state.openedDiff != nil else { return false }
+            canStepDiffFile: { [windowController] in
+                // Only while the keyboard is in a review, and not while
+                // somebody is typing: a disabled item hands its key
+                // equivalent back, so option-left goes on being word-left
+                // in the box where a review remark is written.
+                guard
+                    windowController.reviewWindows
+                        .pullRequestID(of: NSApp.keyWindow) != nil
+                else { return false }
                 return !(NSApp.keyWindow?.firstResponder is NSTextView)
             }
         )
@@ -189,9 +201,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                         let file = files.first { $0.path.contains(wanted) }
                             ?? files.first { $0.path == here }
                             ?? files[0]
-                        state.openedDiff = OpenedDiff(
+                        state.openDiff(OpenedDiff(
                             pullRequestID: id, path: file.path, files: files, url: item.url
-                        )
+                        ))
                         return
                     }
                     try? await Task.sleep(for: .milliseconds(500))

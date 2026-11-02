@@ -170,19 +170,23 @@ struct LinkedItemsTests {
         #expect(state.reveal(ItemReference(repository: repository, number: 9999)) == false)
     }
 
-    /// Going somewhere else means leaving the diff: it covers the whole
-    /// window, including the row just selected.
-    @Test("Showing an item puts away the diff being read")
-    func revealClosesTheDiff() {
+    /// Going somewhere else no longer means leaving the review. A diff is
+    /// a window of its own now and covers nothing.
+    @Test("Showing an item leaves an open review where it was")
+    func revealLeavesTheDiffOpen() {
         let state = state()
         let target = item(number: 482)
         state.listPullRequests[pullRequests.id] = [target]
-        state.openedDiff = OpenedDiff(
+        state.openDiff(OpenedDiff(
             pullRequestID: "other", path: "a.php", files: [], url: URL(string: "https://x.dev")!
-        )
+        ))
 
         #expect(state.reveal(target.reference))
-        #expect(state.openedDiff == nil)
+        // It used to be shut here, because a diff lay over the window and
+        // would have covered the row this selects. A window of its own
+        // covers nothing, and shutting somebody's half-read review to
+        // select a row elsewhere is a rude answer to a small request.
+        #expect(state.openedDiffs.map(\.pullRequestID) == ["other"])
         #expect(state.inspectedPullRequestID == target.id)
     }
 

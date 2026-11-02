@@ -155,19 +155,19 @@ struct OpenedDiffTests {
             Issue.record("expected files")
             return
         }
-        state.openedDiff = OpenedDiff(
+        state.openDiff(OpenedDiff(
             pullRequestID: "1", path: "a.php", files: files,
             url: URL(string: "https://github.com/octo/platform/pull/1")!
-        )
+        ))
 
         // What a refresh does to that dictionary, in both the shapes it
         // takes: replaced wholesale, and pruned of a row that has gone.
         state.changedFiles = [:]
-        #expect(state.openedDiff?.files.count == 2)
+        #expect(state.openedDiffs.first?.files.count == 2)
 
         state.listPullRequests[list.id] = []
-        #expect(state.openedDiff?.files.count == 2)
+        #expect(state.openedDiffs.first?.files.count == 2)
         // And the links still work, though the row is gone.
-        #expect(state.openedDiff?.url.lastPathComponent == "1")
+        #expect(state.openedDiffs.first?.url.lastPathComponent == "1")
     }
 }
