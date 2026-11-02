@@ -1,5 +1,40 @@
 import Foundation
 
+/// One line of a patch, worked out once.
+///
+/// What the view needs to draw a row and nothing it can derive cheaply:
+/// where the line sits in both files, which of its words changed, and
+/// whether it begins inside a block comment. All three depend on the
+/// whole patch above it, which is why they are worked out together and
+/// kept.
+public struct PatchLine: Identifiable, Sendable {
+    public let id: Int
+    public let text: String
+    /// Whether a `@@` has already gone by, which is what decides whether
+    /// a leading `---` is furniture or code.
+    public let insideHunk: Bool
+    public let number: DiffLineNumber
+    public let emphasis: [ChangedRange]
+    /// Whether the line above left a block comment open.
+    public let insideComment: Bool
+
+    public init(
+        id: Int,
+        text: String,
+        insideHunk: Bool,
+        number: DiffLineNumber,
+        emphasis: [ChangedRange],
+        insideComment: Bool
+    ) {
+        self.id = id
+        self.text = text
+        self.insideHunk = insideHunk
+        self.number = number
+        self.emphasis = emphasis
+        self.insideComment = insideComment
+    }
+}
+
 /// Remembers what was worked out about a patch, so scrolling does not pay
 /// for it again.
 ///
@@ -25,6 +60,7 @@ public final class DiffCache {
     private var numbers: [String: [DiffLineNumber]] = [:]
     private var comments: [String: (language: CodeLanguage?, state: DiffComments)] = [:]
     private var gaps: [String: (total: Int, found: [DiffGaps.Gap])] = [:]
+    private var patchLines: [String: (language: CodeLanguage?, built: [PatchLine])] = [:]
     private var order: [String] = []
 
     public func emphasis(in patch: String) -> [[ChangedRange]] {
@@ -71,6 +107,30 @@ public final class DiffCache {
         }
         let worked = DiffLineNumbers.read(patch)
         numbers[patch] = worked
+        remember(patch)
+        return worked
+    }
+
+    /// The patch as a list of lines, each with its number, its marked
+    /// words and whether it begins inside a block comment.
+    ///
+    /// The most-asked question of the lot: the view body builds this to
+    /// drive its `ForEach`, and the body runs again whenever the pointer
+    /// crosses a row. On a three-thousand-line patch that was three
+    /// thousand structs and a string split every time.
+    ///
+    /// The language is held beside the answer rather than in the key, as
+    /// it is for the comment scan this depends on: a patch belongs to one
+    /// file and so to one language.
+    public func lines(
+        of patch: String, language: CodeLanguage?, build: () -> [PatchLine]
+    ) -> [PatchLine] {
+        if let known = patchLines[patch], known.language == language {
+            remember(patch)
+            return known.built
+        }
+        let worked = build()
+        patchLines[patch] = (language, worked)
         remember(patch)
         return worked
     }
@@ -127,6 +187,7 @@ public final class DiffCache {
             numbers[oldest] = nil
             comments[oldest] = nil
             gaps[oldest] = nil
+            patchLines[oldest] = nil
         }
     }
 
@@ -140,6 +201,7 @@ public final class DiffCache {
         rows = [:]
         comments = [:]
         gaps = [:]
+        patchLines = [:]
         order = []
     }
 }

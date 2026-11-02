@@ -824,7 +824,7 @@ struct PatchLines: View {
         return Dictionary(uniqueKeysWithValues: found.map { ($0.afterPatchLine, $0) })
     }
 
-    private var lines: [Line] {
+    private var lines: [PatchLine] {
         // Numbered even where the gutter is hidden: the number is how a
         // line is told which comment it is in the middle of, and that is
         // drawn either way.
@@ -842,15 +842,28 @@ struct PatchLines: View {
         // Numbered and marked over the whole patch before the slice: both
         // depend on what came earlier in the file, and a stretch measured
         // on its own would start counting from one.
+        return DiffCache.shared.lines(of: patch, language: language) {
+            build(numbers: numbers, marks: marks, comments: comments)
+        }
+    }
+
+    /// The work behind `lines`, run once per patch and then remembered.
+    private func build(
+        numbers: [DiffLineNumber], marks: [[ChangedRange]], comments: DiffComments
+    ) -> [PatchLine] {
         var insideHunk = false
         return patch.components(separatedBy: "\n").enumerated().map { index, text in
             if DiffPatchLine.isHunkHeader(text) { insideHunk = true }
             let number = index < numbers.count ? numbers[index] : .none
-            return Line(
+            return PatchLine(
                 id: index,
                 text: text,
                 insideHunk: insideHunk,
-                number: showsLineNumbers ? number : .none,
+                // The real number, whether or not the gutter is drawn.
+                // Keeping the choice out of here is what lets the whole
+                // array be cached once per patch rather than once per
+                // patch and setting.
+                number: number,
                 emphasis: index < marks.count ? marks[index] : [],
                 insideComment: comments.isInsideComment(number)
             )
@@ -876,7 +889,14 @@ struct PatchLines: View {
     var body: some View {
         let digits = gutterDigits
         let anchors = anchors
-        VStack(alignment: .leading, spacing: 0) {
+        // Lazy. A file of three thousand patch lines built every one of
+        // its rows on every pass of the body -- and the body runs again
+        // whenever the pointer crosses a row. Each row costs a word
+        // split, a kind, and a painted line; the painting is cached, but
+        // the cache holds two thousand lines and a file this size does
+        // not fit in it, so the ones scrolled past were repainted every
+        // time. Only what is on screen is built now.
+        LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(lines) { line in
                 if let gap = gaps[line.id] {
                     expanded(gap, digits: digits)
@@ -995,7 +1015,7 @@ struct PatchLines: View {
     /// order, and overflowing the bounds does not change the order. The
     /// rows below were therefore painted on top of the half of the list
     /// that had left the box, which is what let the diff show through it.
-    private func isDrafting(_ line: Line) -> Bool {
+    private func isDrafting(_ line: PatchLine) -> Bool {
         guard let place = Self.addable(line.number) else { return false }
         return target.isOpen(line: place.line, side: place.side)
     }
@@ -1003,7 +1023,7 @@ struct PatchLines: View {
     /// What this row carries of the review being written: the remarks
     /// already on it, and the box where one is being written.
     @ViewBuilder
-    private func drafting(_ line: Line, writing: DraftWriting) -> some View {
+    private func drafting(_ line: PatchLine, writing: DraftWriting) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(remarks(at: line.number)) { comment in
                 DraftRemarkView(comment: comment, writing: writing, target: target)
@@ -1063,7 +1083,7 @@ struct PatchLines: View {
         return nil
     }
 
-    private func row(_ line: Line, digits: Int) -> some View {
+    private func row(_ line: PatchLine, digits: Int) -> some View {
         let kind = DiffLineKind(line: line.text, insideHunk: line.insideHunk)
         let split = DiffWords.split(line.text, emphasis: line.emphasis)
         return HStack(alignment: .top, spacing: 0) {
@@ -1128,7 +1148,7 @@ struct PatchLines: View {
     /// column of noise. It costs nothing to find, because it is where the
     /// pointer already is.
     private func gutterButton(
-        _ line: Line, digits: Int, place: (line: Int, side: ReviewThread.Side)
+        _ line: PatchLine, digits: Int, place: (line: Int, side: ReviewThread.Side)
     ) -> some View {
         let isHere = hovered.holds("\(line.id)")
         return Button {
@@ -1185,17 +1205,6 @@ struct PatchLines: View {
         return String(repeating: " ", count: max(0, digits - text.count)) + text
     }
 
-    private struct Line: Identifiable {
-        let id: Int
-        let text: String
-        /// Whether a `@@` has already gone by, which is what decides
-        /// whether a leading `---` is furniture or code.
-        let insideHunk: Bool
-        let number: DiffLineNumber
-        let emphasis: [ChangedRange]
-        /// Whether the line above left a block comment open.
-        let insideComment: Bool
-    }
 }
 
 /// What a line of a patch is, and how it is drawn.

@@ -57,8 +57,25 @@ public struct DiffComments: Sendable {
 
         /// Whether a comment is still open once that line has been read.
         func carries(_ body: String, from isOpen: Bool) -> Bool {
-            SyntaxHighlighter.read(body, language: language, insideComment: isOpen).insideComment
+            // A line holding neither marker cannot open or close a block
+            // comment, whatever else is on it, so it leaves the state as
+            // it was. Everything with a marker in it goes to the
+            // highlighter, which stays the one authority on what counts
+            // -- a second reader written to be quick is a second reader
+            // to disagree with.
+            //
+            // Nearly every line of an ordinary file takes the short way.
+            // Reading them all cost as much as painting the whole file,
+            // and it was paid before the first row appeared.
+            if let marker, !body.contains(marker.open), !body.contains(marker.close) {
+                return isOpen
+            }
+            return SyntaxHighlighter.read(
+                body, language: language, insideComment: isOpen
+            ).insideComment
         }
+
+        let marker = language.blockComment
 
         for (index, line) in patch.components(separatedBy: "\n").enumerated() {
             if DiffPatchLine.isHunkHeader(line) {

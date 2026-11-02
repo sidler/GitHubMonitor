@@ -101,3 +101,71 @@ struct DiffCommentsTests {
             .isInsideComment(line: 3, side: .new))
     }
 }
+
+/// The scan skips any line holding neither comment marker, on the grounds
+/// that such a line cannot open or close one. Nearly every line of a file
+/// takes that way, so it has to give the same answer as reading them all.
+@Suite("The short way through the comment scan")
+struct CommentScanShortcutTests {
+    /// Every shape that could tempt the shortcut into the wrong answer:
+    /// a docblock, a marker inside a string, a marker after a line
+    /// comment, an empty line inside a comment, and plain code.
+    private let patch = """
+        @@ -1,16 +1,16 @@ class Thing
+         <?php
+        -    $old = 1;
+        +    $new = 2;
+         /**
+          * A docblock, whose middle lines hold no marker at all.
+          *
+          * @param string $id
+          */
+             public function one(): void
+             {
+                 $a = '/* not a comment, a string */';
+                 // a line comment mentioning /* and */
+                 $b = 2;
+             }
+         /* opened here
+            and still open
+            closed here */
+             $c = 3;
+        """
+
+    /// What the scan would say if every line went to the highlighter.
+    private func readingEveryLine(_ patch: String, language: CodeLanguage) -> [Int: Bool] {
+        var isOpen = false
+        var answer: [Int: Bool] = [:]
+        var number = 0
+        for line in patch.components(separatedBy: "\n") {
+            guard !DiffPatchLine.isHunkHeader(line), !line.hasPrefix("-") else { continue }
+            number += 1
+            answer[number] = isOpen
+            let body = DiffWords.split(line).body
+            isOpen = SyntaxHighlighter.read(
+                body, language: language, insideComment: isOpen
+            ).insideComment
+        }
+        return answer
+    }
+
+    @Test("It agrees with reading every line")
+    func agrees() {
+        let comments = DiffComments.read(patch, language: .php)
+        let full = readingEveryLine(patch, language: .php)
+        for (number, expected) in full {
+            #expect(
+                comments.isInsideComment(line: number, side: .new) == expected,
+                "line \(number) disagrees"
+            )
+        }
+        // And the thing is worth testing: some line really is inside one.
+        #expect(full.values.contains(true))
+    }
+
+    /// A language with no block comment never reaches the scan at all.
+    @Test("A language without block comments carries nothing")
+    func noBlockComment() {
+        #expect(DiffComments.read(patch, language: nil).isInsideComment(line: 5, side: .new) == false)
+    }
+}

@@ -3,6 +3,11 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
+## Unreleased
+
+- **Large diffs open and scroll faster**, with files of a few thousand
+  lines no longer juddering.
+
 ## 2.4.0
 
 - **The token's description in Settings lists everything the app writes**

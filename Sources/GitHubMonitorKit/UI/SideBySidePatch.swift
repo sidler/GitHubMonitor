@@ -48,7 +48,10 @@ struct SideBySidePatch: View {
 
     var body: some View {
         let width = columnWidth
-        VStack(alignment: .leading, spacing: 0) {
+        // Lazy, for the same reason the single column is: a long file
+        // built every row on every pass, and most of them were nowhere
+        // near the screen.
+        LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(rows) { row in
                 switch row.kind {
                 case .gap(let gap):
