@@ -231,8 +231,13 @@ struct DiffOverlay: View {
             }
             .buttonStyle(.accessoryBar)
 
+            // No cancel shortcut on it. It carried one while the diff was
+            // a card, where escape meant "put this away" -- in a window
+            // escape belongs to the innermost thing on screen, the list of
+            // names and then the box a remark is written in, and a stray
+            // press should not take an hour's reading with it. Command-W
+            // and the red light are the way out.
             Button("Done", action: close)
-                .keyboardShortcut(.cancelAction)
         }
         .padding(12)
         .alert(
