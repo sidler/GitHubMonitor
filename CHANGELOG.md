@@ -3,26 +3,23 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
-## Unreleased
+## 2.5.0
 
 - **Remarks can be formatted without typing markdown.** Buttons above the
-  box for bold, italic, code, links, quotes and lists, and a preview of
-  what will be sent.
+  box for bold, italic, code, links, quotes and lists, with ⌘B, ⌘I,
+  ⌘E and ⌘K, and a preview of what will be sent.
 - **Backticks and accents can be typed in a remark again.** A key that
-  waits for the next one -- which on a German keyboard is how a backtick
-  is typed -- was being dropped before it became a character.
-
+  waits for the next one — which on a German keyboard is how a backtick
+  is typed — was being dropped before it became a character.
+- **Large diffs open and scroll faster**, with files of a few thousand
+  lines no longer juddering.
 - **A diff of many files scrolls without stalling.** What each file needs
   is worked out while you read the first one, starting with the file you
   opened.
-
 - **A pull request that has been pushed to is fetched again**, so the
   diff shows the same commit as the list of commits beside it.
 - **An open diff says when the pull request has moved on**, with a button
   to fetch it again.
-
-- **Large diffs open and scroll faster**, with files of a few thousand
-  lines no longer juddering.
 
 ## 2.4.0
 
