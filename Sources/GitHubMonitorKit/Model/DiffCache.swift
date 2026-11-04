@@ -194,6 +194,77 @@ public final class DiffCache {
     /// How many patches are being held, for the test that the bound holds.
     var count: Int { order.count }
 
+    /// Works out everything a diff will ask for, off the main thread,
+    /// before the scroll gets there.
+    ///
+    /// The work itself is unavoidable: a word-level diff and, in two
+    /// columns, the pairing of removals with the additions answering
+    /// them. On a pull request of fifty-three files it comes to about
+    /// three quarters of a second -- and it was paid a file at a time, on
+    /// the main thread, as each one scrolled into view. One file of
+    /// fifteen hundred patch lines cost a tenth of a second in a single
+    /// frame, which is a stall you can see.
+    ///
+    /// The file being read comes first and the rest follow outwards, so
+    /// what somebody is looking at is ready before what they might scroll
+    /// to. Cancelled when the diff closes: there is no point finishing
+    /// the work for a window that has gone.
+    func prime(
+        _ patches: [(patch: String, language: CodeLanguage?)], from index: Int = 0
+    ) -> Task<Void, Never> {
+        let ordered = Self.outwards(from: index, count: patches.count).map { patches[$0] }
+        return Task.detached(priority: .utility) {
+            for entry in ordered {
+                if Task.isCancelled { return }
+                // Worked out here, off the main thread, and only handed
+                // over once it is done.
+                let numbers = DiffLineNumbers.read(entry.patch)
+                let marks = DiffAlignment.emphasis(in: entry.patch)
+                let sides = DiffSideBySide.rows(of: entry.patch)
+                let comments = DiffComments.read(entry.patch, language: entry.language)
+                if Task.isCancelled { return }
+                await MainActor.run {
+                    DiffCache.shared.store(
+                        entry.patch, language: entry.language,
+                        numbers: numbers, marks: marks, sides: sides, comments: comments
+                    )
+                }
+            }
+        }
+    }
+
+    /// The order to work through: the one being read, then its
+    /// neighbours, then theirs.
+    static func outwards(from index: Int, count: Int) -> [Int] {
+        guard count > 0 else { return [] }
+        let start = min(max(0, index), count - 1)
+        var order = [start]
+        var step = 1
+        while order.count < count {
+            if start - step >= 0 { order.append(start - step) }
+            if start + step < count { order.append(start + step) }
+            step += 1
+        }
+        return order
+    }
+
+    /// Takes what was worked out elsewhere. Anything already here was
+    /// asked for while this was in flight and is the same answer.
+    func store(
+        _ patch: String,
+        language: CodeLanguage?,
+        numbers: [DiffLineNumber],
+        marks: [[ChangedRange]],
+        sides: [DiffSideRow],
+        comments: DiffComments
+    ) {
+        if self.numbers[patch] == nil { self.numbers[patch] = numbers }
+        if self.marks[patch] == nil { self.marks[patch] = marks }
+        if rows[patch] == nil { rows[patch] = sides }
+        if self.comments[patch] == nil { self.comments[patch] = (language, comments) }
+        remember(patch)
+    }
+
     /// For tests, which must not read what another test left behind.
     func forget() {
         numbers.removeAll()

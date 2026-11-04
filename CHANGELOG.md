@@ -5,6 +5,10 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **A diff of many files scrolls without stalling.** What each file needs
+  is worked out while you read the first one, starting with the file you
+  opened.
+
 - **A pull request that has been pushed to is fetched again**, so the
   diff shows the same commit as the list of commits beside it.
 - **An open diff says when the pull request has moved on**, with a button

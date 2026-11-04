@@ -31,6 +31,9 @@ final class ReviewWindows: NSObject, NSWindowDelegate {
     /// same one raise the window that is already up rather than open a
     /// rival to it.
     private var open: [String: Open] = [:]
+    /// The work being done ahead of each window's scroll, so it can be
+    /// called off when the window goes.
+    private var priming: [String: Task<Void, Never>] = [:]
     /// Pull requests whose windows are being taken down by the app itself,
     /// so the close notification does not report them as the user's doing.
     private var closingForGood: Set<String> = []
@@ -60,7 +63,8 @@ final class ReviewWindows: NSObject, NSWindowDelegate {
         for pullRequestID: String,
         title: String,
         subtitle: String,
-        unsent: Int
+        unsent: Int,
+        priming work: @autoclosure () -> Task<Void, Never>
     ) {
         if let entry = open[pullRequestID] {
             entry.host.rootView = content
@@ -116,6 +120,10 @@ final class ReviewWindows: NSObject, NSWindowDelegate {
         Self.mark(window, title: title, unsent: unsent)
 
         open[pullRequestID] = Open(window: window, host: host)
+        // Only for a window being built: handing an open one the current
+        // state happens on every refresh, and starting this again each
+        // time would be the same work over and over.
+        priming[pullRequestID] = work()
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
@@ -133,6 +141,8 @@ final class ReviewWindows: NSObject, NSWindowDelegate {
     func dismiss(_ pullRequestID: String) {
         guard let entry = open[pullRequestID] else { return }
         closingForGood.insert(pullRequestID)
+        priming[pullRequestID]?.cancel()
+        priming[pullRequestID] = nil
         entry.window.close()
         closingForGood.remove(pullRequestID)
         open[pullRequestID] = nil
@@ -149,6 +159,8 @@ final class ReviewWindows: NSObject, NSWindowDelegate {
             let id = pullRequestID(of: window)
         else { return }
         open[id] = nil
+        priming[id]?.cancel()
+        priming[id] = nil
         guard !closingForGood.contains(id) else { return }
         onClose?(id)
         // Deferred for the same reason the main window defers it: the

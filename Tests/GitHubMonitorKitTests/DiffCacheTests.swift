@@ -179,3 +179,57 @@ struct CodeLanguageTableTests {
         #expect(CodeLanguage.json.blockComment == nil)
     }
 }
+
+/// The order the work ahead of a scroll is done in, and that it ends up
+/// in the cache.
+@MainActor
+@Suite("Working ahead of the scroll")
+struct DiffPrimingTests {
+    /// The file being read first, then its neighbours, then theirs: what
+    /// somebody is looking at should be ready before what they might
+    /// scroll to.
+    @Test("The file being read comes first, then outwards")
+    func order() {
+        #expect(DiffCache.outwards(from: 3, count: 7) == [3, 2, 4, 1, 5, 0, 6])
+        #expect(DiffCache.outwards(from: 0, count: 4) == [0, 1, 2, 3])
+        #expect(DiffCache.outwards(from: 3, count: 4) == [3, 2, 1, 0])
+    }
+
+    /// An index pointing nowhere is a file that has gone; the work still
+    /// has to happen, starting from an end.
+    @Test("An index outside the list still covers all of it")
+    func outside() {
+        #expect(Set(DiffCache.outwards(from: 99, count: 3)) == [0, 1, 2])
+        #expect(DiffCache.outwards(from: -5, count: 3).first == 0)
+        #expect(DiffCache.outwards(from: 0, count: 0).isEmpty)
+    }
+
+    /// What was worked out elsewhere is what the view then reads.
+    @Test("Primed work is what the cache hands back")
+    func primes() async {
+        let patch = "@@ -1,3 +1,3 @@\n one\n-old two\n+new two\n three"
+        DiffCache.shared.forget()
+        await DiffCache.shared.prime([(patch, .php)]).value
+
+        // Built already: a builder that would produce something else is
+        // never called.
+        let lines = DiffCache.shared.lines(of: patch, language: .php) { [] }
+        #expect(DiffCache.shared.numbers(of: patch).count > 0)
+        #expect(DiffCache.shared.rows(of: patch).count > 0)
+        #expect(lines.isEmpty)
+    }
+
+    /// A window closed while the work is in flight stops it.
+    @Test("Cancelling leaves the cache alone")
+    func cancels() async {
+        let patch = "@@ -1,2 +1,2 @@\n one\n-old\n+new"
+        DiffCache.shared.forget()
+        let task = DiffCache.shared.prime([(patch, .php)])
+        task.cancel()
+        await task.value
+        // Either it finished before the cancel landed or it did nothing;
+        // what must not happen is a half-written entry.
+        let numbers = DiffCache.shared.numbers(of: patch)
+        #expect(numbers.count == patch.components(separatedBy: "\n").count)
+    }
+}

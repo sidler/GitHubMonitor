@@ -254,7 +254,15 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
                 for: opened.pullRequestID,
                 title: item.map { "#\($0.number) \($0.title)" } ?? "Review",
                 subtitle: item.map { "\($0.repository) · \($0.author)" } ?? "",
-                unsent: state.reviewDrafts[opened.pullRequestID]?.comments.count ?? 0
+                unsent: state.reviewDrafts[opened.pullRequestID]?.comments.count ?? 0,
+                // Everything the scroll will ask for, worked out off the
+                // main thread while the first file is being read.
+                priming: DiffCache.shared.prime(
+                    opened.files.compactMap { file in
+                        file.patch.map { ($0, file.language) }
+                    },
+                    from: opened.files.firstIndex { $0.path == opened.path } ?? 0
+                )
             )
         }
     }
