@@ -76,6 +76,13 @@ struct DiffOverlay: View {
     /// dragged. Nil leaves the edge fixed.
     var startingInspectorWidth: Double = Settings.defaultDiffInspectorWidth
     var setInspectorWidth: ((Double) -> Void)?
+    /// The remarks being written in this review.
+    ///
+    /// Held outside the view, by whoever owns the window. Inside it they
+    /// would die with the window, and the one moment somebody must be
+    /// asked about half-written remarks is the moment the window is
+    /// being closed.
+    @ObservedObject var boxes: DraftBoxes
 
     @StateObject private var open = OpenFolders()
     @StateObject private var whole = WholeFiles()
@@ -91,10 +98,6 @@ struct DiffOverlay: View {
     /// top. The diff could be scrolled from file to file and barely at all
     /// within one, which with short files looked almost like scrolling.
     @StateObject private var place = DiffPlace()
-    /// The remarks being written, for the whole review rather than for
-    /// one file: turning to another file leaves every open box and what
-    /// is in it where it was, and coming back finds it again.
-    @StateObject private var boxes = DraftBoxes()
     @StateObject private var asked = AskedEvent()
 
     var body: some View {
@@ -960,7 +963,10 @@ struct PatchLines: View {
         .onReceive(NotificationCenter.default.publisher(for: .diffOpenDraft)) { _ in
             guard writing != nil else { return }
             for place in lines.lazy.compactMap({ Self.addable($0.number) }).prefix(2) {
-                boxes.open(path: path, line: place.line, side: place.side)
+                let box = boxes.open(path: path, line: place.line, side: place.side)
+                if box.text.isEmpty {
+                    box.text = "A remark written here but not added."
+                }
             }
         }
     }

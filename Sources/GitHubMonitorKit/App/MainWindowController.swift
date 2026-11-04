@@ -35,6 +35,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         let windows = ReviewWindows()
         windows.onClose = { [weak self] id in self?.state.closeDiff(id) }
         windows.onDidClose = { [weak self] in self?.dropToAccessoryIfNothingIsLeft() }
+        windows.keepUnfinished = { [weak self] id in self?.keepUnfinishedRemarks(in: id) }
         return windows
     }()
     /// Kept so the collapse of the sidebar can be read back: the title is
@@ -305,7 +306,11 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             startingPath: opened.path,
             startingSidebarWidth: state.settings.diffSidebarWidth,
             setSidebarWidth: { [state] width in state.settings.diffSidebarWidth = width },
-            close: { [weak state] in state?.closeDiff(opened.pullRequestID) },
+            close: { [weak self] in
+                self?.reviewWindows.confirmClosing(opened.pullRequestID) { [weak self] in
+                    self?.state.closeDiff(opened.pullRequestID)
+                }
+            },
             review: item.map(reviewActions(for:)),
             subject: item.map(subject(for:)),
             fontSize: state.settings.diffFontSize,
@@ -370,9 +375,12 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             // the diff carries the one it was taken at.
             movedOn: item?.headCommit != nil && opened.commit != nil
                 && item?.headCommit != opened.commit,
-            reload: { [weak state, controller] in
-                controller.reloadDetail(for: opened.pullRequestID)
-                state?.closeDiff(opened.pullRequestID)
+            reload: { [weak self] in
+                self?.reviewWindows.confirmClosing(opened.pullRequestID) { [weak self] in
+                    guard let self else { return }
+                    controller.reloadDetail(for: opened.pullRequestID)
+                    state.closeDiff(opened.pullRequestID)
+                }
             },
             expanding: item.map { item in
                 FileExpanding(
@@ -393,8 +401,36 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             startingInspectorWidth: state.settings.diffInspectorWidth,
             setInspectorWidth: { [state] width in
                 state.settings.diffInspectorWidth = width
-            }
+            },
+            boxes: reviewWindows.boxes(for: opened.pullRequestID)
         )
+    }
+
+    /// Turns what is still in the boxes into unsent remarks.
+    ///
+    /// Asked for on the way out of a review, when the answer was to keep
+    /// them. A box that is reworking a remark changes that remark; one
+    /// answering a conversation becomes a reply; the rest become remarks
+    /// on their own line -- in each case exactly what pressing the
+    /// button in the box would have done.
+    private func keepUnfinishedRemarks(in pullRequestID: String) {
+        guard let item = state.pullRequest(withID: pullRequestID) else { return }
+        let threads = state.reviewThreads[pullRequestID] ?? []
+        for box in reviewWindows.boxes(for: pullRequestID).unfinished {
+            let body = box.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !body.isEmpty else { continue }
+            if let editing = box.editing {
+                controller.changeRemark(editing, in: item.id, to: body)
+            } else if let replyTo = box.place.replyTo,
+                let thread = threads.first(where: { $0.id == replyTo }) {
+                controller.addReply(to: thread, of: item, body: body)
+            } else if let line = box.place.line {
+                controller.addRemark(
+                    to: item, path: box.place.path, line: line,
+                    side: box.place.side, body: body
+                )
+            }
+        }
     }
 
     /// The detail pane's facts, for the strip down the side of a review.

@@ -21,6 +21,9 @@ final class ReviewWindows: NSObject, NSWindowDelegate {
     /// Asked after a window closes, so the app only drops back to an
     /// accessory once nothing is left on screen.
     var onDidClose: (() -> Void)?
+    /// Asked to turn a review's half-written remarks into unsent ones,
+    /// when that is what somebody chose on the way out.
+    var keepUnfinished: ((String) -> Void)?
 
     private struct Open {
         let window: NSWindow
@@ -34,6 +37,14 @@ final class ReviewWindows: NSObject, NSWindowDelegate {
     /// The work being done ahead of each window's scroll, so it can be
     /// called off when the window goes.
     private var priming: [String: Task<Void, Never>] = [:]
+    /// The boxes remarks are being written in, one set per review.
+    ///
+    /// Here rather than in the view that draws them, because they have to
+    /// outlive it by exactly one question: a window being closed with
+    /// words in a box is the moment to ask what should become of them,
+    /// and by the time the view is gone there is nothing left to ask
+    /// about.
+    private var drafting: [String: DraftBoxes] = [:]
     /// Pull requests whose windows are being taken down by the app itself,
     /// so the close notification does not report them as the user's doing.
     private var closingForGood: Set<String> = []
@@ -45,6 +56,56 @@ final class ReviewWindows: NSObject, NSWindowDelegate {
     var shownIDs: [String] { Array(open.keys) }
 
     func isShowing(_ pullRequestID: String) -> Bool { open[pullRequestID] != nil }
+
+    /// The boxes for this review, made the first time they are asked for
+    /// and the same ones every time after.
+    func boxes(for pullRequestID: String) -> DraftBoxes {
+        if let here = drafting[pullRequestID] { return here }
+        let made = DraftBoxes()
+        drafting[pullRequestID] = made
+        return made
+    }
+
+    /// Asks what should become of remarks written but not added, then
+    /// carries on -- or does not, which is what Cancel is for.
+    ///
+    /// Used by every way out of a review, the close button and Done
+    /// alike. Half-written remarks are the one thing in a review that is
+    /// nowhere else: a draft remark is kept on disk and an unsent review
+    /// survives a restart, but words still in the box are only in the
+    /// box.
+    func confirmClosing(_ pullRequestID: String, then: @escaping () -> Void) {
+        let unfinished = drafting[pullRequestID]?.unfinished ?? []
+        guard !unfinished.isEmpty, let window = open[pullRequestID]?.window else {
+            return then()
+        }
+
+        let alert = NSAlert()
+        alert.messageText = unfinished.count == 1
+            ? "One remark has been written but not added."
+            : "\(unfinished.count) remarks have been written but not added."
+        alert.informativeText = """
+            Keeping them puts them into the review as unsent remarks, \
+            where you can still change or delete them before you send it.
+            """
+        alert.addButton(withTitle: "Keep")
+        alert.addButton(withTitle: "Discard")
+        alert.addButton(withTitle: "Cancel")
+        // Discard throws writing away, so it is not the one a stray
+        // Return lands on.
+        alert.buttons[1].hasDestructiveAction = true
+        alert.beginSheetModal(for: window) { [weak self] answer in
+            switch answer {
+            case .alertFirstButtonReturn:
+                self?.keepUnfinished?(pullRequestID)
+                then()
+            case .alertSecondButtonReturn:
+                then()
+            default:
+                break
+            }
+        }
+    }
 
     /// Which review a window is showing, for the menu items that act on
     /// whichever one the keyboard is in.
@@ -146,11 +207,25 @@ final class ReviewWindows: NSObject, NSWindowDelegate {
         entry.window.close()
         closingForGood.remove(pullRequestID)
         open[pullRequestID] = nil
+        drafting[pullRequestID] = nil
         onDidClose?()
     }
 
     func dismissAll() {
         for id in open.keys { dismiss(id) }
+    }
+
+    /// The red light and Command-W, which is where the question belongs.
+    ///
+    /// `close()` does not come through here, which is what lets the
+    /// answer take the window down without being asked a second time.
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        guard
+            let id = pullRequestID(of: sender),
+            !(drafting[id]?.unfinished.isEmpty ?? true)
+        else { return true }
+        confirmClosing(id) { [weak self] in self?.open[id]?.window.close() }
+        return false
     }
 
     func windowWillClose(_ notification: Notification) {
@@ -161,6 +236,7 @@ final class ReviewWindows: NSObject, NSWindowDelegate {
         open[id] = nil
         priming[id]?.cancel()
         priming[id] = nil
+        drafting[id] = nil
         guard !closingForGood.contains(id) else { return }
         onClose?(id)
         // Deferred for the same reason the main window defers it: the

@@ -118,4 +118,30 @@ struct DraftBoxesTests {
         #expect(box.editing == id)
         #expect(boxes.count == 1)
     }
+
+    /// An empty box is nothing anybody would miss, so nobody is asked
+    /// about it on the way out.
+    @Test("Only the boxes with words in them count as unfinished")
+    func unfinished() {
+        let boxes = DraftBoxes()
+        boxes.open(path: "a.swift", line: 7, side: .new)
+        boxes.open(path: "b.swift", line: 9, side: .new).text = "   \n  "
+        boxes.open(path: "c.swift", line: 1, side: .new).text = "a real thought"
+
+        #expect(boxes.count == 3)
+        #expect(boxes.unfinished.count == 1)
+        #expect(boxes.unfinished.first?.text == "a real thought")
+    }
+
+    /// These become remarks, and remarks that come out in a different
+    /// order each time are remarks nobody trusts.
+    @Test("Unfinished remarks come out in the order they sit in the diff")
+    func unfinishedOrder() {
+        let boxes = DraftBoxes()
+        boxes.open(path: "b.swift", line: 4, side: .new).text = "third"
+        boxes.open(path: "a.swift", line: 9, side: .new).text = "second"
+        boxes.open(path: "a.swift", line: 2, side: .new).text = "first"
+
+        #expect(boxes.unfinished.map(\.text) == ["first", "second", "third"])
+    }
 }

@@ -87,8 +87,23 @@ final class DraftTarget: ObservableObject {
 final class DraftBoxes: ObservableObject {
     @Published private(set) var boxes: [DraftPlace: DraftTarget] = [:]
 
-    /// How many remarks are half-written.
+    /// How many boxes are open.
     var count: Int { boxes.count }
+
+    /// The boxes holding words, in the order they sit in the diff.
+    ///
+    /// An empty box is nothing anybody would miss, so it is not counted
+    /// and not asked about. The order is settled rather than whatever
+    /// the dictionary offers: these become remarks, and remarks that
+    /// appear in a different order each time are remarks nobody trusts.
+    var unfinished: [DraftTarget] {
+        boxes.values
+            .filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .sorted {
+                ($0.place.path, $0.place.line ?? .max, $0.place.side.rawValue)
+                    < ($1.place.path, $1.place.line ?? .max, $1.place.side.rawValue)
+            }
+    }
 
     func box(at place: DraftPlace) -> DraftTarget? { boxes[place] }
 

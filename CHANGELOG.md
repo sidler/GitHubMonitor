@@ -5,6 +5,8 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **Closing a review asks about remarks written but not added**, and
+  keeps them as unsent remarks if that is what you want.
 - **Several remarks can be half-written at once**, each on its own line,
   and they survive turning to another file: a box stays where it was
   opened, with what you typed still in it, and is there again when you

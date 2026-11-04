@@ -93,7 +93,10 @@ struct SideBySidePatch: View {
         .onReceive(NotificationCenter.default.publisher(for: .diffOpenDraft)) { _ in
             guard writing != nil else { return }
             for place in rows.lazy.compactMap({ self.place(of: $0) }).prefix(2) {
-                boxes.open(path: path, line: place.line, side: place.side)
+                let box = boxes.open(path: path, line: place.line, side: place.side)
+                if box.text.isEmpty {
+                    box.text = "A remark written here but not added."
+                }
             }
         }
     }
