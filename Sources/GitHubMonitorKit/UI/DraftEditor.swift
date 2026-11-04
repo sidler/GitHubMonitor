@@ -26,73 +26,115 @@ struct Mentioning {
     let candidates: (_ query: String) -> [MentionableUser]
 }
 
-/// Which line is being written about, and what has been typed so far.
+/// Where a remark is being written: a line of a file, or a conversation
+/// being answered.
 ///
-/// One of these for a whole file rather than one per row: only one remark
-/// is written at a time, and a thousand objects for a thousand lines is a
-/// thousand objects.
-@MainActor
-final class DraftTarget: ObservableObject {
-    /// The file the box is open in.
-    ///
-    /// Here rather than in the view that draws it, because the box has to
-    /// outlive that view. One file on screen at a time means turning to
-    /// the next one takes the whole patch view with it -- and with it,
-    /// until this moved up here, the half-written remark.
-    @Published var path = ""
-    @Published var line: Int?
-    @Published var side: ReviewThread.Side = .new
-    @Published var text = ""
-    /// The remark being reworded, where it is one that already exists.
-    @Published var editing: UUID?
-    /// The conversation being answered, where the box belongs to one
-    /// rather than to a bare line.
-    @Published var replyingTo: String?
-    /// Whether the markdown is being read rather than written. Here
-    /// rather than in the view because it belongs to the draft: a box
-    /// that opens on the next line should open on the writing.
-    @Published var previewing = false
+/// A value, so it can be the key a box is kept under and the question a
+/// row asks when it draws itself.
+struct DraftPlace: Hashable, Sendable {
+    let path: String
+    /// Nil where the box answers a conversation rather than a bare line.
+    let line: Int?
+    let side: ReviewThread.Side
+    /// The conversation being answered, where it answers one.
+    let replyTo: String?
 
-    func open(
-        path: String, line: Int, side: ReviewThread.Side,
-        text: String = "", editing: UUID? = nil
-    ) {
+    init(path: String, line: Int, side: ReviewThread.Side) {
         self.path = path
         self.line = line
         self.side = side
-        self.text = text
-        self.editing = editing
-        replyingTo = nil
-        previewing = false
+        replyTo = nil
     }
 
-    func open(reply thread: ReviewThread, text: String = "", editing: UUID? = nil) {
+    init(reply thread: ReviewThread) {
         path = thread.path
         line = nil
+        side = thread.side
+        replyTo = thread.id
+    }
+}
+
+/// One open box, and what has been typed in it.
+@MainActor
+final class DraftTarget: ObservableObject {
+    let place: DraftPlace
+    @Published var text: String
+    /// The remark being reworded, where it is one that already exists.
+    @Published var editing: UUID?
+    /// Whether the markdown is being read rather than written.
+    @Published var previewing = false
+
+    init(place: DraftPlace, text: String = "", editing: UUID? = nil) {
+        self.place = place
         self.text = text
         self.editing = editing
-        replyingTo = thread.id
-        previewing = false
     }
+}
 
-    func shut() {
-        path = ""
-        line = nil
-        text = ""
-        editing = nil
-        replyingTo = nil
-        previewing = false
-    }
+/// Every box open in a review at once.
+///
+/// More than one, and that is the point. A review is read file by file,
+/// and a thought about the third file does not wait politely for the
+/// remark begun on the first to be finished. Each box is kept under the
+/// place it was opened on, so turning the page leaves it where it was and
+/// turning back finds it again, with what was typed still in it.
+///
+/// A box per place also keeps typing cheap: a keystroke publishes on that
+/// one box, which the editor observes, and not on the thing the patch
+/// view watches -- so a letter typed in a three-thousand-line file no
+/// longer asks the whole file to draw itself again.
+@MainActor
+final class DraftBoxes: ObservableObject {
+    @Published private(set) var boxes: [DraftPlace: DraftTarget] = [:]
 
-    /// Whether the box is open on this line of this file. The file is
-    /// part of the question: line 42 of one file is not line 42 of the
-    /// next, and without the path a remark begun in one reappeared in
-    /// the other.
+    /// How many remarks are half-written.
+    var count: Int { boxes.count }
+
+    func box(at place: DraftPlace) -> DraftTarget? { boxes[place] }
+
+    /// Whether a box is open on this line of this file. The file is part
+    /// of the question: line 42 of one file is not line 42 of the next.
     func isOpen(path: String, line: Int, side: ReviewThread.Side) -> Bool {
-        replyingTo == nil && self.path == path && self.line == line && self.side == side
+        boxes[DraftPlace(path: path, line: line, side: side)] != nil
     }
 
-    func isReplying(to threadID: String) -> Bool { replyingTo == threadID }
+    func isReplying(to threadID: String) -> Bool {
+        boxes.keys.contains { $0.replyTo == threadID }
+    }
+
+    /// Opens a box, or hands back the one already there.
+    ///
+    /// Already there wins unless something is being put into it: pressing
+    /// the plus twice on the same line should not wipe what was typed
+    /// between the two presses.
+    @discardableResult
+    func open(
+        path: String, line: Int, side: ReviewThread.Side,
+        text: String = "", editing: UUID? = nil
+    ) -> DraftTarget {
+        open(DraftPlace(path: path, line: line, side: side), text: text, editing: editing)
+    }
+
+    @discardableResult
+    func open(
+        reply thread: ReviewThread, text: String = "", editing: UUID? = nil
+    ) -> DraftTarget {
+        open(DraftPlace(reply: thread), text: text, editing: editing)
+    }
+
+    @discardableResult
+    private func open(
+        _ place: DraftPlace, text: String, editing: UUID?
+    ) -> DraftTarget {
+        if let here = boxes[place], text.isEmpty, editing == nil { return here }
+        let box = DraftTarget(place: place, text: text, editing: editing)
+        boxes[place] = box
+        return box
+    }
+
+    func shut(_ place: DraftPlace) {
+        boxes[place] = nil
+    }
 }
 
 /// Which row the pointer is over, so its number can offer itself.
@@ -122,7 +164,7 @@ final class HoveredRow: ObservableObject {
 struct DraftRemarkView: View {
     let comment: DraftComment
     let writing: DraftWriting
-    @ObservedObject var target: DraftTarget
+    let boxes: DraftBoxes
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
@@ -139,7 +181,7 @@ struct DraftRemarkView: View {
                     Spacer(minLength: 0)
 
                     Button("Edit") {
-                        target.open(
+                        boxes.open(
                             path: comment.path,
                             line: comment.line,
                             side: comment.side,
@@ -176,7 +218,11 @@ struct DraftEditorView: View {
     /// only so the draft can draw it in the right place.
     var thread: ReviewThread?
     let writing: DraftWriting
-    @ObservedObject var target: DraftTarget
+    /// The box this view is. Observed, so a keystroke redraws this and
+    /// nothing else.
+    @ObservedObject var box: DraftTarget
+    /// Where it is kept, so it can be taken away again.
+    let boxes: DraftBoxes
 
     @StateObject private var caret = CaretState()
     @StateObject private var pick = MentionPick()
@@ -185,8 +231,8 @@ struct DraftEditorView: View {
     /// front of the caret.
     private var query: String? {
         MentionTyping.query(
-            in: target.text,
-            before: MentionTyping.index(ofUTF16: caret.offset, in: target.text)
+            in: box.text,
+            before: MentionTyping.index(ofUTF16: caret.offset, in: box.text)
         )
     }
 
@@ -202,7 +248,7 @@ struct DraftEditorView: View {
     }
 
     private var canSave: Bool {
-        !target.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !box.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var body: some View {
@@ -214,11 +260,11 @@ struct DraftEditorView: View {
             VStack(alignment: .leading, spacing: 4) {
                 // Above the box, not below it: the word comes first in
                 // the remark and first in the writing of one.
-                ConventionalCommentBar(text: $target.text, caret: caret)
+                ConventionalCommentBar(text: $box.text, caret: caret)
 
-                MarkdownBar(text: $target.text, caret: caret, previewing: $target.previewing)
+                MarkdownBar(text: $box.text, caret: caret, previewing: $box.previewing)
 
-                if target.previewing {
+                if box.previewing {
                     preview
                 } else {
                     editor
@@ -235,7 +281,7 @@ struct DraftEditorView: View {
                 HStack(spacing: 10) {
                     Button(label) { save() }
                         .disabled(!canSave)
-                    Button("Cancel") { target.shut() }
+                    Button("Cancel") { boxes.shut(box.place) }
                     Spacer(minLength: 8)
                     Text("Kept until you send the review")
                         .font(.caption2)
@@ -264,9 +310,9 @@ struct DraftEditorView: View {
     private var preview: some View {
         ScrollView {
             MarkdownText(
-                source: target.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                source: box.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                     ? "*Nothing written yet.*"
-                    : target.text,
+                    : box.text,
                 overflowNote: ""
             )
             .font(.callout)
@@ -288,7 +334,7 @@ struct DraftEditorView: View {
     /// The box itself, with the list of names floating over it.
     private var editor: some View {
         CommentTextView(
-            text: $target.text,
+            text: $box.text,
             caret: caret,
             fontSize: NSFont.preferredFont(forTextStyle: .callout).pointSize,
             focusesOnAppear: true,
@@ -299,7 +345,7 @@ struct DraftEditorView: View {
             // what escape is about, and once it is gone the box is.
             onCancel: {
                 if people.isEmpty {
-                    target.shut()
+                    boxes.shut(box.place)
                 } else {
                     pick.dismissed = query
                 }
@@ -359,11 +405,11 @@ struct DraftEditorView: View {
 
     private func take(_ person: MentionableUser) {
         let written = MentionTyping.completing(
-            target.text,
+            box.text,
             with: person.login,
-            before: MentionTyping.index(ofUTF16: caret.offset, in: target.text)
+            before: MentionTyping.index(ofUTF16: caret.offset, in: box.text)
         )
-        target.text = written.text
+        box.text = written.text
         // The caret belongs behind the name that was just written, not
         // wherever the new string happens to end.
         caret.wanted = NSRange(location: written.caret, length: 0)
@@ -371,20 +417,20 @@ struct DraftEditorView: View {
     }
 
     private var label: String {
-        if target.editing != nil { return "Save" }
+        if box.editing != nil { return "Save" }
         return thread == nil ? "Add" : "Reply"
     }
 
     private func save() {
         guard canSave else { return }
-        if let editing = target.editing {
-            writing.change(editing, target.text)
+        if let editing = box.editing {
+            writing.change(editing, box.text)
         } else if let thread {
-            writing.reply(thread, target.text)
+            writing.reply(thread, box.text)
         } else {
-            writing.add(path, line, side, target.text)
+            writing.add(path, line, side, box.text)
         }
-        target.shut()
+        boxes.shut(box.place)
     }
 }
 

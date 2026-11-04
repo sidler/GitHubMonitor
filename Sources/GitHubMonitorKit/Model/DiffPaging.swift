@@ -101,9 +101,10 @@ extension Notification.Name {
     /// and only when a key is pressed.
     public static let diffStepFile = Notification.Name("GitHubMonitor.diffStepFile")
 
-    /// Development aid: opens the box a remark is written in, on the
-    /// first line of the diff that one could be written about. There is
-    /// no other way to reach that box without a hand on the mouse, and a
-    /// box nobody can open from a script is a box nobody checks.
+    /// Development aid: opens a box on each of the first two lines of
+    /// the diff a remark could be written about. There is no other way
+    /// to reach those boxes without a hand on the mouse, and a box
+    /// nobody can open from a script is a box nobody checks. Two of
+    /// them, because one would not show that several can be open.
     public static let diffOpenDraft = Notification.Name("GitHubMonitor.diffOpenDraft")
 }

@@ -91,10 +91,10 @@ struct DiffOverlay: View {
     /// top. The diff could be scrolled from file to file and barely at all
     /// within one, which with short files looked almost like scrolling.
     @StateObject private var place = DiffPlace()
-    /// The remark being written, for the whole review rather than for
-    /// one file: turning to another file leaves the box and what is in
-    /// it where they were, and coming back finds them again.
-    @StateObject private var target = DraftTarget()
+    /// The remarks being written, for the whole review rather than for
+    /// one file: turning to another file leaves every open box and what
+    /// is in it where it was, and coming back finds it again.
+    @StateObject private var boxes = DraftBoxes()
     @StateObject private var asked = AskedEvent()
 
     var body: some View {
@@ -713,7 +713,7 @@ struct DiffOverlay: View {
                             ? { if let blob = file.blob { expanding?.fetch(blob) } }
                             : nil,
                         showsWholeFile: whole.holds(file.path),
-                        target: target
+                        boxes: boxes
                     )
                     .padding(.vertical, 6)
                 case .unified, .sideBySide:
@@ -737,7 +737,7 @@ struct DiffOverlay: View {
                             ? { if let blob = file.blob { expanding?.fetch(blob) } }
                             : nil,
                         showsWholeFile: whole.holds(file.path),
-                        target: target
+                        boxes: boxes
                     )
                     .padding(.vertical, 6)
                 }
@@ -831,9 +831,9 @@ struct PatchLines: View {
     /// nothing left for them to offer.
     var showsWholeFile = false
 
-    /// Where a remark is being written. Handed in rather than owned:
-    /// it belongs to the review, not to whichever file is on screen.
-    @ObservedObject var target: DraftTarget
+    /// The remarks being written. Handed in rather than owned: they
+    /// belong to the review, not to whichever file is on screen.
+    @ObservedObject var boxes: DraftBoxes
     @StateObject private var hovered = HoveredRow()
     @StateObject private var expansion = Expansion()
 
@@ -935,7 +935,7 @@ struct PatchLines: View {
                 if let here = anchors[line.id] {
                     conversations(here)
                         .frame(width: column, alignment: .leading)
-                        .zIndex(here.contains { target.isReplying(to: $0.id) } ? 1 : 0)
+                        .zIndex(here.contains { boxes.isReplying(to: $0.id) } ? 1 : 0)
                 }
                 if let writing {
                     drafting(line, writing: writing)
@@ -958,10 +958,10 @@ struct PatchLines: View {
             expansion.applyPending(Array(gaps.values))
         }
         .onReceive(NotificationCenter.default.publisher(for: .diffOpenDraft)) { _ in
-            guard writing != nil, target.line == nil, target.replyingTo == nil else { return }
-            guard let place = lines.lazy.compactMap({ Self.addable($0.number) }).first
-            else { return }
-            target.open(path: path, line: place.line, side: place.side)
+            guard writing != nil else { return }
+            for place in lines.lazy.compactMap({ Self.addable($0.number) }).prefix(2) {
+                boxes.open(path: path, line: place.line, side: place.side)
+            }
         }
     }
 
@@ -1053,7 +1053,7 @@ struct PatchLines: View {
     /// that had left the box, which is what let the diff show through it.
     private func isDrafting(_ line: PatchLine) -> Bool {
         guard let place = Self.addable(line.number) else { return false }
-        return target.isOpen(path: path, line: place.line, side: place.side)
+        return boxes.isOpen(path: path, line: place.line, side: place.side)
     }
 
     /// What this row carries of the review being written: the remarks
@@ -1062,13 +1062,15 @@ struct PatchLines: View {
     private func drafting(_ line: PatchLine, writing: DraftWriting) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(remarks(at: line.number)) { comment in
-                DraftRemarkView(comment: comment, writing: writing, target: target)
+                DraftRemarkView(comment: comment, writing: writing, boxes: boxes)
             }
             if let place = Self.addable(line.number),
-                target.isOpen(path: path, line: place.line, side: place.side) {
+                let box = boxes.box(
+                    at: DraftPlace(path: path, line: place.line, side: place.side)
+                ) {
                 DraftEditorView(
                     path: path, line: place.line, side: place.side,
-                    writing: writing, target: target
+                    writing: writing, box: box, boxes: boxes
                 )
             }
         }
@@ -1086,8 +1088,8 @@ struct PatchLines: View {
                     thread: thread,
                     writing: writing,
                     replies: draftReplies(to: thread),
-                    target: target,
-                    isReplying: target.isReplying(to: thread.id)
+                    boxes: boxes,
+                    isReplying: boxes.isReplying(to: thread.id)
                 )
             }
         }
@@ -1188,7 +1190,7 @@ struct PatchLines: View {
     ) -> some View {
         let isHere = hovered.holds("\(line.id)")
         return Button {
-            target.open(path: path, line: place.line, side: place.side)
+            boxes.open(path: path, line: place.line, side: place.side)
         } label: {
             Text(
                 verbatim: Self.pad(line.number.old, to: digits) + " "

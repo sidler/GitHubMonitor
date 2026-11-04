@@ -1,0 +1,121 @@
+import Foundation
+import Testing
+
+@testable import GitHubMonitorKit
+
+/// The boxes remarks are written in: where they belong, and what keeps
+/// them alive while the diff moves on.
+@Suite("The boxes remarks are written in")
+@MainActor
+struct DraftBoxesTests {
+    private func thread(_ id: String, path: String, line: Int) -> ReviewThread {
+        ReviewThread(
+            id: id, path: path, line: line, side: .new,
+            isResolved: false, isOutdated: false, comments: []
+        )
+    }
+
+    /// The whole point of keeping these in the review. Reading one file
+    /// at a time means turning to the next takes the patch view with it,
+    /// and the half-written remark used to go with the view.
+    @Test("Turning to another file keeps what has been typed")
+    func survivesTurningThePage() {
+        let boxes = DraftBoxes()
+        let box = boxes.open(path: "src/Session.php", line: 42, side: .new)
+        box.text = "This lock is held too long"
+
+        // The next file draws itself and finds nothing of its own.
+        #expect(boxes.isOpen(path: "src/Filter.php", line: 42, side: .new) == false)
+
+        // And back again, with the same box and the same words in it.
+        let found = boxes.box(at: DraftPlace(path: "src/Session.php", line: 42, side: .new))
+        #expect(found === box)
+        #expect(found?.text == "This lock is held too long")
+    }
+
+    /// A thought about the third file does not wait for the remark begun
+    /// on the first to be finished.
+    @Test("Several remarks can be half-written at once")
+    func several() {
+        let boxes = DraftBoxes()
+        boxes.open(path: "a.swift", line: 7, side: .new).text = "about a"
+        boxes.open(path: "b.swift", line: 9, side: .old).text = "about b"
+        boxes.open(reply: thread("T1", path: "c.swift", line: 3)).text = "an answer"
+
+        #expect(boxes.count == 3)
+        #expect(boxes.box(at: DraftPlace(path: "a.swift", line: 7, side: .new))?.text == "about a")
+        #expect(boxes.box(at: DraftPlace(path: "b.swift", line: 9, side: .old))?.text == "about b")
+        #expect(boxes.isReplying(to: "T1"))
+    }
+
+    /// Line 42 of one file is not line 42 of the next.
+    @Test("The same line in another file is another box")
+    func lineAloneIsNotEnough() {
+        let boxes = DraftBoxes()
+        boxes.open(path: "a.swift", line: 7, side: .new)
+
+        #expect(boxes.isOpen(path: "a.swift", line: 7, side: .new))
+        #expect(boxes.isOpen(path: "b.swift", line: 7, side: .new) == false)
+        #expect(boxes.isOpen(path: "a.swift", line: 8, side: .new) == false)
+        #expect(boxes.isOpen(path: "a.swift", line: 7, side: .old) == false)
+    }
+
+    @Test("A reply hangs off its conversation, not off a line")
+    func replyKnowsItsThread() {
+        let boxes = DraftBoxes()
+        let conversation = thread("T1", path: "src/Session.php", line: 118)
+
+        boxes.open(reply: conversation)
+
+        #expect(boxes.isReplying(to: "T1"))
+        #expect(boxes.isReplying(to: "T2") == false)
+        // The line it hangs on belongs to the conversation, so no row of
+        // the file claims the box for itself.
+        #expect(boxes.isOpen(path: "src/Session.php", line: 118, side: .new) == false)
+    }
+
+    @Test("Sending or cancelling takes only that box away")
+    func shutting() {
+        let boxes = DraftBoxes()
+        boxes.open(path: "a.swift", line: 7, side: .new).text = "about a"
+        boxes.open(path: "b.swift", line: 9, side: .new).text = "about b"
+
+        boxes.shut(DraftPlace(path: "a.swift", line: 7, side: .new))
+
+        #expect(boxes.isOpen(path: "a.swift", line: 7, side: .new) == false)
+        #expect(boxes.box(at: DraftPlace(path: "b.swift", line: 9, side: .new))?.text == "about b")
+        #expect(boxes.count == 1)
+    }
+
+    /// The plus in the gutter is easy to hit twice, and the second press
+    /// must not wipe what was typed between them.
+    @Test("Opening a box that is already open keeps what is in it")
+    func openingTwice() {
+        let boxes = DraftBoxes()
+        let first = boxes.open(path: "a.swift", line: 7, side: .new)
+        first.text = "half a thought"
+
+        let again = boxes.open(path: "a.swift", line: 7, side: .new)
+
+        #expect(again === first)
+        #expect(again.text == "half a thought")
+        #expect(boxes.count == 1)
+    }
+
+    /// Reworking a remark that is already in the draft is a different
+    /// matter: it puts that remark's words into the box on purpose.
+    @Test("Editing a saved remark fills the box with it")
+    func editing() {
+        let boxes = DraftBoxes()
+        boxes.open(path: "a.swift", line: 7, side: .new).text = "stale"
+        let id = UUID()
+
+        let box = boxes.open(
+            path: "a.swift", line: 7, side: .new, text: "the saved words", editing: id
+        )
+
+        #expect(box.text == "the saved words")
+        #expect(box.editing == id)
+        #expect(boxes.count == 1)
+    }
+}

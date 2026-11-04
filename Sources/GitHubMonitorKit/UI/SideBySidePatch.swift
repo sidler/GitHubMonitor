@@ -42,9 +42,9 @@ struct SideBySidePatch: View {
     /// nothing left for them to offer.
     var showsWholeFile = false
 
-    /// Where a remark is being written. Handed in rather than owned:
-    /// it belongs to the review, not to whichever file is on screen.
-    @ObservedObject var target: DraftTarget
+    /// The remarks being written. Handed in rather than owned: they
+    /// belong to the review, not to whichever file is on screen.
+    @ObservedObject var boxes: DraftBoxes
     @StateObject private var hovered = HoveredRow()
     @StateObject private var expansion = Expansion()
 
@@ -63,7 +63,7 @@ struct SideBySidePatch: View {
                     // wide as the pair of them.
                     conversations(here)
                         .frame(width: width * 2 + Self.dividerWidth, alignment: .leading)
-                        .zIndex(here.contains { target.isReplying(to: $0.id) } ? 1 : 0)
+                        .zIndex(here.contains { boxes.isReplying(to: $0.id) } ? 1 : 0)
                 default:
                     // Both sides in one row, so a line that wraps on one
                     // side takes the other down with it and the two columns
@@ -91,10 +91,10 @@ struct SideBySidePatch: View {
             expansion.applyPending(gaps)
         }
         .onReceive(NotificationCenter.default.publisher(for: .diffOpenDraft)) { _ in
-            guard writing != nil, target.line == nil, target.replyingTo == nil else { return }
-            guard let place = rows.lazy.compactMap({ self.place(of: $0) }).first
-            else { return }
-            target.open(path: path, line: place.line, side: place.side)
+            guard writing != nil else { return }
+            for place in rows.lazy.compactMap({ self.place(of: $0) }).prefix(2) {
+                boxes.open(path: path, line: place.line, side: place.side)
+            }
         }
     }
 
@@ -114,8 +114,8 @@ struct SideBySidePatch: View {
                     replies: draft
                         .filter { $0.replyTo == thread.id }
                         .sorted { $0.writtenAt < $1.writtenAt },
-                    target: target,
-                    isReplying: target.isReplying(to: thread.id)
+                    boxes: boxes,
+                    isReplying: boxes.isReplying(to: thread.id)
                 )
             }
         }
@@ -126,12 +126,15 @@ struct SideBySidePatch: View {
     private func drafting(_ row: Row, writing: DraftWriting) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(remarks(on: row)) { comment in
-                DraftRemarkView(comment: comment, writing: writing, target: target)
+                DraftRemarkView(comment: comment, writing: writing, boxes: boxes)
             }
-            if let place = place(of: row), target.isOpen(path: path, line: place.line, side: place.side) {
+            if let place = place(of: row),
+                let box = boxes.box(
+                    at: DraftPlace(path: path, line: place.line, side: place.side)
+                ) {
                 DraftEditorView(
                     path: path, line: place.line, side: place.side,
-                    writing: writing, target: target
+                    writing: writing, box: box, boxes: boxes
                 )
             }
         }
@@ -157,7 +160,7 @@ struct SideBySidePatch: View {
     /// that had left the box, which is what let the diff show through it.
     private func isDrafting(_ row: Row) -> Bool {
         guard let place = place(of: row) else { return false }
-        return target.isOpen(path: path, line: place.line, side: place.side)
+        return boxes.isOpen(path: path, line: place.line, side: place.side)
     }
 
     /// Which line of which file a remark on this row would be about.
@@ -181,7 +184,7 @@ struct SideBySidePatch: View {
 
         if writing != nil, let number {
             Button {
-                target.open(path: path, line: number, side: side)
+                boxes.open(path: path, line: number, side: side)
             } label: {
                 Text(verbatim: PatchLines.pad(number, to: gutterDigits))
                     .font(font)

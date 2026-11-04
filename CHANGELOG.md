@@ -5,9 +5,10 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
-- **A half-written remark survives turning to another file.** The box
-  stays on the line it was opened on, with what you typed still in it,
-  and is there again when you come back to that file.
+- **Several remarks can be half-written at once**, each on its own line,
+  and they survive turning to another file: a box stays where it was
+  opened, with what you typed still in it, and is there again when you
+  come back.
 
 ## 2.5.0
 
