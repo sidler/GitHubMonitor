@@ -24,4 +24,13 @@ public enum DiffLayout: String, CaseIterable, Codable, Sendable {
         case .sideBySide: "rectangle.split.2x1"
         }
     }
+
+    /// What rests under the pointer. Two symbols beside each other need
+    /// to say what each of them does, not what the pair is about.
+    public var tip: String {
+        switch self {
+        case .unified: "Unified \u{2014} one column, each removal with the addition answering it"
+        case .sideBySide: "Side by side \u{2014} two columns, the old file left, the new one right"
+        }
+    }
 }

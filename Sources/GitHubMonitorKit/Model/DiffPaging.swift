@@ -33,6 +33,15 @@ public enum DiffPaging: String, CaseIterable, Codable, Sendable {
         case .oneFile: "doc.plaintext"
         }
     }
+
+    /// What rests under the pointer. Two symbols beside each other need
+    /// to say what each of them does, not what the pair is about.
+    public var tip: String {
+        switch self {
+        case .scroll: "All files \u{2014} one after another, in a single scroll"
+        case .oneFile: "One file \u{2014} with arrows to step through the rest"
+        }
+    }
 }
 
 /// Moving a file at a time through a diff.

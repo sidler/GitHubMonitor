@@ -265,17 +265,14 @@ struct DiffOverlay: View {
                 // which layout suits a patch is decided by looking at the
                 // patch: a file of replaced lines reads better in two
                 // columns, a file of insertions in one.
-                Picker("", selection: Binding(get: { layout }, set: setLayout)) {
-                    ForEach(DiffLayout.allCases, id: \.self) { option in
-                        Image(systemName: option.symbolName)
-                            .help(option.label)
-                            .tag(option)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+                SymbolChoice(
+                    options: DiffLayout.allCases.map {
+                        .init(tag: $0, symbolName: $0.symbolName, label: $0.label, tip: $0.tip)
+                    },
+                    selection: layout,
+                    choose: setLayout
+                )
                 .fixedSize()
-                .help("How the patch is laid out")
             }
 
             if let setPaging {
@@ -283,17 +280,14 @@ struct DiffOverlay: View {
                 // layout: how many columns a patch has and how many files
                 // are on screen are separate questions, and somebody may
                 // well want two columns and one file.
-                Picker("", selection: Binding(get: { paging }, set: setPaging)) {
-                    ForEach(DiffPaging.allCases, id: \.self) { option in
-                        Image(systemName: option.symbolName)
-                            .help(option.label)
-                            .tag(option)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+                SymbolChoice(
+                    options: DiffPaging.allCases.map {
+                        .init(tag: $0, symbolName: $0.symbolName, label: $0.label, tip: $0.tip)
+                    },
+                    selection: paging,
+                    choose: setPaging
+                )
                 .fixedSize()
-                .help("Whether the whole diff scrolls, or one file at a time")
             }
 
             if setLayout != nil || setPaging != nil {
