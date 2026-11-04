@@ -955,6 +955,12 @@ struct PatchLines: View {
             guard content?.lines != nil else { return }
             expansion.applyPending(Array(gaps.values))
         }
+        .onReceive(NotificationCenter.default.publisher(for: .diffOpenDraft)) { _ in
+            guard writing != nil, target.line == nil, target.replyingTo == nil else { return }
+            guard let place = lines.lazy.compactMap({ Self.addable($0.number) }).first
+            else { return }
+            target.open(line: place.line, side: place.side)
+        }
     }
 
     /// What is drawn where the patch is silent: the lines already opened,

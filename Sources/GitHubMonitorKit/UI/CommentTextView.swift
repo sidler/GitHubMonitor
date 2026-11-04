@@ -13,10 +13,18 @@ final class CaretState: ObservableObject {
     @Published var rect: CGRect = .zero
     /// Where the caret is, counted the way an `NSTextView` counts.
     @Published var offset: Int = 0
+    /// How much is selected from there. The formatting buttons work on
+    /// the selection, so a caret alone is not enough to tell them what to
+    /// put the asterisks round.
+    @Published var length: Int = 0
+
+    /// What is selected, as the text view counts it.
+    var selection: NSRange { NSRange(location: offset, length: length) }
+
     /// Where to put it on the next pass, once. Set when something is
     /// written into the text from outside -- after a name is inserted the
     /// caret belongs behind it, not where the old string happened to end.
-    var wanted: Int?
+    var wanted: NSRange?
 }
 
 /// The box a remark is written in.
@@ -80,13 +88,8 @@ struct CommentTextView: NSViewRepresentable {
         guard let view = scroll.documentView as? NSTextView else { return }
         context.coordinator.parent = self
 
-        if view.string != text {
-            view.string = text
-        }
-        if let wanted = caret.wanted {
+        if Self.hand(text, selection: caret.wanted, to: view) {
             caret.wanted = nil
-            let bounded = max(0, min(wanted, view.string.utf16.count))
-            view.setSelectedRange(NSRange(location: bounded, length: 0))
         }
         if view.font?.pointSize != CGFloat(fontSize) {
             view.font = NSFont.systemFont(ofSize: fontSize)
@@ -99,6 +102,37 @@ struct CommentTextView: NSViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    /// Hands the view what has been written, and says whether it took
+    /// it.
+    ///
+    /// Not while a dead key is pending. On a German keyboard a backtick
+    /// is typed as an accent that waits for the next key, and while it
+    /// waits it is *marked* text: it sits in the view uncommitted, so no
+    /// change is reported and the binding still holds the string without
+    /// it. The caret moved, though, and that brought us back here -- where
+    /// assigning the string the binding still held put the pending
+    /// backtick out. Which is why a backtick could not be typed at all,
+    /// and why neither could any other accent.
+    @discardableResult
+    static func hand(_ text: String, selection wanted: NSRange?, to view: NSTextView) -> Bool {
+        guard !view.hasMarkedText() else { return false }
+        if view.string != text {
+            view.string = text
+        }
+        if let wanted {
+            view.setSelectedRange(bounded(wanted, in: view))
+        }
+        return true
+    }
+
+    /// A selection that is certainly inside the text, whatever the model
+    /// thought the text was.
+    static func bounded(_ range: NSRange, in view: NSTextView) -> NSRange {
+        let length = (view.string as NSString).length
+        let location = max(0, min(range.location, length))
+        return NSRange(location: location, length: max(0, min(range.length, length - location)))
+    }
 
     @MainActor
     final class Coordinator: NSObject, NSTextViewDelegate {
@@ -181,9 +215,10 @@ struct CommentTextView: NSViewRepresentable {
         }
 
         private func report(_ view: NSTextView) {
-            let offset = view.selectedRange().location
+            let selected = view.selectedRange()
             let rect = caretRect(in: view)
-            if parent.caret.offset != offset { parent.caret.offset = offset }
+            if parent.caret.offset != selected.location { parent.caret.offset = selected.location }
+            if parent.caret.length != selected.length { parent.caret.length = selected.length }
             if parent.caret.rect != rect { parent.caret.rect = rect }
         }
 

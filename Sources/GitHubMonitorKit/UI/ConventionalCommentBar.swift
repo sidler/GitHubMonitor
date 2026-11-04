@@ -95,6 +95,6 @@ struct ConventionalCommentBar: View {
         // The writing carries on where it was. Without this the caret
         // goes wherever the new string happens to leave it, which after a
         // badge is in the middle of a URL.
-        caret.wanted = rewrite.caret(from: caret.offset)
+        caret.wanted = NSRange(location: rewrite.caret(from: caret.offset), length: 0)
     }
 }

@@ -5,6 +5,13 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **Remarks can be formatted without typing markdown.** Buttons above the
+  box for bold, italic, code, links, quotes and lists, and a preview of
+  what will be sent.
+- **Backticks and accents can be typed in a remark again.** A key that
+  waits for the next one -- which on a German keyboard is how a backtick
+  is typed -- was being dropped before it became a character.
+
 - **A diff of many files scrolls without stalling.** What each file needs
   is worked out while you read the first one, starting with the file you
   opened.

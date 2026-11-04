@@ -41,6 +41,10 @@ final class DraftTarget: ObservableObject {
     /// The conversation being answered, where the box belongs to one
     /// rather than to a bare line.
     @Published var replyingTo: String?
+    /// Whether the markdown is being read rather than written. Here
+    /// rather than in the view because it belongs to the draft: a box
+    /// that opens on the next line should open on the writing.
+    @Published var previewing = false
 
     func open(line: Int, side: ReviewThread.Side, text: String = "", editing: UUID? = nil) {
         self.line = line
@@ -48,6 +52,7 @@ final class DraftTarget: ObservableObject {
         self.text = text
         self.editing = editing
         replyingTo = nil
+        previewing = false
     }
 
     func open(reply thread: ReviewThread, text: String = "", editing: UUID? = nil) {
@@ -55,6 +60,7 @@ final class DraftTarget: ObservableObject {
         self.text = text
         self.editing = editing
         replyingTo = thread.id
+        previewing = false
     }
 
     func shut() {
@@ -62,6 +68,7 @@ final class DraftTarget: ObservableObject {
         text = ""
         editing = nil
         replyingTo = nil
+        previewing = false
     }
 
     func isOpen(line: Int, side: ReviewThread.Side) -> Bool {
@@ -191,45 +198,13 @@ struct DraftEditorView: View {
                 // the remark and first in the writing of one.
                 ConventionalCommentBar(text: $target.text, caret: caret)
 
-                CommentTextView(
-                    text: $target.text,
-                    caret: caret,
-                    fontSize: NSFont.preferredFont(forTextStyle: .callout).pointSize,
-                    focusesOnAppear: true,
-                    isCompleting: { !people.isEmpty },
-                    onMove: { pick.move($0, count: people.count) },
-                    onCommit: { take() },
-                    // One key, two meanings, innermost first: a list
-                    // on screen is what escape is about, and once it is
-                    // gone the box is.
-                    onCancel: {
-                        if people.isEmpty {
-                            target.shut()
-                        } else {
-                            pick.dismissed = query
-                        }
-                    }
-                )
-                .frame(minHeight: 60)
-                // A field, and it has to look like one. Drawn on the
-                // conversation's own grey with a hairline round it, the
-                // box was all but invisible -- you could not see where
-                // to start typing without clicking to find out. Paper
-                // under it and a real border round it.
-                .background(
-                    RoundedRectangle(cornerRadius: 5)
-                        .fill(Color(nsColor: .textBackgroundColor))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 5)
-                        .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1)
-                )
-                // An overlay, not something in the stack: the list has to
-                // be able to appear without the box changing height. That
-                // height is what used to push the whole diff about as
-                // names were typed.
-                .overlay(alignment: .topLeading) { completion }
-                .zIndex(1)
+                MarkdownBar(text: $target.text, caret: caret, previewing: $target.previewing)
+
+                if target.previewing {
+                    preview
+                } else {
+                    editor
+                }
 
                 // Under the left edge of the box, where the writing
                 // started and where the pointer already is. At the right
@@ -265,6 +240,72 @@ struct DraftEditorView: View {
             guard let query else { return }
             writing.mentioning?.ask(query)
         }
+    }
+
+    /// What will be sent, read the way it will be read.
+    private var preview: some View {
+        ScrollView {
+            MarkdownText(
+                source: target.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    ? "*Nothing written yet.*"
+                    : target.text,
+                overflowNote: ""
+            )
+            .font(.callout)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 4)
+            .padding(.horizontal, 5)
+        }
+        .frame(minHeight: 60)
+        .background(
+            RoundedRectangle(cornerRadius: 5)
+                .fill(Color(nsColor: .textBackgroundColor))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 5)
+                .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1)
+        )
+    }
+
+    /// The box itself, with the list of names floating over it.
+    private var editor: some View {
+        CommentTextView(
+            text: $target.text,
+            caret: caret,
+            fontSize: NSFont.preferredFont(forTextStyle: .callout).pointSize,
+            focusesOnAppear: true,
+            isCompleting: { !people.isEmpty },
+            onMove: { pick.move($0, count: people.count) },
+            onCommit: { take() },
+            // One key, two meanings, innermost first: a list on screen is
+            // what escape is about, and once it is gone the box is.
+            onCancel: {
+                if people.isEmpty {
+                    target.shut()
+                } else {
+                    pick.dismissed = query
+                }
+            }
+        )
+        .frame(minHeight: 60)
+        // A field, and it has to look like one. Drawn on the
+        // conversation's own grey with a hairline round it, the box was
+        // all but invisible -- you could not see where to start typing
+        // without clicking to find out. Paper under it and a real border
+        // round it.
+        .background(
+            RoundedRectangle(cornerRadius: 5)
+                .fill(Color(nsColor: .textBackgroundColor))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 5)
+                .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1)
+        )
+        // An overlay, not something in the stack: the list has to be able
+        // to appear without the box changing height. That height is what
+        // used to push the whole diff about as names were typed.
+        .overlay(alignment: .topLeading) { completion }
+        .zIndex(1)
     }
 
     /// The names on offer, floating under the caret.
@@ -307,7 +348,7 @@ struct DraftEditorView: View {
         target.text = written.text
         // The caret belongs behind the name that was just written, not
         // wherever the new string happens to end.
-        caret.wanted = written.caret
+        caret.wanted = NSRange(location: written.caret, length: 0)
         pick.index = 0
     }
 

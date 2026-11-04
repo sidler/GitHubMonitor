@@ -209,6 +209,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                             pullRequestID: id, path: file.path, files: files,
                             url: item.url, commit: item.headCommit
                         ))
+                        // `--draft` goes on to open the box a remark is
+                        // written in, once the window carrying it is up.
+                        if devOption("GHM_DRAFT") != nil {
+                            try? await Task.sleep(for: .milliseconds(900))
+                            NotificationCenter.default.post(name: .diffOpenDraft, object: nil)
+                        }
                         return
                     }
                     try? await Task.sleep(for: .milliseconds(500))

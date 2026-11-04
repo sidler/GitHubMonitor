@@ -85,4 +85,10 @@ extension Notification.Name {
     /// rebuild the whole overlay mid-scroll. This travels the other way
     /// and only when a key is pressed.
     public static let diffStepFile = Notification.Name("GitHubMonitor.diffStepFile")
+
+    /// Development aid: opens the box a remark is written in, on the
+    /// first line of the diff that one could be written about. There is
+    /// no other way to reach that box without a hand on the mouse, and a
+    /// box nobody can open from a script is a box nobody checks.
+    public static let diffOpenDraft = Notification.Name("GitHubMonitor.diffOpenDraft")
 }

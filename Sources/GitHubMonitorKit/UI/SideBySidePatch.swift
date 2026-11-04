@@ -88,6 +88,11 @@ struct SideBySidePatch: View {
             guard content?.lines != nil else { return }
             expansion.applyPending(gaps)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .diffOpenDraft)) { _ in
+            guard writing != nil, target.line == nil, target.replyingTo == nil else { return }
+            guard let place = rows.lazy.compactMap({ self.place(of: $0) }).first else { return }
+            target.open(line: place.line, side: place.side)
+        }
     }
 
     /// The conversations hanging off one row, and whatever this draft
