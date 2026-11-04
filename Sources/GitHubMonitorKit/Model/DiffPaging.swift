@@ -21,9 +21,15 @@ public enum DiffPaging: String, CaseIterable, Codable, Sendable {
         }
     }
 
+    /// Several sheets against one sheet.
+    ///
+    /// Both of these were a page with lines on it before, and side by
+    /// side in a toolbar that is two symbols nobody can tell apart. What
+    /// the choice is actually about is how many files are on screen, so
+    /// that is what the symbols count: more than one, or one.
     public var symbolName: String {
         switch self {
-        case .scroll: "list.bullet.rectangle.portrait"
+        case .scroll: "doc.on.doc"
         case .oneFile: "doc.plaintext"
         }
     }
