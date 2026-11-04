@@ -33,6 +33,13 @@ struct Mentioning {
 /// thousand objects.
 @MainActor
 final class DraftTarget: ObservableObject {
+    /// The file the box is open in.
+    ///
+    /// Here rather than in the view that draws it, because the box has to
+    /// outlive that view. One file on screen at a time means turning to
+    /// the next one takes the whole patch view with it -- and with it,
+    /// until this moved up here, the half-written remark.
+    @Published var path = ""
     @Published var line: Int?
     @Published var side: ReviewThread.Side = .new
     @Published var text = ""
@@ -46,7 +53,11 @@ final class DraftTarget: ObservableObject {
     /// that opens on the next line should open on the writing.
     @Published var previewing = false
 
-    func open(line: Int, side: ReviewThread.Side, text: String = "", editing: UUID? = nil) {
+    func open(
+        path: String, line: Int, side: ReviewThread.Side,
+        text: String = "", editing: UUID? = nil
+    ) {
+        self.path = path
         self.line = line
         self.side = side
         self.text = text
@@ -56,6 +67,7 @@ final class DraftTarget: ObservableObject {
     }
 
     func open(reply thread: ReviewThread, text: String = "", editing: UUID? = nil) {
+        path = thread.path
         line = nil
         self.text = text
         self.editing = editing
@@ -64,6 +76,7 @@ final class DraftTarget: ObservableObject {
     }
 
     func shut() {
+        path = ""
         line = nil
         text = ""
         editing = nil
@@ -71,8 +84,12 @@ final class DraftTarget: ObservableObject {
         previewing = false
     }
 
-    func isOpen(line: Int, side: ReviewThread.Side) -> Bool {
-        replyingTo == nil && self.line == line && self.side == side
+    /// Whether the box is open on this line of this file. The file is
+    /// part of the question: line 42 of one file is not line 42 of the
+    /// next, and without the path a remark begun in one reappeared in
+    /// the other.
+    func isOpen(path: String, line: Int, side: ReviewThread.Side) -> Bool {
+        replyingTo == nil && self.path == path && self.line == line && self.side == side
     }
 
     func isReplying(to threadID: String) -> Bool { replyingTo == threadID }
@@ -123,6 +140,7 @@ struct DraftRemarkView: View {
 
                     Button("Edit") {
                         target.open(
+                            path: comment.path,
                             line: comment.line,
                             side: comment.side,
                             text: comment.body,

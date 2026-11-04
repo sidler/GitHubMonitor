@@ -212,8 +212,16 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                         // `--draft` goes on to open the box a remark is
                         // written in, once the window carrying it is up.
                         if devOption("GHM_DRAFT") != nil {
-                            try? await Task.sleep(for: .milliseconds(900))
-                            NotificationCenter.default.post(name: .diffOpenDraft, object: nil)
+                            // Asked for more than once: the window takes a
+                            // moment to build its patch view, and how long
+                            // depends on the file. The box refuses to open
+                            // twice, so the extra asks cost nothing.
+                            for _ in 0..<12 {
+                                try? await Task.sleep(for: .milliseconds(400))
+                                NotificationCenter.default.post(
+                                    name: .diffOpenDraft, object: nil
+                                )
+                            }
                         }
                         return
                     }

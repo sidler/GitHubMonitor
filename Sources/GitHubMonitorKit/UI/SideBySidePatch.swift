@@ -42,7 +42,9 @@ struct SideBySidePatch: View {
     /// nothing left for them to offer.
     var showsWholeFile = false
 
-    @StateObject private var target = DraftTarget()
+    /// Where a remark is being written. Handed in rather than owned:
+    /// it belongs to the review, not to whichever file is on screen.
+    @ObservedObject var target: DraftTarget
     @StateObject private var hovered = HoveredRow()
     @StateObject private var expansion = Expansion()
 
@@ -90,8 +92,9 @@ struct SideBySidePatch: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .diffOpenDraft)) { _ in
             guard writing != nil, target.line == nil, target.replyingTo == nil else { return }
-            guard let place = rows.lazy.compactMap({ self.place(of: $0) }).first else { return }
-            target.open(line: place.line, side: place.side)
+            guard let place = rows.lazy.compactMap({ self.place(of: $0) }).first
+            else { return }
+            target.open(path: path, line: place.line, side: place.side)
         }
     }
 
@@ -125,7 +128,7 @@ struct SideBySidePatch: View {
             ForEach(remarks(on: row)) { comment in
                 DraftRemarkView(comment: comment, writing: writing, target: target)
             }
-            if let place = place(of: row), target.isOpen(line: place.line, side: place.side) {
+            if let place = place(of: row), target.isOpen(path: path, line: place.line, side: place.side) {
                 DraftEditorView(
                     path: path, line: place.line, side: place.side,
                     writing: writing, target: target
@@ -154,7 +157,7 @@ struct SideBySidePatch: View {
     /// that had left the box, which is what let the diff show through it.
     private func isDrafting(_ row: Row) -> Bool {
         guard let place = place(of: row) else { return false }
-        return target.isOpen(line: place.line, side: place.side)
+        return target.isOpen(path: path, line: place.line, side: place.side)
     }
 
     /// Which line of which file a remark on this row would be about.
@@ -178,7 +181,7 @@ struct SideBySidePatch: View {
 
         if writing != nil, let number {
             Button {
-                target.open(line: number, side: side)
+                target.open(path: path, line: number, side: side)
             } label: {
                 Text(verbatim: PatchLines.pad(number, to: gutterDigits))
                     .font(font)

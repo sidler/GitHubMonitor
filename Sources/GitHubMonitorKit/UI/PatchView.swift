@@ -91,6 +91,10 @@ struct DiffOverlay: View {
     /// top. The diff could be scrolled from file to file and barely at all
     /// within one, which with short files looked almost like scrolling.
     @StateObject private var place = DiffPlace()
+    /// The remark being written, for the whole review rather than for
+    /// one file: turning to another file leaves the box and what is in
+    /// it where they were, and coming back finds them again.
+    @StateObject private var target = DraftTarget()
     @StateObject private var asked = AskedEvent()
 
     var body: some View {
@@ -708,7 +712,8 @@ struct DiffOverlay: View {
                         fetchContent: file.canExpand
                             ? { if let blob = file.blob { expanding?.fetch(blob) } }
                             : nil,
-                        showsWholeFile: whole.holds(file.path)
+                        showsWholeFile: whole.holds(file.path),
+                        target: target
                     )
                     .padding(.vertical, 6)
                 case .unified, .sideBySide:
@@ -731,7 +736,8 @@ struct DiffOverlay: View {
                         fetchContent: file.canExpand
                             ? { if let blob = file.blob { expanding?.fetch(blob) } }
                             : nil,
-                        showsWholeFile: whole.holds(file.path)
+                        showsWholeFile: whole.holds(file.path),
+                        target: target
                     )
                     .padding(.vertical, 6)
                 }
@@ -825,7 +831,9 @@ struct PatchLines: View {
     /// nothing left for them to offer.
     var showsWholeFile = false
 
-    @StateObject private var target = DraftTarget()
+    /// Where a remark is being written. Handed in rather than owned:
+    /// it belongs to the review, not to whichever file is on screen.
+    @ObservedObject var target: DraftTarget
     @StateObject private var hovered = HoveredRow()
     @StateObject private var expansion = Expansion()
 
@@ -953,7 +961,7 @@ struct PatchLines: View {
             guard writing != nil, target.line == nil, target.replyingTo == nil else { return }
             guard let place = lines.lazy.compactMap({ Self.addable($0.number) }).first
             else { return }
-            target.open(line: place.line, side: place.side)
+            target.open(path: path, line: place.line, side: place.side)
         }
     }
 
@@ -1045,7 +1053,7 @@ struct PatchLines: View {
     /// that had left the box, which is what let the diff show through it.
     private func isDrafting(_ line: PatchLine) -> Bool {
         guard let place = Self.addable(line.number) else { return false }
-        return target.isOpen(line: place.line, side: place.side)
+        return target.isOpen(path: path, line: place.line, side: place.side)
     }
 
     /// What this row carries of the review being written: the remarks
@@ -1057,7 +1065,7 @@ struct PatchLines: View {
                 DraftRemarkView(comment: comment, writing: writing, target: target)
             }
             if let place = Self.addable(line.number),
-                target.isOpen(line: place.line, side: place.side) {
+                target.isOpen(path: path, line: place.line, side: place.side) {
                 DraftEditorView(
                     path: path, line: place.line, side: place.side,
                     writing: writing, target: target
@@ -1180,7 +1188,7 @@ struct PatchLines: View {
     ) -> some View {
         let isHere = hovered.holds("\(line.id)")
         return Button {
-            target.open(line: place.line, side: place.side)
+            target.open(path: path, line: place.line, side: place.side)
         } label: {
             Text(
                 verbatim: Self.pad(line.number.old, to: digits) + " "

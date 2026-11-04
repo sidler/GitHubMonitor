@@ -3,6 +3,12 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
+## Unreleased
+
+- **A half-written remark survives turning to another file.** The box
+  stays on the line it was opened on, with what you typed still in it,
+  and is there again when you come back to that file.
+
 ## 2.5.0
 
 - **Remarks can be formatted without typing markdown.** Buttons above the
