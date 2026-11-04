@@ -251,6 +251,19 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Quitting with words still in a box asks first, the same way
+    /// closing a review does. The keyboard shortcut for quit sits two
+    /// keys from the one for close, and neither should be able to throw
+    /// away something nobody else is keeping.
+    public func applicationShouldTerminate(
+        _ sender: NSApplication
+    ) -> NSApplication.TerminateReply {
+        guard let windows = mainWindowController?.reviewWindows, windows.isShowing
+        else { return .terminateNow }
+        return windows.confirmQuitting { NSApp.terminate(nil) }
+            ? .terminateNow : .terminateCancel
+    }
+
     public func applicationWillTerminate(_ notification: Notification) {
         refreshController?.stop()
     }

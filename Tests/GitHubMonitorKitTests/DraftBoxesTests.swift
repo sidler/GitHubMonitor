@@ -145,3 +145,47 @@ struct DraftBoxesTests {
         #expect(boxes.unfinished.map(\.text) == ["first", "second", "third"])
     }
 }
+
+/// What the windows know about half-written remarks, which is what the
+/// questions on the way out are asked about.
+@Suite("Half-written remarks across reviews")
+@MainActor
+struct UnfinishedAcrossReviewsTests {
+    @Test("A review with nothing written in it is not counted")
+    func onlyReviewsWithWords() {
+        let windows = ReviewWindows()
+        windows.boxes(for: "PR_1").open(path: "a.swift", line: 1, side: .new).text = "say this"
+        // Opened and left empty, which is nothing anybody would miss.
+        windows.boxes(for: "PR_2").open(path: "b.swift", line: 1, side: .new)
+
+        let unfinished = windows.unfinishedByReview
+
+        #expect(unfinished.keys.sorted() == ["PR_1"])
+        #expect(unfinished["PR_1"]?.count == 1)
+    }
+
+    @Test("Several reviews are counted together")
+    func acrossReviews() {
+        let windows = ReviewWindows()
+        windows.boxes(for: "PR_1").open(path: "a.swift", line: 1, side: .new).text = "one"
+        windows.boxes(for: "PR_1").open(path: "a.swift", line: 2, side: .new).text = "two"
+        windows.boxes(for: "PR_2").open(path: "b.swift", line: 1, side: .new).text = "three"
+
+        let unfinished = windows.unfinishedByReview
+
+        #expect(unfinished.values.reduce(0) { $0 + $1.count } == 3)
+        #expect(unfinished.keys.sorted() == ["PR_1", "PR_2"])
+    }
+
+    /// The same set of boxes every time it is asked for, or the editor
+    /// loses what is being typed into it on the next pass.
+    @Test("A review is handed the same boxes every time")
+    func sameBoxes() {
+        let windows = ReviewWindows()
+        let first = windows.boxes(for: "PR_1")
+        first.open(path: "a.swift", line: 1, side: .new).text = "half a thought"
+
+        #expect(windows.boxes(for: "PR_1") === first)
+        #expect(windows.boxes(for: "PR_1").unfinished.first?.text == "half a thought")
+    }
+}

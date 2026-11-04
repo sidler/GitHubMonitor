@@ -66,6 +66,76 @@ final class ReviewWindows: NSObject, NSWindowDelegate {
         return made
     }
 
+    /// Every review holding remarks written but not added, and what they
+    /// are. Keyed so the question can name a number and the answer can
+    /// act on each review in turn.
+    var unfinishedByReview: [String: [DraftTarget]] {
+        drafting.compactMapValues { boxes in
+            let unfinished = boxes.unfinished
+            return unfinished.isEmpty ? nil : unfinished
+        }
+    }
+
+    /// Asks once about everything written but not added anywhere, for
+    /// quitting. Answers whether quitting may go ahead at once.
+    ///
+    /// One question rather than one per window: quitting is a single
+    /// decision, and somebody made to answer four sheets in a row is
+    /// somebody who stops reading them. It goes on the review it is
+    /// about, as a sheet.
+    ///
+    /// Where it cannot go ahead, the quit is called off and asked for
+    /// again once there is an answer, rather than held open with
+    /// `terminateLater`. Nothing then depends on which run loop mode a
+    /// half-quit application is in: the sheet goes up on an ordinary
+    /// pass, like the one the close button puts there.
+    ///
+    /// By the second asking the boxes are empty, either because their
+    /// words were kept or because they were thrown away, so there is
+    /// nothing left to ask about.
+    func confirmQuitting(then quit: @escaping () -> Void) -> Bool {
+        let all = unfinishedByReview
+        let count = all.values.reduce(0) { $0 + $1.count }
+        // In a settled order, so the same review is asked on every time.
+        guard count > 0, let first = all.keys.sorted().first,
+            let window = open[first]?.window
+        else { return true }
+
+        let alert = NSAlert()
+        alert.messageText = count == 1
+            ? "One remark has been written but not added."
+            : "\(count) remarks have been written but not added."
+        alert.informativeText = """
+            Keeping them puts them into their reviews as unsent remarks, \
+            where you can change, delete or send them next time.
+            """
+        alert.addButton(withTitle: "Keep and Quit")
+        alert.addButton(withTitle: "Discard and Quit")
+        alert.addButton(withTitle: "Cancel")
+        alert.buttons[1].hasDestructiveAction = true
+
+        // After the quit has been called off, not during it.
+        DispatchQueue.main.async { [weak self] in
+            alert.beginSheetModal(for: window) { response in
+                guard let self else { return }
+                switch response {
+                case .alertFirstButtonReturn:
+                    for id in all.keys.sorted() {
+                        self.keepUnfinished?(id)
+                        self.drafting[id]?.shutAll()
+                    }
+                    quit()
+                case .alertSecondButtonReturn:
+                    for id in all.keys { self.drafting[id]?.shutAll() }
+                    quit()
+                default:
+                    break
+                }
+            }
+        }
+        return false
+    }
+
     /// Asks what should become of remarks written but not added, then
     /// carries on -- or does not, which is what Cancel is for.
     ///
@@ -98,6 +168,7 @@ final class ReviewWindows: NSObject, NSWindowDelegate {
             switch answer {
             case .alertFirstButtonReturn:
                 self?.keepUnfinished?(pullRequestID)
+                self?.drafting[pullRequestID]?.shutAll()
                 then()
             case .alertSecondButtonReturn:
                 then()

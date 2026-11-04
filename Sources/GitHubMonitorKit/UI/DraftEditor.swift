@@ -150,6 +150,12 @@ final class DraftBoxes: ObservableObject {
     func shut(_ place: DraftPlace) {
         boxes[place] = nil
     }
+
+    /// Empties every box, for a review whose words have been put
+    /// somewhere they will keep -- or thrown away on purpose.
+    func shutAll() {
+        boxes = [:]
+    }
 }
 
 /// Which row the pointer is over, so its number can offer itself.
