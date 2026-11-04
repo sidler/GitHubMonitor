@@ -78,6 +78,7 @@ struct SymbolChoice<Tag: Hashable>: NSViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
+    @MainActor
     final class Coordinator: NSObject {
         var parent: SymbolChoice
 
