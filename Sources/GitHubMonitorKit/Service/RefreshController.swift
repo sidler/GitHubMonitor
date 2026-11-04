@@ -580,6 +580,7 @@ public final class RefreshController {
                 // the finished answer says, and a part of an answer has
                 // no business speaking for them.
                 state.listPullRequests = partial.pullRequests
+                self.forgetWhatMovedOn()
                 state.listIssues = partial.issues
             }
             // Cancelled means the token is going or the app is closing.
@@ -598,6 +599,7 @@ public final class RefreshController {
                 state.lastRefreshCost = budget.cost
             }
             state.listPullRequests = results.pullRequests
+            forgetWhatMovedOn()
             state.listIssues = results.issues
             state.listUnread = fetched.unread
             state.listFailures = fetched.failures
@@ -1103,7 +1105,41 @@ public final class RefreshController {
     /// This button is that second time. It is also the answer to a diff
     /// that has moved on: after a force-push, comments anchored to the old
     /// line numbers are worse than none.
+    /// Notes which commit a pull request's cached detail belongs to.
+    ///
+    /// Written when the first of the four is fetched rather than by each
+    /// of them: they are dropped together, so they cannot afterwards come
+    /// from different commits.
+    private func rememberCommit(of item: PullRequestItem) {
+        guard state.detailCommits[item.id] == nil, let head = item.headCommit else { return }
+        state.detailCommits[item.id] = head
+    }
+
+    /// Drops what belongs to a commit that is no longer the head.
+    ///
+    /// Dropped rather than fetched again: most of these are pull requests
+    /// nobody is looking at, and a request each would be a refresh spent
+    /// on panes nobody has open. The one being inspected is asked for
+    /// again straight away, because somebody is reading it.
+    func forgetWhatMovedOn() {
+        let moved = AppState.movedOn(state.allPullRequests, fetchedAt: state.detailCommits)
+        guard !moved.isEmpty else { return }
+        for id in moved {
+            state.detailCommits[id] = nil
+            state.pullRequestDetails[id] = nil
+            state.changedFiles[id] = nil
+            state.viewedFiles[id] = nil
+            state.reviewThreads[id] = nil
+            state.pullRequestCommits[id] = nil
+        }
+        if let inspected = state.inspectedPullRequestID, moved.contains(inspected) {
+            loadDetailIfNeeded(for: inspected)
+            loadFilesIfNeeded(for: inspected)
+        }
+    }
+
     public func reloadDetail(for id: String) {
+        state.detailCommits[id] = nil
         state.pullRequestDetails[id] = nil
         state.changedFiles[id] = nil
         state.viewedFiles[id] = nil
@@ -1119,6 +1155,7 @@ public final class RefreshController {
     public func loadDetailIfNeeded(for id: String) {
         // Already fetched or in flight.
         guard state.pullRequestDetails[id] == nil else { return }
+        if let item = state.pullRequest(withID: id) { rememberCommit(of: item) }
         guard let service else {
             state.pullRequestDetails[id] = .failed(GitHubError.noToken.localizedDescription)
             return
@@ -1155,6 +1192,7 @@ public final class RefreshController {
         guard state.changedFiles[id] == nil else { return }
         guard let service, let item = state.pullRequest(withID: id) else { return }
 
+        rememberCommit(of: item)
         state.changedFiles[id] = .loading
         loadViewedFilesIfNeeded(for: id)
         accountTask { [weak self] in

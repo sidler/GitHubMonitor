@@ -206,7 +206,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                             ?? files.first { $0.path == here }
                             ?? files[0]
                         state.openDiff(OpenedDiff(
-                            pullRequestID: id, path: file.path, files: files, url: item.url
+                            pullRequestID: id, path: file.path, files: files,
+                            url: item.url, commit: item.headCommit
                         ))
                         return
                     }

@@ -934,7 +934,8 @@ struct InspectorColumn: View {
                     // first moment anybody will read them.
                     controller.loadReviewThreadsIfNeeded(for: item.id)
                     state.openDiff(OpenedDiff(
-                        pullRequestID: item.id, path: file.path, files: files, url: item.url
+                        pullRequestID: item.id, path: file.path, files: files,
+                        url: item.url, commit: item.headCommit
                     ))
                 },
                 linked: LinkedPanelContext(state: state, controller: controller),

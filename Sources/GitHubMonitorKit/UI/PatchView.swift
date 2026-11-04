@@ -56,6 +56,12 @@ struct DiffOverlay: View {
     var draft: ReviewDraft?
     /// How to write into it. Nil leaves the diff a reader.
     var writing: DraftWriting?
+    /// Whether the pull request has been pushed to since this diff was
+    /// opened. What is on screen stays as it is; it says so instead.
+    var movedOn = false
+    /// Fetches the pull request again and shuts this. Nil leaves the
+    /// notice without a way out.
+    var reload: (() -> Void)?
     /// How to fetch the unchanged lines around a hunk. Nil leaves the
     /// patch as GitHub sent it, which is what it was.
     var expanding: FileExpanding?
@@ -135,6 +141,7 @@ struct DiffOverlay: View {
         VStack(spacing: 0) {
             header
             Divider()
+            if movedOn { movedOnNotice }
             HStack(spacing: 0) {
                 index
                 handle
@@ -159,6 +166,27 @@ struct DiffOverlay: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    /// Said rather than acted on. The code on screen is the code the
+    /// remarks in it were written against, and swapping it under somebody
+    /// mid-review would move every line they had anchored to.
+    private var movedOnNotice: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "arrow.triangle.branch")
+            Text("This pull request has been pushed to since you opened it.")
+            if let reload {
+                Button("Reload", action: reload)
+                    .controlSize(.small)
+            }
+            Spacer(minLength: 0)
+        }
+        .font(.caption)
+        .foregroundStyle(Ink.orange)
+        .padding(.vertical, 5)
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Ink.orange.opacity(0.1))
     }
 
     /// Which files the column draws: all of them, or the one being read.

@@ -63,12 +63,26 @@ public struct OpenedDiff: Equatable, Sendable {
     /// Kept here for the same reason: the links in the overlay must still
     /// work for a pull request that has left the lists while it was open.
     public let url: URL
+    /// The head commit these files were taken at.
+    ///
+    /// What is on screen is one diff at one commit. Knowing which one
+    /// lets the diff say so when the pull request has moved past it --
+    /// without that, the code being read and the list of commits beside
+    /// it can disagree with nothing to show which is older.
+    public let commit: String?
 
-    public init(pullRequestID: String, path: String?, files: [ChangedFile], url: URL) {
+    public init(
+        pullRequestID: String,
+        path: String?,
+        files: [ChangedFile],
+        url: URL,
+        commit: String? = nil
+    ) {
         self.pullRequestID = pullRequestID
         self.path = path
         self.files = Self.alphabetical(files)
         self.url = url
+        self.commit = commit
     }
 
     /// By path, which is the order the tree beside the diff is in and the
@@ -254,6 +268,37 @@ public final class AppState {
     /// rather than inside it: it is a second request, to a different API,
     /// and one arriving should not wait on the other.
     public var changedFiles: [String: ChangedFilesState] = [:]
+
+    /// The head commit each pull request's cached detail belongs to.
+    ///
+    /// Its detail, its files, its commits and its conversations are all
+    /// fetched once and then claimed, which is what stops a redraw asking
+    /// again. It also meant that after somebody pushed, the diff went on
+    /// showing the code of the commit it had been read at -- while the
+    /// list of commits beside it, fetched later, named the new one. Two
+    /// things on screen disagreeing, with nothing saying which was old.
+    ///
+    /// Recorded when the first of them is fetched and compared against
+    /// the head on every refresh.
+    public var detailCommits: [String: String] = [:]
+
+    /// Pull requests whose cached detail belongs to a commit that is no
+    /// longer the head.
+    ///
+    /// A row without a head commit says nothing either way and is left
+    /// alone: GitHub not naming one is not the same as it having changed.
+    public static func movedOn(
+        _ items: [PullRequestItem], fetchedAt: [String: String]
+    ) -> [String] {
+        items.compactMap { item in
+            guard
+                let head = item.headCommit,
+                let fetched = fetchedAt[item.id],
+                fetched != head
+            else { return nil }
+            return item.id
+        }
+    }
 
     /// Whole files, keyed by the blob they were fetched by.
     ///

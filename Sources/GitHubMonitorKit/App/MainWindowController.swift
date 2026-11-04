@@ -357,6 +357,15 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
                     )
                 )
             },
+            // Said when the pull request has been pushed to since this
+            // was opened. The item carries the head GitHub last reported;
+            // the diff carries the one it was taken at.
+            movedOn: item?.headCommit != nil && opened.commit != nil
+                && item?.headCommit != opened.commit,
+            reload: { [weak state, controller] in
+                controller.reloadDetail(for: opened.pullRequestID)
+                state?.closeDiff(opened.pullRequestID)
+            },
             expanding: item.map { item in
                 FileExpanding(
                     content: { [state] blob in state.fileContents[blob] },
