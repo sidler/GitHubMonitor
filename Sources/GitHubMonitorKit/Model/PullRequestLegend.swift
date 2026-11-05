@@ -89,6 +89,36 @@ public enum LegendSymbol: Hashable, Sendable, Identifiable {
     }
 }
 
+extension LegendSymbol {
+    /// Whether this pull request is one of the ones the symbol stands
+    /// for, which is what makes the legend something to press.
+    ///
+    /// The same question the row answers when it decides whether to draw
+    /// the symbol at all: a legend entry that narrowed the list to
+    /// something other than the rows carrying that symbol would be a
+    /// legend that lies about itself.
+    public func matches(_ item: PullRequestItem) -> Bool {
+        switch self {
+        case .review(let decision): item.reviewDecision == decision
+        case .checks(let status): item.checks == status
+        case .merge(let status): item.mergeStatus == status
+        case .reviewers(let kind): item.reviews.count(of: kind) > 0
+        case .draft: item.isDraft
+        // Neither is drawn on a pull request row, so neither can narrow
+        // a list of them.
+        case .comments, .milestone: false
+        }
+    }
+
+    public func matches(_ item: IssueItem) -> Bool {
+        switch self {
+        case .comments: item.comments > 0
+        case .milestone: item.milestone != nil
+        default: false
+        }
+    }
+}
+
 /// Builds the legend under a pull request list.
 ///
 /// Only the symbols the list on screen actually uses: a fixed legend would

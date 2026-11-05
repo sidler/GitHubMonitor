@@ -5,6 +5,10 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **Press a symbol in the legend to show only those rows** — the failing
+  checks, the conflicts, the ones still waiting on a reviewer. Press it
+  again for the rest. It lasts while you are looking and is not saved.
+
 - **Side-by-side scrolls smoothly through a review of many small files.**
   A pull request of more than sixty-four files threw away everything it
   had worked out, over and over, and redrew the whole window on every

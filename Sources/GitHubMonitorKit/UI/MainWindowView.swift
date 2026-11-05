@@ -285,7 +285,7 @@ struct ContentColumn: View {
     }
 
     private func pullRequestList(_ list: SavedList) -> some View {
-        let items = state.selectedPullRequests(in: list)
+        let items = state.shownPullRequests(in: list)
         return VStack(spacing: 0) {
         failureBanner(list)
         GroupedList(
@@ -324,7 +324,7 @@ struct ContentColumn: View {
     }
 
     private func issueList(_ list: SavedList) -> some View {
-        let items = state.selectedIssues(in: list)
+        let items = state.shownIssues(in: list)
         return VStack(spacing: 0) {
         failureBanner(list)
         GroupedList(
@@ -449,7 +449,11 @@ struct ContentColumn: View {
                 if !state.counts(in: .window).isEmpty {
                     Divider().frame(height: 11)
                 }
-                LegendBar(symbols: legendSymbols)
+                LegendBar(
+                    symbols: legendSymbols,
+                    active: state.legendFilter,
+                    choose: { state.legendFilter = $0 }
+                )
             }
 
             Spacer(minLength: 8)

@@ -313,7 +313,21 @@ public final class AppState {
     public var fileContentsInFlight: Set<String> = []
     /// Set to whatever the first visible list is at launch; the fallback
     /// only matters until `normaliseSelection()` runs in `init`.
-    public var sidebarSelection: SidebarSelection = .dashboard
+    public var sidebarSelection: SidebarSelection = .dashboard {
+        didSet {
+            // A question asked of one list, not a setting: standing in
+            // front of another one, it would narrow a list nobody had
+            // asked it about.
+            if sidebarSelection != oldValue { legendFilter = nil }
+        }
+    }
+    /// The symbol in the legend the list is narrowed to while somebody is
+    /// looking at it.
+    ///
+    /// Not saved anywhere. It is a way of reading what is on screen --
+    /// "show me the failing ones" -- and a list that came back tomorrow
+    /// still hiding most of itself would be a list nobody trusts.
+    public var legendFilter: LegendSymbol?
     public var selectedSettingsTab: SettingsTab = .account
     /// The dashboard's own fetch, separate from the refresh cycle: it covers
     /// a whole repository and is only wanted while that view is open.
@@ -522,6 +536,24 @@ public final class AppState {
 
     public func selectedIssues(in list: SavedList) -> [IssueItem] {
         narrow(issues(in: list), to: sidebarSelection.repository, by: \.repository)
+    }
+
+    /// What the list actually draws: the selection, narrowed again by
+    /// whichever legend symbol has been pressed.
+    ///
+    /// Apart from `selectedPullRequests` because the legend itself is
+    /// built from that one. Built from this, pressing a symbol would
+    /// leave a legend of exactly one entry, and no way back.
+    public func shownPullRequests(in list: SavedList) -> [PullRequestItem] {
+        let items = selectedPullRequests(in: list)
+        guard let legendFilter else { return items }
+        return items.filter { legendFilter.matches($0) }
+    }
+
+    public func shownIssues(in list: SavedList) -> [IssueItem] {
+        let items = selectedIssues(in: list)
+        guard let legendFilter else { return items }
+        return items.filter { legendFilter.matches($0) }
     }
 
     /// The repository entries under a list in the sidebar, busiest first.

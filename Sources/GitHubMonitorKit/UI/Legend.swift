@@ -182,35 +182,96 @@ struct DraftBadge: View {
     }
 }
 
-/// Explains the symbols the list above is using.
+/// Explains the symbols the list above is using, and narrows it to them.
 ///
 /// Drops the wording before it drops the symbols: one line only, since the
 /// bar it sits in has to keep the same height as the detail pane's beside
 /// it. Where the labels do not fit, the tooltips still answer the question.
+///
+/// Pressing one shows only the rows carrying it, and pressing it again
+/// puts the rest back. A legend is already a list of the states in front
+/// of you; being able to press one is the shortest way from "three of
+/// these have failing checks" to seeing which three.
 struct LegendBar: View {
     let symbols: [LegendSymbol]
+    /// The symbol the list is narrowed to, if any.
+    var active: LegendSymbol?
+    /// Nil leaves the legend what it was: something to read.
+    var choose: ((LegendSymbol?) -> Void)?
+
+    /// The symbol being filtered by stays in the legend even once nothing
+    /// carries it any more -- a refresh can fix the last failing check --
+    /// or the only way back would be to leave the list and come back.
+    private var shown: [LegendSymbol] {
+        guard let active, !symbols.contains(active) else { return symbols }
+        return symbols + [active]
+    }
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
-            row(symbols, labelled: true)
-            row(symbols, labelled: false)
+            row(shown, labelled: true)
+            row(shown, labelled: false)
         }
     }
 
     private func row(_ symbols: [LegendSymbol], labelled: Bool) -> some View {
         HStack(spacing: labelled ? 9 : 6) {
             ForEach(symbols) { symbol in
-                HStack(spacing: 3) {
-                    mark(symbol)
-                    if labelled {
-                        Text(symbol.label)
-                            .foregroundStyle(.secondary)
-                            .fixedSize()
-                    }
-                }
-                .help(symbol.help)
+                entry(symbol, labelled: labelled)
             }
         }
+    }
+
+    @ViewBuilder
+    private func entry(_ symbol: LegendSymbol, labelled: Bool) -> some View {
+        if let choose {
+            Button {
+                choose(active == symbol ? nil : symbol)
+            } label: {
+                wording(symbol, labelled: labelled)
+            }
+            .buttonStyle(.plain)
+            .pointerStyle(.link)
+            .help(
+                active == symbol
+                    ? "\(symbol.help) \u{2014} showing only these; press again for the rest"
+                    : "\(symbol.help) \u{2014} press to show only these"
+            )
+            // A row of bare symbols has nothing for a screen reader to
+            // read out, and these are buttons now rather than marks on a
+            // page.
+            .accessibilityLabel(symbol.label)
+            .accessibilityHint(
+                active == symbol ? "Shows the rest of the list again" : symbol.help
+            )
+            .accessibilityAddTraits(active == symbol ? [.isSelected] : [])
+        } else {
+            wording(symbol, labelled: labelled)
+                .help(symbol.help)
+        }
+    }
+
+    /// Lit, it wears a wash of the symbol's own colour. Which colour says
+    /// what is being filtered by without a second mark to read, and the
+    /// wash is faint enough that an unpressed legend still looks like a
+    /// legend rather than a row of buttons.
+    private func wording(_ symbol: LegendSymbol, labelled: Bool) -> some View {
+        HStack(spacing: 3) {
+            mark(symbol)
+            if labelled {
+                Text(symbol.label)
+                    .foregroundStyle(active == symbol ? symbol.tint : .secondary)
+                    .fixedSize()
+            }
+        }
+        .padding(.horizontal, active == symbol ? 5 : 0)
+        .padding(.vertical, active == symbol ? 1 : 0)
+        .background {
+            if active == symbol {
+                Capsule().fill(symbol.tint.opacity(0.16))
+            }
+        }
+        .contentShape(Capsule())
     }
 
     @ViewBuilder
