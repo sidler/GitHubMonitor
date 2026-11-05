@@ -837,22 +837,26 @@ public final class RefreshController {
 
     /// Says what is missing, where something is.
     ///
-    /// Two different incompletenesses, and they are not the same news: a
-    /// budget that ran out stopped the reading, while pull requests with
-    /// neither a review nor a request on them were read and then dropped
-    /// as having nothing to say.
+    /// Two different incompletenesses, and they are not the same news. A
+    /// budget that ran out stopped the reading part way. The cap is
+    /// worse: GitHub hands back a thousand results per search and reports
+    /// no error at all, so a window with more in it would otherwise be
+    /// answered with a ranking that silently left people out.
     private static func truncation(
         _ read: (
-            pullRequests: [ReviewedPullRequest], total: Int?,
+            pullRequests: [ReviewedPullRequest], total: Int, capped: Bool,
             remainingQuota: Int?, ranOut: Bool
         )
     ) -> String? {
-        guard read.ranOut else { return nil }
-        if let total = read.total {
-            return "Stopped after \(read.pullRequests.count) of \(total) pull requests:"
+        if read.ranOut {
+            return "Stopped after \(read.pullRequests.count) of \(read.total) pull requests:"
                 + " GitHub's hourly query budget was running low."
         }
-        return "Stopped early: GitHub's hourly query budget was running low."
+        if read.capped {
+            return "A month in this window held more pull requests than GitHub's search"
+                + " will hand back, so some are missing. A shorter period reads all of it."
+        }
+        return nil
     }
 
     /// Loads the charts about one's own pull requests, period by period.

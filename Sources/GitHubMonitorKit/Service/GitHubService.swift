@@ -561,35 +561,53 @@ public struct GitHubService: Sendable {
         since: Date,
         quotaFloor: Int
     ) async throws -> (
-        pullRequests: [ReviewedPullRequest], total: Int?, remainingQuota: Int?, ranOut: Bool
+        pullRequests: [ReviewedPullRequest], total: Int, capped: Bool,
+        remainingQuota: Int?, ranOut: Bool
     ) {
-        var found: [ReviewedPullRequest] = []
-        var cursor: String?
+        var found: [String: ReviewedPullRequest] = [:]
+        var total = 0
+        var capped = false
         var remaining: Int?
-        var total: Int?
         var ranOut = false
 
-        repeat {
-            let payload = try await client.graphQL(
-                ReviewerStatsQuery.document,
-                variables: [
-                    "query": ReviewerStatsQuery.query(repository: repository, since: since),
-                    "cursor": cursor as Any,
-                ]
-            )
-            let page = ReviewerStatsQuery.page(from: payload)
-            found += page.items
-            total = total ?? ReviewerStatsQuery.total(from: payload)
-            remaining = page.remainingQuota
-            cursor = page.cursor
+        // A month at a time, because one search hands back a thousand
+        // results however many there are.
+        for slice in ReviewerStatsQuery.slices(since: since) {
+            var cursor: String?
+            var read = 0
+            var inSlice: Int?
 
-            if let remaining, remaining < quotaFloor, cursor != nil {
-                ranOut = true
-                break
-            }
-        } while cursor != nil
+            repeat {
+                let payload = try await client.graphQL(
+                    ReviewerStatsQuery.document,
+                    variables: [
+                        "query": ReviewerStatsQuery.query(
+                            repository: repository, range: slice
+                        ),
+                        "cursor": cursor as Any,
+                    ]
+                )
+                let page = ReviewerStatsQuery.page(from: payload)
+                for pullRequest in page.items { found[pullRequest.key] = pullRequest }
+                read += ReviewerStatsQuery.pageSize
+                inSlice = inSlice ?? ReviewerStatsQuery.total(from: payload)
+                remaining = page.remainingQuota
+                cursor = page.cursor
 
-        return (found, total, remaining, ranOut)
+                if let remaining, remaining < quotaFloor, cursor != nil {
+                    ranOut = true
+                    break
+                }
+            } while cursor != nil
+
+            total += inSlice ?? 0
+            // Stopped by the cap rather than by running out of pull
+            // requests, which GitHub reports the same way.
+            if let inSlice, inSlice > ReviewerStatsQuery.searchCap { capped = true }
+            if ranOut { break }
+        }
+
+        return (Array(found.values), total, capped, remaining, ranOut)
     }
 
     /// How long one person took over the reviews they were asked for.

@@ -40,13 +40,46 @@ public enum ReviewerStatsQuery {
     /// thirty request events is a page nobody can afford twice.
     public static let pageSize = 50
 
-    /// Pull requests touched since a date, whoever opened them.
+    /// Pull requests touched in one stretch, whoever opened them.
     ///
     /// `updated:` rather than `created:`: a pull request opened in March
     /// and reviewed yesterday is yesterday's reviewing, and a window on
     /// when things were *created* would miss it.
-    public static func query(repository: String, since: Date) -> String {
-        "repo:\(repository) is:pr updated:>=\(TrendQuery.day.string(from: since))"
+    public static func query(repository: String, range: DateInterval) -> String {
+        "repo:\(repository) is:pr updated:\(TrendQuery.range(range))"
+    }
+
+    /// GitHub's search hands back a thousand results and no more.
+    ///
+    /// Not as an error, either: the twentieth page simply says there is
+    /// no next one. A busy repository therefore answers a ninety-day
+    /// question with its most recent thousand pull requests and nothing
+    /// to say it did -- which is the one failure mode a ranking must not
+    /// have, because a reviewer who was busy early in the window would
+    /// simply be missing.
+    public static let searchCap = 1000
+
+    /// The window, cut into months.
+    ///
+    /// A month at a time keeps each search well under the cap for any
+    /// repository anybody reviews by hand, and the pieces are disjoint by
+    /// the day -- GitHub's ranges are inclusive at both ends, so each
+    /// piece stops the day before the next begins and no pull request is
+    /// counted twice.
+    public static func slices(since: Date, now: Date = .now) -> [DateInterval] {
+        var calendar = Calendar(identifier: .iso8601)
+        calendar.timeZone = .current
+
+        var result: [DateInterval] = []
+        var start = calendar.startOfDay(for: since)
+        while start < now {
+            let next = calendar.date(byAdding: .month, value: 1, to: start) ?? now
+            result.append(DateInterval(start: start, end: min(next, now)))
+            start = next
+        }
+        // A window shorter than a month still has to be asked about.
+        if result.isEmpty { result = [DateInterval(start: start, end: now)] }
+        return result
     }
 
     public static let document = """

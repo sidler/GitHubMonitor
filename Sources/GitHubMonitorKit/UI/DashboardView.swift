@@ -411,6 +411,19 @@ struct DashboardView: View {
     }
 
     private func tooltip(title: String, lines: [String]) -> some View {
+        ChartTooltip(title: title, lines: lines)
+    }
+}
+
+/// What a bar says when the pointer rests on it.
+///
+/// Shared by all four of the workload views, so that hovering a bar in one
+/// of them looks and reads the same as in the next.
+struct ChartTooltip: View {
+    let title: String
+    let lines: [String]
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title).font(.caption.weight(.semibold))
             ForEach(lines, id: \.self) { line in
@@ -470,7 +483,7 @@ private struct GroupingSwitch: View {
     }
 }
 
-private extension View {
+extension View {
     /// Long author lists need to scroll; short ones should not sit in a
     /// scroll view that scrolls a pixel.
     @ViewBuilder

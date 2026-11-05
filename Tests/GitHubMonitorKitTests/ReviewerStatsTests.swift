@@ -217,3 +217,49 @@ struct ReviewerStatsTests {
         #expect(all.map(\.reviewer) == ["bob", "ada"])
     }
 }
+
+/// How the window is asked about, given that one search hands back a
+/// thousand results and says nothing when it has more.
+@Suite("Asking about a window of reviewing")
+struct ReviewerStatsSlicingTests {
+    private let day: TimeInterval = 86_400
+
+    @Test("The window is cut into months")
+    func months() {
+        let now = Date(timeIntervalSince1970: 1_767_225_600)
+        let slices = ReviewerStatsQuery.slices(since: now.addingTimeInterval(-90 * day), now: now)
+
+        // Three or four, depending on where in the month it starts. The
+        // property worth asserting is that the window is covered, not how
+        // the calendar happened to fall.
+        #expect(slices.count >= 3)
+        #expect(slices.first!.start <= now.addingTimeInterval(-89 * day))
+        #expect(slices.last!.end == now)
+    }
+
+    /// Inclusive at both ends is how GitHub reads a range, so the pieces
+    /// have to stop the day before the next begins or a pull request
+    /// updated on the boundary is counted twice.
+    @Test("The pieces do not overlap")
+    func disjoint() {
+        let now = Date(timeIntervalSince1970: 1_767_225_600)
+        let slices = ReviewerStatsQuery.slices(since: now.addingTimeInterval(-200 * day), now: now)
+
+        let written = slices.map {
+            ReviewerStatsQuery.query(repository: "octo/platform", range: $0)
+        }
+        #expect(Set(written).count == written.count)
+        for (earlier, later) in zip(slices, slices.dropFirst()) {
+            #expect(earlier.end <= later.start)
+        }
+    }
+
+    /// A window shorter than a month is still a window.
+    @Test("A few days is one piece")
+    func shortWindow() {
+        let now = Date(timeIntervalSince1970: 1_767_225_600)
+        let slices = ReviewerStatsQuery.slices(since: now.addingTimeInterval(-3 * day), now: now)
+
+        #expect(slices.count == 1)
+    }
+}
