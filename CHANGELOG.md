@@ -3,7 +3,7 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
-## Unreleased
+## 2.7.0
 
 - **Two new views under Workload: who does the reviewing, and how long
   the rest of the team waits.** *Reviews given* ranks people by the pull
