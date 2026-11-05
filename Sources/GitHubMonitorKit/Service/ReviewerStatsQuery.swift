@@ -94,6 +94,7 @@ public enum ReviewerStatsQuery {
           ... on PullRequest {
             id
             closedAt
+            author { login }
             # Thirty rounds of asking is past anything a pull request here
             # collects; past it the earliest rounds are the ones lost,
             # which is the half that matters least.
@@ -185,6 +186,7 @@ public enum ReviewerStatsQuery {
         return ReviewedPullRequest(
             key: key,
             closedAt: GitHubDate.optional(from: node["closedAt"] as? String),
+            author: (node["author"] as? [String: Any])?["login"] as? String,
             requests: requests,
             reviews: submitted,
             stillRequested: stillRequested

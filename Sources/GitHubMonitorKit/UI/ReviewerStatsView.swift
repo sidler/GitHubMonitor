@@ -150,7 +150,7 @@ struct ReviewerStatsView: View {
                     ? "From being asked to answering, wall-clock \u{00B7} n = answered requests"
                         + " \u{00B7} ignored = still asked when the pull request closed"
                         + " \u{00B7} pending = still asked, still open"
-                    : "PRs = pull requests reviewed at least once"
+                    : "PRs = pull requests reviewed at least once, your own left out"
                         + " \u{00B7} reviews = every review submitted, comment rounds included"
             )
             .foregroundStyle(.secondary)

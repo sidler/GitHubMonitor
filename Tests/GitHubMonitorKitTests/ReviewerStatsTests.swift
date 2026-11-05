@@ -16,11 +16,13 @@ struct ReviewerStatsTests {
         closed: TimeInterval? = 10 * 86_400,
         asked: [(String, TimeInterval)] = [],
         reviewed: [(String, TimeInterval)] = [],
-        stillAsked: Set<String>? = nil
+        stillAsked: Set<String>? = nil,
+        by author: String? = nil
     ) -> ReviewedPullRequest {
         ReviewedPullRequest(
             key: key,
             closedAt: closed.map { start.addingTimeInterval($0) },
+            author: author,
             requests: asked.map {
                 RequestedReview(reviewer: $0.0, at: start.addingTimeInterval($0.1))
             },
@@ -54,6 +56,24 @@ struct ReviewerStatsTests {
 
         #expect(found?.pullRequests == 2)
         #expect(found?.reviews == 4)
+    }
+
+    /// GitHub files a remark on your own pull request as a review. It is
+    /// not code you read, and counting it would have people reviewing
+    /// themselves to the top of the ranking.
+    @Test("Your own pull requests are not pull requests you reviewed")
+    func ownPullRequests() {
+        let found = ReviewerStatsMath.summarise([
+            pullRequest("1", reviewed: [("ada", 0), ("bob", 0)], by: "ada"),
+            pullRequest("2", reviewed: [("ada", 0)], by: "bob"),
+        ])
+
+        let ada = found.first { $0.reviewer == "ada" }
+        #expect(ada?.pullRequests == 1)
+        #expect(ada?.reviews == 1)
+
+        // Bob reviewed one that was not his, and it still counts.
+        #expect(found.first { $0.reviewer == "bob" }?.pullRequests == 1)
     }
 
     @Test("The wait is from being asked to answering")

@@ -31,6 +31,13 @@ public struct ReviewedPullRequest: Hashable, Sendable, Identifiable {
     /// Nil while it is still open, which is what makes an unanswered
     /// request pending rather than ignored.
     public let closedAt: Date?
+    /// Who opened it. Nil where GitHub has forgotten the account.
+    ///
+    /// Kept because a remark somebody leaves on their own pull request
+    /// is not code they read: GitHub files it as a review all the same,
+    /// and counting it would have people reviewing themselves to the top
+    /// of the ranking.
+    public let author: String?
     public let requests: [RequestedReview]
     public let reviews: [SubmittedReview]
     /// Who was still on the list of requested reviewers when this was
@@ -48,12 +55,14 @@ public struct ReviewedPullRequest: Hashable, Sendable, Identifiable {
     public init(
         key: String,
         closedAt: Date?,
+        author: String? = nil,
         requests: [RequestedReview],
         reviews: [SubmittedReview],
         stillRequested: Set<String> = []
     ) {
         self.key = key
         self.closedAt = closedAt
+        self.author = author
         self.requests = requests
         self.reviews = reviews
         self.stillRequested = stillRequested
@@ -153,6 +162,9 @@ public enum ReviewerStatsMath {
 
         for pullRequest in pullRequests {
             for review in pullRequest.reviews {
+                // Not your own. GitHub lets you leave a review on a pull
+                // request you opened, and it is not code you read.
+                guard review.reviewer != pullRequest.author else { continue }
                 reviews[review.reviewer, default: 0] += 1
                 touched[review.reviewer, default: []].insert(pullRequest.key)
             }
