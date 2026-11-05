@@ -66,18 +66,15 @@ struct ReviewerStatsView: View {
                 if let reason = data.truncationReason {
                     notice(reason)
                 }
-                if !bySpeed {
-                    // Two bare numbers at the end of a row are two numbers
-                    // with no name. The speed table needs none: it labels
-                    // its figures between them, where the eye already is.
-                    volumeHeader
-                    Divider()
-                }
+                // Bare numbers at the end of a row are numbers with no
+                // name, and six of them are worse than two.
+                header
+                Divider()
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
                         ForEach(Array(rows.enumerated()), id: \.element.id) { place, row in
                             if bySpeed {
-                                SpeedRow(stats: row, longest: longest)
+                                SpeedRow(place: place + 1, stats: row, longest: longest)
                             } else {
                                 VolumeRow(place: place + 1, stats: row, most: most)
                             }
@@ -92,17 +89,24 @@ struct ReviewerStatsView: View {
         }
     }
 
-    private var volumeHeader: some View {
+    private var header: some View {
         HStack(spacing: 10) {
             Text("#")
                 .frame(width: 24, alignment: .trailing)
             Text("reviewer")
                 .frame(width: 180, alignment: .leading)
             Spacer(minLength: 0)
-            Text("PRs")
-                .frame(width: 60, alignment: .trailing)
-            Text("reviews")
-                .frame(width: 60, alignment: .trailing)
+            if bySpeed {
+                Text("median").frame(width: 66, alignment: .trailing)
+                Text("mean").frame(width: 60, alignment: .trailing)
+                Text("p90").frame(width: 60, alignment: .trailing)
+                Text("n").frame(width: 56, alignment: .trailing)
+                Text("ignored").frame(width: 100, alignment: .trailing)
+                Text("pending").frame(width: 60, alignment: .trailing)
+            } else {
+                Text("PRs").frame(width: 60, alignment: .trailing)
+                Text("reviews").frame(width: 60, alignment: .trailing)
+            }
         }
         .font(.caption)
         .foregroundStyle(.secondary)
@@ -215,11 +219,17 @@ private struct VolumeRow: View {
 
 /// One line of the ranking by how long people wait.
 private struct SpeedRow: View {
+    let place: Int
     let stats: ReviewerStats
     let longest: TimeInterval
 
     var body: some View {
         HStack(spacing: 10) {
+            Text("\(place)")
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.tertiary)
+                .frame(width: 24, alignment: .trailing)
+
             Text(stats.reviewer)
                 .lineLimit(1)
                 .frame(width: 180, alignment: .leading)
@@ -233,13 +243,11 @@ private struct SpeedRow: View {
             .frame(height: 18)
 
             number(stats.median.map(TrendMath.describe) ?? "\u{2014}", width: 66, bold: true)
-            label("mean")
             number(stats.mean.map(TrendMath.describe) ?? "\u{2014}", width: 60)
-            label("p90")
             number(stats.p90.map(TrendMath.describe) ?? "\u{2014}", width: 60)
-            number("n=\(stats.answered)", width: 56)
-            number(ignored, width: 118)
-            number("pending \(stats.pending)", width: 86)
+            number("\(stats.answered)", width: 56)
+            number(ignored, width: 100)
+            number(stats.pending > 0 ? "\(stats.pending)" : "", width: 60)
         }
         .font(.callout)
         .padding(.horizontal, 16)
@@ -264,7 +272,7 @@ private struct SpeedRow: View {
 
     private var ignored: String {
         guard let share = stats.ignoredShare, stats.ignored > 0 else { return "" }
-        return "ignored \(Int((share * 100).rounded()))% (\(stats.ignored))"
+        return "\(Int((share * 100).rounded()))% (\(stats.ignored))"
     }
 
     private var help: String {
@@ -281,9 +289,4 @@ private struct SpeedRow: View {
             .frame(width: width, alignment: .trailing)
     }
 
-    private func label(_ text: String) -> some View {
-        Text(text)
-            .font(.caption)
-            .foregroundStyle(.tertiary)
-    }
 }
