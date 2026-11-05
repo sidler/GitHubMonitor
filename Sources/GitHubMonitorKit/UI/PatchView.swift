@@ -564,13 +564,7 @@ struct DiffOverlay: View {
             .scrollPosition(
                 id: Binding(
                     get: { place.wanted },
-                    set: { reported in
-                        // Nil is not an answer: the scroll view reports it
-                        // while the content settles, and taking it would
-                        // put the mark in the list out just as the reader
-                        // arrives somewhere.
-                        if let reported { place.path = reported }
-                    }
+                    set: { place.report($0) }
                 ),
                 anchor: .top
             )
@@ -1576,6 +1570,22 @@ final class DiffPlace: ObservableObject {
     /// with nothing to hold on to, so the next change of content moves
     /// only what is below it.
     @Published var wanted: String?
+
+    /// What the scroll view reports, taken only when it is news.
+    ///
+    /// `@Published` fires on every assignment, equal or not, and the
+    /// scroll view reports the file at the top on every frame -- so
+    /// scrolling through one long file told the overlay sixty times a
+    /// second that nothing had changed, and the overlay drew itself again
+    /// each time: the tree of every file, and a section for each of them.
+    ///
+    /// Nil is not an answer either. The scroll view reports it while the
+    /// content settles, and taking it would put the mark in the list out
+    /// just as the reader arrives somewhere.
+    func report(_ seen: String?) {
+        guard let seen, seen != path else { return }
+        path = seen
+    }
 
     /// Sends the diff to a file, from the list beside it or from a tick.
     func go(to path: String?) {

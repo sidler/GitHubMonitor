@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import Testing
 @testable import GitHubMonitorKit
@@ -191,5 +192,39 @@ struct DiffPlaceTests {
         // And the list beside the diff marks it at once, rather than
         // waiting for the scroll to report back.
         #expect(place.path == "src/Other.php")
+    }
+
+    /// The one that matters for scrolling. The scroll view reports the
+    /// file at the top on every frame, and `@Published` fires whether or
+    /// not the value changed -- so reading one long file redrew the whole
+    /// overlay, the tree of every file and a section for each of them,
+    /// sixty times a second to be told nothing had moved.
+    @Test("Being told the same file again costs nothing")
+    func repeatedReportsAreQuiet() {
+        let place = DiffPlace()
+        var redraws = 0
+        let watching = place.objectWillChange.sink { _ in redraws += 1 }
+        defer { watching.cancel() }
+
+        place.report("a.swift")
+        #expect(redraws == 1)
+
+        for _ in 0..<60 { place.report("a.swift") }
+        #expect(redraws == 1)
+
+        place.report("b.swift")
+        #expect(redraws == 2)
+    }
+
+    /// Reported while the content settles, and taking it would put the
+    /// mark in the file list out just as the reader arrives somewhere.
+    @Test("Nil is not an answer")
+    func nilIsIgnored() {
+        let place = DiffPlace()
+        place.report("a.swift")
+
+        place.report(nil)
+
+        #expect(place.path == "a.swift")
     }
 }

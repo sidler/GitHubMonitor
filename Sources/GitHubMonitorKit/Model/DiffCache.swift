@@ -51,9 +51,25 @@ public struct PatchLine: Identifiable, Sendable {
 public final class DiffCache {
     public static let shared = DiffCache()
 
-    /// A pull request can touch hundreds of files; this is about how many
-    /// anybody scrolls past in one sitting. Past it the oldest goes.
-    private let limit = 64
+    /// How much patch is worth holding on to, measured in the bytes of
+    /// the patches themselves.
+    ///
+    /// Counted in bytes rather than in files, because a file is not a
+    /// unit of anything. The bound used to be sixty-four files, and a
+    /// pull request of sixty-eight small ones -- twenty lines each, the
+    /// whole review barely sixty kilobytes -- walked straight past it.
+    /// Every pass of the body evicted the files it was about to ask for
+    /// again, so nothing was ever cached and the two-column alignment was
+    /// worked out from scratch sixty-eight times a frame. Eighteen
+    /// milliseconds a pass, against a frame of eight.
+    ///
+    /// Four megabytes of patch is more than ten reviews the size of the
+    /// largest seen here, and the things derived from it are what the
+    /// memory actually goes on.
+    private let byteBudget = 4 * 1024 * 1024
+    /// Never fewer than this, however large they are. The file being read
+    /// has to survive whatever else is going on.
+    private let floor = 8
 
     private var marks: [String: [[ChangedRange]]] = [:]
     private var rows: [String: [DiffSideRow]] = [:]
@@ -61,7 +77,16 @@ public final class DiffCache {
     private var comments: [String: (language: CodeLanguage?, state: DiffComments)] = [:]
     private var gaps: [String: (total: Int, found: [DiffGaps.Gap])] = [:]
     private var patchLines: [String: (language: CodeLanguage?, built: [PatchLine])] = [:]
-    private var order: [String] = []
+    /// When each patch was last asked about, and how big it is.
+    ///
+    /// A clock rather than a queue. The queue was an array of patch
+    /// *strings*, and keeping it in order meant `firstIndex(of:)` on
+    /// every read -- a full string comparison against every patch held,
+    /// on a path taken several times per file per frame.
+    private var lastUsed: [String: UInt64] = [:]
+    private var sizes: [String: Int] = [:]
+    private var held = 0
+    private var clock: UInt64 = 0
 
     public func emphasis(in patch: String) -> [[ChangedRange]] {
         if let known = marks[patch] {
@@ -178,21 +203,57 @@ public final class DiffCache {
     }
 
     private func remember(_ patch: String) {
-        if let seen = order.firstIndex(of: patch) { order.remove(at: seen) }
-        order.append(patch)
-        while order.count > limit {
-            let oldest = order.removeFirst()
-            marks[oldest] = nil
-            rows[oldest] = nil
-            numbers[oldest] = nil
-            comments[oldest] = nil
-            gaps[oldest] = nil
-            patchLines[oldest] = nil
+        clock &+= 1
+        if lastUsed.updateValue(clock, forKey: patch) == nil {
+            let size = patch.utf8.count
+            sizes[patch] = size
+            held += size
+        }
+        guard held > byteBudget, lastUsed.count > floor else { return }
+        sweep()
+    }
+
+    /// Drops what has gone longest unread, in one go.
+    ///
+    /// In one go rather than one at a time: finding the oldest means
+    /// looking at them all, and doing that per read is how the old queue
+    /// came to cost what it did. Going a quarter under the budget buys
+    /// that walk a few hundred reads of quiet.
+    ///
+    /// A review whose patches do not fit at all is the case this serves
+    /// worst: priming works outwards from the file being read, so the
+    /// least recently used are the ones nearest it. They are worked out
+    /// again when scrolled to, which is where this stood before any of
+    /// the priming -- so it is not a loss, only a budget nobody should
+    /// have to reach.
+    private func sweep() {
+        let target = byteBudget - byteBudget / 4
+        for (patch, _) in lastUsed.sorted(by: { $0.value < $1.value }) {
+            guard held > target, lastUsed.count > floor else { return }
+            forget(patch)
         }
     }
 
+    private func forget(_ patch: String) {
+        held -= sizes.removeValue(forKey: patch) ?? 0
+        lastUsed[patch] = nil
+        marks[patch] = nil
+        rows[patch] = nil
+        numbers[patch] = nil
+        comments[patch] = nil
+        gaps[patch] = nil
+        patchLines[patch] = nil
+    }
+
     /// How many patches are being held, for the test that the bound holds.
-    var count: Int { order.count }
+    var count: Int { lastUsed.count }
+
+    /// How much patch is being held, for the same test.
+    var bytesHeld: Int { held }
+
+    /// The bound itself, so a test can fill past it without naming a
+    /// number of its own.
+    var budget: Int { byteBudget }
 
     /// Works out everything a diff will ask for, off the main thread,
     /// before the scroll gets there.
@@ -273,6 +334,8 @@ public final class DiffCache {
         comments = [:]
         gaps = [:]
         patchLines = [:]
-        order = []
+        lastUsed = [:]
+        sizes = [:]
+        held = 0
     }
 }

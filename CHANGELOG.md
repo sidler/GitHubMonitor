@@ -5,6 +5,11 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **Side-by-side scrolls smoothly through a review of many small files.**
+  A pull request of more than sixty-four files threw away everything it
+  had worked out, over and over, and redrew the whole window on every
+  frame of a scroll.
+
 - **Closing a review, or quitting, asks about remarks written but not
   added**, and keeps them as unsent remarks if that is what you want.
 - **Several remarks can be half-written at once**, each on its own line,

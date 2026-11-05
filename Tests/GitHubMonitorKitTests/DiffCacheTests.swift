@@ -57,14 +57,41 @@ struct DiffCacheTests {
 
     /// A pull request can touch hundreds of files, and the window would
     /// otherwise hold every patch it ever drew.
-    @Test("Only so many patches are kept")
+    ///
+    /// Bounded in bytes rather than in files now. A count of files threw
+    /// away a review of sixty-eight small ones that would have fitted in
+    /// a thousandth of the memory the bound was protecting.
+    @Test("Patches are held up to a size, not up to a count")
     func bounded() {
         let cache = DiffCache.shared
         cache.forget()
-        for i in 0..<200 {
+
+        // Small enough that hundreds of them are nowhere near the bound.
+        for i in 0..<300 {
             _ = cache.emphasis(in: "@@ -1,1 +1,1 @@\n-line \(i)\n+line \(i) changed")
         }
-        #expect(cache.count <= 64)
+        #expect(cache.count == 300)
+        #expect(cache.bytesHeld < cache.budget)
+
+        // And large enough that they are not.
+        let fat = String(repeating: "x", count: 64 * 1024)
+        for i in 0..<120 {
+            _ = cache.emphasis(in: "@@ -1,1 +1,1 @@\n-\(fat)\n+\(fat)\(i)")
+        }
+        #expect(cache.bytesHeld <= cache.budget)
+    }
+
+    /// The file being read has to survive whatever is scrolled past it,
+    /// however large the patches are.
+    @Test("A few patches are kept however big they are")
+    func floor() {
+        let cache = DiffCache.shared
+        cache.forget()
+        let huge = String(repeating: "y", count: 2 * 1024 * 1024)
+        for i in 0..<6 {
+            _ = cache.emphasis(in: "@@ -1,1 +1,1 @@\n-\(huge)\n+\(huge)\(i)")
+        }
+        #expect(cache.count >= 5)
     }
 }
 
