@@ -990,4 +990,32 @@ public enum SampleData {
             pullRequests: 412
         )
     }
+
+    /// The open pull requests of one repository, per author and per
+    /// reviewer, so the two older workload tables have something to draw
+    /// without a token.
+    public static func workload() -> DashboardData {
+        let items = reviewsRequested() + myPullRequests()
+        let names = ["mira", "arun", "noor", "dara", "avery"]
+        let entries = items.enumerated().map { index, item in
+            (
+                item: item,
+                reviewers: [
+                    ReviewerStatus(
+                        name: names[index % names.count],
+                        avatarURL: nil,
+                        state: index.isMultiple(of: 3) ? .approved : .pending,
+                        isTeam: false
+                    ),
+                    ReviewerStatus(
+                        name: names[(index + 2) % names.count],
+                        avatarURL: nil,
+                        state: .pending,
+                        isTeam: false
+                    ),
+                ]
+            )
+        }
+        return DashboardData.summarise(entries, repository: "octo/platform")
+    }
 }

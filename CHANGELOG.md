@@ -7,10 +7,12 @@ What changed in each released version. The app shows this file itself, under
 
 - **Two new views under Workload: who does the reviewing, and how long
   the rest of the team waits.** *Reviews given* ranks people by the pull
-  requests they read; *Time to review* by how long an answer takes. Both
-  are drawn as the charts beside them are, and a bar says the rest of its
-  numbers when the pointer rests on it. Over 30 days, 90 days or 12
-  months.
+  requests they read; *Time to review* by how long an answer takes, with
+  the mean, the slow tail and the requests that went unanswered beside
+  it. Over 30 days, 90 days or 12 months.
+- **All four Workload views are now one table.** Named columns, a bar in
+  the row, and a footer under each of them saying how its numbers are
+  counted.
 
 ## 2.6.0
 

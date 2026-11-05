@@ -33,6 +33,15 @@ public struct ReviewedPullRequest: Hashable, Sendable, Identifiable {
     public let closedAt: Date?
     public let requests: [RequestedReview]
     public let reviews: [SubmittedReview]
+    /// Who was still on the list of requested reviewers when this was
+    /// last looked at -- at the close, for one that is closed.
+    ///
+    /// The history of requests is not the same thing. Somebody asked and
+    /// then unasked, or asked and then superseded by a re-request after
+    /// they had already answered, left a request event behind that nobody
+    /// was ever waiting on. Counting those as ignored put colleagues at
+    /// a quarter when the truth was a twentieth.
+    public let stillRequested: Set<String>
 
     public var isOpen: Bool { closedAt == nil }
 
@@ -40,12 +49,14 @@ public struct ReviewedPullRequest: Hashable, Sendable, Identifiable {
         key: String,
         closedAt: Date?,
         requests: [RequestedReview],
-        reviews: [SubmittedReview]
+        reviews: [SubmittedReview],
+        stillRequested: Set<String> = []
     ) {
         self.key = key
         self.closedAt = closedAt
         self.requests = requests
         self.reviews = reviews
+        self.stillRequested = stillRequested
     }
 }
 
@@ -85,9 +96,12 @@ public struct ReviewerStats: Hashable, Sendable, Identifiable {
     /// How many requests were answered, which is what the durations are
     /// measured over.
     public let answered: Int
-    /// Requests still outstanding when the pull request closed. Nobody
-    /// was waiting on them any more, so they are not slow answers -- they
-    /// are no answer.
+    /// Asked, never answered, and still asked when the pull request
+    /// closed. Not a slow answer -- no answer.
+    ///
+    /// Still asked at the close, rather than every request that went
+    /// unanswered: a request withdrawn is not a question anybody was
+    /// left waiting on.
     public let ignored: Int
     /// Requests still outstanding on pull requests that are still open.
     /// The clock on these has not stopped.
@@ -144,9 +158,19 @@ public enum ReviewerStatsMath {
             }
             for (reviewer, answer) in answers(in: pullRequest) {
                 switch answer {
-                case .after(let wait): waits[reviewer, default: []].append(wait)
-                case .never where pullRequest.isOpen: pending[reviewer, default: 0] += 1
-                case .never: ignored[reviewer, default: 0] += 1
+                case .after(let wait):
+                    waits[reviewer, default: []].append(wait)
+                case .never:
+                    // Only where they are still on the list. A request
+                    // that was withdrawn, or one left behind by a
+                    // re-request after they had answered, is not an
+                    // unanswered question -- nobody was waiting on it.
+                    guard pullRequest.stillRequested.contains(reviewer) else { continue }
+                    if pullRequest.isOpen {
+                        pending[reviewer, default: 0] += 1
+                    } else {
+                        ignored[reviewer, default: 0] += 1
+                    }
                 }
             }
         }

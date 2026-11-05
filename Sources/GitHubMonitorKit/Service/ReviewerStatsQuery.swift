@@ -105,6 +105,11 @@ public enum ReviewerStatsQuery {
                 }
               }
             }
+            # Who is still being asked, which is a different thing from
+            # who was ever asked.
+            reviewRequests(first: 30) {
+              nodes { requestedReviewer { ... on User { login } } }
+            }
             # Including reviews a later push dismissed: the question is
             # when the answer came, not whether it still stands.
             reviews(first: 30) {
@@ -167,13 +172,22 @@ public enum ReviewerStatsQuery {
             return SubmittedReview(reviewer: login, at: at)
         }
 
+        let outstanding = (node["reviewRequests"] as? [String: Any])?["nodes"]
+            as? [[String: Any]] ?? []
+        let stillRequested = Set(
+            outstanding.compactMap {
+                ($0["requestedReviewer"] as? [String: Any])?["login"] as? String
+            }
+        )
+
         guard !requests.isEmpty || !submitted.isEmpty else { return nil }
 
         return ReviewedPullRequest(
             key: key,
             closedAt: GitHubDate.optional(from: node["closedAt"] as? String),
             requests: requests,
-            reviews: submitted
+            reviews: submitted,
+            stillRequested: stillRequested
         )
     }
 }

@@ -15,7 +15,8 @@ struct ReviewerStatsTests {
         _ key: String,
         closed: TimeInterval? = 10 * 86_400,
         asked: [(String, TimeInterval)] = [],
-        reviewed: [(String, TimeInterval)] = []
+        reviewed: [(String, TimeInterval)] = [],
+        stillAsked: Set<String>? = nil
     ) -> ReviewedPullRequest {
         ReviewedPullRequest(
             key: key,
@@ -25,7 +26,11 @@ struct ReviewerStatsTests {
             },
             reviews: reviewed.map {
                 SubmittedReview(reviewer: $0.0, at: start.addingTimeInterval($0.1))
-            }
+            },
+            // By default everybody asked is still on the list, which is
+            // the ordinary case: somebody was asked and the question
+            // stood until it was answered.
+            stillRequested: stillAsked ?? Set(asked.map(\.0))
         )
     }
 
@@ -66,6 +71,25 @@ struct ReviewerStatsTests {
     /// A review submitted before the request answers nothing -- somebody
     /// read it unasked, and the request that came afterwards is still
     /// outstanding.
+    /// A request that was withdrawn, or one left behind by a re-request
+    /// after the person had already answered, is not an unanswered
+    /// question -- nobody was waiting on it. Counting those put
+    /// colleagues at a quarter ignored when the truth was a twentieth.
+    @Test("A request nobody is waiting on any more is not ignored")
+    func withdrawnRequest() {
+        let withdrawn = stats(
+            [pullRequest("1", asked: [("ada", 0)], stillAsked: [])],
+            for: "ada"
+        )
+        // Nothing happened that is worth a row: no review, no answer, and
+        // no question left standing.
+        #expect(withdrawn == nil)
+
+        // The same request, still standing at the close, is ignored.
+        let standing = stats([pullRequest("1", asked: [("ada", 0)])], for: "ada")
+        #expect(standing?.ignored == 1)
+    }
+
     @Test("A review before the request does not answer it")
     func reviewBeforeRequest() {
         let found = stats(

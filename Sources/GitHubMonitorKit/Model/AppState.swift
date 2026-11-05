@@ -896,6 +896,7 @@ public final class AppState {
         reviewThreads["pr-482"] = SampleData.reviewThreads()
         settings.dashboardRepository = "octo/platform"
         reviewerStats = .loaded(SampleData.reviewerStats())
+        dashboard = .loaded(SampleData.workload())
         reviewDrafts["pr-482"] = SampleData.reviewDraft()
         // The sample has no account, so nothing would fetch the pictures
         // in a body and both of them would come out as links -- which is
