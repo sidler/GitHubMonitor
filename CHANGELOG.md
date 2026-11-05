@@ -3,7 +3,7 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
-## Unreleased
+## 2.6.0
 
 - **Press a symbol in the legend to show only those rows** — the failing
   checks, the conflicts, the ones still waiting on a reviewer. What the
