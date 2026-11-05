@@ -539,6 +539,8 @@ struct ToolbarControls: View {
                             IssueTypeFilter(state: state, list: list)
                         }
                     }
+
+                    LegendFilterChip(state: state)
                 }
             case .mentions:
                 GroupingPicker(
@@ -744,6 +746,45 @@ private struct GroupingPicker: View {
             .menuStyle(.borderlessButton)
             .fixedSize()
             .help("Split the list into sections, or leave it flat")
+        }
+    }
+}
+
+/// What the list is narrowed to, beside the controls that narrow it.
+///
+/// The legend at the bottom is where this is pressed and where it is lit,
+/// which is enough while you are pressing it. This is for the other
+/// direction: coming back to a list that is shorter than you left it, the
+/// question "why" is asked at the top of the window, where the grouping
+/// and the sort are -- not in the status bar.
+private struct LegendFilterChip: View {
+    @Bindable var state: AppState
+
+    var body: some View {
+        if let symbol = state.legendFilter {
+            Button {
+                state.legendFilter = nil
+            } label: {
+                HStack(spacing: 4) {
+                    if let symbolName = symbol.symbolName {
+                        Image(systemName: symbolName)
+                            .foregroundStyle(symbol.tint)
+                    } else {
+                        DraftBadge()
+                    }
+                    Text(symbol.label)
+                    // The way out is on the chip itself. A filter whose
+                    // only off switch is somewhere else is a filter people
+                    // quit the app to escape.
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                }
+            }
+            .buttonStyle(.borderless)
+            .fixedSize()
+            .help("Showing only these \u{2014} press to show the rest")
+            .accessibilityLabel("Showing only \(symbol.label)")
+            .accessibilityHint("Shows the rest of the list again")
         }
     }
 }
