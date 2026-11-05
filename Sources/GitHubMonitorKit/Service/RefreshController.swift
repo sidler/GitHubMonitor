@@ -14,6 +14,9 @@ public final class RefreshController {
     private var trendsTask: Task<Void, Never>?
     private var myTrendsTask: Task<Void, Never>?
     private var reviewerStatsTask: Task<Void, Never>?
+    /// What that task is reading, so a view that asks again for the same
+    /// thing does not cancel a read that is most of the way through one.
+    private var reviewerStatsKey: String?
     private var commentersTask: Task<Void, Never>?
     /// Every other fetch started on behalf of the signed-in account.
     ///
@@ -787,7 +790,21 @@ public final class RefreshController {
     /// the figures are a ranking, and a ranking has to be worked out of
     /// one body of pull requests or its rows cannot be compared.
     public func loadReviewerStats(force: Bool = false) async {
+        let key = state.settings.dashboardRepository
+            .trimmingCharacters(in: .whitespaces)
+            + "|" + state.settings.reviewerStatsPeriod.rawValue
+
+        // Already reading exactly this. Starting again would cancel a read
+        // most of the way through a minute and a half of work and begin it
+        // from the first month -- which, asked twice, never finishes at
+        // all.
+        if !force, reviewerStatsKey == key, let running = reviewerStatsTask,
+            !running.isCancelled {
+            return await running.value
+        }
+
         reviewerStatsTask?.cancel()
+        reviewerStatsKey = key
         let task = Task { await performReviewerStatsLoad(force: force) }
         reviewerStatsTask = task
         await task.value
@@ -811,52 +828,74 @@ public final class RefreshController {
             return
         }
 
-        state.reviewerStats = .loading
         let since = period.since()
+        let slices = ReviewerStatsQuery.slices(since: since)
+        var found: [String: ReviewedPullRequest] = [:]
+        var total = 0
+        var capped = false
+        var done = 0
 
-        do {
-            let read = try await service.reviewerStats(
-                repository: repository, since: since, quotaFloor: Self.quotaFloor
-            )
-            guard !Task.isCancelled else { return }
+        // Published after every month, not at the end. A busy repository
+        // takes a minute and a half to read, and a minute and a half of
+        // spinner is indistinguishable from a minute and a half of
+        // nothing working -- which is exactly how it was read.
+        func publish(_ truncation: String?) {
             state.reviewerStats = .loaded(
                 ReviewerStatsData(
                     repository: repository,
                     period: period,
                     since: since,
-                    stats: ReviewerStatsMath.summarise(read.pullRequests),
-                    pullRequests: read.pullRequests.count,
-                    truncationReason: Self.truncation(read)
+                    stats: ReviewerStatsMath.summarise(Array(found.values)),
+                    pullRequests: found.count,
+                    months: (done: done, of: slices.count),
+                    truncationReason: truncation
                 )
             )
-        } catch {
-            guard !Task.isCancelled else { return }
-            state.reviewerStats = .failed(error.localizedDescription)
         }
-    }
 
-    /// Says what is missing, where something is.
-    ///
-    /// Two different incompletenesses, and they are not the same news. A
-    /// budget that ran out stopped the reading part way. The cap is
-    /// worse: GitHub hands back a thousand results per search and reports
-    /// no error at all, so a window with more in it would otherwise be
-    /// answered with a ranking that silently left people out.
-    private static func truncation(
-        _ read: (
-            pullRequests: [ReviewedPullRequest], total: Int, capped: Bool,
-            remainingQuota: Int?, ranOut: Bool
+        state.reviewerStats = .loading
+
+        for slice in slices {
+            guard !Task.isCancelled else { return }
+            do {
+                let read = try await service.reviewerStats(
+                    repository: repository, range: slice, quotaFloor: Self.quotaFloor
+                )
+                for pullRequest in read.pullRequests { found[pullRequest.key] = pullRequest }
+                total += read.total
+                capped = capped || read.capped
+                done += 1
+
+                guard !Task.isCancelled else { return }
+                if read.ranOut {
+                    publish(
+                        "Stopped after \(done) of \(slices.count) months:"
+                            + " GitHub's hourly query budget was running low."
+                    )
+                    return
+                }
+                publish(nil)
+            } catch {
+                guard !Task.isCancelled else { return }
+                // Months already read are worth showing; only the empty
+                // case is a failure.
+                guard done > 0 else {
+                    state.reviewerStats = .failed(error.localizedDescription)
+                    return
+                }
+                publish(error.localizedDescription)
+                return
+            }
+        }
+
+        guard !Task.isCancelled else { return }
+        publish(
+            capped
+                ? "A month in this window held more pull requests than GitHub's search"
+                    + " will hand back, so some are missing."
+                : nil
         )
-    ) -> String? {
-        if read.ranOut {
-            return "Stopped after \(read.pullRequests.count) of \(read.total) pull requests:"
-                + " GitHub's hourly query budget was running low."
-        }
-        if read.capped {
-            return "A month in this window held more pull requests than GitHub's search"
-                + " will hand back, so some are missing. A shorter period reads all of it."
-        }
-        return nil
+        _ = total
     }
 
     /// Loads the charts about one's own pull requests, period by period.

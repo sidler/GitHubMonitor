@@ -33,12 +33,14 @@ public enum ReviewerStatsPeriod: String, CaseIterable, Codable, Sendable {
 /// every reviewer has to be measured over the same pull requests or the
 /// rows cannot be compared with one another.
 public enum ReviewerStatsQuery {
-    /// Fifty rather than a hundred.
+    /// A hundred, measured rather than guessed.
     ///
-    /// Each node here carries two connections of its own, and GitHub
-    /// charges for the product. A hundred nodes of thirty reviews and
-    /// thirty request events is a page nobody can afford twice.
-    public static let pageSize = 50
+    /// Each node carries two connections of its own, so the worry was
+    /// cost. A page of a hundred charges two points against a budget of
+    /// five thousand an hour and halves the round trips, which is what
+    /// the time actually goes on: a month of a busy repository came down
+    /// from thirteen requests to seven.
+    public static let pageSize = 100
 
     /// Pull requests touched in one stretch, whoever opened them.
     ///
@@ -177,13 +179,18 @@ public enum ReviewerStatsQuery {
 }
 
 /// The reviewer figures for one repository, as far as they were read.
-public struct ReviewerStatsData: Equatable, Sendable {
+public struct ReviewerStatsData: Sendable {
     public let repository: String
     public let period: ReviewerStatsPeriod
     public let since: Date
     public let stats: [ReviewerStats]
     /// How many pull requests the figures were worked out of.
     public let pullRequests: Int
+    /// How much of the window has been read, so a table that is still
+    /// filling says so rather than looking finished and wrong.
+    public let months: (done: Int, of: Int)
+
+    public var isComplete: Bool { months.done >= months.of }
     public var fetchedAt: Date
     /// Set when the fetch stopped early, so the view can say it is
     /// incomplete rather than quietly showing less.
@@ -195,6 +202,7 @@ public struct ReviewerStatsData: Equatable, Sendable {
         since: Date,
         stats: [ReviewerStats],
         pullRequests: Int,
+        months: (done: Int, of: Int) = (1, 1),
         fetchedAt: Date = .now,
         truncationReason: String? = nil
     ) {
@@ -203,13 +211,14 @@ public struct ReviewerStatsData: Equatable, Sendable {
         self.since = since
         self.stats = stats
         self.pullRequests = pullRequests
+        self.months = months
         self.fetchedAt = fetchedAt
         self.truncationReason = truncationReason
     }
 }
 
 /// What the reviewer views have to draw, or why they have not.
-public enum ReviewerStatsState: Equatable, Sendable {
+public enum ReviewerStatsState: Sendable {
     case unconfigured
     case loading
     case loaded(ReviewerStatsData)
@@ -220,5 +229,11 @@ public enum ReviewerStatsState: Equatable, Sendable {
         return nil
     }
 
-    public var isLoading: Bool { self == .loading }
+    public var isLoading: Bool {
+        if case .loading = self { return true }
+        // A table still filling is still loading, whatever it can already
+        // draw.
+        if case .loaded(let data) = self { return !data.isComplete }
+        return false
+    }
 }

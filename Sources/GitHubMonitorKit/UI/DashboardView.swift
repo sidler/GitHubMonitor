@@ -158,6 +158,14 @@ struct DashboardView: View {
             if state.settings.dashboardGrouping.isHistory {
                 if state.reviewerStats.isLoading {
                     ProgressView().controlSize(.small)
+                    if let data = state.reviewerStats.data {
+                        // A month at a time, said out loud: the table
+                        // fills in as they land, and a number that moves
+                        // is the difference between waiting and worrying.
+                        Text("\(data.months.done) of \(data.months.of) months")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
                 } else if let data = state.reviewerStats.data {
                     Text("Read \(RelativeTime.string(for: data.fetchedAt))")
                         .font(.caption)
