@@ -728,7 +728,10 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             }
             total += width + Self.toolbarItemGap
         }
-        state.toolbarControlsWidth = total
+        // Only when it has moved. This runs on every pass of the
+        // observation now, and writing the same number back would ask
+        // everything reading it to draw itself again for nothing.
+        if state.toolbarControlsWidth != total { state.toolbarControlsWidth = total }
     }
 
     /// What the system leaves between two toolbar items, measured from the
@@ -787,10 +790,20 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             _ = state.reviewThreads
             _ = state.fileContents
             _ = state.fileContentsInFlight
+            // Puts a chip among the toolbar's controls, which changes how
+            // much room they need.
+            _ = state.legendFilter
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else { return }
                 self.selectionDidChange()
+                // The controls can change without the list changing: a
+                // legend symbol pressed puts a chip among them, and a
+                // refresh can bring the drafts switch with it. A
+                // view-based toolbar item keeps whatever width it was
+                // last given, so one measured before any of that cut the
+                // new control off mid-word -- and the old one with it.
+                DispatchQueue.main.async { [weak self] in self?.resizeToolbarItems() }
                 self.updateTitle()
                 self.syncInspector()
                 self.syncReviewWindow()
