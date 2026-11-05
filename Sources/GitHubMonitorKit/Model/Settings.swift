@@ -316,6 +316,11 @@ public final class Settings {
     }
 
     /// Whether the trend charts are drawn per week or per month.
+    /// How far back the reviewer figures reach.
+    public var reviewerStatsPeriod: ReviewerStatsPeriod {
+        didSet { store.set(reviewerStatsPeriod.rawValue, forKey: Key.reviewerStatsPeriod) }
+    }
+
     public var trendResolution: TrendResolution {
         didSet { store.set(trendResolution.rawValue, forKey: Key.trendResolution) }
     }
@@ -429,6 +434,9 @@ public final class Settings {
         dashboardRepository = store.string(forKey: Key.dashboardRepository) ?? ""
         dashboardGrouping =
             (store.string(forKey: Key.dashboardGrouping).flatMap(DashboardGrouping.init(rawValue:))) ?? .author
+        reviewerStatsPeriod =
+            (store.string(forKey: Key.reviewerStatsPeriod)
+                .flatMap(ReviewerStatsPeriod.init(rawValue:))) ?? .quarter
         launchAtLogin = store.object(forKey: Key.launchAtLogin) as? Bool ?? false
         notificationGrouping =
             (store.string(forKey: Key.notificationGrouping).flatMap(ListGrouping.init(rawValue:))) ?? .flat
@@ -542,6 +550,7 @@ public final class Settings {
         static let savedLists = "savedLists"
         static let dashboardRepository = "dashboardRepository"
         static let dashboardGrouping = "dashboardGrouping"
+        static let reviewerStatsPeriod = "reviewerStatsPeriod"
         static let launchAtLogin = "launchAtLogin"
         // Read once, to seed the lists on the first launch after they
         // became editable; never written again.

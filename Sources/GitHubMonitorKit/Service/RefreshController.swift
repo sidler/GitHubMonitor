@@ -13,6 +13,7 @@ public final class RefreshController {
     /// call off the one still running.
     private var trendsTask: Task<Void, Never>?
     private var myTrendsTask: Task<Void, Never>?
+    private var reviewerStatsTask: Task<Void, Never>?
     private var commentersTask: Task<Void, Never>?
     /// Every other fetch started on behalf of the signed-in account.
     ///
@@ -778,6 +779,80 @@ public final class RefreshController {
         guard !Task.isCancelled else { return }
         state.trends = .loaded(fresh)
         trendStore.save(fresh)
+    }
+
+    /// Reads who reviewed what in the workload repository.
+    ///
+    /// One search over the whole window rather than a period at a time:
+    /// the figures are a ranking, and a ranking has to be worked out of
+    /// one body of pull requests or its rows cannot be compared.
+    public func loadReviewerStats(force: Bool = false) async {
+        reviewerStatsTask?.cancel()
+        let task = Task { await performReviewerStatsLoad(force: force) }
+        reviewerStatsTask = task
+        await task.value
+    }
+
+    private func performReviewerStatsLoad(force: Bool) async {
+        let repository = state.settings.dashboardRepository
+            .trimmingCharacters(in: .whitespaces)
+        let period = state.settings.reviewerStatsPeriod
+
+        guard !repository.isEmpty else {
+            state.reviewerStats = .unconfigured
+            return
+        }
+        if !force, let known = state.reviewerStats.data,
+            known.repository == repository, known.period == period {
+            return
+        }
+        guard let service else {
+            state.reviewerStats = .failed(GitHubError.noToken.localizedDescription)
+            return
+        }
+
+        state.reviewerStats = .loading
+        let since = period.since()
+
+        do {
+            let read = try await service.reviewerStats(
+                repository: repository, since: since, quotaFloor: Self.quotaFloor
+            )
+            guard !Task.isCancelled else { return }
+            state.reviewerStats = .loaded(
+                ReviewerStatsData(
+                    repository: repository,
+                    period: period,
+                    since: since,
+                    stats: ReviewerStatsMath.summarise(read.pullRequests),
+                    pullRequests: read.pullRequests.count,
+                    truncationReason: Self.truncation(read)
+                )
+            )
+        } catch {
+            guard !Task.isCancelled else { return }
+            state.reviewerStats = .failed(error.localizedDescription)
+        }
+    }
+
+    /// Says what is missing, where something is.
+    ///
+    /// Two different incompletenesses, and they are not the same news: a
+    /// budget that ran out stopped the reading, while pull requests with
+    /// neither a review nor a request on them were read and then dropped
+    /// as having nothing to say.
+    private static func truncation(
+        _ read: (
+            pullRequests: [ReviewedPullRequest], total: Int?,
+            remainingQuota: Int?, ranOut: Bool
+        )
+    ) -> String? {
+        guard read.ranOut else { return nil }
+        if let total = read.total {
+            return "Stopped after \(read.pullRequests.count) of \(total) pull requests:"
+                + " GitHub's hourly query budget was running low."
+        }
+        return "Stopped early: GitHub's hourly query budget was running low."
     }
 
     /// Loads the charts about one's own pull requests, period by period.

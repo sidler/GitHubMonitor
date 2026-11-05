@@ -30,6 +30,17 @@ struct DashboardView: View {
             repositoryBar
             Divider()
 
+            // Before the open pull requests are considered at all: these
+            // two are about months of history and have a fetch of their
+            // own, so a repository nobody has counted yet is not an empty
+            // state for them.
+            if state.settings.dashboardGrouping.isHistory {
+                ReviewerStatsView(
+                    state: state,
+                    controller: controller,
+                    bySpeed: state.settings.dashboardGrouping == .reviewSpeed
+                )
+            } else {
             switch state.dashboard {
             case .unconfigured:
                 ContentUnavailableView(
@@ -55,6 +66,8 @@ struct DashboardView: View {
                 }
             case .loaded(let data):
                 switch state.settings.dashboardGrouping {
+                case .reviewsGiven, .reviewSpeed:
+                    EmptyView()
                 case .author:
                     if data.authors.isEmpty {
                         ContentUnavailableView(
@@ -77,12 +90,19 @@ struct DashboardView: View {
                     }
                 }
             }
+            }
         }
         // Keyed on the token too: opening this view before the keychain read
         // finishes would otherwise leave it empty until the next click.
         .task(id: reloadKey) {
             field.draft = state.settings.dashboardRepository
-            if !state.settings.dashboardRepository.isEmpty, state.dashboard == .unconfigured {
+            guard !state.settings.dashboardRepository.isEmpty else { return }
+            if state.settings.dashboardGrouping.isHistory {
+                // Its own fetch, and only while that side of the switch is
+                // showing: it reads months of pull requests, which is not
+                // something to do behind a view nobody opened.
+                await controller.loadReviewerStats()
+            } else if state.dashboard == .unconfigured {
                 load()
             }
         }
@@ -90,6 +110,8 @@ struct DashboardView: View {
 
     private var reloadKey: String {
         "\(state.settings.dashboardRepository)|\(state.hasToken)"
+            + "|\(state.settings.dashboardGrouping.rawValue)"
+            + "|\(state.settings.reviewerStatsPeriod.rawValue)"
     }
 
     // MARK: - Repository picker
@@ -107,6 +129,13 @@ struct DashboardView: View {
                 .disabled(!isValid(field.draft))
 
             GroupingSwitch(settings: state.settings)
+
+            // Only beside the views it means something to: how far back
+            // the reviewing is counted says nothing about a chart of what
+            // is open now.
+            if state.settings.dashboardGrouping.isHistory {
+                PeriodPicker(settings: state.settings)
+            }
 
             // The repositories already on screen are the likely candidates,
             // and typing an exact name from memory is how you get an empty
@@ -126,7 +155,24 @@ struct DashboardView: View {
 
             Spacer()
 
-            if case .loaded(let data) = state.dashboard {
+            if state.settings.dashboardGrouping.isHistory {
+                if state.reviewerStats.isLoading {
+                    ProgressView().controlSize(.small)
+                } else if let data = state.reviewerStats.data {
+                    Text("Read \(RelativeTime.string(for: data.fetchedAt))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .help(RelativeTime.absolute(data.fetchedAt))
+                }
+                Button {
+                    Task { await controller.loadReviewerStats(force: true) }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.accessoryBar)
+                .disabled(state.reviewerStats.isLoading)
+                .help("Read the reviews again")
+            } else if case .loaded(let data) = state.dashboard {
                 Text(summaryLine(data))
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
@@ -150,6 +196,12 @@ struct DashboardView: View {
             counted = "\(data.total) open · \(data.totalReady) ready · \(data.totalDrafts) draft"
         case .reviewer:
             counted = "\(data.totalOutstandingReviews) reviews owed by \(data.reviewers.count) reviewers"
+        case .reviewsGiven, .reviewSpeed:
+            // These say their own numbers in their own footer: they are
+            // about months of history rather than about what is open, and
+            // a count of open pull requests above them would be a figure
+            // from a different question.
+            return ""
         }
         // A chart adds its data up, so anything it could not read is a bar
         // that is too short rather than a row nobody scrolled to. Where that
@@ -375,6 +427,29 @@ struct DashboardView: View {
         .padding(8)
         .allowsHitTesting(false)
         .transition(.opacity)
+    }
+}
+
+/// How far back the reviewer figures reach. Its own view for the same
+/// reason the switch beside it is.
+private struct PeriodPicker: View {
+    @Bindable var settings: Settings
+
+    var body: some View {
+        Menu {
+            Picker("Since", selection: $settings.reviewerStatsPeriod) {
+                ForEach(ReviewerStatsPeriod.allCases, id: \.self) { period in
+                    Text(period.label).tag(period)
+                }
+            }
+            .pickerStyle(.inline)
+        } label: {
+            Label(settings.reviewerStatsPeriod.label, systemImage: "calendar")
+                .labelStyle(.titleAndIcon)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("How far back the reviewing is counted")
     }
 }
 

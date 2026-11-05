@@ -339,6 +339,10 @@ public final class AppState {
     public var trends: TrendState = .unconfigured
     /// The same, for one's own pull requests rather than a repository's.
     public var myTrends: MyTrendState = .unconfigured
+    /// Who does the reviewing in the workload repository, and how long
+    /// the rest of the team waits on them. Its own fetch for the same
+    /// reason the trends have one: it reads months of history.
+    public var reviewerStats: ReviewerStatsState = .unconfigured
     /// Who comments across a whole repository -- read only while that side
     /// of the switch is showing, since it covers every pull request in it.
     public var repositoryCommenters: CommenterState = .unconfigured
@@ -815,6 +819,10 @@ public final class AppState {
             return data.authors.first { $0.id == selection.id }.map(WorkloadDetail.init)
         case .reviewer:
             return data.reviewers.first { $0.id == selection.id }.map(WorkloadDetail.init)
+        // Rankings rather than charts of open work: there is no bar to
+        // click and so nothing for the pane to describe.
+        case .reviewsGiven, .reviewSpeed:
+            return nil
         }
     }
 
@@ -829,6 +837,8 @@ public final class AppState {
             return data.authors.map { WorkloadSelection(grouping: grouping, id: $0.id) }
         case .reviewer:
             return data.reviewers.map { WorkloadSelection(grouping: grouping, id: $0.id) }
+        case .reviewsGiven, .reviewSpeed:
+            return []
         }
     }
 
@@ -884,6 +894,8 @@ public final class AppState {
         fileContents[SampleData.migrationsBlob] = SampleData.migrationsFile()
         fileContents[SampleData.handlerBlob] = SampleData.handlerFile()
         reviewThreads["pr-482"] = SampleData.reviewThreads()
+        settings.dashboardRepository = "octo/platform"
+        reviewerStats = .loaded(SampleData.reviewerStats())
         reviewDrafts["pr-482"] = SampleData.reviewDraft()
         // The sample has no account, so nothing would fetch the pictures
         // in a body and both of them would come out as links -- which is

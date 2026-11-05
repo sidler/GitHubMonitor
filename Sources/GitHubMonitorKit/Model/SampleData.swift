@@ -941,4 +941,53 @@ public enum SampleData {
             "\(Repository.server)#9999": .missing,
         ]
     }
+
+    /// Reviewing over a stretch of months, for the two rankings.
+    ///
+    /// Made rather than measured, but made to the shape a real repository
+    /// has: a couple of people carrying most of the reading, a long tail
+    /// who look at one or two, and the speed ranking in a different order
+    /// from the volume one -- which is the whole reason there are two.
+    public static func reviewerStats() -> ReviewerStatsData {
+        let hour: TimeInterval = 3600
+        let day: TimeInterval = 86_400
+
+        func person(
+            _ name: String, prs: Int, reviews: Int,
+            median: TimeInterval?, mean: TimeInterval?, p90: TimeInterval?,
+            answered: Int, ignored: Int, pending: Int
+        ) -> ReviewerStats {
+            ReviewerStats(
+                reviewer: name, pullRequests: prs, reviews: reviews,
+                median: median, mean: mean, p90: p90,
+                answered: answered, ignored: ignored, pending: pending
+            )
+        }
+
+        return ReviewerStatsData(
+            repository: "octo/platform",
+            period: .quarter,
+            since: Date().addingTimeInterval(-90 * day),
+            stats: [
+                person("mira", prs: 148, reviews: 203, median: 2.2 * hour,
+                       mean: 28 * hour, p90: 2.9 * day, answered: 188, ignored: 6, pending: 12),
+                person("arun", prs: 131, reviews: 190, median: 3.1 * hour,
+                       mean: 30 * hour, p90: 3.2 * day, answered: 173, ignored: 9, pending: 7),
+                person("noor", prs: 96, reviews: 118, median: 1.3 * hour,
+                       mean: 19 * hour, p90: 2.7 * day, answered: 110, ignored: 1, pending: 4),
+                person("dara", prs: 54, reviews: 71, median: 16.2 * hour,
+                       mean: 2.1 * day, p90: 5.1 * day, answered: 63, ignored: 5, pending: 3),
+                person("avery", prs: 38, reviews: 44, median: 6.6 * hour,
+                       mean: 39.4 * hour, p90: 3.4 * day, answered: 41, ignored: 0, pending: 2),
+                person("kit", prs: 12, reviews: 14, median: 19.6 * hour,
+                       mean: 3.9 * day, p90: 8.9 * day, answered: 10, ignored: 4, pending: 1),
+                person("robin", prs: 3, reviews: 3, median: 0.6 * hour,
+                       mean: 0.6 * hour, p90: 1.9 * hour, answered: 3, ignored: 0, pending: 0),
+                // Reviews, but never asked: nothing to rank on speed.
+                person("sam", prs: 2, reviews: 2, median: nil,
+                       mean: nil, p90: nil, answered: 0, ignored: 0, pending: 0),
+            ],
+            pullRequests: 412
+        )
+    }
 }

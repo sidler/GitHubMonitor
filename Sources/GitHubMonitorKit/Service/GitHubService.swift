@@ -550,6 +550,48 @@ public struct GitHubService: Sendable {
         return (timings, remaining)
     }
 
+    /// Who reviewed what in a repository, and how long each answer took.
+    ///
+    /// Paged until GitHub runs out of pull requests or the hourly budget
+    /// runs low, whichever comes first. The caller is told which, because
+    /// a ranking worked out of half the repository is worth showing and
+    /// worth labelling.
+    public func reviewerStats(
+        repository: String,
+        since: Date,
+        quotaFloor: Int
+    ) async throws -> (
+        pullRequests: [ReviewedPullRequest], total: Int?, remainingQuota: Int?, ranOut: Bool
+    ) {
+        var found: [ReviewedPullRequest] = []
+        var cursor: String?
+        var remaining: Int?
+        var total: Int?
+        var ranOut = false
+
+        repeat {
+            let payload = try await client.graphQL(
+                ReviewerStatsQuery.document,
+                variables: [
+                    "query": ReviewerStatsQuery.query(repository: repository, since: since),
+                    "cursor": cursor as Any,
+                ]
+            )
+            let page = ReviewerStatsQuery.page(from: payload)
+            found += page.items
+            total = total ?? ReviewerStatsQuery.total(from: payload)
+            remaining = page.remainingQuota
+            cursor = page.cursor
+
+            if let remaining, remaining < quotaFloor, cursor != nil {
+                ranOut = true
+                break
+            }
+        } while cursor != nil
+
+        return (found, total, remaining, ranOut)
+    }
+
     /// How long one person took over the reviews they were asked for.
     public func reviewResponses(
         matching query: String, viewer: String

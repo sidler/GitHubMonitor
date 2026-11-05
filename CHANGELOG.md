@@ -3,6 +3,14 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
+## Unreleased
+
+- **Two new views under Workload: who does the reviewing, and how long
+  the rest of the team waits.** *Reviews given* ranks people by the pull
+  requests they read; *Time to review* by how long an answer takes, with
+  the mean and the slow tail beside the middle, and how many requests
+  went unanswered. Over 30 days, 90 days or 12 months.
+
 ## 2.6.0
 
 - **Press a symbol in the legend to show only those rows** — the failing

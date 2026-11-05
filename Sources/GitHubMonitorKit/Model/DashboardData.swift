@@ -76,12 +76,29 @@ public struct ReviewerLoad: Identifiable, Hashable, Sendable {
 public enum DashboardGrouping: String, CaseIterable, Codable, Sendable {
     case author
     case reviewer
+    /// Who has been doing the reviewing, over months rather than now.
+    case reviewsGiven
+    /// How long the rest of the team waits on each of them.
+    case reviewSpeed
 
     public var label: String {
         switch self {
         case .author: "By author"
         case .reviewer: "By reviewer"
+        case .reviewsGiven: "Reviews given"
+        case .reviewSpeed: "Time to review"
         }
+    }
+}
+
+extension DashboardGrouping {
+    /// Whether this view is about the pull requests open now or about
+    /// what has happened over a stretch of months.
+    ///
+    /// They are fetched separately and cost very differently, so the
+    /// switch between them decides which fetch runs at all.
+    public var isHistory: Bool {
+        self == .reviewsGiven || self == .reviewSpeed
     }
 }
 
