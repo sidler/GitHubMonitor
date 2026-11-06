@@ -3,7 +3,7 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
-## Unreleased
+## 2.8.0
 
 - **An issue's sub-issues are listed in its detail pane, with how far
   through them it is** — "6 of 11 done" and a bar, each child with its
