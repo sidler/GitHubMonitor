@@ -3,6 +3,44 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
+## Unreleased
+
+- **An issue's sub-issues are listed in its detail pane, with how far
+  through them it is** — "6 of 11 done" and a bar, each child with its
+  state and its type. Clicking one previews it in the same panel the
+  linked pull requests open. Long lists fold after the first twelve.
+- **An issue says what it is part of**, with the same preview a click
+  away. More issues are somebody's sub-task than have sub-tasks.
+- **The issue rows carry the count too**, so a list of epics can be read
+  for who is nearly done without opening any of them.
+- **Press a label in a list to see only the rows carrying it.** The
+  same bargain the legend at the bottom of the window makes: the mark you
+  read a row by is the mark you press. What the list is narrowed to is
+  named at the top, beside the grouping and the sort, and can be cleared
+  from either end — press the label again or the chip at the top. It
+  narrows alongside the legend rather than instead of it, so "tagged
+  Lloyds and nobody has answered" is one question. Pull request rows
+  carry their labels now too, at the right-hand end of the line.
+- **The issue rows read like the pull request rows.** What the row is,
+  and what has happened to it, on the left; the labels at the far right.
+- **An issue with a lot in its detail pane no longer makes the window
+  taller.** An epic carrying twenty-two linked pull requests pushed the
+  window from 680 points to 2067 and off the bottom of the screen. The
+  pane scrolls; it no longer has a say in how tall the window is.
+- **A preview no longer stops after four paragraphs.** The panel scrolls
+  and can be dragged taller; cutting the text was solving a problem the
+  panel already solved, and it cut it at "Hintergrund: no response".
+- **A new chart on Trends: how many pull requests stand open, and how
+  many of those are still drafts.** Counted at the end of every period
+  rather than read off today's flags, so a draft that has since been
+  marked ready still counts as the draft it was.
+- **The bars under *Reviews given* and *Time to review* now say what
+  they mean.** A legend over the rows gives the bar its scale, and names
+  the three steps the speed table colours by.
+- Opening *Workload* before the token had been read left "No GitHub
+  token configured" standing until you pressed *Try again*. It now reads
+  the figures as soon as the token arrives.
+
 ## 2.7.0
 
 - **Two new views under Workload: who does the reviewing, and how long

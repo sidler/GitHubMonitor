@@ -291,6 +291,29 @@ struct LegendBar: View {
 /// The colour is the label's meaning here -- teams pick red for breakage and
 /// green for done -- so a monochrome chip would throw away the fastest thing
 /// in the row to read.
+/// Whether a label in a row narrows the list, and which one it is narrowed
+/// to now.
+///
+/// The same bargain the legend at the bottom of the window makes: the mark
+/// you read something by is the mark you press to see only those. A label
+/// on a row was the one mark in the window that said something about an
+/// issue and could not be acted on.
+struct LabelFiltering {
+    /// The label the list is narrowed to, if any.
+    var active: IssueLabel?
+    /// Pressing the active one again is what clears it.
+    let choose: (IssueLabel) -> Void
+
+    /// By name, not by id: two repositories give the same label different
+    /// ids, and a list spanning both should narrow to all of it.
+    func isActive(_ label: IssueLabel) -> Bool { active?.name == label.name }
+}
+
+/// Deliberately with no "this is the one being filtered by" state. While a
+/// label is pressed, every row on screen carries it, so a ring round each
+/// of them would be a mark on every chip in the window saying something
+/// the list already says by being short. What is pressed is named once, at
+/// the top, beside the grouping and the sort.
 struct LabelChip: View {
     let label: IssueLabel
 

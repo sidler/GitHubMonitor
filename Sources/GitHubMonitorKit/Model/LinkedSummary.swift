@@ -82,7 +82,12 @@ public struct LinkedSummary: Hashable, Sendable, Identifiable {
     /// Both at once, because neither answers alone: a closed issue and a
     /// closed pull request are different news, and GitHub draws them
     /// differently for that reason.
-    public var symbolName: String {
+    public var symbolName: String { Self.symbolName(kind: kind, state: state) }
+
+    /// The same, for anything that has a kind and a state but is not a
+    /// whole summary -- a sub-issue row, for one. One place, so a closed
+    /// issue wears the same tick wherever it is drawn.
+    public static func symbolName(kind: Kind, state: State) -> String {
         switch (kind, state) {
         case (.issue, .open): "circle"
         case (.issue, .closed): "checkmark.circle.fill"

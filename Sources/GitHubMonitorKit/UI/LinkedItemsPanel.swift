@@ -39,6 +39,11 @@ struct LinkedItemsPanel: View {
     /// of those, which is what lets the corner below work at all.
     private var naturalHeight: CGFloat {
         let cards = (lead == nil ? 0 : 1) + links.count
+        // One card is something being read rather than something being
+        // scanned -- a sub-issue opened to find out what it says. It opens
+        // at the full height, since the text below it is no longer cut
+        // short and 200 points of a specification is a scrollbar.
+        guard cards > 1 else { return 520 }
         let groups = (closes.isEmpty ? 0 : 1) + (mentions.isEmpty ? 0 : 1)
         let wanted = 28 + CGFloat(cards) * 172 + CGFloat(groups) * 24
         return min(max(wanted, 120), 520)
@@ -213,9 +218,6 @@ private struct LinkedSummaryCard: View {
     var showsReveal = true
     let close: () -> Void
 
-    /// How much of the text is shown. Four blocks is a heading and a
-    /// paragraph or two -- what an issue is about, not the whole case.
-    private static let blockLimit = 4
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
@@ -234,11 +236,15 @@ private struct LinkedSummaryCard: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                MarkdownText(
-                    source: summary.body,
-                    blockLimit: Self.blockLimit,
-                    overflowNote: "Shortened"
-                )
+                // All of it. It used to stop after four blocks, on the
+                // theory that the panel answers "what is this about" and
+                // not "what does it say" -- but the two are the same
+                // question for anything with a heading per section, and a
+                // preview that stops at "Hintergrund: No response" has
+                // answered nothing. The panel scrolls and can be dragged
+                // taller; cutting the text was solving a problem the
+                // panel already solves.
+                MarkdownText(source: summary.body)
             }
 
             actions

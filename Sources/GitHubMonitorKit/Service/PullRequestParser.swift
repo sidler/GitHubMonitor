@@ -87,7 +87,8 @@ public enum PullRequestParser {
             links: links,
             // What GitHub counted, plus anything the title named that it
             // did not: both are links this pull request has.
-            linkedTotal: max(recorded.total, links.count { $0.kind == .closes })
+            linkedTotal: max(recorded.total, links.count { $0.kind == .closes }),
+            labels: IssueParser.labels(from: node)
         )
     }
 

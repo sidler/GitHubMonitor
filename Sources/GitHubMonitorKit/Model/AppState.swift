@@ -318,7 +318,10 @@ public final class AppState {
             // A question asked of one list, not a setting: standing in
             // front of another one, it would narrow a list nobody had
             // asked it about.
-            if sidebarSelection != oldValue { legendFilter = nil }
+            if sidebarSelection != oldValue {
+                legendFilter = nil
+                labelFilter = nil
+            }
         }
     }
     /// The symbol in the legend the list is narrowed to while somebody is
@@ -328,6 +331,17 @@ public final class AppState {
     /// "show me the failing ones" -- and a list that came back tomorrow
     /// still hiding most of itself would be a list nobody trusts.
     public var legendFilter: LegendSymbol?
+    /// The label the list is narrowed to while somebody is looking at it.
+    ///
+    /// Alongside the legend rather than instead of it: "the failing ones"
+    /// and "the ones tagged Lloyds" are different questions and asking
+    /// both at once is the useful case. Each has its own way out.
+    ///
+    /// The whole label rather than its name, so the chip at the top of the
+    /// window can be drawn in the colour that was pressed. Matched by
+    /// name, though: two repositories give the same label different ids,
+    /// and a list spanning both should narrow to all of it.
+    public var labelFilter: IssueLabel?
     public var selectedSettingsTab: SettingsTab = .account
     /// The dashboard's own fetch, separate from the refresh cycle: it covers
     /// a whole repository and is only wanted while that view is open.
@@ -549,15 +563,43 @@ public final class AppState {
     /// built from that one. Built from this, pressing a symbol would
     /// leave a legend of exactly one entry, and no way back.
     public func shownPullRequests(in list: SavedList) -> [PullRequestItem] {
-        let items = selectedPullRequests(in: list)
-        guard let legendFilter else { return items }
-        return items.filter { legendFilter.matches($0) }
+        var items = selectedPullRequests(in: list)
+        if let legendFilter {
+            items = items.filter { legendFilter.matches($0) }
+        }
+        if let labelFilter {
+            items = items.filter { Self.carries(labelFilter, in: $0.labels) }
+        }
+        return items
     }
 
     public func shownIssues(in list: SavedList) -> [IssueItem] {
-        let items = selectedIssues(in: list)
-        guard let legendFilter else { return items }
-        return items.filter { legendFilter.matches($0) }
+        var items = selectedIssues(in: list)
+        if let legendFilter {
+            items = items.filter { legendFilter.matches($0) }
+        }
+        if let labelFilter {
+            items = items.filter { Self.carries(labelFilter, in: $0.labels) }
+        }
+        return items
+    }
+
+    /// By name, not by id: two repositories give the same label different
+    /// ids, and a list spanning both should narrow to all of it.
+    static func carries(_ wanted: IssueLabel, in labels: [IssueLabel]) -> Bool {
+        labels.contains { $0.name == wanted.name }
+    }
+
+    /// What a row needs to make its labels pressable.
+    ///
+    /// Here rather than built at each of the two call sites, so the rule
+    /// about pressing the live one again is written once: both lists are
+    /// narrowed the same way and there is one place to change it.
+    var labelFiltering: LabelFiltering {
+        LabelFiltering(active: labelFilter) { [weak self] label in
+            guard let self else { return }
+            labelFilter = labelFilter?.name == label.name ? nil : label
+        }
     }
 
     /// The repository entries under a list in the sidebar, busiest first.

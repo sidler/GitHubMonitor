@@ -29,6 +29,15 @@ struct IssueDetailView: View {
                         }
                         .font(.callout)
                     case .loaded(let detail):
+                        SubIssueSection(
+                            parentRepository: item.repository,
+                            detail: detail,
+                            linked: linked
+                        )
+                            // Its own identity per issue, so a list
+                            // unfolded on one epic does not open the next
+                            // one already unfolded.
+                            .id(item.id)
                         text(of: detail)
                         thread(of: detail)
                     case .failed(let message):
@@ -75,6 +84,18 @@ struct IssueDetailView: View {
             }
             .font(.caption)
             .foregroundStyle(.secondary)
+
+            // First of the three lines under the title: what this issue
+            // is part of comes before what answers it and what it is
+            // tagged with, because it is the one that changes how the rest
+            // is read.
+            if case .loaded(let detail) = detail, let parent = detail.parent {
+                ParentIssueLine(
+                    parent: parent,
+                    childRepository: item.repository,
+                    linked: linked
+                )
+            }
 
             // Above the labels rather than below: the pull request that
             // answers an issue is a bigger fact about it than what it is
@@ -197,10 +218,25 @@ struct FlowRow: Layout {
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let width = proposal.width ?? .infinity
-        let rows = layout(subviews: subviews, width: width)
-        let height = rows.map(\.height).reduce(0, +) + spacing * CGFloat(max(0, rows.count - 1))
-        let widest = rows.map(\.width).max() ?? 0
-        return CGSize(width: min(width, max(widest, 0)), height: height)
+
+        // No width is not a width to lay out in -- it is the layout engine
+        // asking how small this is allowed to get. The children are then
+        // measured unconstrained rather than squeezed to nothing, since a
+        // chip asked to fit in no width reports the height of its text set
+        // one letter per line.
+        guard width > 0 else {
+            return Self.size(
+                of: subviews.map { $0.sizeThatFits(.unspecified) },
+                width: width,
+                spacing: spacing
+            )
+        }
+
+        return Self.size(
+            of: subviews.map { measure($0, within: width) },
+            width: width,
+            spacing: spacing
+        )
     }
 
     func placeSubviews(
@@ -209,19 +245,19 @@ struct FlowRow: Layout {
         subviews: Subviews,
         cache: inout ()
     ) {
+        let sizes = subviews.map { measure($0, within: bounds.width) }
         var y = bounds.minY
-        for row in layout(subviews: subviews, width: bounds.width) {
+        for line in Self.lines(of: sizes, width: bounds.width, spacing: spacing) {
             var x = bounds.minX
-            for index in row.indices {
-                let size = measure(subviews[index], within: bounds.width)
+            for index in line.indices {
                 subviews[index].place(
                     at: CGPoint(x: x, y: y),
                     anchor: .topLeading,
-                    proposal: ProposedViewSize(size)
+                    proposal: ProposedViewSize(sizes[index])
                 )
-                x += size.width + spacing
+                x += sizes[index].width + spacing
             }
-            y += row.height + spacing
+            y += line.height + spacing
         }
     }
 
@@ -237,29 +273,63 @@ struct FlowRow: Layout {
         return CGSize(width: min(size.width, width), height: size.height)
     }
 
-    private struct Row {
+    /// One line of the flow: which children are on it, and how big it is.
+    struct Line: Equatable, Sendable {
         var indices: [Int] = []
         var width: CGFloat = 0
         var height: CGFloat = 0
     }
 
-    private func layout(subviews: Subviews, width: CGFloat) -> [Row] {
-        var rows: [Row] = []
-        var current = Row()
+    /// How children of these sizes pack into lines at this width.
+    ///
+    /// Static, and over plain sizes rather than subviews, so the packing
+    /// can be asked questions without a view hierarchy -- including the one
+    /// that mattered, which is what it claims when there is no width.
+    static func lines(of sizes: [CGSize], width: CGFloat, spacing: CGFloat) -> [Line] {
+        var lines: [Line] = []
+        var current = Line()
 
-        for index in subviews.indices {
-            let size = measure(subviews[index], within: width)
-            let needed = current.indices.isEmpty ? size.width : current.width + spacing + size.width
+        for (index, size) in sizes.enumerated() {
+            let item = width.isFinite ? min(size.width, max(width, 0)) : size.width
+            let needed = current.indices.isEmpty ? item : current.width + spacing + item
             if needed > width, !current.indices.isEmpty {
-                rows.append(current)
-                current = Row()
+                lines.append(current)
+                current = Line()
             }
-            current.width = current.indices.isEmpty ? size.width : current.width + spacing + size.width
+            current.width = current.indices.isEmpty ? item : current.width + spacing + item
             current.height = max(current.height, size.height)
             current.indices.append(index)
         }
 
-        if !current.indices.isEmpty { rows.append(current) }
-        return rows
+        if !current.indices.isEmpty { lines.append(current) }
+        return lines
+    }
+
+    /// What the whole flow measures at that width.
+    ///
+    /// At no width it is one line tall, not one line per child. Laying out
+    /// in no width is what produces a child per line, and answering with
+    /// *that* height is how a strip of twenty-two linked pull requests told
+    /// the issue pane it could not be drawn in less than two thousand
+    /// points -- a minimum AppKit honours by making the window that tall,
+    /// which it did, off the bottom of the screen. Measured through a split
+    /// view: 2067 points of window before, 680 after, and the same pane
+    /// with a hundred and twenty paragraphs of description and no chips had
+    /// never moved it at all.
+    ///
+    /// One line is the honest answer to "how small": the whole point of
+    /// this layout is that it adapts, and where it cannot, it gives way
+    /// like everything else on the line.
+    static func size(of sizes: [CGSize], width: CGFloat, spacing: CGFloat) -> CGSize {
+        guard !sizes.isEmpty else { return .zero }
+        guard width > 0 else {
+            return CGSize(width: 0, height: sizes.map(\.height).max() ?? 0)
+        }
+
+        let lines = lines(of: sizes, width: width, spacing: spacing)
+        let height = lines.map(\.height).reduce(0, +)
+            + spacing * CGFloat(max(0, lines.count - 1))
+        let widest = lines.map(\.width).max() ?? 0
+        return CGSize(width: min(width, max(widest, 0)), height: height)
     }
 }

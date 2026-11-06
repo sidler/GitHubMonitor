@@ -33,6 +33,10 @@ public enum IssueQuery {
           # where none is set, and where the organisation defines none.
           issueType { name color }
           labels(first: \(labelLimit)) { nodes { id name color } }
+          # Two integers on nodes the list is already fetching: a row can
+          # then say how far through its children an epic is without
+          # anybody opening it.
+          subIssuesSummary { total completed }
           # The pull requests that answer it. Closed and merged ones
           # included on purpose: GitHub leaves them out by default, and the
           # merged one is usually the one being looked for.
@@ -67,12 +71,47 @@ public enum IssueQuery {
     /// query is made once, when somebody opens the item.
     public static let detailLabelLimit = 50
 
+    /// How many children the pane lists. Fifty is past what anybody
+    /// breaks an issue into, and the count beside the list comes from
+    /// GitHub's summary rather than from these rows -- so an issue with
+    /// more than fifty still reports its progress correctly and says how
+    /// many it is not showing.
+    public static let subIssueLimit = 50
+
     public static let detailDocument = """
     query($id: ID!) {
       node(id: $id) {
         ... on Issue {
           body
           labels(first: \(detailLabelLimit)) { nodes { id name color } }
+          # The issues filed under this one. GitHub counts them for us,
+          # which is the number the website shows and therefore the one
+          # worth repeating.
+          subIssuesSummary { total completed }
+          # The issue this one sits under, where it sits under one. More of
+          # them do than have children of their own.
+          parent {
+            number
+            title
+            url
+            state
+            stateReason
+            repository { nameWithOwner }
+            issueType { name color }
+          }
+          subIssues(first: \(subIssueLimit)) {
+            nodes {
+              number
+              title
+              url
+              state
+              # Closed as not planned is not the same as done, and the row
+              # says which it was.
+              stateReason
+              repository { nameWithOwner }
+              issueType { name color }
+            }
+          }
           comments(last: \(commentLimit)) {
             totalCount
             nodes {
@@ -104,7 +143,10 @@ public enum IssueQuery {
             body: node["body"] as? String ?? "",
             comments: read,
             totalComments: comments?["totalCount"] as? Int ?? read.count,
-            labels: IssueParser.labels(from: node)
+            labels: IssueParser.labels(from: node),
+            subIssues: IssueParser.subIssues(from: node),
+            progress: IssueParser.progress(from: node),
+            parent: IssueParser.related(from: node["parent"] as? [String: Any])
         )
     }
 
@@ -147,7 +189,8 @@ public enum IssueParser {
             milestone: (node["milestone"] as? [String: Any])?["title"] as? String,
             type: type(from: node),
             links: recorded.links,
-            linkedTotal: recorded.total
+            linkedTotal: recorded.total,
+            progress: progress(from: node)
         )
     }
 
@@ -181,6 +224,45 @@ public enum IssueParser {
             createdAt: GitHubDate.date(from: node["createdAt"] as? String),
             body: node["body"] as? String ?? ""
         )
+    }
+
+    /// The children GitHub lists under an issue.
+    static func subIssues(from node: [String: Any]) -> [RelatedIssue] {
+        let nodes = (node["subIssues"] as? [String: Any])?["nodes"] as? [[String: Any]] ?? []
+        return nodes.compactMap(related(from:))
+    }
+
+    /// One issue in another's family, read the same way whichever end it
+    /// is: a parent and a child are the same six facts.
+    static func related(from node: [String: Any]?) -> RelatedIssue? {
+        guard
+            let node,
+            let number = node["number"] as? Int,
+            let title = node["title"] as? String,
+            let url = (node["url"] as? String).flatMap(URL.init(string:))
+        else { return nil }
+
+        return RelatedIssue(
+            number: number,
+            title: title,
+            repository: (node["repository"] as? [String: Any])?["nameWithOwner"] as? String ?? "?",
+            url: url,
+            state: LinkedItemQuery.state(from: node, isPullRequest: false),
+            type: type(from: node)
+        )
+    }
+
+    /// How many of them are done, as GitHub counts it.
+    ///
+    /// Nil where the issue has no children at all -- which is most of
+    /// them, and a progress bar at nought out of nought says nothing.
+    static func progress(from node: [String: Any]) -> SubIssueProgress? {
+        guard
+            let summary = node["subIssuesSummary"] as? [String: Any],
+            let total = summary["total"] as? Int,
+            total > 0
+        else { return nil }
+        return SubIssueProgress(total: total, completed: summary["completed"] as? Int ?? 0)
     }
 
     static func labels(from node: [String: Any]) -> [IssueLabel] {

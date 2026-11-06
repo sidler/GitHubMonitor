@@ -793,6 +793,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             // Puts a chip among the toolbar's controls, which changes how
             // much room they need.
             _ = state.legendFilter
+            _ = state.labelFilter
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else { return }
@@ -863,6 +864,17 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
         let hosting = NSHostingController(
             rootView: InspectorColumn(state: state, controller: controller)
         )
+        // The pane publishes no size of its own to Auto Layout.
+        //
+        // A hosting controller publishes its minimum, intrinsic and
+        // maximum by default, and AppKit grows the window to satisfy the
+        // minimum. The pane holds whatever an issue happens to carry, so
+        // that made the window's height an issue's business: a pentest
+        // epic with twenty-two linked pull requests in its header took
+        // the window from 680 points to 2067 and off the bottom of the
+        // screen. Whatever does not fit is what the pane's scroll view is
+        // for.
+        hosting.sizingOptions = []
         let newItem = NSSplitViewItem(inspectorWithViewController: hosting)
         // A floor but no ceiling. The pane holds a description, a
         // conversation and a list of files, all of which read better

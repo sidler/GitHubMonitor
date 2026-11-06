@@ -301,6 +301,7 @@ struct ContentColumn: View {
                 aging: (state.settings.agingDays, state.settings.overdueDays),
                 inspect: { controller.inspect(item) },
                 linked: LinkedPanelContext(state: state, controller: controller),
+                labelFiltering: state.labelFiltering,
                 isInspected: state.inspectedPullRequestID == item.id
             )
             .padding(.vertical, rowPadding)
@@ -340,6 +341,7 @@ struct ContentColumn: View {
                 sort: list.sort,
                 inspect: { controller.inspect(item) },
                 linked: LinkedPanelContext(state: state, controller: controller),
+                labelFiltering: state.labelFiltering,
                 isInspected: state.inspectedIssueID == item.id
             )
             .padding(.vertical, rowPadding)
@@ -541,6 +543,7 @@ struct ToolbarControls: View {
                     }
 
                     LegendFilterChip(state: state)
+                    LabelFilterChip(state: state)
                 }
             case .mentions:
                 GroupingPicker(
@@ -784,6 +787,36 @@ private struct LegendFilterChip: View {
             .fixedSize()
             .help("Showing only these \u{2014} press to show the rest")
             .accessibilityLabel("Showing only \(symbol.label)")
+            .accessibilityHint("Shows the rest of the list again")
+        }
+    }
+}
+
+/// What label the list is narrowed to, beside the controls that narrow it.
+///
+/// Beside the legend's chip and for the same reason: the label was pressed
+/// somewhere down a list that is now shorter than it was, and the question
+/// "why" is asked at the top of the window.
+private struct LabelFilterChip: View {
+    @Bindable var state: AppState
+
+    var body: some View {
+        if let label = state.labelFilter {
+            Button {
+                state.labelFilter = nil
+            } label: {
+                HStack(spacing: 4) {
+                    // In its own colour, so it is recognisably the chip
+                    // that was pressed rather than a second thing to read.
+                    LabelChip(label: label)
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                }
+            }
+            .buttonStyle(.borderless)
+            .fixedSize()
+            .help("Showing only these \u{2014} press to show the rest")
+            .accessibilityLabel("Showing only \(label.name)")
             .accessibilityHint("Shows the rest of the list again")
         }
     }

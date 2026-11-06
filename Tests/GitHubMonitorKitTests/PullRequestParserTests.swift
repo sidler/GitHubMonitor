@@ -39,6 +39,31 @@ struct PullRequestParserTests {
         return node
     }
 
+    /// A row shows them and a press of one narrows the list, so they have
+    /// to survive the trip out of the payload like everything else a row
+    /// draws.
+    @Test("A pull request carries its labels")
+    func labels() throws {
+        var raw = node(id: "a")
+        raw["labels"] = [
+            "nodes": [
+                ["id": "L_1", "name": "bug", "color": "d73a4a"],
+                ["id": "L_2", "name": "iks", "color": "0e8a16"],
+            ]
+        ]
+
+        let item = try #require(parse([[raw]]).first)
+
+        #expect(item.labels.map(\.name) == ["bug", "iks"])
+        #expect(item.labels.first?.color == "d73a4a")
+        #expect(item.labels.first?.isReal == true)
+    }
+
+    @Test("One with no labels carries none")
+    func noLabels() throws {
+        #expect(try #require(parse([[node(id: "a")]]).first).labels.isEmpty)
+    }
+
     /// The list can be ordered by either date, so both have to survive the
     /// trip out of the payload.
     @Test("Both timestamps are read")

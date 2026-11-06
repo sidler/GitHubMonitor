@@ -124,6 +124,11 @@ public enum PullRequestQuery {
           autoMergeRequest { enabledAt }
           repository { nameWithOwner }
           author { login avatarUrl }
+          # The same ten a row shows for an issue. A search costs one point
+          # whatever it carries back per node, so this is free; what it is
+          # not free of is room on the line, which is why the row puts them
+          # where it does.
+          labels(first: \(IssueQuery.labelLimit)) { nodes { id name color } }
           commits(last: 1) {
             nodes { commit { statusCheckRollup { state } } }
           }

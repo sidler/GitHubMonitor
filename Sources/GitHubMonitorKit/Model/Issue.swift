@@ -120,6 +120,13 @@ public struct IssueItem: Identifiable, Hashable, Sendable, ListedItem {
     /// How many pull requests GitHub links, of which at most five are in
     /// `links`.
     public let linkedTotal: Int
+    /// How far through its children this one is, where it has any. Nil for
+    /// the great majority that have none.
+    ///
+    /// On the row as well as in the pane because a list of epics is read
+    /// to find out which are nearly done, and opening twenty of them one
+    /// at a time to learn that is the thing the list is for.
+    public let progress: SubIssueProgress?
 
     public init(
         id: String,
@@ -136,7 +143,8 @@ public struct IssueItem: Identifiable, Hashable, Sendable, ListedItem {
         milestone: String? = nil,
         type: IssueType? = nil,
         links: [ItemLink] = [],
-        linkedTotal: Int? = nil
+        linkedTotal: Int? = nil,
+        progress: SubIssueProgress? = nil
     ) {
         self.id = id
         self.number = number
@@ -153,6 +161,7 @@ public struct IssueItem: Identifiable, Hashable, Sendable, ListedItem {
         self.type = type
         self.links = links
         self.linkedTotal = linkedTotal ?? links.count
+        self.progress = progress
     }
 
     /// The heading this issue sits under when the list is grouped by type,
@@ -237,7 +246,13 @@ public struct IssueDetail: Hashable, Sendable {
     /// change before GitHub has confirmed it.
     public func withLabels(_ labels: [IssueLabel]) -> IssueDetail {
         IssueDetail(
-            body: body, comments: comments, totalComments: totalComments, labels: labels
+            body: body,
+            comments: comments,
+            totalComments: totalComments,
+            labels: labels,
+            subIssues: subIssues,
+            progress: progress,
+            parent: parent
         )
     }
     /// The newest comments, oldest of those first, so the thread reads
@@ -246,17 +261,42 @@ public struct IssueDetail: Hashable, Sendable {
     /// Every comment, including the ones not fetched -- the pane says so
     /// rather than pretending the thread is as short as what it shows.
     public let totalComments: Int
+    /// The issues filed under this one, in the order GitHub lists them --
+    /// which is the order somebody put them in, not any sort of ours.
+    public let subIssues: [RelatedIssue]
+    /// How many of them are done. Nil where there are none, which is most
+    /// issues: the pane then shows nothing rather than an empty bar.
+    public let progress: SubIssueProgress?
+    /// The issue this one is filed under, where there is one.
+    ///
+    /// Worth as much room as the children, and more often: an issue is far
+    /// more likely to be somebody's sub-task than to have sub-tasks of its
+    /// own, and "what is this part of" is the question that otherwise
+    /// sends you to the browser.
+    public let parent: RelatedIssue?
 
     public init(
         body: String,
         comments: [IssueComment],
         totalComments: Int,
-        labels: [IssueLabel] = []
+        labels: [IssueLabel] = [],
+        subIssues: [RelatedIssue] = [],
+        progress: SubIssueProgress? = nil,
+        parent: RelatedIssue? = nil
     ) {
         self.body = body
         self.labels = labels
         self.comments = comments
         self.totalComments = totalComments
+        self.subIssues = subIssues
+        self.progress = progress
+        self.parent = parent
+    }
+
+    /// How many children GitHub counted beyond the ones listed, so a long
+    /// list says it is cut rather than looking complete.
+    public var unlistedSubIssues: Int {
+        max(0, (progress?.total ?? 0) - subIssues.count)
     }
 
     /// How many comments came before the ones on screen.

@@ -78,6 +78,12 @@ public struct PullRequestItem: Identifiable, Hashable, Sendable, ListedItem {
     /// in `links`. Said rather than shown, so a sweep does not look like
     /// five issues.
     public let linkedTotal: Int
+    /// What it is tagged with, the same ten a row shows for an issue.
+    ///
+    /// On the row so the lists can be narrowed by one: a label is how a
+    /// team says which piece of work this belongs to, and that was
+    /// readable in the issue lists and nowhere else.
+    public let labels: [IssueLabel]
 
     public init(
         id: String,
@@ -101,7 +107,8 @@ public struct PullRequestItem: Identifiable, Hashable, Sendable, ListedItem {
         reviewRequestedAt: Date? = nil,
         reviews: ReviewTally = .none,
         links: [ItemLink] = [],
-        linkedTotal: Int? = nil
+        linkedTotal: Int? = nil,
+        labels: [IssueLabel] = []
     ) {
         self.id = id
         self.number = number
@@ -127,6 +134,7 @@ public struct PullRequestItem: Identifiable, Hashable, Sendable, ListedItem {
         self.reviews = reviews
         self.links = links
         self.linkedTotal = linkedTotal ?? links.count
+        self.labels = labels
     }
 
     /// The same pull request with this person's approval counted.

@@ -255,3 +255,174 @@ struct LegendFilterStateTests {
         #expect(app.legendFilter == nil)
     }
 }
+
+/// What the list draws while one of its labels is pressed.
+///
+/// The same bargain the legend makes a row lower down the window: the mark
+/// you read something by is the mark you press to see only those.
+@Suite("A list narrowed by a label")
+@MainActor
+struct LabelFilterStateTests {
+    private func label(_ name: String) -> IssueLabel {
+        IssueLabel(id: "L_\(name)", name: name, color: "d73a4a")
+    }
+
+    private func item(_ id: String, labels: [String], repository: String = "octo/platform")
+        -> IssueItem
+    {
+        IssueItem(
+            id: id, number: 1, title: "t", repository: repository, author: "a",
+            authorAvatarURL: nil, url: URL(string: "https://github.com")!,
+            updatedAt: .now, labels: labels.map(label)
+        )
+    }
+
+    private func state() -> (AppState, SavedList) {
+        let state = AppState(settings: Settings(store: TestDefaults.make()))
+        let list = SavedList(id: "a", title: "A", query: "is:issue", content: .issues)
+        state.listIssues[list.id] = [
+            item("1", labels: ["bug", "iks"]),
+            item("2", labels: ["iks"]),
+            item("3", labels: []),
+        ]
+        return (state, list)
+    }
+
+    @Test("Pressing a label leaves only the rows carrying it")
+    func narrows() {
+        let (app, list) = state()
+
+        app.labelFilter = label("iks")
+
+        #expect(app.shownIssues(in: list).map(\.id).sorted() == ["1", "2"])
+    }
+
+    /// Two repositories give the same label different ids, and a list
+    /// spanning both should narrow to all of it.
+    @Test("The same label in another repository is the same label")
+    func acrossRepositories() {
+        let (app, list) = state()
+        app.listIssues[list.id]?.append(
+            IssueItem(
+                id: "4", number: 1, title: "t", repository: "octo/tools", author: "a",
+                authorAvatarURL: nil, url: URL(string: "https://github.com")!,
+                updatedAt: .now,
+                labels: [IssueLabel(id: "quite_another_id", name: "iks", color: "00ff00")]
+            )
+        )
+
+        app.labelFilter = label("iks")
+
+        #expect(app.shownIssues(in: list).map(\.id).sorted() == ["1", "2", "4"])
+    }
+
+    /// Two different questions, and asking both at once is the useful
+    /// case: the ones tagged Lloyds that nobody has answered yet.
+    @Test("A label and a legend symbol narrow together")
+    func withTheLegend() {
+        let (app, list) = state()
+        app.listIssues[list.id] = [
+            item("1", labels: ["iks"]),
+            item("2", labels: ["iks"]),
+            item("3", labels: ["bug"]),
+        ]
+        app.listIssues[list.id]?[0] = IssueItem(
+            id: "1", number: 1, title: "t", repository: "octo/platform", author: "a",
+            authorAvatarURL: nil, url: URL(string: "https://github.com")!,
+            updatedAt: .now, comments: 4, labels: [label("iks")]
+        )
+
+        app.labelFilter = label("iks")
+        app.legendFilter = .comments
+
+        #expect(app.shownIssues(in: list).map(\.id) == ["1"])
+    }
+
+    @Test("Clearing it puts the rest back")
+    func clears() {
+        let (app, list) = state()
+        app.labelFilter = label("iks")
+
+        app.labelFilter = nil
+
+        #expect(app.shownIssues(in: list).count == 3)
+    }
+
+    /// Built from the unnarrowed list, so pressing a label does not leave
+    /// a list showing one label and no way back.
+    @Test("The rows still carry every label they had")
+    func rowsKeepTheirLabels() {
+        let (app, list) = state()
+        app.labelFilter = label("iks")
+
+        let shown = app.shownIssues(in: list)
+        #expect(shown.first { $0.id == "1" }?.labels.map(\.name).sorted() == ["bug", "iks"])
+    }
+
+    /// A question asked of one list. Carried to the next it would narrow a
+    /// list nobody had asked it about.
+    @Test("Going to another list asks the question again")
+    func clearedOnMoving() {
+        let (app, list) = state()
+        app.sidebarSelection = .list(id: list.id, repository: nil)
+        app.labelFilter = label("iks")
+
+        app.sidebarSelection = .dashboard
+
+        #expect(app.labelFilter == nil)
+    }
+
+    /// Both lists narrow the same way. A label is how a team says which
+    /// piece of work something belongs to, and the question is the same
+    /// whichever list is being read.
+    @Test("A pull request list narrows by a label too")
+    func pullRequestsNarrow() {
+        func pullRequest(_ id: String, labels: [String]) -> PullRequestItem {
+            PullRequestItem(
+                id: id, number: 1, title: "t", repository: "octo/platform", author: "a",
+                authorAvatarURL: nil, url: URL(string: "https://github.com")!, isDraft: false,
+                updatedAt: .now, reviewDecision: .reviewRequired, checks: .none,
+                mergeStatus: .unknown, reviews: .none, labels: labels.map(label)
+            )
+        }
+
+        let state = AppState(settings: Settings(store: TestDefaults.make()))
+        let list = SavedList(id: "p", title: "P", query: "is:pr", content: .pullRequests)
+        state.listPullRequests[list.id] = [
+            pullRequest("1", labels: ["iks", "bug"]),
+            pullRequest("2", labels: ["bug"]),
+            pullRequest("3", labels: []),
+        ]
+
+        state.labelFilter = label("iks")
+
+        #expect(state.shownPullRequests(in: list).map(\.id) == ["1"])
+    }
+
+    /// Pressing the one it is already narrowed to is the way back, and the
+    /// row has to be able to tell which one that is.
+    @Test("The row knows which of its labels is the live one")
+    func rowKnowsTheActiveOne() {
+        let filtering = LabelFiltering(active: label("iks")) { _ in }
+
+        #expect(filtering.isActive(label("iks")))
+        #expect(filtering.isActive(label("bug")) == false)
+        #expect(LabelFiltering(active: nil) { _ in }.isActive(label("iks")) == false)
+    }
+
+    /// One rule for both lists, written once: pressing a label narrows to
+    /// it, pressing the live one lets the rest back.
+    @Test("Pressing narrows, pressing the same one again clears")
+    func pressing() {
+        let (app, _) = state()
+
+        app.labelFiltering.choose(label("iks"))
+        #expect(app.labelFilter?.name == "iks")
+
+        app.labelFiltering.choose(label("bug"))
+        #expect(app.labelFilter?.name == "bug")
+
+        app.labelFiltering.choose(label("bug"))
+        #expect(app.labelFilter == nil)
+    }
+}

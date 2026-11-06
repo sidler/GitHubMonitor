@@ -15,6 +15,9 @@ struct PullRequestRow: View {
     /// Nil in the menu bar panel: there is no room, and a panel over a
     /// panel is not something to offer.
     var linked: LinkedPanelContext?
+    /// Whether pressing a label narrows the list to it. Nil in the popover
+    /// and the menu bar, where there is no list to narrow.
+    var labelFiltering: LabelFiltering?
     var isInspected: Bool = false
 
     var body: some View {
@@ -93,8 +96,9 @@ struct PullRequestRow: View {
                         DraftBadge()
                     }
 
-                    // Last, because it is the only one that answers a
-                    // question about something other than this row.
+                    // Last of the status marks, because it is the only
+                    // one that answers a question about something other
+                    // than this row.
                     if let linked {
                         LinkBadge(
                             context: linked,
@@ -102,6 +106,20 @@ struct PullRequestRow: View {
                             unshown: linked.state.unshownLinks(of: item)
                         )
                     }
+
+                    // The labels are pushed to the far end rather than
+                    // added after the symbols. The symbols are a fixed set
+                    // read at a glance -- a reviewer looks for the red one
+                    // -- and labels run to any length, so packed in behind
+                    // them they would be what moves the symbols about from
+                    // row to row.
+                    Spacer(minLength: 6)
+
+                    labelStrip
+                        // The first thing to give way when the column is
+                        // narrow: everything to its left says which pull
+                        // request this is and where it stands.
+                        .layoutPriority(0)
                 }
                 .font(.caption)
                 .foregroundStyle(Color.rowDetail)
@@ -124,6 +142,40 @@ struct PullRequestRow: View {
         // the click the list needs to change that selection -- which would
         // take the keyboard's place in the list away with it.
         .modifier(OpenOnTap(url: item.url, enabled: inspect == nil))
+    }
+
+    /// What it is tagged with, pressable where there is a list to narrow.
+    @ViewBuilder
+    private var labelStrip: some View {
+        if !item.labels.isEmpty {
+            HStack(spacing: 6) {
+                ForEach(item.labels) { label in
+                    if let labelFiltering {
+                        Button {
+                            labelFiltering.choose(label)
+                        } label: {
+                            LabelChip(label: label)
+                        }
+                        .buttonStyle(.plain)
+                        .pointerStyle(.link)
+                        .help(
+                            labelFiltering.isActive(label)
+                                ? "\(label.name) \u{2014} showing only these; press again for the rest"
+                                : "\(label.name) \u{2014} press to show only these"
+                        )
+                        .accessibilityLabel(label.name)
+                        .accessibilityHint(
+                            labelFiltering.isActive(label)
+                                ? "Shows the rest of the list again"
+                                : "Shows only the pull requests with this label"
+                        )
+                        .accessibilityAddTraits(labelFiltering.isActive(label) ? [.isSelected] : [])
+                    } else {
+                        LabelChip(label: label)
+                    }
+                }
+            }
+        }
     }
 
     private var age: WaitingAge? {

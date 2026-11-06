@@ -97,6 +97,25 @@ struct IssueParserTests {
         #expect(items.count == 1)
     }
 
+    /// A list of epics is read to find out which are nearly done, and
+    /// opening twenty of them one at a time to learn that is the thing the
+    /// list is for.
+    @Test("A row carries how far through its children an issue is")
+    func rowProgress() throws {
+        var withChildren = node
+        withChildren["id"] = "I_2"
+        withChildren["number"] = 319
+        withChildren["subIssuesSummary"] = ["total": 11, "completed": 6]
+
+        let items = parse(payload([withChildren, node]))
+        let epic = try #require(items.first { $0.progress != nil })
+
+        #expect(epic.progress?.summary == "6 of 11 done")
+        // And an ordinary issue carries nothing, which is what keeps the
+        // badge off nearly every row.
+        #expect(items.first { $0.progress == nil } != nil)
+    }
+
     @Test("The detail carries the body and the end of the thread")
     func readsTheDetail() throws {
         let detail = try IssueQuery.detail(from: [
