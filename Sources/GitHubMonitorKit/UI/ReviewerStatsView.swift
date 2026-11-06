@@ -69,6 +69,7 @@ struct ReviewerStatsView: View {
                 // Bare numbers at the end of a row are numbers with no
                 // name, and six of them are worse than two.
                 header
+                legend
                 Divider()
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
@@ -112,6 +113,53 @@ struct ReviewerStatsView: View {
         .foregroundStyle(.secondary)
         .padding(.horizontal, 16)
         .padding(.vertical, 5)
+    }
+
+    /// What the bar in each row means.
+    ///
+    /// The columns have titles and the footer explains them; the bar had
+    /// neither. In the speed table it also changes colour, and a colour
+    /// that means something without saying what is a colour the reader
+    /// invents a meaning for -- usually a harsher one than was meant.
+    private var legend: some View {
+        HStack(spacing: 12) {
+            if bySpeed {
+                Text("Bar: median wait, against the slowest")
+                Text("Colour: share of requests left unanswered")
+                ForEach(IgnoredBand.allCases, id: \.self) { band in
+                    swatch(Self.tint(band), band.label)
+                }
+            } else {
+                swatch(Ink.blue, "Bar: pull requests reviewed, against the busiest")
+            }
+            Spacer(minLength: 0)
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 16)
+        .padding(.bottom, 6)
+    }
+
+    private func swatch(_ colour: Color, _ text: String) -> some View {
+        HStack(spacing: 5) {
+            Capsule()
+                .fill(colour.opacity(0.7))
+                .frame(width: 16, height: 8)
+            Text(text)
+        }
+    }
+
+    /// The one place the three steps are given their colours, so the rows
+    /// and the legend above them cannot disagree.
+    ///
+    /// Red only where somebody is being asked and not answering. Slow is
+    /// not the same failing as absent, and the colour should not say it is.
+    static func tint(_ band: IgnoredBand) -> Color {
+        switch band {
+        case .few: Ink.blue
+        case .some: Ink.orange
+        case .many: Ink.red
+        }
     }
 
     /// What the bars are measured against, so every row is drawn to the
@@ -260,15 +308,7 @@ private struct SpeedRow: View {
         return median / longest
     }
 
-    /// Red only where somebody is being asked and not answering. Slow is
-    /// not the same failing as absent, and the colour should not say it
-    /// is.
-    private var tint: Color {
-        guard let share = stats.ignoredShare else { return Ink.blue }
-        if share >= 0.25 { return Ink.red }
-        if share >= 0.1 { return Ink.orange }
-        return Ink.blue
-    }
+    private var tint: Color { ReviewerStatsView.tint(stats.band) }
 
     private var ignored: String {
         guard let share = stats.ignoredShare, stats.ignored > 0 else { return "" }

@@ -127,6 +127,18 @@ public struct ReviewerStats: Hashable, Sendable, Identifiable {
         return Double(ignored) / Double(settled)
     }
 
+    /// Which of the three steps the bar is coloured in.
+    ///
+    /// Here rather than in the view so the legend and the bars cannot drift
+    /// apart: a legend printed in different colours from the rows it
+    /// explains is worse than no legend at all.
+    public var band: IgnoredBand {
+        guard let share = ignoredShare else { return .few }
+        if share >= IgnoredBand.many.floor { return .many }
+        if share >= IgnoredBand.some.floor { return .some }
+        return .few
+    }
+
     public init(
         reviewer: String,
         pullRequests: Int,
@@ -147,6 +159,42 @@ public struct ReviewerStats: Hashable, Sendable, Identifiable {
         self.answered = answered
         self.ignored = ignored
         self.pending = pending
+    }
+}
+
+/// How much of what somebody was asked for went unanswered, in the three
+/// steps the speed table colours its bars by.
+///
+/// Three rather than a gradient: the question a reader has is "is this one
+/// worth a word", and a colour that slides continuously answers it with a
+/// shade nobody can name.
+public enum IgnoredBand: String, CaseIterable, Sendable {
+    /// Under a tenth of the settled requests went unanswered.
+    case few
+    /// A tenth up to a quarter.
+    case some
+    /// A quarter or more.
+    case many
+
+    /// The share at which this step begins.
+    public var floor: Double {
+        switch self {
+        case .few: 0
+        case .some: 0.1
+        case .many: 0.25
+        }
+    }
+
+    /// What the colour says, for the legend.
+    ///
+    /// Worded about the requests rather than about the person: slow is not
+    /// the same failing as absent, and the bar is already saying slow.
+    public var label: String {
+        switch self {
+        case .few: "under a tenth unanswered"
+        case .some: "a tenth to a quarter"
+        case .many: "a quarter or more"
+        }
     }
 }
 

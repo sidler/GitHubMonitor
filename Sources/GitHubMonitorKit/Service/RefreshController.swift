@@ -17,6 +17,19 @@ public final class RefreshController {
     /// What that task is reading, so a view that asks again for the same
     /// thing does not cancel a read that is most of the way through one.
     private var reviewerStatsKey: String?
+    /// Whether that task is still going.
+    ///
+    /// A finished task is not a cancelled one, so "is this already being
+    /// read" could not be asked of the task alone: a read that failed left
+    /// an uncancelled, completed task behind, and every later attempt
+    /// returned its failure instead of trying again. Opening the view
+    /// before the keychain had been read therefore stuck on "No GitHub
+    /// token configured" until the repository was changed or the button
+    /// pressed by hand.
+    private var reviewerStatsRunning = false
+    /// Which read the flag above belongs to, so a read that was cancelled
+    /// half a minute ago cannot clear the flag of the one that replaced it.
+    private var reviewerStatsGeneration = 0
     private var commentersTask: Task<Void, Never>?
     /// Every other fetch started on behalf of the signed-in account.
     ///
@@ -714,14 +727,44 @@ public final class RefreshController {
         // Whatever is known stays on screen while the periods come in.
         state.trends = .loading(cached)
 
+        let periods = TrendMath.periods(resolution)
+
+        // What was already open when the window begins, kept by id and
+        // added to period by period.
+        //
+        // A standing count cannot be worked out one period at a time the
+        // way the others can: a pull request opened in March and still open
+        // in July belongs to every bar in between. Without this first read
+        // the early bars would count only what the window itself created,
+        // and a backlog that has been there for a year would appear to grow
+        // out of nothing.
+        var standing: [String: BacklogPullRequest] = [:]
+        var shortOfBacklog = false
+        if let first = periods.first {
+            do {
+                let opening = try await service.backlog(
+                    matching: BacklogQuery.openingQuery(
+                        repository: repository,
+                        before: first.start
+                    )
+                )
+                for item in opening.items { standing[item.key] = item }
+                shortOfBacklog = opening.total > BacklogQuery.searchCap
+            } catch {
+                guard !Task.isCancelled else { return }
+                state.trends = .failed(error.localizedDescription)
+                return
+            }
+        }
+
         var fresh = TrendData(repository: repository, resolution: resolution)
-        for period in TrendMath.periods(resolution) {
+        for period in periods {
             guard !Task.isCancelled else { return }
             do {
-                // The two halves of a period do not depend on each other,
-                // and a period is slow enough to be worth halving. Periods
-                // themselves stay sequential: GitHub asks that requests for
-                // one user go one after another.
+                // The three parts of a period do not depend on each
+                // other, and a period is slow enough to be worth splitting.
+                // Periods themselves stay sequential: GitHub asks that
+                // requests for one user go one after another.
                 async let mergedTask = service.mergedTimings(
                     repository: repository,
                     period: period
@@ -730,15 +773,26 @@ public final class RefreshController {
                     repository: repository,
                     period: period
                 )
+                // Only the pull requests this period created that outlived
+                // it: the rest were never open at any boundary, and in a
+                // busy repository they are most of what was created.
+                async let survivingTask = service.backlog(
+                    matching: BacklogQuery.query(repository: repository, period: period)
+                )
                 let merged = try await mergedTask
                 let opened = try await openedTask
+                let surviving = try await survivingTask
+
+                for item in surviving.items { standing[item.key] = item }
+                if surviving.total > BacklogQuery.searchCap { shortOfBacklog = true }
 
                 fresh.buckets.append(
                     TrendMath.bucket(
                         period: period,
                         merged: merged.timings,
                         openedByPeople: opened.byPeople,
-                        openedByEveryone: opened.byEveryone
+                        openedByEveryone: opened.byEveryone,
+                        backlog: Array(standing.values)
                     )
                 )
                 fresh.fetchedAt = .now
@@ -750,7 +804,9 @@ public final class RefreshController {
                 // back: these two searches run at once, and taking the
                 // first answer meant a stale-higher number let the loop
                 // start another period it could not afford.
-                let remainingQuota = [opened.remainingQuota, merged.remainingQuota]
+                let remainingQuota = [
+                    opened.remainingQuota, merged.remainingQuota, surviving.remainingQuota,
+                ]
                     .compactMap { $0 }
                     .min()
                 if let remaining = remainingQuota, remaining < Self.quotaFloor {
@@ -780,6 +836,14 @@ public final class RefreshController {
         }
 
         guard !Task.isCancelled else { return }
+        // Said rather than drawn short: GitHub's search stops at a thousand
+        // results and reports no error for it, so an "open pull requests"
+        // line that is quietly missing a slice would look like good news.
+        if shortOfBacklog, fresh.truncationReason == nil {
+            fresh.truncationReason =
+                "More open pull requests than GitHub's search will list: the "
+                + "\"Open pull requests\" chart counts fewer than there were."
+        }
         state.trends = .loaded(fresh)
         trendStore.save(fresh)
     }
@@ -798,14 +862,21 @@ public final class RefreshController {
         // most of the way through a minute and a half of work and begin it
         // from the first month -- which, asked twice, never finishes at
         // all.
-        if !force, reviewerStatsKey == key, let running = reviewerStatsTask,
-            !running.isCancelled {
+        if !force, reviewerStatsKey == key, reviewerStatsRunning,
+            let running = reviewerStatsTask, !running.isCancelled {
             return await running.value
         }
 
         reviewerStatsTask?.cancel()
         reviewerStatsKey = key
-        let task = Task { await performReviewerStatsLoad(force: force) }
+        reviewerStatsRunning = true
+        reviewerStatsGeneration += 1
+        let generation = reviewerStatsGeneration
+        let task = Task { [weak self] in
+            await self?.performReviewerStatsLoad(force: force)
+            guard let self, generation == reviewerStatsGeneration else { return }
+            reviewerStatsRunning = false
+        }
         reviewerStatsTask = task
         await task.value
     }

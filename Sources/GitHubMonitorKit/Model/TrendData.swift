@@ -24,13 +24,15 @@ public enum TrendResolution: String, CaseIterable, Codable, Sendable {
     }
 }
 
-/// What the five charts show.
+/// What the six charts show.
 public enum TrendMetric: String, CaseIterable, Codable, Sendable {
     case firstReview
     case approval
     case approvalToMerge
     case merge
     case volume
+    /// What stands open rather than what went through.
+    case backlog
 
     public var title: String {
         switch self {
@@ -39,6 +41,7 @@ public enum TrendMetric: String, CaseIterable, Codable, Sendable {
         case .approvalToMerge: "Approval to merge"
         case .merge: "Time to merge"
         case .volume: "Pull requests"
+        case .backlog: "Open pull requests"
         }
     }
 
@@ -56,10 +59,12 @@ public enum TrendMetric: String, CaseIterable, Codable, Sendable {
             "From ready for review to the merge."
         case .volume:
             "Opened and merged per period, counted by the day each happened."
+        case .backlog:
+            "What stood open at the end of each period, and how much of it was still draft."
         }
     }
 
-    public var isDuration: Bool { self != .volume }
+    public var isDuration: Bool { self != .volume && self != .backlog }
 }
 
 /// What one period's pull requests took: the middle of them, the two ends,
@@ -117,19 +122,28 @@ public enum TrendLine: String, CaseIterable, Sendable {
 public struct TrendValues: Codable, Hashable, Sendable {
     public let opened: Int
     public let merged: Int
+    /// Open at the end of the period -- a standing count, not a flow. The
+    /// one number here that says nothing about what happened during the
+    /// period and everything about what it left behind.
+    public let open: Int
+    /// How many of those were still drafts, counted inside `open` rather
+    /// than beside it.
+    public let draft: Int
     public let firstReview: TrendPoint
     public let approval: TrendPoint
     public let approvalToMerge: TrendPoint
     public let merge: TrendPoint
 
     public static let none = TrendValues(
-        opened: 0, merged: 0,
+        opened: 0, merged: 0, open: 0, draft: 0,
         firstReview: .none, approval: .none, approvalToMerge: .none, merge: .none
     )
 
     public init(
         opened: Int,
         merged: Int,
+        open: Int = 0,
+        draft: Int = 0,
         firstReview: TrendPoint,
         approval: TrendPoint,
         approvalToMerge: TrendPoint,
@@ -137,6 +151,8 @@ public struct TrendValues: Codable, Hashable, Sendable {
     ) {
         self.opened = opened
         self.merged = merged
+        self.open = open
+        self.draft = draft
         self.firstReview = firstReview
         self.approval = approval
         self.approvalToMerge = approvalToMerge
@@ -150,6 +166,7 @@ public struct TrendValues: Codable, Hashable, Sendable {
         case .approvalToMerge: approvalToMerge
         case .merge: merge
         case .volume: TrendPoint(median: nil, fastest: nil, slowest: nil, samples: merged)
+        case .backlog: TrendPoint(median: nil, fastest: nil, slowest: nil, samples: open)
         }
     }
 }
@@ -184,7 +201,7 @@ public struct TrendData: Codable, Hashable, Sendable {
     /// Raised whenever a stored history stops meaning what it did. A file
     /// from before is not read, so a definition that changed cannot go on
     /// being drawn as though it had not.
-    public static let schema = 2
+    public static let schema = 3
 
     public let schema: Int
     public let repository: String

@@ -262,23 +262,22 @@ struct TrendsView: View {
     private func points(_ metric: TrendMetric, data: TrendData) -> [TrendSample] {
         let includeBots = state.settings.trendsIncludeBots
 
-        if metric == .volume {
+        // The two charts that count rather than time something: a pair of
+        // whole numbers per period, drawn as they are.
+        if !metric.isDuration {
             return data.buckets.flatMap { bucket -> [TrendSample] in
                 let values = bucket.values(includingBots: includeBots)
-                return [
+                let counts: [(String, Int)] = metric == .backlog
+                    ? [("Open", values.open), ("Draft", values.draft)]
+                    : [("Opened", values.opened), ("Merged", values.merged)]
+                return counts.map { name, count in
                     TrendSample(
                         start: bucket.start,
-                        value: Double(values.opened),
-                        samples: values.opened,
-                        series: "Opened"
-                    ),
-                    TrendSample(
-                        start: bucket.start,
-                        value: Double(values.merged),
-                        samples: values.merged,
-                        series: "Merged"
-                    ),
-                ]
+                        value: Double(count),
+                        samples: count,
+                        series: name
+                    )
+                }
             }
         }
 
@@ -384,9 +383,11 @@ struct TrendsView: View {
 
     /// The lines one chart draws, in the order the legend lists them.
     static func series(for metric: TrendMetric) -> [String] {
-        metric.isDuration
-            ? [TrendLine.median.label, TrendLine.fastest.label, TrendLine.slowest.label]
-            : ["Opened", "Merged"]
+        switch metric {
+        case .volume: ["Opened", "Merged"]
+        case .backlog: ["Open", "Draft"]
+        default: [TrendLine.median.label, TrendLine.fastest.label, TrendLine.slowest.label]
+        }
     }
 
     /// Fixed rather than left to the chart: the same line must be the same
@@ -396,6 +397,10 @@ struct TrendsView: View {
         switch series {
         case TrendLine.fastest.label, "Merged": .green
         case TrendLine.slowest.label: .orange
+        // Grey for the drafts: they are open pull requests like the rest,
+        // but nobody is waiting on them, and a second bright line would
+        // read as a second thing going wrong.
+        case "Draft": .gray
         default: .accentColor
         }
     }

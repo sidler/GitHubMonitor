@@ -100,10 +100,16 @@ public enum TrendMath {
     }
 
     /// One period's numbers, for one audience.
-    public static func values(merged: [PullRequestTiming], opened: Int) -> TrendValues {
+    public static func values(
+        merged: [PullRequestTiming],
+        opened: Int,
+        standing: (open: Int, draft: Int) = (0, 0)
+    ) -> TrendValues {
         TrendValues(
             opened: opened,
             merged: merged.count,
+            open: standing.open,
+            draft: standing.draft,
             firstReview: point(merged.compactMap(\.timeToFirstReview)),
             approval: point(merged.compactMap(\.timeToApproval)),
             approvalToMerge: point(merged.compactMap(\.approvalToMerge)),
@@ -113,17 +119,36 @@ public enum TrendMath {
 
     /// Both audiences from one fetch: the bots are already in hand, so
     /// keeping their numbers costs nothing and makes the toggle instant.
+    ///
+    /// `backlog` is every pull request that could still have been open when
+    /// the period ended, not just the ones this period produced: a standing
+    /// count has to be taken over the whole pile, and the pile is older than
+    /// the bar.
     public static func bucket(
         period: DateInterval,
         merged: [PullRequestTiming],
         openedByPeople: Int,
-        openedByEveryone: Int
+        openedByEveryone: Int,
+        backlog: [BacklogPullRequest] = []
     ) -> TrendBucket {
-        TrendBucket(
+        // At the end of the period, which is the first instant of the next
+        // one. For the period still running that moment is in the future,
+        // and the count is simply what is open now -- which is the honest
+        // answer for a bar that is not finished.
+        let moment = period.end
+        return TrendBucket(
             start: period.start,
             end: period.end,
-            people: values(merged: merged.filter { !$0.isBot }, opened: openedByPeople),
-            everyone: values(merged: merged, opened: openedByEveryone)
+            people: values(
+                merged: merged.filter { !$0.isBot },
+                opened: openedByPeople,
+                standing: BacklogMath.count(backlog.filter { !$0.isBot }, at: moment)
+            ),
+            everyone: values(
+                merged: merged,
+                opened: openedByEveryone,
+                standing: BacklogMath.count(backlog, at: moment)
+            )
         )
     }
 

@@ -659,6 +659,36 @@ public struct GitHubService: Sendable {
         return (total - bots, total, remaining)
     }
 
+    /// The pull requests that were open across one stretch, with the dates
+    /// that say when they came, went and changed between draft and ready.
+    ///
+    /// Paged to the end: this is a count, and a count of the first hundred
+    /// is not a count. It stays cheap because the search already leaves out
+    /// everything that was created and closed inside the stretch -- which,
+    /// in a busy repository, is most of it.
+    public func backlog(
+        matching query: String
+    ) async throws -> (items: [BacklogPullRequest], total: Int, remainingQuota: Int?) {
+        var found: [BacklogPullRequest] = []
+        var cursor: String?
+        var total: Int?
+        var remaining: Int?
+
+        repeat {
+            let payload = try await client.graphQL(
+                BacklogQuery.document,
+                variables: ["query": query, "cursor": cursor as Any]
+            )
+            let page = BacklogQuery.page(from: payload)
+            found += page.items
+            total = total ?? BacklogQuery.total(from: payload)
+            remaining = page.remainingQuota
+            cursor = page.cursor
+        } while cursor != nil
+
+        return (found, total ?? found.count, remaining)
+    }
+
     /// One person's pull requests from one period, with what was said on
     /// them.
     public func myPullRequests(

@@ -232,6 +232,34 @@ struct ReviewerStatsTests {
         #expect((found?.mean ?? 0) > 20 * hour)
     }
 
+    /// The bar's colour is the one thing in the table with no title over
+    /// it, so the steps it uses have to be nameable -- and the legend above
+    /// the rows is printed from these same three.
+    @Test("The bar's colour follows the share left unanswered")
+    func bands() {
+        func band(answered: Int, ignored: Int) -> IgnoredBand {
+            ReviewerStats(
+                reviewer: "ada", pullRequests: 1, reviews: 1,
+                median: 60, mean: 60, p90: 60,
+                answered: answered, ignored: ignored, pending: 0
+            ).band
+        }
+
+        // Nothing settled yet is not a failing, and must not be coloured
+        // as one.
+        #expect(band(answered: 0, ignored: 0) == .few)
+        #expect(band(answered: 19, ignored: 1) == .few)
+        #expect(band(answered: 9, ignored: 1) == .some)
+        #expect(band(answered: 4, ignored: 1) == .some)
+        // A quarter exactly is the step, not just past it.
+        #expect(band(answered: 3, ignored: 1) == .many)
+        #expect(band(answered: 1, ignored: 3) == .many)
+
+        // The legend names every step the rows can take.
+        #expect(IgnoredBand.allCases.count == 3)
+        #expect(IgnoredBand.allCases.allSatisfy { !$0.label.isEmpty })
+    }
+
     @Test("Busiest first, by pull requests read")
     func volumeOrder() {
         let all = ReviewerStatsMath.byVolume(
@@ -305,5 +333,47 @@ struct ReviewerStatsSlicingTests {
         let slices = ReviewerStatsQuery.slices(since: now.addingTimeInterval(-3 * day), now: now)
 
         #expect(slices.count == 1)
+    }
+}
+
+/// Asking for the figures twice, and what happens when the first ask was
+/// too early.
+@MainActor
+@Suite("Reading the reviewer figures")
+struct ReviewerStatsLoadingTests {
+    private func makeController() -> (AppState, RefreshController) {
+        let state = AppState(settings: Settings(store: TestDefaults.make()))
+        state.settings.dashboardRepository = "octo/platform"
+        return (state, RefreshController(state: state))
+    }
+
+    /// The view opens as soon as the window does, which can be before the
+    /// token has been read out of the keychain. That first attempt fails
+    /// with "No GitHub token configured", and the view asks again the
+    /// moment the token arrives -- so the second ask has to actually run.
+    ///
+    /// It did not. A finished task is not a cancelled one, so the guard
+    /// against starting the same read twice matched a read that had
+    /// already failed and handed back its failure instead, leaving the
+    /// table stuck until the repository was changed or the button pressed.
+    @Test("A read that failed is tried again, not handed back")
+    func retriesAfterFailure() async {
+        let (state, controller) = makeController()
+
+        await controller.loadReviewerStats()
+        guard case .failed = state.reviewerStats else {
+            Issue.record("expected the first read to fail without a token")
+            return
+        }
+
+        // Anything but `.failed`, so a second read that actually runs is
+        // telling apart from one that returned the first read's answer.
+        state.reviewerStats = .unconfigured
+        await controller.loadReviewerStats()
+
+        guard case .failed = state.reviewerStats else {
+            Issue.record("the second read never ran")
+            return
+        }
     }
 }
