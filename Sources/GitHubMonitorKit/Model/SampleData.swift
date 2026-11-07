@@ -217,7 +217,10 @@ public enum SampleData {
                 createdAt: ago(days: 30), updatedAt: ago(days: 3),
                 comments: 1,
                 labels: [IssueLabel(name: "design", color: "c5def5")],
-                type: IssueType(name: "Feature", color: .purple)
+                type: IssueType(name: "Feature", color: .purple),
+                // The one epic in the sample, so a list of them can be
+                // read for who is nearly done without opening any.
+                progress: SubIssueProgress(total: 11, completed: 6)
             ),
             IssueItem(
                 id: "i-91", number: 91,
@@ -250,6 +253,82 @@ public enum SampleData {
                 ]
             ),
         ]
+    }
+
+    // MARK: - What one issue is made of
+
+    /// The epic: an issue with children under it, and a bar saying how far
+    /// through them it is.
+    ///
+    /// Eleven children with eight of them listed, because that is the shape
+    /// the pane has to cope with -- GitHub's count is of all of them and
+    /// the rows stop at a limit, so the pane says how many it is not
+    /// showing rather than letting the list look complete.
+    public static func epicDetail() -> IssueDetail {
+        IssueDetail(
+            body: """
+                Settings started as one pane and now answers five different
+                questions. Each of these is a piece of pulling it apart; the
+                last of them is the one that can only be done once the rest
+                are in.
+                """,
+            comments: [
+                IssueComment(
+                    id: "ic1", author: "noor", avatarURL: avatar(4),
+                    createdAt: ago(days: 4),
+                    body: "The token tab is the one people actually look for. Put it first?"
+                ),
+            ],
+            totalComments: 1,
+            labels: [IssueLabel(name: "design", color: "c5def5")],
+            subIssues: [
+                child(616, "Split the account settings out", .closed),
+                child(617, "Lists get a pane of their own", .closed),
+                child(618, "Drag to reorder the lists", .closed),
+                child(619, "Write the lists to a file and read them back", .closed),
+                child(620, "Move the repository filter beside the mentions", .closed),
+                child(621, "Say what the last refresh cost", .closed),
+                child(622, "A tab for the requests, with what came back", .open),
+                child(623, "Remember which tab was last open", .open),
+            ],
+            progress: SubIssueProgress(total: 11, completed: 6)
+        )
+    }
+
+    /// A child: the far more common case, where what matters is what the
+    /// issue is part of rather than what is under it.
+    public static func childDetail() -> IssueDetail {
+        IssueDetail(
+            body: """
+                The navigation is rendered from scratch on every request,
+                including the parts that cannot have changed since the last
+                deploy.
+                """,
+            comments: [],
+            totalComments: 3,
+            labels: [IssueLabel(name: "performance", color: "0e8a16")],
+            parent: RelatedIssue(
+                number: 604,
+                title: "Make a cold page load under 200 ms",
+                repository: Repository.platform,
+                url: url(Repository.platform, 604),
+                state: .open,
+                type: IssueType(name: "Epic", color: .purple)
+            )
+        )
+    }
+
+    private static func child(
+        _ number: Int, _ title: String, _ state: LinkedSummary.State
+    ) -> RelatedIssue {
+        RelatedIssue(
+            number: number,
+            title: title,
+            repository: Repository.platform,
+            url: url(Repository.platform, number),
+            state: state,
+            type: IssueType(name: "Task", color: .blue)
+        )
     }
 
     // MARK: - What one pull request is made of

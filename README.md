@@ -8,6 +8,10 @@ window gives the full lists, the diffs, the charts and the settings.
 
 ![A tour: the lists, a pull request, its diff, and a remark being written](Docs/screenshots/tour.gif)
 
+The project page is at <https://sidler.github.io/GitHubMonitor/> — one page,
+built from `index.html` in this repository and served by GitHub Pages from the
+default branch's root.
+
 ## In short
 
 **Review without leaving it**
@@ -31,7 +35,10 @@ window gives the full lists, the diffs, the charts and the settings.
 - What GitHub charged for the last refresh, in plain sight, and polling that stops before the allowance does
 - No account anywhere but GitHub: the token lives in the keychain, and nothing else is contacted
 
-![The window: a list, a row's detail pane, and what it links to](Docs/screenshots/window.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="Docs/screenshots/dark/window.png">
+  <img alt="The window: a list, a row's detail pane, and what it links to" src="Docs/screenshots/light/window.png">
+</picture>
 
 ## What it does
 
@@ -43,7 +50,10 @@ again. A list's search is GitHub's own syntax, one search per line, results
 merged. `@me` is you, and GitHub resolves team membership itself. Lists page to
 300 rows and say how many more the search found.
 
-![The menu bar item and the panel under it](Docs/screenshots/menubar.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="Docs/screenshots/dark/menubar.png">
+  <img alt="The menu bar item and the panel under it" src="Docs/screenshots/light/menubar.png">
+</picture>
 
 **Unread mentions.** Unread notification threads matching the reasons you care
 about. Not a search, so not a list: they come from the notifications API, which
@@ -71,7 +81,10 @@ at a time in a 400-point pane is not read. Files are listed by path, so the
 column and the tree beside it move together. Line numbers down the side give
 each line's place in both files.
 
-![Every file's patch in one overlay, with a tree to jump by](Docs/screenshots/diff.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="Docs/screenshots/dark/review.png">
+  <img alt="A review in its own window: the file tree, the patch, and the pull request's details beside it" src="Docs/screenshots/light/review.png">
+</picture>
 
 **All the files, or one at a time.** A long scroll is right for a small
 review and wrong for forty-three files, where the file you were reading is
@@ -91,7 +104,10 @@ over.
 replaced, the parts that actually differ are drawn bold and on a stronger
 band, in either layout. A change in indentation alone is marked too.
 
-![The same patch in two columns, with the changed words marked](Docs/screenshots/side-by-side.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="Docs/screenshots/dark/side-by-side.png">
+  <img alt="The same patch in two columns, with the changed words marked" src="Docs/screenshots/light/side-by-side.png">
+</picture>
 
 **Approving, from the diff.** The approval is bound to the commit whose diff was
 on screen: if somebody pushed since you started reading, it is refused rather
@@ -139,14 +155,20 @@ written at the head of a title or in a description. A panel — the same one fro
 the list, from both detail panes and from the diff — summarises the other side
 without leaving what you were reading.
 
-![The panel over the diff: the pull request, then the issue it closes](Docs/screenshots/links.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="Docs/screenshots/dark/links.png">
+  <img alt="The panel over the review: the pull request and what it fixes" src="Docs/screenshots/light/links.png">
+</picture>
 
 **Charts.** *Workload* is one repository's open pull requests per author, ready
 and draft as separate segments. *Trends* follows a repository over time. *My
 Trends* is about you: how long reviews wait on you, how fast you answer, and
 who you review with.
 
-![My Trends: what you opened, when, and who comments on it](Docs/screenshots/trends.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="Docs/screenshots/dark/trends.png">
+  <img alt="My Trends: what you opened, when, and who comments on it" src="Docs/screenshots/light/trends.png">
+</picture>
 
 **A sidebar that follows your lists.** Every list switched on for the window
 appears in it, each with the repositories its rows actually came from

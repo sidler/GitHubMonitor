@@ -1,0 +1,908 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GitHub Monitor — know what GitHub is waiting on</title>
+<meta name="description" content="A macOS menu bar app that shows how much GitHub work is waiting for you — and lets you read the diff, write the remarks, approve and merge without leaving it.">
+<link rel="canonical" href="https://sidler.github.io/GitHubMonitor/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="GitHub Monitor — know what GitHub is waiting on">
+<meta property="og:description" content="A macOS menu bar app that shows how much GitHub work is waiting for you — and lets you do most of the reviewing without leaving it.">
+<meta property="og:url" content="https://sidler.github.io/GitHubMonitor/">
+<meta property="og:image" content="https://sidler.github.io/GitHubMonitor/Docs/screenshots/light/window.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0b0e16" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 640 640'%3E%3Crect width='640' height='640' rx='140' fill='%23fff'/%3E%3Cpath fill='%23000' d='M319.6 91.4C193.3 91.4 91.4 194.6 91.4 320.9c0 99.1 63 181.2 147.7 212 12 4.4 23.7-3.6 23.7-15.6v-35.7c-6.3 2.7-14.3 4.4-21.4 4.4-29.4 0-46.9-16-59.4-46-4.9-12-10.3-19.1-20.6-20.6-5.3-.4-7.1-2.7-7.1-5.4 0-5.3 8.8-9.4 17.8-9.4 13 0 24.2 8 35.7 24.6 8.9 13 18.3 18.7 29.5 18.7s18.3-4 28.6-14.3c7.5-7.6 13.4-14.3 18.7-18.7-59-7.1-100.4-49.5-100.4-104.4 0-22.3 8-46.4 21.4-62.6-5.8-14.7-4.8-46 1.8-58.8 17.8-2.3 42 7.1 56.2 20.1 17-5.3 34.9-8 56.8-8s39.7 2.7 55.8 7.6c13.9-12.6 38.4-21.9 56.3-19.7 6.3 12 7.1 43.3 1.3 58.4 14.3 17 21.9 39.7 21.9 63 0 54.9-41.6 96.4-101.3 104 15.1 9.9 25.4 31.3 25.4 55.9v46.4c0 13.4 11.2 21 24.6 15.6 80.8-30.9 144.1-111.6 144.1-211.6 0-126.3-102.7-229.4-229-229.4z'/%3E%3C/svg%3E">
+<style>
+/* ----------------------------------------------------------------
+   tokens
+
+   Light is written out here and dark overrides it below, so the page
+   follows the Mac it is read on — and so do the screenshots, which are
+   taken twice and picked by the same media query.
+----------------------------------------------------------------- */
+:root{
+  color-scheme:light dark;
+
+  --ink:#0d1117;
+  --ink-2:#424a53;
+  --ink-3:#6b7480;
+  --line:#d8dee4;
+  --line-soft:#e8ecf1;
+  --paper:#ffffff;
+  --paper-2:#f6f8fa;
+
+  /* the hero and the nav over it: their own set, so the whole band can
+     turn over without touching the rules that use it */
+  --night:#ffffff;
+  --night-line:#dde3ea;
+  --night-ink:#0d1117;
+  --night-ink-2:#424a53;
+  --night-strong:#0d1117;
+  --night-fill:#f4f7fa;
+  --night-fill-2:#e9edf3;
+  --night-faint:#6b7480;
+  --night-mono:#424a53;
+  --night-grid:rgba(13,17,23,.055);
+  --hero-glow-1:rgba(47,111,235,.16);
+  --hero-glow-2:rgba(137,87,229,.14);
+
+  --mark-bg:#0d1117;
+  --mark-ink:#ffffff;
+
+  --cta-bg:#0d1117; --cta-ink:#ffffff; --cta-bg-hover:#000000;
+  --cta-shadow:0 10px 26px rgba(13,17,23,.22);
+  --ghost-ink:#0d1117; --ghost-line:#d8dee4;
+  --ghost-fill:#ffffff; --ghost-fill-hover:#f0f3f7;
+
+  --stage-bg:radial-gradient(95% 75% at 50% 0%,#eff3f9 0%,#e5eaf3 58%,#dde4ee 100%);
+  --stage-line:#d3dae3;
+  --stage-shadow:0 40px 90px -34px rgba(31,35,40,.4);
+  --stage-glow:radial-gradient(120% 80% at 50% -10%,rgba(47,111,235,.10),transparent 60%);
+  --shot-ring:rgba(13,17,23,.10);
+  --shot-drop:0 26px 60px -22px rgba(31,35,40,.45);
+  --dot:rgba(13,17,23,.17); --dot-hover:rgba(13,17,23,.38);
+
+  --shot-bg:#ffffff;
+  --shot-pad:linear-gradient(140deg,#eef2f8,#e3e9f3);
+  --shot-border:#d8dee4;
+  --note-bg:#eef3fc;
+  --ic-bg:#eaf0fb;
+  --card-hover-line:#c3ccd7;
+
+  --closing-bg:#0b0e16;
+  --foot-bg:#070a11;
+
+  --blue:#2f6feb;
+  --blue-soft:#58a6ff;
+  --green:#1f883d;
+  --green-soft:#3fb950;
+  --red:#cf222e;
+  --red-soft:#f85149;
+  --amber:#bf8700;
+  --amber-soft:#d29922;
+  --violet:#8957e5;
+
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+
+  --r-s:8px; --r-m:14px; --r-l:22px;
+  --shadow:0 1px 2px rgba(31,35,40,.06),0 8px 24px rgba(31,35,40,.08);
+  --pad:clamp(20px,5vw,40px);
+  --max:1180px;
+}
+
+@media (prefers-color-scheme:dark){
+  :root{
+    --ink:#e9edf5;
+    --ink-2:#9aa6bd;
+    --ink-3:#78839a;
+    --line:#2b3447;
+    --line-soft:#1e2636;
+    --paper:#0b0e16;
+    --paper-2:#101624;
+
+    --night:#0b0e16;
+    --night-line:rgba(255,255,255,.10);
+    --night-ink:#e9edf5;
+    --night-ink-2:#9aa6bd;
+    --night-strong:#ffffff;
+    --night-fill:rgba(255,255,255,.05);
+    --night-fill-2:rgba(255,255,255,.12);
+    --night-faint:#6e7a92;
+    --night-mono:#cdd6e6;
+    --night-grid:rgba(255,255,255,.045);
+    --hero-glow-1:rgba(47,111,235,.40);
+    --hero-glow-2:rgba(137,87,229,.28);
+
+    --mark-bg:#ffffff;
+    --mark-ink:#0b0e16;
+
+    --cta-bg:#ffffff; --cta-ink:#0b0e16; --cta-bg-hover:#eef2f8;
+    --cta-shadow:0 10px 30px rgba(0,0,0,.35);
+    --ghost-ink:#ffffff; --ghost-line:rgba(255,255,255,.2);
+    --ghost-fill:rgba(255,255,255,.05); --ghost-fill-hover:rgba(255,255,255,.12);
+
+    --stage-bg:radial-gradient(95% 75% at 50% 0%,#1a2440 0%,#0c111d 58%,#080b12 100%);
+    --stage-line:rgba(255,255,255,.1);
+    --stage-shadow:0 40px 90px -30px rgba(0,0,0,.9);
+    --stage-glow:radial-gradient(120% 80% at 50% -10%,rgba(88,166,255,.14),transparent 60%);
+    --shot-ring:rgba(255,255,255,.09);
+    --shot-drop:0 26px 60px -20px rgba(0,0,0,.9);
+    --dot:rgba(255,255,255,.18); --dot-hover:rgba(255,255,255,.4);
+
+    --shot-bg:#0d1220;
+    --shot-pad:linear-gradient(140deg,#161d2e,#101624);
+    --shot-border:#263146;
+    --note-bg:#121c31;
+    --ic-bg:#16233c;
+    --card-hover-line:#3a4559;
+
+    --closing-bg:#121726;
+    --foot-bg:#080b12;
+
+    --blue:#58a6ff;
+    --blue-soft:#79b8ff;
+    --green:#3fb950;
+    --violet:#a371f7;
+
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.45);
+  }
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:var(--sans);font-size:17px;line-height:1.6;
+  -webkit-font-smoothing:antialiased;overflow-x:hidden;
+}
+img{max-width:100%;height:auto;display:block}
+a{color:inherit}
+h1,h2,h3{line-height:1.12;letter-spacing:-.022em;margin:0;font-weight:680}
+p{margin:0}
+code,kbd{font-family:var(--mono)}
+.wrap{max-width:var(--max);margin-inline:auto;padding-inline:var(--pad)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ----------------------------------------------------------------
+   nav
+----------------------------------------------------------------- */
+.nav{position:fixed;inset:0 0 auto 0;z-index:60;transition:background .3s,border-color .3s,backdrop-filter .3s;border-bottom:1px solid transparent}
+.nav.stuck{background:color-mix(in srgb,var(--night) 82%,transparent);backdrop-filter:saturate(1.6) blur(14px);-webkit-backdrop-filter:saturate(1.6) blur(14px);border-bottom-color:var(--night-line)}
+.nav-in{max-width:var(--max);margin-inline:auto;padding:14px var(--pad);display:flex;align-items:center;gap:12px}
+.brand{display:flex;align-items:center;gap:10px;color:var(--night-strong);text-decoration:none;font-weight:620;letter-spacing:-.01em}
+.brand svg{width:26px;height:26px;border-radius:7px;flex:none}
+.brand svg rect{fill:var(--mark-bg)}
+.brand svg path{fill:var(--mark-ink)}
+.nav-links{margin-left:auto;display:flex;align-items:center;gap:4px}
+.nav-links a{color:var(--night-ink-2);text-decoration:none;font-size:14.5px;padding:7px 11px;border-radius:999px;transition:color .2s,background .2s}
+.nav-links a:hover{color:var(--night-strong);background:var(--night-fill-2)}
+.nav-cta{color:var(--cta-ink) !important;border:1px solid var(--cta-bg);background:var(--cta-bg)}
+.nav-cta:hover{background:var(--cta-bg-hover);border-color:var(--cta-bg-hover)}
+@media (max-width:760px){
+  .nav-links a:not(.nav-cta){display:none}
+  .brand{font-size:15.5px}
+  .brand svg{width:23px;height:23px}
+}
+
+/* ----------------------------------------------------------------
+   hero
+----------------------------------------------------------------- */
+.hero{position:relative;background:var(--night);color:var(--night-ink);padding:124px 0 86px;overflow:hidden;isolation:isolate}
+.hero::before{/* glow */
+  content:"";position:absolute;z-index:-2;left:50%;top:-320px;width:1400px;height:1000px;transform:translateX(-50%);
+  background:radial-gradient(48% 42% at 50% 42%,var(--hero-glow-1),transparent 70%),
+             radial-gradient(38% 36% at 72% 28%,var(--hero-glow-2),transparent 70%);
+  filter:blur(6px);
+}
+.hero::after{/* grid */
+  content:"";position:absolute;z-index:-1;inset:0;
+  background-image:linear-gradient(var(--night-grid) 1px,transparent 1px),linear-gradient(90deg,var(--night-grid) 1px,transparent 1px);
+  background-size:62px 62px;
+  mask-image:radial-gradient(70% 55% at 50% 10%,#000 0%,transparent 78%);
+  -webkit-mask-image:radial-gradient(70% 55% at 50% 10%,#000 0%,transparent 78%);
+}
+.hero-top{text-align:center;max-width:860px;margin-inline:auto}
+.eyebrow{display:inline-flex;align-items:center;gap:9px;font-size:13px;letter-spacing:.02em;color:var(--night-ink-2);
+  border:1px solid var(--night-line);background:var(--night-fill);padding:6px 14px;border-radius:999px}
+.eyebrow b{color:var(--night-strong);font-weight:600}
+.dot-live{width:7px;height:7px;border-radius:50%;background:var(--green-soft,var(--green));box-shadow:0 0 0 0 rgba(63,185,80,.6);animation:pulse 2.6s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(63,185,80,.55)}70%{box-shadow:0 0 0 9px rgba(63,185,80,0)}100%{box-shadow:0 0 0 0 rgba(63,185,80,0)}}
+h1.title{margin:26px 0 0;font-size:clamp(40px,6.6vw,72px);font-weight:700;letter-spacing:-.035em;color:var(--night-strong)}
+h1.title em{font-style:normal;background:linear-gradient(100deg,#2f6feb 10%,#8957e5 60%,#2f6feb 95%);-webkit-background-clip:text;background-clip:text;color:transparent}
+@media (prefers-color-scheme:dark){
+  h1.title em{background:linear-gradient(100deg,#58a6ff 10%,#a371f7 60%,#58a6ff 95%);-webkit-background-clip:text;background-clip:text}
+}
+.lede{margin:22px auto 0;max-width:640px;font-size:clamp(17px,2vw,20px);color:var(--night-ink-2);line-height:1.55}
+
+.cta{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-items:center;margin-top:34px}
+.btn{display:inline-flex;align-items:center;gap:9px;padding:13px 22px;border-radius:12px;text-decoration:none;font-size:15.5px;font-weight:580;border:1px solid transparent;transition:transform .15s,background .2s,border-color .2s,box-shadow .2s}
+.btn:active{transform:translateY(1px)}
+.btn-primary{background:var(--cta-bg);color:var(--cta-ink);box-shadow:var(--cta-shadow)}
+.btn-primary:hover{background:var(--cta-bg-hover)}
+.btn-ghost{color:var(--ghost-ink);border-color:var(--ghost-line);background:var(--ghost-fill)}
+.btn-ghost:hover{background:var(--ghost-fill-hover)}
+
+.brewline{display:inline-flex;align-items:center;gap:10px;margin-top:22px;padding:9px 10px 9px 16px;border-radius:12px;
+  border:1px solid var(--night-line);background:var(--night-fill);font-family:var(--mono);font-size:13.5px;color:var(--night-mono)}
+.brewline .mut{color:var(--night-faint)}
+.copy{border:1px solid var(--night-line);background:var(--night-fill-2);color:var(--night-mono);border-radius:8px;
+  padding:5px 10px;font:inherit;font-size:12.5px;cursor:pointer;transition:background .2s,color .2s}
+.copy:hover{color:var(--night-strong)}
+.copy.done{color:var(--green);border-color:color-mix(in srgb,var(--green) 45%,transparent)}
+.fineprint{margin-top:18px;font-size:13.5px;color:var(--night-faint)}
+
+/* ----------------------------------------------------------------
+   stage — screenshots of the running app, one after another.
+   Nothing here is a drawing of the app: every frame is a capture,
+   and each one exists in both themes.
+----------------------------------------------------------------- */
+.stage-shell{margin:58px auto 0;max-width:1120px;padding-inline:var(--pad)}
+.stage{position:relative;width:100%;aspect-ratio:1200/730;border-radius:var(--r-l);overflow:hidden;
+  background:var(--stage-bg);
+  border:1px solid var(--stage-line);
+  box-shadow:var(--stage-shadow)}
+.stage::after{content:"";position:absolute;inset:0;pointer-events:none;border-radius:inherit;background:var(--stage-glow)}
+
+/* every shot sits in the same grid cell, centred, never scaled past its own size */
+.shots{position:absolute;inset:clamp(14px,3%,34px);display:grid;place-items:center}
+.shots picture{grid-area:1/1;display:block;max-width:100%;max-height:100%}
+.shots img{width:auto;height:auto;max-width:100%;max-height:100%;
+  border-radius:10px;
+  box-shadow:var(--shot-drop),0 0 0 1px var(--shot-ring);
+  opacity:0;transform:translateY(8px) scale(.992);
+  transition:opacity .6s ease,transform .8s cubic-bezier(.2,.8,.3,1)}
+.shots .on img{opacity:1;transform:none}
+/* the menu bar capture is portrait — let it take the full height */
+.shots picture.tall,.shots picture.tall img{height:100%}
+
+/* stage chrome: caption + dots */
+.stage-cap{display:flex;align-items:center;gap:14px;justify-content:center;margin-top:20px;flex-wrap:wrap}
+.cap-text{font-size:14.5px;color:var(--night-ink-2);min-height:22px;text-align:center}
+.cap-text b{color:var(--night-strong);font-weight:580}
+.dots{display:flex;gap:7px}
+.dots button{width:26px;height:5px;border-radius:999px;border:0;background:var(--dot);cursor:pointer;padding:0;
+  transition:background .3s,width .3s}
+.dots button[aria-current="true"]{background:var(--blue);width:40px}
+.dots button:hover{background:var(--dot-hover)}
+.playbtn{border:1px solid var(--night-line);background:var(--night-fill);color:var(--night-ink-2);border-radius:999px;
+  width:28px;height:28px;display:grid;place-items:center;cursor:pointer;font-size:11px}
+.playbtn:hover{color:var(--night-strong);background:var(--night-fill-2)}
+@media (prefers-reduced-motion:reduce){
+  .shots img{transition:none;transform:none}
+}
+@media (max-width:760px){
+  .stage{aspect-ratio:4/5}
+  .shots{inset:12px}
+  .stage-shell{margin-top:42px}
+  .cap-text{font-size:13.5px}
+}
+
+/* ----------------------------------------------------------------
+   body
+----------------------------------------------------------------- */
+.band{padding:clamp(64px,9vw,112px) 0}
+.band.alt{background:var(--paper-2);border-block:1px solid var(--line-soft)}
+.kicker{font-size:13px;font-weight:620;letter-spacing:.08em;text-transform:uppercase;color:var(--blue)}
+h2{font-size:clamp(28px,4vw,42px);margin-top:12px;letter-spacing:-.03em}
+.sub{margin-top:16px;color:var(--ink-2);font-size:clamp(16px,1.7vw,18.5px);max-width:62ch}
+.center{text-align:center}
+.center .sub{margin-inline:auto}
+
+/* install */
+.install-grid{display:grid;gap:26px;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);margin-top:40px;align-items:start}
+.install-grid>*{min-width:0}
+@media (max-width:860px){.install-grid{grid-template-columns:1fr}}
+/* a terminal is dark in both themes, because a terminal is */
+.term{border-radius:var(--r-m);overflow:hidden;border:1px solid #1d2535;background:#0d1220;box-shadow:var(--shadow)}
+.term-h{display:flex;align-items:center;gap:7px;padding:10px 14px;background:#141b2b;border-bottom:1px solid #1d2535}
+.term-h .tl{width:10px;height:10px}
+.term-h span{margin-left:8px;font-size:12px;color:#7f8ca3;font-family:var(--mono)}
+.term pre{margin:0;padding:18px 18px 20px;font-family:var(--mono);font-size:13.5px;line-height:2;color:#cdd6e6;overflow-x:auto}
+.term pre .p{color:#3fb950;user-select:none}
+.term pre .c{color:#6e7a92}
+.note{margin-top:18px;padding:16px 18px;border-left:3px solid var(--blue);background:var(--note-bg);border-radius:0 var(--r-s) var(--r-s) 0;font-size:15px;color:var(--ink-2)}
+.req{list-style:none;margin:0;padding:0}
+.req li{display:flex;gap:12px;padding:13px 0;border-bottom:1px solid var(--line-soft);font-size:15.5px;color:var(--ink-2)}
+.req li:last-child{border-bottom:0}
+.req b{color:var(--ink);font-weight:600}
+.req .tick{color:var(--green);flex:none;margin-top:3px}
+
+/* feature rows */
+.frow{display:grid;grid-template-columns:minmax(0,.86fr) minmax(0,1.14fr);gap:clamp(28px,5vw,66px);align-items:center;
+  margin-top:clamp(52px,7vw,92px)}
+.frow:first-of-type{margin-top:clamp(40px,5vw,60px)}
+.frow.flip{grid-template-columns:minmax(0,1.14fr) minmax(0,.86fr)}
+.frow.flip .ftext{order:2}
+@media (max-width:900px){.frow,.frow.flip .ftext{grid-template-columns:1fr;order:0}}
+.ftext h3{font-size:clamp(22px,2.6vw,28px);letter-spacing:-.025em}
+.ftext p{margin-top:14px;color:var(--ink-2);font-size:16.5px}
+.flist{list-style:none;margin:20px 0 0;padding:0}
+.flist li{position:relative;padding-left:26px;margin-top:11px;color:var(--ink-2);font-size:16px}
+.flist li::before{content:"";position:absolute;left:3px;top:10px;width:7px;height:7px;border-radius:50%;background:var(--blue)}
+.shot{border-radius:var(--r-m);overflow:hidden;border:1px solid var(--shot-border);background:var(--shot-bg);
+  box-shadow:0 2px 4px rgba(31,35,40,.04),0 18px 44px -14px rgba(31,35,40,.26)}
+.shot picture{display:block}
+.shot img{width:100%}
+.shot.pad{padding:14px;background:var(--shot-pad)}
+.shot.pad img{border-radius:8px;border:1px solid var(--shot-ring)}
+/* a wide, short close-up reads better across the column than beside the text */
+.fullrow{margin-top:clamp(52px,7vw,92px)}
+.fullrow .ftext{max-width:70ch}
+.fullrow figure{margin:30px 0 0}
+.shot.pad.closeup{padding:clamp(16px,3vw,34px)}
+.shot.pad.closeup img{width:100%;max-width:900px;margin-inline:auto;
+  box-shadow:0 10px 30px -10px rgba(31,35,40,.3)}
+
+/* grid of small features */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:18px;margin-top:44px}
+.card{border:1px solid var(--line);border-radius:var(--r-m);padding:22px;background:var(--paper);transition:transform .2s,box-shadow .2s,border-color .2s}
+.card:hover{transform:translateY(-3px);box-shadow:var(--shadow);border-color:var(--card-hover-line)}
+.card .ic{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;background:var(--ic-bg);color:var(--blue);margin-bottom:14px}
+.card h4{margin:0;font-size:16.5px;font-weight:620;letter-spacing:-.01em}
+.card p{margin-top:8px;color:var(--ink-2);font-size:14.5px;line-height:1.55}
+
+/* steps */
+.steps{counter-reset:s;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:26px;margin-top:40px}
+.step{position:relative;padding-top:52px}
+.step::before{counter-increment:s;content:counter(s);position:absolute;top:0;left:0;width:36px;height:36px;border-radius:50%;
+  background:var(--ink);color:var(--paper);display:grid;place-items:center;font-size:15px;font-weight:620}
+.step h4{margin:0;font-size:17px;font-weight:620}
+.step p{margin-top:8px;color:var(--ink-2);font-size:15px}
+.step code{background:var(--paper-2);border:1px solid var(--line-soft);border-radius:5px;padding:1px 6px;font-size:13px}
+
+/* closing — a dark band in both themes, so it carries its own set */
+.closing{
+  --night-line:rgba(255,255,255,.10);
+  --night-fill:rgba(255,255,255,.05);
+  --night-fill-2:rgba(255,255,255,.12);
+  --night-ink-2:#9aa6bd;
+  --night-strong:#ffffff;
+  --night-mono:#cdd6e6;
+  --night-faint:#6e7a92;
+  --cta-bg:#ffffff; --cta-ink:#0b0e16; --cta-bg-hover:#eef2f8;
+  --cta-shadow:0 10px 30px rgba(0,0,0,.35);
+  --ghost-ink:#ffffff; --ghost-line:rgba(255,255,255,.2);
+  --ghost-fill:rgba(255,255,255,.05); --ghost-fill-hover:rgba(255,255,255,.12);
+  background:var(--closing-bg);color:#fff;text-align:center;padding:clamp(70px,9vw,110px) 0
+}
+.closing h2{color:#fff}
+.closing .sub{color:var(--night-ink-2);margin-inline:auto}
+
+/* footer */
+footer{--mark-bg:#ffffff;--mark-ink:#070a11;
+  background:var(--foot-bg);color:#9aa6bd;padding:46px 0 54px;font-size:14.5px;border-top:1px solid rgba(255,255,255,.07)}
+.foot{display:flex;flex-wrap:wrap;gap:22px;align-items:center}
+.foot .brand{color:#fff}
+.foot nav{margin-left:auto;display:flex;flex-wrap:wrap;gap:22px}
+.foot a{color:#9aa6bd;text-decoration:none}
+.foot a:hover{color:#fff}
+.foot .legal{width:100%;color:#5a6479;font-size:13.5px;padding-top:12px;border-top:1px solid rgba(255,255,255,.06)}
+
+/* reveal on scroll */
+.rv{opacity:0;transform:translateY(20px);transition:opacity .7s cubic-bezier(.2,.9,.3,1),transform .7s cubic-bezier(.2,.9,.3,1)}
+.rv.in{opacity:1;transform:none}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important}
+  .rv{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<header class="nav" id="nav">
+  <div class="nav-in">
+    <a class="brand" href="#top">
+      <svg viewBox="0 0 640 640" aria-hidden="true"><rect width="640" height="640" rx="140" fill="#fff"/><path fill="#0b0e16" d="M319.6 91.4C193.3 91.4 91.4 194.6 91.4 320.9c0 99.1 63 181.2 147.7 212 12 4.4 23.7-3.6 23.7-15.6v-35.7c-6.3 2.7-14.3 4.4-21.4 4.4-29.4 0-46.9-16-59.4-46-4.9-12-10.3-19.1-20.6-20.6-5.3-.4-7.1-2.7-7.1-5.4 0-5.3 8.8-9.4 17.8-9.4 13 0 24.2 8 35.7 24.6 8.9 13 18.3 18.7 29.5 18.7s18.3-4 28.6-14.3c7.5-7.6 13.4-14.3 18.7-18.7-59-7.1-100.4-49.5-100.4-104.4 0-22.3 8-46.4 21.4-62.6-5.8-14.7-4.8-46 1.8-58.8 17.8-2.3 42 7.1 56.2 20.1 17-5.3 34.9-8 56.8-8s39.7 2.7 55.8 7.6c13.9-12.6 38.4-21.9 56.3-19.7 6.3 12 7.1 43.3 1.3 58.4 14.3 17 21.9 39.7 21.9 63 0 54.9-41.6 96.4-101.3 104 15.1 9.9 25.4 31.3 25.4 55.9v46.4c0 13.4 11.2 21 24.6 15.6 80.8-30.9 144.1-111.6 144.1-211.6 0-126.3-102.7-229.4-229-229.4z"/></svg>
+      GitHub Monitor
+    </a>
+    <nav class="nav-links">
+      <a href="#review">Reviewing</a>
+      <a href="#lists">Lists</a>
+      <a href="#charts">Charts</a>
+      <a href="#install">Install</a>
+      <a class="nav-cta" href="https://github.com/sidler/GitHubMonitor">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+<!-- ============================ HERO ============================ -->
+<section class="hero">
+  <div class="wrap hero-top">
+    <span class="eyebrow"><span class="dot-live"></span> <b>v2.8</b> · native macOS · MIT licensed</span>
+    <h1 class="title">Know what GitHub is<br><em>waiting on.</em></h1>
+    <p class="lede">
+      A menu bar app that keeps the counts in sight — and lets you read every file's
+      patch, write the remarks, approve and merge without opening a browser.
+    </p>
+
+    <div class="cta">
+      <a class="btn btn-primary" href="https://github.com/sidler/GitHubMonitor/releases/latest">
+        <svg width="17" height="17" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 1a.75.75 0 0 1 .75.75v7.19l2.22-2.22a.75.75 0 1 1 1.06 1.06l-3.5 3.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 0 1 1.06-1.06l2.22 2.22V1.75A.75.75 0 0 1 8 1ZM2.75 13a.75.75 0 0 0 0 1.5h10.5a.75.75 0 0 0 0-1.5H2.75Z"/></svg>
+        Download for macOS
+      </a>
+      <a class="btn btn-ghost" href="https://github.com/sidler/GitHubMonitor">
+        <svg width="17" height="17" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8a8 8 0 0 0 5.47 7.59c.4.07.55-.17.55-.38v-1.33c-2.23.49-2.7-1.07-2.7-1.07-.36-.93-.89-1.18-.89-1.18-.73-.5.05-.49.05-.49.81.06 1.23.83 1.23.83.72 1.23 1.89.87 2.35.67.07-.52.28-.88.51-1.08-1.78-.2-3.65-.89-3.65-3.96 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.03 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.19c0 .21.15.46.55.38A8 8 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+        Source on GitHub
+      </a>
+    </div>
+
+    <div class="brewline">
+      <span class="mut">$</span><span id="brewcmd">brew install --cask sidler/tap/githubmonitor</span>
+      <button class="copy" id="copybtn" type="button">Copy</button>
+    </div>
+    <p class="fineprint">Free and MIT licensed · no account anywhere but GitHub</p>
+  </div>
+
+  <!-- ===== the app itself, in screenshots ===== -->
+  <div class="stage-shell">
+    <div class="stage" id="stage">
+      <div class="shots" id="shots">
+        <picture class="tall on"><source srcset="Docs/screenshots/dark/menubar.png" media="(prefers-color-scheme: dark)"><img src="Docs/screenshots/light/menubar.png" width="418" height="590" decoding="async" alt="The menu bar shows five reviews requested, five of your own pull requests and one unread mention; the popover under it lists them with what has happened to each."></picture>
+        <picture><source srcset="Docs/screenshots/dark/window.png" media="(prefers-color-scheme: dark)"><img src="Docs/screenshots/light/window.png" width="1320" height="840" decoding="async" alt="The window: the lists in the sidebar, the pull requests of one list, and the detail pane for the selected one."></picture>
+        <picture><source srcset="Docs/screenshots/dark/review.png" media="(prefers-color-scheme: dark)"><img src="Docs/screenshots/light/review.png" width="1400" height="880" decoding="async" alt="A review in its own window: the file tree, the patch, and the pull request's details beside it."></picture>
+        <picture><source srcset="Docs/screenshots/dark/remark.png" media="(prefers-color-scheme: dark)"><img src="Docs/screenshots/light/remark.png" width="838" height="176" decoding="async" alt="The remark editor: the conventional comment labels, the markdown buttons, and the draft kept until the review is sent."></picture>
+        <picture><source srcset="Docs/screenshots/dark/labels.png" media="(prefers-color-scheme: dark)"><img src="Docs/screenshots/light/labels.png" width="1320" height="840" decoding="async" alt="The label picker over the detail pane, with the labels already set listed first."></picture>
+        <picture><source srcset="Docs/screenshots/dark/trends.png" media="(prefers-color-scheme: dark)"><img src="Docs/screenshots/light/trends.png" width="1320" height="840" decoding="async" alt="The Trends view: how long reviews take, and how much stands open over time."></picture>
+      </div>
+    </div>
+
+    <div class="stage-cap">
+      <button class="playbtn" id="playbtn" type="button" aria-label="Pause the slideshow">&#10074;&#10074;</button>
+      <p class="cap-text" id="caption"><b>The counts live in the menu bar.</b> Reviews requested, your own pull requests, unread mentions.</p>
+      <div class="dots" id="dots" role="tablist" aria-label="Screenshots"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ REVIEW ============================ -->
+<section class="band" id="review">
+  <div class="wrap">
+    <p class="kicker">Review without leaving it</p>
+    <h2>The whole review happens in the app.</h2>
+    <p class="sub">A diff read three words at a time in a 400-point pane is not read. Clicking a file
+      opens every file's patch in one scrolling overlay, with a tree to jump by.</p>
+
+    <div class="frow">
+      <div class="ftext">
+        <h3>A review in a window of its own</h3>
+        <p>Not a card over the list: a window, with the code running to the edges. Several
+          reviews can be open at once as tabs, and a tab shows a dot while it holds remarks
+          you have not sent.</p>
+        <ul class="flist">
+          <li>The file tree down one side, the pull request's details down the other — ⌥⌘I, and the edge can be dragged</li>
+          <li>All the files at once, or one at a time with ⌥← and ⌥→</li>
+          <li>The words that actually changed are drawn bold — indentation too</li>
+          <li>The code around a hunk is fetched from GitHub on a press; the file header has a button for the whole file</li>
+          <li>The tree marks the files that hold remarks, and your own unsent ones in purple</li>
+        </ul>
+      </div>
+      <figure class="shot"><picture><source srcset="Docs/screenshots/dark/review.png" media="(prefers-color-scheme: dark)"><img src="Docs/screenshots/light/review.png" alt="A review in its own window: the file tree on the left, the patch in the middle with a resolved conversation and a row of hidden lines, and the pull request's details on the right." loading="lazy" width="1400" height="880"></picture></figure>
+    </div>
+
+    <div class="frow flip">
+      <div class="ftext">
+        <h3>Two columns, lined up where it means something</h3>
+        <p>One column is what a patch is and fits anywhere. Two columns put the old file beside
+          the new one, which is what you want when a line was edited rather than replaced.</p>
+        <ul class="flist">
+          <li>A removal is paired with the addition that answers it only where the two are recognisably the same line</li>
+          <li>The rest get a row each, rather than being paired by position with whatever was left over</li>
+        </ul>
+      </div>
+      <figure class="shot"><picture><source srcset="Docs/screenshots/dark/side-by-side.png" media="(prefers-color-scheme: dark)"><img src="Docs/screenshots/light/side-by-side.png" alt="The same patch in two columns with the changed words marked." loading="lazy" width="1400" height="880"></picture></figure>
+    </div>
+
+    <div class="fullrow">
+      <div class="ftext">
+        <h3>Write the remark, don't type the markdown</h3>
+        <p>Buttons above the box for bold, italic, code, links, quotes and lists, with ⌘B, ⌘I,
+          ⌘E and ⌘K — and a preview of exactly what will be sent. It is markdown that goes to
+          GitHub, so it is markdown the box shows.</p>
+        <ul class="flist">
+          <li>Conventional comment labels over the box: <em>issue</em>, <em>suggestion</em>, <em>praise</em> and nine more, with <em>blocking</em>, <em>non-blocking</em> and <em>if-minor</em></li>
+          <li>The badge is written the way the convention writes it, in the colours the standard uses</li>
+          <li>Several remarks half-written at once, each on its own line — they survive turning to another file, and quitting</li>
+          <li>Closing a review with words still in a box asks what should become of them</li>
+        </ul>
+      </div>
+      <figure class="shot pad closeup"><picture><source srcset="Docs/screenshots/dark/remark.png" media="(prefers-color-scheme: dark)"><img src="Docs/screenshots/light/remark.png" alt="The box a remark is written in: a row of conventional comment labels, a row of markdown buttons with a preview toggle, the text, and Add and Cancel underneath." loading="lazy" width="838" height="176"></picture></figure>
+    </div>
+
+    <div class="cards">
+      <article class="card">
+        <div class="ic"><svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M1.75 1h12.5c.97 0 1.75.78 1.75 1.75v8.5A1.75 1.75 0 0 1 14.25 13H8.06l-2.57 2.57A1 1 0 0 1 3.8 14.9V13H1.75A1.75 1.75 0 0 1 0 11.25v-8.5C0 1.78.78 1 1.75 1Z"/></svg></div>
+        <h4>Remarks, gathered into one review</h4>
+        <p>The number in the gutter turns into a plus as the pointer passes it. What you write is kept until you send the review, so the author is told once rather than five times.</p>
+      </article>
+      <article class="card">
+        <div class="ic"><svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0Zm3.78 5.22a.75.75 0 0 0-1.06 0L7 8.94 5.28 7.22a.75.75 0 1 0-1.06 1.06l2.25 2.25c.3.3.77.3 1.06 0l4.25-4.25a.75.75 0 0 0 0-1.06Z"/></svg></div>
+        <h4>Approvals bound to a commit</h4>
+        <p>The approval belongs to the commit whose diff was on screen. If somebody pushed while you were reading, it is refused rather than applied to code you did not see.</p>
+      </article>
+      <article class="card">
+        <div class="ic"><svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M5 3.25a1.75 1.75 0 1 0-2.5 1.58v6.34a1.75 1.75 0 1 0 1.5 0V7.4c.47.3 1.03.47 1.63.47h2.12a1.75 1.75 0 1 0 0-1.5H5.63c-.9 0-1.63-.73-1.63-1.62v-.17c.6-.28 1-.89 1-1.58Z"/></svg></div>
+        <h4>Merging, with the reason given</h4>
+        <p>Only the ways that repository allows. What stands in the way is said rather than greyed out: a conflict, checks that have not passed, a review that was asked for and is missing.</p>
+      </article>
+      <article class="card">
+        <div class="ic"><svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm0 1.5c-2.5 0-6 1.2-6 3.4V15h12v-2.1c0-2.2-3.5-3.4-6-3.4Z"/></svg></div>
+        <h4>@ offers the people it reaches</h4>
+        <p>Not the members of the repository and not whoever has touched it, but GitHub's own answer to who a mention there actually notifies. Driven entirely by the keyboard.</p>
+      </article>
+      <article class="card">
+        <div class="ic"><svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M2.5 2h11A1.5 1.5 0 0 1 15 3.5v6A1.5 1.5 0 0 1 13.5 11H9l-3.6 3V11H2.5A1.5 1.5 0 0 1 1 9.5v-6A1.5 1.5 0 0 1 2.5 2Z"/></svg></div>
+        <h4>Conversations where they were written</h4>
+        <p>Each one stands at its line, settled ones shut, with the few lines of code it was about where GitHub no longer gives it a place.</p>
+      </article>
+      <article class="card">
+        <div class="ic"><svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M1 3.5A1.5 1.5 0 0 1 2.5 2h4l2 2h5A1.5 1.5 0 0 1 15 5.5v7A1.5 1.5 0 0 1 13.5 14h-11A1.5 1.5 0 0 1 1 12.5v-9Z"/></svg></div>
+        <h4>Commits, pictures, and what it links to</h4>
+        <p>A pull request's commits with each one's own checks. Pictures in a description are drawn, private attachments included. A panel summarises the issue it closes without leaving the diff.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ LISTS ============================ -->
+<section class="band alt" id="lists">
+  <div class="wrap">
+    <p class="kicker">Know what is waiting</p>
+    <h2>Lists you define, in GitHub's own syntax.</h2>
+    <p class="sub">Each list is a title and one or more GitHub searches, shown as pull requests or
+      as issues. <code>@me</code> is you, and GitHub resolves team membership itself.</p>
+
+    <div class="frow">
+      <div class="ftext">
+        <h3>Rows that answer at a glance</h3>
+        <p>Review decision, check results, whether the pull request still merges into its base
+          branch, how far the review has got — and how long it has been waiting on <em>you</em>.</p>
+        <ul class="flist">
+          <li>The date turns orange and then red once your own review has been outstanding too long</li>
+          <li>Press a symbol in the legend, or a label on a row, to see only those rows</li>
+          <li>Sorting and grouping per list; each list remembers its own choices</li>
+          <li>A detail pane with the branch, the files, every check and each reviewer</li>
+        </ul>
+      </div>
+      <figure class="shot"><picture><source srcset="Docs/screenshots/dark/window.png" media="(prefers-color-scheme: dark)"><img src="Docs/screenshots/light/window.png" alt="The window: the sidebar, a list of pull requests and the detail pane for the selected row." loading="lazy" width="1320" height="840"></picture></figure>
+    </div>
+
+    <div class="frow flip">
+      <div class="ftext">
+        <h3>A list is a title and a search</h3>
+        <p>Write it in GitHub's own syntax, one search per line, results merged. Each list says
+          what it shows, which symbol it carries, and where it appears — the window, the
+          popover, the menu bar, or any of the three.</p>
+        <ul class="flist">
+          <li>Start from a preset, or from nothing</li>
+          <li>Drag to reorder: the sidebar, the popover and the menu bar all follow that order</li>
+          <li>Written to a file and read back, with a confirmation naming what an import would replace</li>
+          <li>Sorting, grouping and whether drafts show are remembered per list</li>
+        </ul>
+      </div>
+      <figure class="shot"><picture><source srcset="Docs/screenshots/dark/lists.png" media="(prefers-color-scheme: dark)"><img src="Docs/screenshots/light/lists.png" alt="Settings on the Lists tab: the lists with their searches and where each appears, and the editor for the selected one underneath." loading="lazy" width="1060" height="760"></picture></figure>
+    </div>
+
+    <div class="frow">
+      <div class="ftext">
+        <h3>What an issue is part of, and what is under it</h3>
+        <p>GitHub's own relation, not a number read out of prose. An epic lists its children
+          with how far through them it is; the far commoner case — an issue that is somebody's
+          sub-task — says what it belongs to.</p>
+        <ul class="flist">
+          <li>"6 of 11 done" and a bar, each child with its state and its type</li>
+          <li>The count is on the row too, so a list of epics can be read for who is nearly done without opening any of them</li>
+          <li>Clicking a child previews it in the same panel the linked pull requests open</li>
+          <li>Long lists fold after the first twelve, and say how many are not shown</li>
+        </ul>
+      </div>
+      <figure class="shot pad"><picture><source srcset="Docs/screenshots/dark/subissues.png" media="(prefers-color-scheme: dark)"><img src="Docs/screenshots/light/subissues.png" alt="An issue's detail pane listing its eleven sub-issues with a progress bar reading six of eleven done." loading="lazy" width="400" height="840" style="max-width:410px;margin-inline:auto"></picture></figure>
+    </div>
+
+    <div class="frow flip">
+      <div class="ftext">
+        <h3>Labels, set from the pane</h3>
+        <p>The ones an item carries are shown and can be set and cleared against the
+          repository's own list — searchable where it runs to hundreds, with the ones already
+          on it first.</p>
+        <ul class="flist">
+          <li>Works on pull requests and on issues, from the same pane</li>
+          <li>Press a label on a row to see only the rows carrying it</li>
+          <li>What the list is narrowed to is named at the top, and can be cleared from either end</li>
+        </ul>
+      </div>
+      <figure class="shot"><picture><source srcset="Docs/screenshots/dark/labels.png" media="(prefers-color-scheme: dark)"><img src="Docs/screenshots/light/labels.png" alt="The label picker open over the detail pane: a filter field, the labels already set at the top, and the rest of the repository's labels under them." loading="lazy" width="1320" height="840"></picture></figure>
+    </div>
+
+    <div class="frow">
+      <div class="ftext">
+        <h3>The quick look, under the menu bar</h3>
+        <p>The counts live in the menu bar and the popover gives the short overview — the lists
+          you marked for it, and the unread mentions from the notifications API.</p>
+        <ul class="flist">
+          <li>All counts, a single total, or zeros hidden</li>
+          <li>Mentions filtered by the notification reasons you care about</li>
+          <li>No Dock icon while it is only watching</li>
+        </ul>
+      </div>
+      <figure class="shot pad"><picture><source srcset="Docs/screenshots/dark/menubar.png" media="(prefers-color-scheme: dark)"><img src="Docs/screenshots/light/menubar.png" alt="The menu bar item and the popover under it." loading="lazy" width="418" height="590" style="max-width:430px;margin-inline:auto"></picture></figure>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ CHARTS ============================ -->
+<section class="band" id="charts">
+  <div class="wrap">
+    <p class="kicker">Analysis</p>
+    <h2>Who is carrying what, and how you review.</h2>
+    <p class="sub">Three views, all drawn from the same data the lists use.</p>
+
+    <div class="frow">
+      <div class="ftext">
+        <h3>Workload, Trends, My Trends</h3>
+        <p><b>Workload</b> is one repository's open pull requests per author, ready and draft as
+          separate segments, plus who does the reviewing and how long the rest of the team waits.
+          <b>Trends</b> follows a repository over time. <b>My Trends</b> is about you.</p>
+        <ul class="flist">
+          <li>How long reviews wait on you, and how fast you answer</li>
+          <li>Who you review with, and who comments on your work</li>
+          <li>How many pull requests stand open, and how many are still drafts</li>
+          <li>Over 30 days, 90 days or 12 months</li>
+        </ul>
+      </div>
+      <figure class="shot"><picture><source srcset="Docs/screenshots/dark/trends.png" media="(prefers-color-scheme: dark)"><img src="Docs/screenshots/light/trends.png" alt="My Trends: what you opened, when, and who comments on it." loading="lazy" width="1320" height="840"></picture></figure>
+    </div>
+
+    <div class="frow flip">
+      <div class="ftext">
+        <h3>All four Workload views are one table</h3>
+        <p>Named columns, a bar in the row, and a footer under each saying how its numbers
+          are counted — so a ranking can be argued with rather than only looked at.</p>
+        <ul class="flist">
+          <li>Open pull requests per author, ready and draft as separate segments</li>
+          <li>Who does the reviewing, and how long the rest of the team waits for an answer</li>
+          <li>The mean, the slow tail, and the requests that went unanswered</li>
+          <li>A person's own pull requests are left out of what they reviewed</li>
+        </ul>
+      </div>
+      <figure class="shot"><picture><source srcset="Docs/screenshots/dark/workload.png" media="(prefers-color-scheme: dark)"><img src="Docs/screenshots/light/workload.png" alt="Workload: a table of open pull requests per author with a bar in each row." loading="lazy" width="1320" height="840"></picture></figure>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ QUIET ============================ -->
+<section class="band alt">
+  <div class="wrap center">
+    <p class="kicker">Stay out of the way</p>
+    <h2>It watches. It does not ask for anything.</h2>
+    <p class="sub">No account anywhere but GitHub. The token lives in the keychain, and nothing
+      else is contacted — <code>api.github.com</code> and <code>avatars.githubusercontent.com</code>, that is all.</p>
+    <div class="cards">
+      <article class="card">
+        <div class="ic"><svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0 1 3v5c0 4 3 7 7 8 4-1 7-4 7-8V3L8 0Zm0 7.5a1.5 1.5 0 0 1 .75 2.8V12h-1.5v-1.7A1.5 1.5 0 0 1 8 7.5Z"/></svg></div>
+        <h4>The token stays in the keychain</h4>
+        <p>A classic personal access token with <code>repo</code>, <code>notifications</code> and <code>read:org</code>. Nothing is sent anywhere else, and nothing is written to disk that would outlive the question it answers.</p>
+      </article>
+      <article class="card">
+        <div class="ic"><svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 1 0 14A7 7 0 0 1 8 1Zm.75 3h-1.5v4.6l3.1 1.85.75-1.25-2.35-1.4V4Z"/></svg></div>
+        <h4>The hourly budget, in plain sight</h4>
+        <p>Settings report what GitHub actually charged for the last refresh and what that comes to over an hour — GitHub's own figure, not an estimate. Polling stops before the allowance does.</p>
+      </article>
+      <article class="card">
+        <div class="ic"><svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h12v9H9.5L8 13l-1.5-2H2V2Zm2 2.5v1.5h8V4.5H4Zm0 3V9h5.5V7.5H4Z"/></svg></div>
+        <h4>Every request, written down</h4>
+        <p>When, which call, the status, how long it took, what the allowance had left — and where something went wrong, what GitHub actually said. The successes too, because a log holding only failures cannot say whether anything was working in between.</p>
+      </article>
+      <article class="card">
+        <div class="ic"><svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M4 1h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2Zm4 11.5a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z"/></svg></div>
+        <h4>Built for this Mac</h4>
+        <p>Native SwiftUI on macOS 26, using the system's own glass materials rather than reproducing them. No Electron, no Dock icon, no tray of background services.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ INSTALL ============================ -->
+<section class="band" id="install">
+  <div class="wrap">
+    <p class="kicker">Install</p>
+    <h2>Two lines and a consent.</h2>
+    <p class="sub">Homebrew asks you to trust a tap that is not its own before it will run
+      anything from it — the middle line is that consent, and it is needed once.</p>
+
+    <div class="install-grid">
+      <div>
+        <div class="term">
+          <div class="term-h"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span>zsh — githubmonitor</span></div>
+<pre><span class="p">$</span> brew tap sidler/tap
+<span class="p">$</span> brew trust --cask sidler/tap/githubmonitor
+<span class="p">$</span> brew install --cask githubmonitor
+<span class="c"># or take the zip from the latest release</span></pre>
+        </div>
+        <p class="note">The app has no Dock icon while it is only watching — look for it in the menu
+          bar. Opening the window gives it one, and closing the window takes it away again.</p>
+      </div>
+
+      <div>
+        <ul class="req">
+          <li><span class="tick">✓</span><span><b>macOS 26 or later.</b> The app uses the system's own glass materials rather than reproducing them.</span></li>
+          <li><span class="tick">✓</span><span><b>A classic personal access token.</b> Fine-grained tokens do not reliably cover the notifications API.</span></li>
+          <li><span class="tick">✓</span><span><b>Nothing else.</b> No server, no sign-up, no subscription. MIT licensed, and the source is all there.</span></li>
+        </ul>
+        <div class="cta" style="justify-content:flex-start;margin-top:26px">
+          <a class="btn btn-primary" style="background:var(--ink);color:var(--paper);box-shadow:none" href="https://github.com/sidler/GitHubMonitor/releases/latest">Download the latest release</a>
+          <a class="btn" style="border-color:var(--line);color:var(--ink)" href="https://github.com/sidler/GitHubMonitor/blob/master/CHANGELOG.md">Changelog</a>
+        </div>
+      </div>
+    </div>
+
+    <h3 style="margin-top:64px;font-size:clamp(20px,2.4vw,25px)">Setting up the token</h3>
+    <div class="steps">
+      <div class="step">
+        <h4>Generate it</h4>
+        <p>At <a href="https://github.com/settings/tokens" style="color:var(--blue)">github.com/settings/tokens</a> → <em>Generate new token (classic)</em>, with an expiry you are comfortable with.</p>
+      </div>
+      <div class="step">
+        <h4>Tick three scopes</h4>
+        <p><code>repo</code> for pull requests including private ones, <code>notifications</code> for the mention threads, <code>read:org</code> so the app can offer your teams.</p>
+      </div>
+      <div class="step">
+        <h4>Paste it in</h4>
+        <p>Under <em>Settings → Account</em>. It goes straight to the keychain. When it expires the menu bar icon says so.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ CLOSING ============================ -->
+<section class="closing">
+  <div class="wrap">
+    <h2>Put the counts where you can see them.</h2>
+    <p class="sub">Free, open source, and it asks for nothing but a token.</p>
+    <div class="cta">
+      <a class="btn btn-primary" href="https://github.com/sidler/GitHubMonitor/releases/latest">Download for macOS</a>
+      <a class="btn btn-ghost" href="https://github.com/sidler/GitHubMonitor">Read the source</a>
+    </div>
+    <div class="brewline" style="margin-top:26px">
+      <span class="mut">$</span><span>brew install --cask sidler/tap/githubmonitor</span>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <a class="brand" href="#top">
+      <svg viewBox="0 0 640 640" aria-hidden="true"><rect width="640" height="640" rx="140" fill="#fff"/><path fill="#070a11" d="M319.6 91.4C193.3 91.4 91.4 194.6 91.4 320.9c0 99.1 63 181.2 147.7 212 12 4.4 23.7-3.6 23.7-15.6v-35.7c-6.3 2.7-14.3 4.4-21.4 4.4-29.4 0-46.9-16-59.4-46-4.9-12-10.3-19.1-20.6-20.6-5.3-.4-7.1-2.7-7.1-5.4 0-5.3 8.8-9.4 17.8-9.4 13 0 24.2 8 35.7 24.6 8.9 13 18.3 18.7 29.5 18.7s18.3-4 28.6-14.3c7.5-7.6 13.4-14.3 18.7-18.7-59-7.1-100.4-49.5-100.4-104.4 0-22.3 8-46.4 21.4-62.6-5.8-14.7-4.8-46 1.8-58.8 17.8-2.3 42 7.1 56.2 20.1 17-5.3 34.9-8 56.8-8s39.7 2.7 55.8 7.6c13.9-12.6 38.4-21.9 56.3-19.7 6.3 12 7.1 43.3 1.3 58.4 14.3 17 21.9 39.7 21.9 63 0 54.9-41.6 96.4-101.3 104 15.1 9.9 25.4 31.3 25.4 55.9v46.4c0 13.4 11.2 21 24.6 15.6 80.8-30.9 144.1-111.6 144.1-211.6 0-126.3-102.7-229.4-229-229.4z"/></svg>
+      GitHub Monitor
+    </a>
+    <nav>
+      <a href="https://github.com/sidler/GitHubMonitor">Repository</a>
+      <a href="https://github.com/sidler/GitHubMonitor/releases">Releases</a>
+      <a href="https://github.com/sidler/GitHubMonitor/blob/master/CHANGELOG.md">Changelog</a>
+      <a href="https://github.com/sidler/GitHubMonitor/issues">Issues</a>
+      <a href="https://github.com/sidler/GitHubMonitor/blob/master/LICENSE">MIT licence</a>
+    </nav>
+    <p class="legal">Not affiliated with GitHub, Inc. Screenshots show the app's own sample data, so none of them show real work.</p>
+  </div>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---------- sticky nav ---------- */
+  // The bar takes its colours from the theme, so there is nothing to
+  // invert halfway down the page any more — only the backdrop to turn on.
+  var nav = document.getElementById('nav');
+  var onScroll = function () {
+    nav.classList.toggle('stuck', window.scrollY > 24);
+  };
+  onScroll();
+  window.addEventListener('scroll', onScroll, { passive: true });
+
+  /* ---------- copy button ---------- */
+  var btn = document.getElementById('copybtn');
+  btn.addEventListener('click', function () {
+    var text = document.getElementById('brewcmd').textContent;
+    var done = function () {
+      btn.textContent = 'Copied';
+      btn.classList.add('done');
+      setTimeout(function () { btn.textContent = 'Copy'; btn.classList.remove('done'); }, 1800);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, done);
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch (e) {}
+      document.body.removeChild(ta); done();
+    }
+  });
+
+  /* ---------- the screenshots, one after another ---------- */
+  var stage = document.getElementById('stage');
+  var shots = Array.prototype.slice.call(document.querySelectorAll('#shots picture'));
+
+  /* one caption per screenshot, in the order they stand in the markup */
+  var scenes = [
+    { d: 4200, head: 'The counts live in the menu bar.',          tail: 'Reviews requested, your own pull requests, unread mentions — and the popover under them.' },
+    { d: 4600, head: 'The window gives the full lists.',          tail: 'A row answers at a glance; the pane beside it gives the branch, the files and the checks.' },
+    { d: 5000, head: 'A review opens in its own window.',         tail: 'Several at once as tabs, with the file tree, the patch and the details beside it.' },
+    { d: 4600, head: 'Remarks carry a conventional label.',       tail: 'Pick the label, write the markdown with the buttons — the draft is kept until you send the review.' },
+    { d: 4200, head: 'Labels, set from the pane.',                tail: 'The ones already on the issue come first, the rest you search for.' },
+    { d: 4400, head: 'Charts for what stands open, and for how you review.', tail: 'Workload, Trends and My Trends.' }
+  ];
+  var caption = document.getElementById('caption');
+  var dotsBox = document.getElementById('dots');
+  var playBtn = document.getElementById('playbtn');
+  var i = 0, timer = null, paused = false, visible = true;
+
+  scenes.forEach(function (s, n) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.setAttribute('role', 'tab');
+    b.setAttribute('aria-label', 'Screenshot ' + (n + 1) + ': ' + s.head);
+    b.addEventListener('click', function () { show(n); if (!paused) schedule(); });
+    dotsBox.appendChild(b);
+  });
+  var dots = dotsBox.querySelectorAll('button');
+
+  function show(n) {
+    i = (n + scenes.length) % scenes.length;
+    for (var k = 0; k < shots.length; k++) {
+      shots[k].classList.toggle('on', k === i);
+    }
+    caption.innerHTML = '<b>' + scenes[i].head + '</b> ' + scenes[i].tail;
+    for (var m = 0; m < dots.length; m++) {
+      dots[m].setAttribute('aria-current', m === i ? 'true' : 'false');
+    }
+  }
+
+  function schedule() {
+    clearTimeout(timer);
+    if (reduce || paused || !visible) return;
+    timer = setTimeout(function () { show(i + 1); schedule(); }, scenes[i].d);
+  }
+
+  playBtn.addEventListener('click', function () {
+    paused = !paused;
+    playBtn.textContent = paused ? '▶' : '❚❚';
+    playBtn.setAttribute('aria-label', paused ? 'Play the slideshow' : 'Pause the slideshow');
+    if (paused) { clearTimeout(timer); } else { schedule(); }
+  });
+
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver(function (entries) {
+      visible = entries[0].isIntersecting;
+      if (visible) { schedule(); } else { clearTimeout(timer); }
+    }, { threshold: 0.2 }).observe(stage);
+  }
+
+  show(0);
+  if (reduce) { paused = true; playBtn.textContent = '▶'; } else { schedule(); }
+
+  /* ---------- reveal on scroll ---------- */
+  var targets = document.querySelectorAll('.frow, .fullrow, .cards > .card, .install-grid, .steps > .step, .band > .wrap > h2, .band > .wrap > .sub');
+  if ('IntersectionObserver' in window && !reduce) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+      });
+    }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
+    for (var j = 0; j < targets.length; j++) { targets[j].classList.add('rv'); io.observe(targets[j]); }
+  }
+})();
+</script>
+</body>
+</html>

@@ -923,6 +923,10 @@ public final class AppState {
         listIssues[SavedList.Seed.issues] = SampleData.issues()
 
         pullRequestDetails["pr-482"] = .loaded(SampleData.detail())
+        // Both ends of the family: the epic with children under it, and
+        // the far commoner case of an issue that is somebody's sub-task.
+        issueDetails["i-615"] = .loaded(SampleData.epicDetail())
+        issueDetails["i-611"] = .loaded(SampleData.childDetail())
         // Through the same ordering the service applies, so the sample
         // shows the order a real review would and not the order these
         // happen to be written in.
