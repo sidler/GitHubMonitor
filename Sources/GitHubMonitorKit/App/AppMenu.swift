@@ -368,6 +368,7 @@ private final class ActionItem: NSMenuItem, NSMenuItemValidation {
 /// with it.
 enum AboutPanel {
     static let repository = "https://github.com/sidler/GitHubMonitor"
+    static let page = "https://sidler.github.io/GitHubMonitor/"
 
     static func options() -> [NSApplication.AboutPanelOptionKey: Any] {
         [
@@ -391,6 +392,12 @@ enum AboutPanel {
         // The licence and the copyright come from the bundle, which the
         // panel prints under this of its own accord -- saying either here
         // as well put the same sentence on screen twice.
+        // Two places, because they answer different questions: the page is
+        // for somebody deciding whether to keep the app, the repository for
+        // somebody who already has.
+        body.append(line("What it does", size: 11))
+        body.append(link(page))
+        body.append(line("", size: 5))
         body.append(line("Source at", size: 11))
         body.append(link(repository))
 

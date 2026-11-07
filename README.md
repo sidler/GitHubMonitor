@@ -6,11 +6,12 @@ lets you do most of the reviewing without leaving it.
 The counts live in the menu bar. A popover gives a short overview; a separate
 window gives the full lists, the diffs, the charts and the settings.
 
-![A tour: the lists, a pull request, its diff, and a remark being written](Docs/screenshots/tour.gif)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="Docs/screenshots/dark/tour.gif">
+  <img alt="A tour: the lists and a row's detail pane, a review in its own window, the patch in two columns, a remark being written, the label picker, and the charts" src="Docs/screenshots/light/tour.gif">
+</picture>
 
-The project page is at <https://sidler.github.io/GitHubMonitor/> — one page,
-built from `index.html` in this repository and served by GitHub Pages from the
-default branch's root.
+The project page is at <https://sidler.github.io/GitHubMonitor/>.
 
 ## In short
 
