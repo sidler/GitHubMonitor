@@ -1,17 +1,18 @@
 ---
 name: release
-description: "Cut a release of GitHub Monitor: version the bundle, move the changelog, sign and notarise with a Developer ID, publish the GitHub release and update the Homebrew cask. Use when asked to release, ship, publish or tag a version of this app, or to update the brew cask after one. Not for ordinary builds — `make bundle` and `make install` need none of this."
+description: "Cut a release of GitHub Monitor: version the bundle and the project page, move the changelog, sign and notarise with a Developer ID, publish the GitHub release and update the Homebrew cask. Use when asked to release, ship, publish or tag a version of this app, or to update the brew cask after one. Not for ordinary builds — `make bundle` and `make install` need none of this."
 ---
 
 ## What a release is here
 
-Five things have to end up agreeing with each other, and a release is
-finished only when all five do:
+Six things have to end up agreeing with each other, and a release is
+finished only when all six do:
 
 | | |
 |---|---|
 | `Resources/Info.plist` | `CFBundleShortVersionString` |
 | `CHANGELOG.md` | a `## <version>` section, newest first |
+| `index.html` | the version in the hero's eyebrow |
 | the git tag | `v<version>` |
 | the GitHub release | `GitHub Monitor <version>`, with the zip attached |
 | the cask | `version` and `sha256` in `sidler/homebrew-tap` |
@@ -42,7 +43,7 @@ Three things must already be true, and none can be arranged from here:
 
 ## The steps
 
-### 1. Version the bundle
+### 1. Version the bundle and the page
 
 Set `CFBundleShortVersionString` in `Resources/Info.plist`.
 
@@ -50,6 +51,19 @@ Leave `CFBundleVersion` alone. `Scripts/assemble-bundle.sh` overwrites it
 at build time with `git rev-list --count HEAD`, so it rises on its own and
 a hand-edited value is thrown away. It does mean **the build must be made
 after the version commit**, or the number belongs to the previous state.
+
+The project page names the version too, in the hero's eyebrow at the top
+of `index.html`:
+
+```html
+<span class="eyebrow"><span class="dot-live"></span> <b>v2.8</b> · native macOS · MIT licensed</span>
+```
+
+It is written short — `v2.8`, not `v2.8.0` — so a patch release often
+leaves it as it stands. Read it and decide; do not assume either way. The
+page is served by GitHub Pages from the default branch's root, so the new
+number is live as soon as the version commit is pushed and there is
+nothing further to deploy.
 
 ### 2. Move the changelog
 
@@ -81,7 +95,8 @@ could not be found` is that, not a broken test.
 
 ### 4. Commit and tag
 
-Commit the version, the changelog and the test together. Then tag:
+Commit the version, the page, the changelog and the test together. Then
+tag:
 
 ```bash
 git tag -a v<version> -m "GitHub Monitor <version>"
@@ -158,7 +173,7 @@ version of this skill. If a step here changes, it changes there too.
 
 ## Reporting back
 
-Say plainly which of the five things above are done and which are not, and
+Say plainly which of the six things above are done and which are not, and
 give the release URL. If notarisation or the cask push did not happen, say
 so — a release that is 80% done and described as done is worse than one
 that is 80% done and described as 80% done.
