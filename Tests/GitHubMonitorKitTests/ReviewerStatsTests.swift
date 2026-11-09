@@ -348,30 +348,32 @@ struct ReviewerStatsLoadingTests {
     }
 
     /// The view opens as soon as the window does, which can be before the
-    /// token has been read out of the keychain. That first attempt fails
-    /// with "No GitHub token configured", and the view asks again the
-    /// moment the token arrives -- so the second ask has to actually run.
+    /// token has been read out of the keychain. Asked then, the figures
+    /// are not yet known -- which is a different thing from a read that
+    /// failed, and is what the dashboard beside them has always said.
     ///
-    /// It did not. A finished task is not a cancelled one, so the guard
-    /// against starting the same read twice matched a read that had
-    /// already failed and handed back its failure instead, leaving the
-    /// table stuck until the repository was changed or the button pressed.
-    @Test("A read that failed is tried again, not handed back")
+    /// Recording it as a failure is what made the second part of this
+    /// necessary: the view asks again the moment the token arrives, and
+    /// that ask has to actually run. It did not, because a finished task
+    /// is not a cancelled one and the guard against reading the same thing
+    /// twice matched a read that had already finished, handing back its
+    /// answer instead of trying again.
+    @Test("No token yet is not a failure, and the next ask still runs")
     func retriesAfterFailure() async {
         let (state, controller) = makeController()
 
         await controller.loadReviewerStats()
-        guard case .failed = state.reviewerStats else {
-            Issue.record("expected the first read to fail without a token")
+        guard case .unconfigured = state.reviewerStats else {
+            Issue.record("a missing token should leave the figures unconfigured")
             return
         }
 
-        // Anything but `.failed`, so a second read that actually runs is
-        // telling apart from one that returned the first read's answer.
-        state.reviewerStats = .unconfigured
+        // Anything the load would overwrite, so a second read that really
+        // runs is telling apart from one that returned the first answer.
+        state.reviewerStats = .failed("stale")
         await controller.loadReviewerStats()
 
-        guard case .failed = state.reviewerStats else {
+        guard case .unconfigured = state.reviewerStats else {
             Issue.record("the second read never ran")
             return
         }

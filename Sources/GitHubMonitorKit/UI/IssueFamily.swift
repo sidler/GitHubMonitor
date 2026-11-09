@@ -99,11 +99,15 @@ struct SubIssueSection: View {
                     .buttonStyle(.link)
                     .font(.caption)
                     .padding(.vertical, 3)
-            } else if detail.unlistedSubIssues > 0 {
-                // A list cut at the query's limit is a different thing from
-                // one folded here, and it cannot be unfolded -- the rows
-                // were never fetched. It has to say so, or it reads as the
-                // whole of a shorter issue.
+            }
+
+            // Beside the fold rather than instead of it. A list cut at the
+            // query's limit is a different thing from one folded here, and
+            // it cannot be unfolded -- the rows were never fetched. Behind
+            // an `else` it stayed hidden for exactly the issues that have
+            // both, which are the ones where the count in the heading and
+            // the rows on screen differ most.
+            if detail.unlistedSubIssues > 0 {
                 Text("\(detail.unlistedSubIssues) more not listed")
                     .font(.caption)
                     .foregroundStyle(.secondary)

@@ -31,81 +31,15 @@ struct PullRequestRow: View {
                     .lineLimit(compact ? 1 : 2)
 
                 HStack(spacing: 8) {
-                    // verbatim: a pull request number is an identifier, not a
-                    // quantity. SwiftUI's localized interpolation renders
-                    // 35442 as "35.442" on a German system.
-                    Text(verbatim: "\(item.repository) #\(item.number)")
-                    Text("by \(item.author)")
-                    // Coloured by how long the review has been waiting,
-                    // so the date answers two questions at once: when
-                    // something last moved, and whether it is on you.
-                    Text(timestamp)
-                        .foregroundStyle(age?.tint ?? Color.rowDetail)
-                        .help(waitingHelp)
-
-                    // A step larger than the caption text around them: at
-                    // caption size the review and check results are the first
-                    // thing a reviewer looks for and the hardest to pick out.
-                    Label(item.reviewDecision.label, systemImage: item.reviewDecision.symbolName)
-                        .labelStyle(.iconOnly)
-                        .font(.body)
-                        .foregroundStyle(item.reviewDecision.tint)
-                        .help(item.reviewDecision.label)
-
-                    Label(item.checks.label, systemImage: item.checks.symbolName)
-                        .labelStyle(.iconOnly)
-                        .font(.body)
-                        .foregroundStyle(item.checks.tint)
-                        .help(item.checks.label)
-
-                    // Only the conflict. Beside the checks, because it
-                    // answers the same question they do: whether this can go
-                    // in as it stands. A symbol on every row that merges
-                    // cleanly would be a column reporting the normal case,
-                    // and the two rows that are not normal would be harder
-                    // to find for it, not easier. The pane says it either
-                    // way, where there is one pull request and room for a
-                    // sentence.
-                    if item.mergeStatus == .conflicting {
-                        Label(item.mergeStatus.label, systemImage: item.mergeStatus.symbolName)
-                            .labelStyle(.iconOnly)
-                            .font(.body)
-                            .foregroundStyle(item.mergeStatus.tint)
-                            .help(item.mergeStatus.label)
-                    }
-
-                    // How far the review has got. The decision symbol before
-                    // it says what the pull request still needs; these say
-                    // how many people it is waiting on, which is the
-                    // difference between nearly done and not started.
-                    ForEach(item.reviews.entries, id: \.kind) { entry in
-                        HStack(spacing: 2) {
-                            Image(systemName: entry.kind.symbolName)
-                                .font(.body)
-                            Text(verbatim: "\(entry.count)")
-                                .monospacedDigit()
-                        }
-                        .foregroundStyle(entry.kind.tint)
-                        .help(entry.kind.sentence(count: entry.count))
-                    }
-
-                    // Next to the status symbols rather than before the
-                    // title: it is a state of the pull request, like the
-                    // review and check results beside it.
-                    if item.isDraft {
-                        DraftBadge()
-                    }
-
-                    // Last of the status marks, because it is the only
-                    // one that answers a question about something other
-                    // than this row.
-                    if let linked {
-                        LinkBadge(
-                            context: linked,
-                            links: linked.state.links(of: item).filter { $0.kind == .closes },
-                            unshown: linked.state.unshownLinks(of: item)
-                        )
-                    }
+                    identity
+                        // Everything that says which pull request this is
+                        // and where it stands holds its width; the labels
+                        // beside it are what gives way. Said with a raised
+                        // priority rather than a lowered one: zero is the
+                        // default, so marking only the labels said nothing
+                        // at all and a narrow column truncated the
+                        // repository and the author instead.
+                        .layoutPriority(2)
 
                     // The labels are pushed to the far end rather than
                     // added after the symbols. The symbols are a fixed set
@@ -116,9 +50,6 @@ struct PullRequestRow: View {
                     Spacer(minLength: 6)
 
                     labelStrip
-                        // The first thing to give way when the column is
-                        // narrow: everything to its left says which pull
-                        // request this is and where it stands.
                         .layoutPriority(0)
                 }
                 .font(.caption)
@@ -142,6 +73,88 @@ struct PullRequestRow: View {
         // the click the list needs to change that selection -- which would
         // take the keyboard's place in the list away with it.
         .modifier(OpenOnTap(url: item.url, enabled: inspect == nil))
+    }
+
+    /// Which pull request this is and where it stands: the part that is
+    /// read by following the words along, and that holds its width.
+    private var identity: some View {
+        HStack(spacing: 8) {
+            // verbatim: a pull request number is an identifier, not a
+            // quantity. SwiftUI's localized interpolation renders
+            // 35442 as "35.442" on a German system.
+            Text(verbatim: "\(item.repository) #\(item.number)")
+            Text("by \(item.author)")
+            // Coloured by how long the review has been waiting,
+            // so the date answers two questions at once: when
+            // something last moved, and whether it is on you.
+            Text(timestamp)
+                .foregroundStyle(age?.tint ?? Color.rowDetail)
+                .help(waitingHelp)
+
+            // A step larger than the caption text around them: at
+            // caption size the review and check results are the first
+            // thing a reviewer looks for and the hardest to pick out.
+            Label(item.reviewDecision.label, systemImage: item.reviewDecision.symbolName)
+                .labelStyle(.iconOnly)
+                .font(.body)
+                .foregroundStyle(item.reviewDecision.tint)
+                .help(item.reviewDecision.label)
+
+            Label(item.checks.label, systemImage: item.checks.symbolName)
+                .labelStyle(.iconOnly)
+                .font(.body)
+                .foregroundStyle(item.checks.tint)
+                .help(item.checks.label)
+
+            // Only the conflict. Beside the checks, because it
+            // answers the same question they do: whether this can go
+            // in as it stands. A symbol on every row that merges
+            // cleanly would be a column reporting the normal case,
+            // and the two rows that are not normal would be harder
+            // to find for it, not easier. The pane says it either
+            // way, where there is one pull request and room for a
+            // sentence.
+            if item.mergeStatus == .conflicting {
+                Label(item.mergeStatus.label, systemImage: item.mergeStatus.symbolName)
+                    .labelStyle(.iconOnly)
+                    .font(.body)
+                    .foregroundStyle(item.mergeStatus.tint)
+                    .help(item.mergeStatus.label)
+            }
+
+            // How far the review has got. The decision symbol before
+            // it says what the pull request still needs; these say
+            // how many people it is waiting on, which is the
+            // difference between nearly done and not started.
+            ForEach(item.reviews.entries, id: \.kind) { entry in
+                HStack(spacing: 2) {
+                    Image(systemName: entry.kind.symbolName)
+                        .font(.body)
+                    Text(verbatim: "\(entry.count)")
+                        .monospacedDigit()
+                }
+                .foregroundStyle(entry.kind.tint)
+                .help(entry.kind.sentence(count: entry.count))
+            }
+
+            // Next to the status symbols rather than before the
+            // title: it is a state of the pull request, like the
+            // review and check results beside it.
+            if item.isDraft {
+                DraftBadge()
+            }
+
+            // Last of the status marks, because it is the only
+            // one that answers a question about something other
+            // than this row.
+            if let linked {
+                LinkBadge(
+                    context: linked,
+                    links: linked.state.links(of: item).filter { $0.kind == .closes },
+                    unshown: linked.state.unshownLinks(of: item)
+                )
+            }
+        }
     }
 
     /// What it is tagged with, pressable where there is a list to narrow.

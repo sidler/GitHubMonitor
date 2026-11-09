@@ -667,12 +667,20 @@ public struct GitHubService: Sendable {
     /// everything that was created and closed inside the stretch -- which,
     /// in a busy repository, is most of it.
     public func backlog(
-        matching query: String
-    ) async throws -> (items: [BacklogPullRequest], total: Int, remainingQuota: Int?) {
+        matching query: String,
+        quotaFloor: Int
+    ) async throws -> (
+        items: [BacklogPullRequest], total: Int, remainingQuota: Int?, ranOut: Bool
+    ) {
         var found: [BacklogPullRequest] = []
         var cursor: String?
         var total: Int?
         var remaining: Int?
+        var ranOut = false
+        // GitHub answers nothing past its thousandth result, so a loop
+        // that keeps asking is asking for pages that cannot come.
+        let pageLimit = BacklogQuery.searchCap / BacklogQuery.pageSize
+        var pages = 0
 
         repeat {
             let payload = try await client.graphQL(
@@ -684,9 +692,21 @@ public struct GitHubService: Sendable {
             total = total ?? BacklogQuery.total(from: payload)
             remaining = page.remainingQuota
             cursor = page.cursor
+            pages += 1
+
+            // A floor, like the reviewer figures beside it. This query is
+            // the one read in the trends load that is not bounded by a
+            // period -- it covers a repository's whole standing backlog --
+            // so ten pages of it can run the hour's budget down while the
+            // check between periods waits its turn.
+            if pages >= pageLimit { break }
+            if let remaining, remaining < quotaFloor, cursor != nil {
+                ranOut = true
+                break
+            }
         } while cursor != nil
 
-        return (found, total ?? found.count, remaining)
+        return (found, total ?? found.count, remaining, ranOut)
     }
 
     /// One person's pull requests from one period, with what was said on

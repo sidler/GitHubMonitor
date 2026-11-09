@@ -426,3 +426,78 @@ struct LabelFilterStateTests {
         #expect(app.labelFilter == nil)
     }
 }
+
+/// What the filters reach beyond the rows themselves.
+@Suite("What a narrowed list narrows")
+@MainActor
+struct NarrowedListReachTests {
+    private func label(_ name: String) -> IssueLabel {
+        IssueLabel(id: "L_\(name)", name: name, color: "d73a4a")
+    }
+
+    private func issue(_ id: String, labels: [String], comments: Int = 0) -> IssueItem {
+        IssueItem(
+            id: id, number: Int(id) ?? 1, title: "t", repository: "octo/platform", author: "a",
+            authorAvatarURL: nil, url: URL(string: "https://github.com")!,
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000 + (Double(id) ?? 0)),
+            comments: comments, labels: labels.map(label)
+        )
+    }
+
+    private func state() -> (AppState, SavedList) {
+        let state = AppState(settings: Settings(store: TestDefaults.make()))
+        let list = SavedList(id: "a", title: "A", query: "is:issue", content: .issues)
+        // Registered, not just referenced: `inspectableIssues` resolves the
+        // selection back to a saved list, which is the whole path under
+        // test here.
+        state.settings.savedLists = [list]
+        state.listIssues[list.id] = [
+            issue("1", labels: ["iks"]),
+            issue("2", labels: ["bug"], comments: 4),
+            issue("3", labels: ["bug"], comments: 7),
+        ]
+        state.sidebarSelection = .list(id: list.id, repository: nil)
+        return (state, list)
+    }
+
+    /// The menu items and their key equivalents walk `inspectableIssues`,
+    /// while the column draws `shownIssues`. Built from the unnarrowed
+    /// list, Next stepped onto a row drawn nowhere: the pane described an
+    /// invisible issue and the list's selection had nothing to land on.
+    @Test("Next and Previous walk only what is on screen")
+    func navigationFollowsTheFilter() {
+        let (app, list) = state()
+        app.labelFilter = label("bug")
+
+        #expect(app.shownIssues(in: list).count == 2)
+        #expect(app.inspectableIssues.map(\.id).sorted() == ["2", "3"])
+    }
+
+    /// The legend has to stand outside its own filter, or pressing a
+    /// symbol would leave one entry and no way back. It does not stand
+    /// outside the others: counted over the whole list it reported rows
+    /// the label filter had already taken away, and pressing that count
+    /// led to an empty list.
+    @Test("The legend counts the rows the label filter left")
+    func legendFollowsTheLabelFilter() {
+        let (app, list) = state()
+
+        // Unnarrowed, two issues have been commented on.
+        #expect(IssueLegend.symbols(for: app.issueLegendBase(in: list)).contains(.comments))
+
+        app.labelFilter = label("iks")
+        // The one issue tagged iks has no comments, so the symbol goes.
+        #expect(IssueLegend.symbols(for: app.issueLegendBase(in: list)).contains(.comments) == false)
+    }
+
+    /// Pressing a symbol must still leave the legend whole, which is the
+    /// reason the two were ever apart.
+    @Test("The legend still stands outside its own filter")
+    func legendIgnoresItsOwnFilter() {
+        let (app, list) = state()
+        app.legendFilter = .comments
+
+        #expect(app.shownIssues(in: list).count == 2)
+        #expect(app.issueLegendBase(in: list).count == 3)
+    }
+}

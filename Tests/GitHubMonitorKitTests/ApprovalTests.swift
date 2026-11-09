@@ -11,6 +11,50 @@ struct ApprovalTests {
         ApprovalQuery.HeadState(commit: commit, isMerged: merged, isClosed: closed)
     }
 
+    /// The copy is rebuilt field by field, so every field added to the type
+
+    /// has to be remembered here. `labels` was not, and the row lost its
+
+    /// chips the moment its author approved it -- and dropped out of a list
+
+    /// narrowed by one of them, re-stripped on every refresh for the whole
+
+    /// approval grace.
+
+    @Test("Counting an approval keeps everything else about the row")
+
+    func keepsTheRestOfTheRow() {
+
+        let before = PullRequestItem(
+
+            id: "1", number: 7, title: "t", repository: "octo/platform", author: "a",
+
+            authorAvatarURL: nil, url: URL(string: "https://github.com")!, isDraft: false,
+
+            updatedAt: .now, reviewDecision: .reviewRequired, checks: .none,
+
+            mergeStatus: .unknown, reviews: .none,
+
+            labels: [IssueLabel(id: "L_1", name: "iks", color: "0e8a16")]
+
+        )
+
+    
+
+        let after = before.countingViewerApproval()
+
+    
+
+        #expect(after.labels.map(\.name) == ["iks"])
+
+        #expect(after.title == before.title)
+
+        #expect(after.repository == before.repository)
+
+    }
+
+    
+
     @Test("The same commit is no reason to stop")
     func unchanged() {
         #expect(ApprovalQuery.refusal(comparing: head(read), against: read) == nil)

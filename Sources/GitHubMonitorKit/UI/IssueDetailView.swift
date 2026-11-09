@@ -95,6 +95,11 @@ struct IssueDetailView: View {
                     childRepository: item.repository,
                     linked: linked
                 )
+                // Its own identity per issue, like the section below:
+                // the preview popover lives in a `@StateObject` inside
+                // it, and without this it stays open across a move to
+                // another issue, showing a parent nobody asked for.
+                .id(item.id)
             }
 
             // Above the labels rather than below: the pull request that

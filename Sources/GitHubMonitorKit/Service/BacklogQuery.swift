@@ -25,8 +25,39 @@ public enum BacklogQuery {
     /// right way round, since every answer is checked against its own dates
     /// before it is counted.
     public static func query(repository: String, period: DateInterval) -> String {
-        let range = TrendQuery.range(period)
-        return "repo:\(repository) is:pr created:\(range) -closed:\(range)"
+        // A day on either side, because the two sides of this are not
+        // measured the same way. `TrendQuery.range` writes bare days in the
+        // reader's own time zone and GitHub reads a bare day as UTC, while
+        // the counting below asks about `period.end` to the second. East of
+        // UTC the two windows disagree by the offset at the start, west of
+        // it at the end, and the pull requests in that gap were simply
+        // absent from the period's bar.
+        //
+        // Asking for too much is safe and asking for too little is not:
+        // every answer is checked against its own timestamps before it is
+        // counted, and the set is keyed by id, so an extra day of overlap
+        // between periods costs nothing but the rows.
+        let wanted = TrendQuery.range(padded(period, byDays: 1) ?? period)
+
+        // The pull requests created and closed inside the same period were
+        // never open at a boundary, and in a busy repository they are most
+        // of what was created -- but the exclusion has to err the other
+        // way, so it is narrowed by a day rather than widened. A period too
+        // short to narrow simply does not use it.
+        guard let inner = padded(period, byDays: -1) else {
+            return "repo:\(repository) is:pr created:\(wanted)"
+        }
+        return "repo:\(repository) is:pr created:\(wanted) -closed:\(TrendQuery.range(inner))"
+    }
+
+    /// The period with each end moved out (or in, for a negative count) by
+    /// whole days. Nil where moving the ends in would leave nothing.
+    static func padded(_ period: DateInterval, byDays days: Int) -> DateInterval? {
+        let day: TimeInterval = 86_400
+        let start = period.start.addingTimeInterval(-Double(days) * day)
+        let end = period.end.addingTimeInterval(Double(days) * day)
+        guard end > start else { return nil }
+        return DateInterval(start: start, end: end)
     }
 
     /// Everything that was already open when the first period began.
@@ -36,8 +67,12 @@ public enum BacklogQuery {
     /// that have been sitting there since before the chart starts -- would
     /// appear to grow out of nothing.
     public static func openingQuery(repository: String, before: Date) -> String {
-        let day = TrendQuery.day.string(from: before)
-        return "repo:\(repository) is:pr created:<\(day) -closed:<\(day)"
+        // A day later than the window starts, for the same reason the
+        // per-period range is padded: too many is harmless, too few is a
+        // bar that is quietly short.
+        let day = TrendQuery.day.string(from: before.addingTimeInterval(86_400))
+        let inner = TrendQuery.day.string(from: before.addingTimeInterval(-86_400))
+        return "repo:\(repository) is:pr created:<\(day) -closed:<\(inner)"
     }
 
     /// GitHub's search hands back a thousand results and says nothing when
@@ -45,10 +80,17 @@ public enum BacklogQuery {
     /// A count drawn from it has to notice.
     public static let searchCap = 1000
 
-    /// Twenty is far past what any pull request collects: going back and
-    /// forth between draft and ready more than a handful of times is not
-    /// something that happens.
-    static let draftEvents = 20
+    /// How many moves of either kind are read back.
+    ///
+    /// Far past what any pull request collects: going back and forth
+    /// between draft and ready, or between open and closed, more than a
+    /// handful of times is not something that happens. Where one does, it
+    /// is the *recent* end that has to be right -- the newest bars are the
+    /// ones anybody reads -- which is why these are asked for with `last:`
+    /// rather than `first:`. Asked the other way round, a pull request with
+    /// more moves than this had its state decided by an event from months
+    /// ago while the truth sat unread in `isDraft`.
+    static let events = 30
 
     public static let document = """
     query($query: String!, $cursor: String) {
@@ -63,14 +105,25 @@ public enum BacklogQuery {
             closedAt
             isDraft
             author { __typename }
+            # Closing included: `closedAt` is set back to null when a pull
+            # request is reopened, so it is the only record that the
+            # closed stretch ever happened. A merge files a ClosedEvent
+            # beside its MergedEvent, so this one type covers both.
             timelineItems(
-              itemTypes: [READY_FOR_REVIEW_EVENT, CONVERT_TO_DRAFT_EVENT],
-              first: \(draftEvents)
+              itemTypes: [
+                READY_FOR_REVIEW_EVENT,
+                CONVERT_TO_DRAFT_EVENT,
+                CLOSED_EVENT,
+                REOPENED_EVENT,
+              ],
+              last: \(events)
             ) {
               nodes {
                 __typename
                 ... on ReadyForReviewEvent { createdAt }
                 ... on ConvertToDraftEvent { createdAt }
+                ... on ClosedEvent { createdAt }
+                ... on ReopenedEvent { createdAt }
               }
             }
           }
@@ -104,13 +157,20 @@ public enum BacklogQuery {
         else { return nil }
 
         let timeline = (node["timelineItems"] as? [String: Any])?["nodes"] as? [[String: Any]] ?? []
-        let changes = timeline.compactMap { event -> DraftChange? in
+        let moves = timeline.compactMap { event -> (kind: String, at: Date)? in
             guard
                 let kind = event["__typename"] as? String,
                 let at = GitHubDate.optional(from: event["createdAt"] as? String)
             else { return nil }
-            return DraftChange(at: at, toDraft: kind == "ConvertToDraftEvent")
+            return (kind, at)
         }
+
+        let changes = moves
+            .filter { $0.kind == "ConvertToDraftEvent" || $0.kind == "ReadyForReviewEvent" }
+            .map { DraftChange(at: $0.at, toDraft: $0.kind == "ConvertToDraftEvent") }
+        let closings = moves
+            .filter { $0.kind == "ClosedEvent" || $0.kind == "ReopenedEvent" }
+            .map { CloseChange(at: $0.at, toClosed: $0.kind == "ClosedEvent") }
 
         return BacklogPullRequest(
             key: key,
@@ -118,7 +178,8 @@ public enum BacklogQuery {
             createdAt: createdAt,
             closedAt: GitHubDate.optional(from: node["closedAt"] as? String),
             isDraft: node["isDraft"] as? Bool ?? false,
-            draftChanges: changes
+            draftChanges: changes,
+            closeChanges: closings
         )
     }
 }

@@ -83,7 +83,7 @@ public struct PullRequestItem: Identifiable, Hashable, Sendable, ListedItem {
     /// On the row so the lists can be narrowed by one: a label is how a
     /// team says which piece of work this belongs to, and that was
     /// readable in the issue lists and nowhere else.
-    public let labels: [IssueLabel]
+    public var labels: [IssueLabel]
 
     public init(
         id: String,
@@ -154,8 +154,22 @@ public struct PullRequestItem: Identifiable, Hashable, Sendable, ListedItem {
             reviewRequestedAt: reviewRequestedAt,
             reviews: reviews.countingApproval(replacing: viewerReview?.state),
             links: links,
-            linkedTotal: linkedTotal
+            linkedTotal: linkedTotal,
+            labels: labels
         )
+    }
+
+    /// The same pull request with different labels, for showing a change
+    /// before GitHub has agreed to it.
+    ///
+    /// The row reads the list's copy, so a change written only into the
+    /// detail leaves the chip beside it saying the old thing -- and, with
+    /// the list narrowed by a label, leaves it in or out of that list on
+    /// the strength of it.
+    public func withLabels(_ labels: [IssueLabel]) -> PullRequestItem {
+        var copy = self
+        copy.labels = labels
+        return copy
     }
 
     /// How long the review has been waiting, as of now.

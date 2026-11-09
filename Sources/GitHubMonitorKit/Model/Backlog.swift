@@ -13,6 +13,25 @@ public struct DraftChange: Hashable, Sendable, Codable {
     }
 }
 
+/// One move between open and closed.
+///
+/// A pull request that was closed and opened again keeps no trace of the
+/// closed stretch in `closedAt` -- GitHub sets that field back to null on
+/// a reopen. Replaying the events is the only way to know it was ever
+/// shut. A merge counts as a close: GitHub files a `ClosedEvent` beside
+/// the `MergedEvent`, so one event type covers both.
+public struct CloseChange: Hashable, Sendable, Codable {
+    public let at: Date
+    /// True where this shut the pull request, false where it opened it
+    /// again.
+    public let toClosed: Bool
+
+    public init(at: Date, toClosed: Bool) {
+        self.at = at
+        self.toClosed = toClosed
+    }
+}
+
 /// A pull request as the backlog chart needs it: when it appeared, when it
 /// went away, and when it was a draft.
 ///
@@ -29,8 +48,11 @@ public struct BacklogPullRequest: Hashable, Sendable, Identifiable {
     /// leave it out without another fetch.
     public let isBot: Bool
     public let createdAt: Date
-    /// Nil while it is still open.
+    /// Nil while it is still open -- and also nil for one that was closed
+    /// and opened again, which is what `closeChanges` is for.
     public let closedAt: Date?
+    /// Every move between open and closed, oldest first.
+    public let closeChanges: [CloseChange]
     /// Whether it is a draft now -- the state after the last change below.
     public let isDraft: Bool
     /// Every move between draft and ready, oldest first.
@@ -42,7 +64,8 @@ public struct BacklogPullRequest: Hashable, Sendable, Identifiable {
         createdAt: Date,
         closedAt: Date?,
         isDraft: Bool,
-        draftChanges: [DraftChange] = []
+        draftChanges: [DraftChange] = [],
+        closeChanges: [CloseChange] = []
     ) {
         self.key = key
         self.isBot = isBot
@@ -50,16 +73,31 @@ public struct BacklogPullRequest: Hashable, Sendable, Identifiable {
         self.closedAt = closedAt
         self.isDraft = isDraft
         self.draftChanges = draftChanges.sorted { $0.at < $1.at }
+        self.closeChanges = closeChanges.sorted { $0.at < $1.at }
     }
 
-    /// Open at that moment: created by then and not closed yet.
+    /// Open at that moment.
     ///
-    /// The close is exclusive -- a pull request closed at the stroke of the
-    /// period's end was not part of the backlog it left behind.
+    /// `moment` is a period's end, which is the first instant of the next
+    /// one -- so both ends are measured against it as an exclusive upper
+    /// bound. One created at the stroke of it belongs to the next period,
+    /// and one closed at the stroke of it was open for the whole of this
+    /// one. Measuring them the other way round credited a pull request
+    /// opened and closed on two period boundaries to exactly the two
+    /// periods it was not open in, which scheduled work hits often.
+    ///
+    /// The closing is replayed from the events where there are any,
+    /// because `closedAt` describes only the state now: a pull request
+    /// closed in April and reopened in September carries no `closedAt` at
+    /// all, and taken at face value it reads as having been open since the
+    /// day it was created.
     public func wasOpen(at moment: Date) -> Bool {
-        guard createdAt <= moment else { return false }
+        guard createdAt < moment else { return false }
+        if let last = closeChanges.last(where: { $0.at < moment }) { return !last.toClosed }
+        // Before the first recorded move, or with none recorded: it has
+        // been whatever it is now since it was created.
         guard let closedAt else { return true }
-        return closedAt > moment
+        return closedAt >= moment
     }
 
     /// Draft at that moment, whatever it is now.

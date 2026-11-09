@@ -315,8 +315,10 @@ public final class RefreshController {
     /// where it was while GitHub went ahead and removed it.
     private func labels(of itemID: String, isPullRequest: Bool) -> [IssueLabel] {
         if isPullRequest {
-            guard case .loaded(let detail) = state.pullRequestDetails[itemID] else { return [] }
-            return detail.labels
+            if case .loaded(let detail) = state.pullRequestDetails[itemID], !detail.labels.isEmpty {
+                return detail.labels
+            }
+            return state.allPullRequests.first { $0.id == itemID }?.labels ?? []
         }
         if case .loaded(let detail) = state.issueDetails[itemID], !detail.labels.isEmpty {
             return detail.labels
@@ -332,8 +334,12 @@ public final class RefreshController {
     /// said nothing at all where the detail had not arrived yet.
     private func apply(_ labels: [IssueLabel], to itemID: String, isPullRequest: Bool) {
         if isPullRequest {
-            guard case .loaded(let detail) = state.pullRequestDetails[itemID] else { return }
-            state.pullRequestDetails[itemID] = .loaded(detail.withLabels(labels))
+            if case .loaded(let detail) = state.pullRequestDetails[itemID] {
+                state.pullRequestDetails[itemID] = .loaded(detail.withLabels(labels))
+            }
+            state.listPullRequests = state.listPullRequests.mapValues { items in
+                items.map { $0.id == itemID ? $0.withLabels(labels) : $0 }
+            }
             return
         }
         if case .loaded(let detail) = state.issueDetails[itemID] {
@@ -720,7 +726,11 @@ public final class RefreshController {
         }
 
         guard let service else {
-            state.trends = .failed(GitHubError.noToken.localizedDescription)
+            // The token is read asynchronously at launch, so this view can
+            // open before it arrives. Staying unconfigured lets the reload
+            // pick it up, rather than recording a failure that outlives
+            // the cause -- which is what the dashboard already does.
+            state.trends = .unconfigured
             return
         }
 
@@ -740,20 +750,29 @@ public final class RefreshController {
         // out of nothing.
         var standing: [String: BacklogPullRequest] = [:]
         var shortOfBacklog = false
+        var openingQuota: Int?
         if let first = periods.first {
             do {
                 let opening = try await service.backlog(
                     matching: BacklogQuery.openingQuery(
                         repository: repository,
                         before: first.start
-                    )
+                    ),
+                    quotaFloor: Self.quotaFloor
                 )
                 for item in opening.items { standing[item.key] = item }
-                shortOfBacklog = opening.total > BacklogQuery.searchCap
+                shortOfBacklog = opening.total > BacklogQuery.searchCap || opening.ranOut
+                openingQuota = opening.remainingQuota
             } catch {
                 guard !Task.isCancelled else { return }
-                state.trends = .failed(error.localizedDescription)
-                return
+                // One chart's worth of trouble, not six. This read is the
+                // heaviest search the app makes and the only one that is
+                // not bounded by a period, so it is also the likeliest to
+                // fail -- and the five charts beside it need nothing from
+                // it. Carrying on with an empty backlog draws them all and
+                // says which one is short, which is what every other
+                // failure in this function already does.
+                shortOfBacklog = true
             }
         }
 
@@ -777,14 +796,17 @@ public final class RefreshController {
                 // it: the rest were never open at any boundary, and in a
                 // busy repository they are most of what was created.
                 async let survivingTask = service.backlog(
-                    matching: BacklogQuery.query(repository: repository, period: period)
+                    matching: BacklogQuery.query(repository: repository, period: period),
+                    quotaFloor: Self.quotaFloor
                 )
                 let merged = try await mergedTask
                 let opened = try await openedTask
                 let surviving = try await survivingTask
 
                 for item in surviving.items { standing[item.key] = item }
-                if surviving.total > BacklogQuery.searchCap { shortOfBacklog = true }
+                if surviving.total > BacklogQuery.searchCap || surviving.ranOut {
+                    shortOfBacklog = true
+                }
 
                 fresh.buckets.append(
                     TrendMath.bucket(
@@ -806,9 +828,15 @@ public final class RefreshController {
                 // start another period it could not afford.
                 let remainingQuota = [
                     opened.remainingQuota, merged.remainingQuota, surviving.remainingQuota,
+                    // The opening read can be ten pages of the heaviest
+                    // search here. Leaving its reading out meant the loop
+                    // entered the first period with no idea what it had
+                    // already spent.
+                    openingQuota,
                 ]
                     .compactMap { $0 }
                     .min()
+                openingQuota = nil
                 if let remaining = remainingQuota, remaining < Self.quotaFloor {
                     fresh.truncationReason =
                         "Stopped after \(fresh.buckets.count) periods: GitHub's hourly query budget was running low."
@@ -839,10 +867,15 @@ public final class RefreshController {
         // Said rather than drawn short: GitHub's search stops at a thousand
         // results and reports no error for it, so an "open pull requests"
         // line that is quietly missing a slice would look like good news.
-        if shortOfBacklog, fresh.truncationReason == nil {
-            fresh.truncationReason =
+        if shortOfBacklog {
+            // Added to whatever else is there rather than claiming the one
+            // slot. The two are independent, and the case where both apply
+            // is exactly the case where the open-pull-request line is most
+            // wrong -- which, left unsaid, reads as good news.
+            let short =
                 "More open pull requests than GitHub's search will list: the "
                 + "\"Open pull requests\" chart counts fewer than there were."
+            fresh.truncationReason = fresh.truncationReason.map { "\($0) \(short)" } ?? short
         }
         state.trends = .loaded(fresh)
         trendStore.save(fresh)
@@ -895,7 +928,9 @@ public final class RefreshController {
             return
         }
         guard let service else {
-            state.reviewerStats = .failed(GitHubError.noToken.localizedDescription)
+            // Not yet rather than failed, as the dashboard does: the
+            // keychain read may still be in flight when this view opens.
+            state.reviewerStats = .unconfigured
             return
         }
 
@@ -1109,7 +1144,11 @@ public final class RefreshController {
         }
 
         guard let service else {
-            state.repositoryCommenters = .failed(GitHubError.noToken.localizedDescription)
+            // Not yet rather than failed. This one is driven by a
+            // `.task(id:)` that only fires again when its key changes, so
+            // a failure recorded here stood until the reader changed the
+            // resolution or the repository by hand.
+            state.repositoryCommenters = .unconfigured
             return
         }
 

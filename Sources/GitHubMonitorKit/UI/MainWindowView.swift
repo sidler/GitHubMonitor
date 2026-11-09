@@ -413,8 +413,8 @@ struct ContentColumn: View {
     private var legendSymbols: [LegendSymbol] {
         guard let list = state.selectedList else { return [] }
         switch list.content {
-        case .pullRequests: return PullRequestLegend.symbols(for: state.selectedPullRequests(in: list))
-        case .issues: return IssueLegend.symbols(for: state.selectedIssues(in: list))
+        case .pullRequests: return PullRequestLegend.symbols(for: state.legendBase(in: list))
+        case .issues: return IssueLegend.symbols(for: state.issueLegendBase(in: list))
         }
     }
 

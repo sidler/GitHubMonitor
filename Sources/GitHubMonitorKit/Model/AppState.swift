@@ -559,29 +559,40 @@ public final class AppState {
     /// What the list actually draws: the selection, narrowed again by
     /// whichever legend symbol has been pressed.
     ///
-    /// Apart from `selectedPullRequests` because the legend itself is
-    /// built from that one. Built from this, pressing a symbol would
-    /// leave a legend of exactly one entry, and no way back.
+    /// Apart from `legendBase` because the legend itself is built from
+    /// that one. Built from this, pressing a symbol would leave a legend
+    /// of exactly one entry, and no way back.
     public func shownPullRequests(in list: SavedList) -> [PullRequestItem] {
-        var items = selectedPullRequests(in: list)
-        if let legendFilter {
-            items = items.filter { legendFilter.matches($0) }
-        }
-        if let labelFilter {
-            items = items.filter { Self.carries(labelFilter, in: $0.labels) }
-        }
-        return items
+        let items = legendBase(in: list)
+        guard let legendFilter else { return items }
+        return items.filter { legendFilter.matches($0) }
     }
 
     public func shownIssues(in list: SavedList) -> [IssueItem] {
-        var items = selectedIssues(in: list)
-        if let legendFilter {
-            items = items.filter { legendFilter.matches($0) }
-        }
-        if let labelFilter {
-            items = items.filter { Self.carries(labelFilter, in: $0.labels) }
-        }
-        return items
+        let items = issueLegendBase(in: list)
+        guard let legendFilter else { return items }
+        return items.filter { legendFilter.matches($0) }
+    }
+
+    /// What the legend at the bottom of the window counts: everything on
+    /// screen except the legend's own narrowing.
+    ///
+    /// The legend has to stand outside the filter it drives, or pressing a
+    /// symbol would leave one entry and no way back. It does *not* stand
+    /// outside the others: counted over the unnarrowed list, it reported
+    /// four failing checks beside a list the label filter had cut to two
+    /// rows, neither of them failing -- a number that led somewhere the
+    /// list could not go.
+    public func legendBase(in list: SavedList) -> [PullRequestItem] {
+        let items = selectedPullRequests(in: list)
+        guard let labelFilter else { return items }
+        return items.filter { Self.carries(labelFilter, in: $0.labels) }
+    }
+
+    public func issueLegendBase(in list: SavedList) -> [IssueItem] {
+        let items = selectedIssues(in: list)
+        guard let labelFilter else { return items }
+        return items.filter { Self.carries(labelFilter, in: $0.labels) }
     }
 
     /// By name, not by id: two repositories give the same label different
@@ -758,14 +769,14 @@ public final class AppState {
     /// a different order would send the pane somewhere else on screen.
     public var inspectableItems: [PullRequestItem] {
         guard let list = selectedList, list.content == .pullRequests else { return [] }
-        let items = selectedPullRequests(in: list)
+        let items = shownPullRequests(in: list)
         guard list.grouping == .byRepository else { return items }
         return RepositoryGrouping.group(items, by: \.repository).flatMap(\.items)
     }
 
     public var inspectableIssues: [IssueItem] {
         guard let list = selectedList, list.content == .issues else { return [] }
-        let items = selectedIssues(in: list)
+        let items = shownIssues(in: list)
         switch list.grouping {
         case .flat: return items
         case .byRepository:
