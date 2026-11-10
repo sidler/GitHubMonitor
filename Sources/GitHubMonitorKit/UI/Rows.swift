@@ -41,16 +41,24 @@ struct PullRequestRow: View {
                         // repository and the author instead.
                         .layoutPriority(2)
 
-                    // The labels are pushed to the far end rather than
-                    // added after the symbols. The symbols are a fixed set
-                    // read at a glance -- a reviewer looks for the red one
-                    // -- and labels run to any length, so packed in behind
-                    // them they would be what moves the symbols about from
-                    // row to row.
-                    Spacer(minLength: 6)
+                    // No labels in the menu bar panel. It is 380 points
+                    // wide and shows five rows of a list of sixty: what it
+                    // is for is deciding whether to open the window, and
+                    // a tag clipped to a grey sliver at the right-hand
+                    // edge answers nothing while costing the width that
+                    // the title and the repository were using.
+                    if !compact {
+                        // The labels are pushed to the far end rather than
+                        // added after the symbols. The symbols are a fixed
+                        // set read at a glance -- a reviewer looks for the
+                        // red one -- and labels run to any length, so
+                        // packed in behind them they would be what moves
+                        // the symbols about from row to row.
+                        Spacer(minLength: 6)
 
-                    labelStrip
-                        .layoutPriority(0)
+                        labelStrip
+                            .layoutPriority(0)
+                    }
                 }
                 .font(.caption)
                 .foregroundStyle(Color.rowDetail)
@@ -126,15 +134,25 @@ struct PullRequestRow: View {
             // it says what the pull request still needs; these say
             // how many people it is waiting on, which is the
             // difference between nearly done and not started.
-            ForEach(item.reviews.entries, id: \.kind) { entry in
-                HStack(spacing: 2) {
-                    Image(systemName: entry.kind.symbolName)
-                        .font(.body)
-                    Text(verbatim: "\(entry.count)")
-                        .monospacedDigit()
+            //
+            // The window only. Each of these is a symbol and a number,
+            // and three of them on a 380-point row crowded out the
+            // repository and the author -- while the decision symbol
+            // just before them already answers the question the panel
+            // is open for, which is whether this one needs a look. The
+            // detail is a click away in the window, which is what the
+            // panel is a way into.
+            if !compact {
+                ForEach(item.reviews.entries, id: \.kind) { entry in
+                    HStack(spacing: 2) {
+                        Image(systemName: entry.kind.symbolName)
+                            .font(.body)
+                        Text(verbatim: "\(entry.count)")
+                            .monospacedDigit()
+                    }
+                    .foregroundStyle(entry.kind.tint)
+                    .help(entry.kind.sentence(count: entry.count))
                 }
-                .foregroundStyle(entry.kind.tint)
-                .help(entry.kind.sentence(count: entry.count))
             }
 
             // Next to the status symbols rather than before the

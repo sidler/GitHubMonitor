@@ -9,6 +9,8 @@ What changed in each released version. The app shows this file itself, under
   folded, with its labels, its text and a way into the list one click away.
 - **Reviews given and Time to review count only the months they say they
   do** — colleagues who had not reviewed anything in years were being listed.
+- **The menu bar panel's pull request rows are down to what they are read
+  for** — no labels, and no reviewer tallies behind the state symbols.
 
 ## 2.8.0
 
