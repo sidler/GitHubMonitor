@@ -951,7 +951,7 @@ public final class RefreshController {
                     repository: repository,
                     period: period,
                     since: since,
-                    stats: ReviewerStatsMath.summarise(Array(found.values)),
+                    stats: ReviewerStatsMath.summarise(Array(found.values), since: since),
                     pullRequests: found.count,
                     months: (done: done, of: slices.count),
                     truncationReason: truncation

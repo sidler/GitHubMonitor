@@ -201,7 +201,28 @@ public enum IgnoredBand: String, CaseIterable, Sendable {
 /// Works the reviewer figures out of the pull requests they came from.
 public enum ReviewerStatsMath {
     /// Everybody who reviewed or was asked to, with their numbers.
-    public static func summarise(_ pullRequests: [ReviewedPullRequest]) -> [ReviewerStats] {
+    ///
+    /// `since` is the start of the stretch the table is about, and
+    /// everything older than it is dropped. It has to be, because the
+    /// search these pull requests came from cannot be asked the question
+    /// the table asks. There is no qualifier for "reviewed in March", so
+    /// the fetch asks for pull requests *touched* in the window and the
+    /// window is applied here -- and a pull request opened years ago and
+    /// touched last week brings its whole reviewing history with it.
+    /// Left unfiltered, a repository's twelve-month table listed people
+    /// who had not reviewed anything in five years, and a sixth of every
+    /// count on it was older than the window it was labelled with.
+    ///
+    /// Anchored on when each thing happened, which for a wait means when
+    /// it was *asked* rather than when it was answered. A request made
+    /// inside the window can only be answered inside it -- the window
+    /// ends now -- so nothing is lost at that end, while anchoring on the
+    /// answer would let a request from three years ago put a three-year
+    /// wait into this year's median.
+    public static func summarise(
+        _ pullRequests: [ReviewedPullRequest],
+        since: Date
+    ) -> [ReviewerStats] {
         var reviews: [String: Int] = [:]
         var touched: [String: Set<String>] = [:]
         var waits: [String: [TimeInterval]] = [:]
@@ -209,14 +230,14 @@ public enum ReviewerStatsMath {
         var pending: [String: Int] = [:]
 
         for pullRequest in pullRequests {
-            for review in pullRequest.reviews {
+            for review in pullRequest.reviews where review.at >= since {
                 // Not your own. GitHub lets you leave a review on a pull
                 // request you opened, and it is not code you read.
                 guard review.reviewer != pullRequest.author else { continue }
                 reviews[review.reviewer, default: 0] += 1
                 touched[review.reviewer, default: []].insert(pullRequest.key)
             }
-            for (reviewer, answer) in answers(in: pullRequest) {
+            for (reviewer, answer) in answers(in: pullRequest, since: since) {
                 switch answer {
                 case .after(let wait):
                     waits[reviewer, default: []].append(wait)
@@ -267,15 +288,22 @@ public enum ReviewerStatsMath {
     /// as keenly as the first. Each review answers at most one request --
     /// the earliest it could have answered -- so a reviewer who answers
     /// twice has answered two requests and not the same one twice.
-    private static func answers(in pullRequest: ReviewedPullRequest) -> [(String, Answer)] {
+    private static func answers(
+        in pullRequest: ReviewedPullRequest,
+        since: Date
+    ) -> [(String, Answer)] {
         var result: [(String, Answer)] = []
-        let askedOf = Set(pullRequest.requests.map(\.reviewer))
+        let requests = pullRequest.requests.filter { $0.at >= since }
+        let askedOf = Set(requests.map(\.reviewer))
 
         for reviewer in askedOf {
-            let asked = pullRequest.requests
+            let asked = requests
                 .filter { $0.reviewer == reviewer }
                 .map(\.at)
                 .sorted()
+            // The answers are not cut to the window: one of them is only
+            // ever used to settle a request that is, and a request inside
+            // the window has no answer before it.
             var answers = pullRequest.reviews
                 .filter { $0.reviewer == reviewer }
                 .map(\.at)

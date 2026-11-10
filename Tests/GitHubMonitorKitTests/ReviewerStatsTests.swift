@@ -37,9 +37,12 @@ struct ReviewerStatsTests {
     }
 
     private func stats(
-        _ pullRequests: [ReviewedPullRequest], for reviewer: String
+        _ pullRequests: [ReviewedPullRequest],
+        for reviewer: String,
+        since: Date = .distantPast
     ) -> ReviewerStats? {
-        ReviewerStatsMath.summarise(pullRequests).first { $0.reviewer == reviewer }
+        ReviewerStatsMath.summarise(pullRequests, since: since)
+            .first { $0.reviewer == reviewer }
     }
 
     /// Three rounds of comments on one pull request is one pull request
@@ -63,10 +66,13 @@ struct ReviewerStatsTests {
     /// themselves to the top of the ranking.
     @Test("Your own pull requests are not pull requests you reviewed")
     func ownPullRequests() {
-        let found = ReviewerStatsMath.summarise([
-            pullRequest("1", reviewed: [("ada", 0), ("bob", 0)], by: "ada"),
-            pullRequest("2", reviewed: [("ada", 0)], by: "bob"),
-        ])
+        let found = ReviewerStatsMath.summarise(
+            [
+                pullRequest("1", reviewed: [("ada", 0), ("bob", 0)], by: "ada"),
+                pullRequest("2", reviewed: [("ada", 0)], by: "bob"),
+            ],
+            since: .distantPast
+        )
 
         let ada = found.first { $0.reviewer == "ada" }
         #expect(ada?.pullRequests == 1)
@@ -260,13 +266,101 @@ struct ReviewerStatsTests {
         #expect(IgnoredBand.allCases.allSatisfy { !$0.label.isEmpty })
     }
 
+    // MARK: The window
+
+    /// The bug these exist for. There is no search qualifier for "reviewed
+    /// in March", so the fetch asks for pull requests *touched* in the
+    /// window -- and a pull request opened years ago and touched last week
+    /// arrives carrying every review it ever had. A twelve-month table
+    /// listed colleagues who had not reviewed anything in five years.
+    @Test("A review from before the window is not reviewing done in it")
+    func reviewsBeforeTheWindow() {
+        let window = start.addingTimeInterval(10 * day)
+        let found = stats(
+            [
+                pullRequest(
+                    "1",
+                    reviewed: [("ada", 0), ("ada", 11 * day)]
+                )
+            ],
+            for: "ada",
+            since: window
+        )
+
+        #expect(found?.reviews == 1)
+        #expect(found?.pullRequests == 1)
+    }
+
+    /// The symptom as it was reported: somebody whose last review here was
+    /// years ago should not be a row at all.
+    @Test("Somebody who reviewed nothing in the window is not listed")
+    func absentReviewerIsNotListed() {
+        let window = start.addingTimeInterval(10 * day)
+        let found = ReviewerStatsMath.summarise(
+            [
+                pullRequest(
+                    "1",
+                    asked: [("ada", 0), ("bob", 11 * day)],
+                    reviewed: [("ada", hour), ("bob", 12 * day)]
+                )
+            ],
+            since: window
+        )
+
+        #expect(found.map(\.reviewer) == ["bob"])
+    }
+
+    /// A wait belongs to the stretch it was *asked* in. Anchored on the
+    /// answer instead, a request from three years back answered yesterday
+    /// would drop a three-year wait into this year's median.
+    @Test("A wait that began before the window is not this window's wait")
+    func waitsBeforeTheWindow() {
+        let window = start.addingTimeInterval(10 * day)
+        let found = stats(
+            [
+                // Asked long before the window, answered inside it.
+                pullRequest("1", asked: [("ada", 0)], reviewed: [("ada", 11 * day)]),
+                // Asked and answered inside it.
+                pullRequest(
+                    "2",
+                    asked: [("ada", 11 * day)],
+                    reviewed: [("ada", 11 * day + 2 * hour)]
+                ),
+            ],
+            for: "ada",
+            since: window
+        )
+
+        #expect(found?.answered == 1)
+        #expect(found?.median == 2 * hour)
+        // The review itself still counts as reviewing done in the window.
+        #expect(found?.reviews == 2)
+    }
+
+    /// A request left standing on a pull request closed years ago is not
+    /// a question anybody was left waiting on this year.
+    @Test("An unanswered request from before the window is not ignored in it")
+    func ignoredBeforeTheWindow() {
+        let window = start.addingTimeInterval(10 * day)
+        let found = stats(
+            [pullRequest("1", closed: 5 * day, asked: [("ada", 0)])],
+            for: "ada",
+            since: window
+        )
+
+        #expect(found == nil)
+    }
+
     @Test("Busiest first, by pull requests read")
     func volumeOrder() {
         let all = ReviewerStatsMath.byVolume(
-            ReviewerStatsMath.summarise([
-                pullRequest("1", reviewed: [("ada", 0), ("bob", 0)]),
-                pullRequest("2", reviewed: [("ada", 0)]),
-            ])
+            ReviewerStatsMath.summarise(
+                [
+                    pullRequest("1", reviewed: [("ada", 0), ("bob", 0)]),
+                    pullRequest("2", reviewed: [("ada", 0)]),
+                ],
+                since: .distantPast
+            )
         )
 
         #expect(all.map(\.reviewer) == ["ada", "bob"])
@@ -278,12 +372,15 @@ struct ReviewerStatsTests {
     @Test("The speed ranking leaves out anybody with nothing to measure")
     func speedOrder() {
         let all = ReviewerStatsMath.bySpeed(
-            ReviewerStatsMath.summarise([
-                pullRequest("1", asked: [("ada", 0)], reviewed: [("ada", 2 * hour)]),
-                pullRequest("2", asked: [("bob", 0)], reviewed: [("bob", 5 * day)]),
-                // Asked, never answered, pull request closed.
-                pullRequest("3", asked: [("cat", 0)]),
-            ])
+            ReviewerStatsMath.summarise(
+                [
+                    pullRequest("1", asked: [("ada", 0)], reviewed: [("ada", 2 * hour)]),
+                    pullRequest("2", asked: [("bob", 0)], reviewed: [("bob", 5 * day)]),
+                    // Asked, never answered, pull request closed.
+                    pullRequest("3", asked: [("cat", 0)]),
+                ],
+                since: .distantPast
+            )
         )
 
         #expect(all.map(\.reviewer) == ["bob", "ada"])
@@ -295,6 +392,20 @@ struct ReviewerStatsTests {
 @Suite("Asking about a window of reviewing")
 struct ReviewerStatsSlicingTests {
     private let day: TimeInterval = 86_400
+
+    /// Both connections are read from the recent end. A pull request with
+    /// more rounds than fit is an old one still being argued over, and
+    /// `first:` would hand back the thirty oldest -- all of them from
+    /// before the window, with the reviewing that happened this month
+    /// lost.
+    @Test("The rounds are read from the recent end")
+    func recentEnd() {
+        let document = ReviewerStatsQuery.document
+
+        #expect(document.contains("reviews(last: 30)"))
+        #expect(document.contains("timelineItems(last: 30"))
+        #expect(document.contains("reviews(first:") == false)
+    }
 
     @Test("The window is cut into months")
     func months() {

@@ -113,7 +113,13 @@ public enum ReviewerStatsQuery {
             }
             # Including reviews a later push dismissed: the question is
             # when the answer came, not whether it still stands.
-            reviews(first: 30) {
+            #
+            # `last:` because the window is the recent end. A pull request
+            # with more rounds than this is an old one still being argued
+            # over, and asked the other way round it would hand back the
+            # thirty oldest -- every one of them from before the window,
+            # and the reviewing that actually happened this month lost.
+            reviews(last: 30) {
               nodes {
                 submittedAt
                 author { login __typename }

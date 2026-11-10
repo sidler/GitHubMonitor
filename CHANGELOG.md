@@ -3,6 +3,11 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
+## Unreleased
+
+- **Reviews given and Time to review count only the months they say they
+  do** — colleagues who had not reviewed anything in years were being listed.
+
 ## 2.8.0
 
 - **An issue's sub-issues are listed in its detail pane, with how far
