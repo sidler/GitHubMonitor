@@ -52,6 +52,11 @@ struct PullRequestDetailView: View {
                         }
                         .font(.callout)
                     case .loaded(let detail):
+                        // First, in the strip: what a pull request is
+                        // *for* is read before what it changes, and in
+                        // the strip there is no header above this to say
+                        // it. The pane has it under the title already.
+                        if surround == .inspector { linkedItems }
                         branches(detail)
                         changes(detail)
                         description(detail)
@@ -400,6 +405,30 @@ struct PullRequestDetailView: View {
         } else {
             DescriptionSection(source: detail.body)
                 .id(item.id)
+        }
+    }
+
+    /// The issues this pull request answers, each with what it says
+    /// folded under it.
+    ///
+    /// The strip only. Beside the list the same links are chips under the
+    /// title, and a second way of reading the same thing in the same pane
+    /// would be a second thing to learn.
+    @ViewBuilder
+    private var linkedItems: some View {
+        if let linked {
+            let links = linked.state.links(of: item)
+            if !links.isEmpty {
+                Section {
+                    LinkedItemsSection(
+                        context: linked,
+                        links: links,
+                        unshown: linked.state.unshownLinks(of: item)
+                    )
+                } header: {
+                    sectionTitle("Linked")
+                }
+            }
         }
     }
 

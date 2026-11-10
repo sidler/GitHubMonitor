@@ -69,6 +69,21 @@ public struct ItemLink: Hashable, Sendable, Identifiable {
         self.state = state
     }
 
+    /// What GitHub itself recorded first, then numbers read out of text.
+    ///
+    /// For the places that write the links out one under another rather
+    /// than as a row of chips. A sentence saying "as discussed in #4711"
+    /// is an aside, and putting it above the issue the work is actually
+    /// for would be the wrong way round. Within each kind the order it
+    /// arrived in is kept, which `merge` has already made meaningful.
+    ///
+    /// Written out rather than left to a sort on the enum's declaration
+    /// order, for the reason `Kind.stronger` is: reordering the cases
+    /// would otherwise invert this silently.
+    public static func strongestFirst(_ links: [ItemLink]) -> [ItemLink] {
+        links.filter { $0.kind == .closes } + links.filter { $0.kind == .mentions }
+    }
+
     /// Joins several findings into one list without repeating an item.
     ///
     /// Order matters: what is passed first wins the kind and keeps its

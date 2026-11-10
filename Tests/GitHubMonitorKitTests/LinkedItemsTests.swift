@@ -51,6 +51,33 @@ struct LinkedItemsTests {
         )
     }
 
+    /// The strip beside a diff writes the links out one under another, and
+    /// the order is an answer: the issue the work is for belongs above an
+    /// aside saying "as discussed in #4711".
+    @Test("What GitHub recorded comes before what a sentence mentioned")
+    func strongestFirst() {
+        let ordered = ItemLink.strongestFirst([
+            link(10, .mentions),
+            link(20, .closes),
+            link(30, .mentions),
+            link(40, .closes),
+        ])
+
+        #expect(ordered.map(\.reference.number) == [20, 40, 10, 30])
+    }
+
+    @Test("Ordering keeps every link and invents none")
+    func strongestFirstKeepsAll() {
+        let links = [link(10, .mentions), link(20, .closes)]
+
+        #expect(ItemLink.strongestFirst(links).count == links.count)
+        #expect(ItemLink.strongestFirst([]).isEmpty)
+        #expect(
+            ItemLink.strongestFirst([link(7, .closes), link(8, .closes)])
+                .map(\.reference.number) == [7, 8]
+        )
+    }
+
     /// The row knows what GitHub linked; the description adds the rest, and
     /// only once the description is there.
     @Test("Mentions in the description join the row's own links")

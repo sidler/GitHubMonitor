@@ -218,11 +218,54 @@ private struct LinkedSummaryCard: View {
     var showsReveal = true
     let close: () -> Void
 
-
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             header
+            LinkedSummaryDetails(
+                state: state, controller: controller, summary: summary,
+                showsReveal: showsReveal, close: close
+            )
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(nsColor: .quaternaryLabelColor).opacity(0.25), in: RoundedRectangle(cornerRadius: 8))
+    }
 
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Image(systemName: summary.symbolName)
+                .foregroundStyle(summary.state.tint)
+                .help(summary.state.label)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(summary.title)
+                    .font(.callout.weight(.medium))
+                    .lineLimit(3)
+                Text(verbatim: "\(summary.reference.id) \u{00b7} \(summary.state.label)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+}
+
+/// What the summary says, without the card around it.
+///
+/// Its own view because two places want the same facts in different
+/// surroundings: the panel, which draws them on a card, and the strip
+/// beside a diff, where the same thing is a fold under a section heading.
+/// Built once so a field added to one cannot go missing from the other.
+struct LinkedSummaryDetails: View {
+    @Bindable var state: AppState
+    let controller: RefreshController
+    let summary: LinkedSummary
+    /// False for the item the panel is already about: offering to show
+    /// somebody what they are looking at is not an offer.
+    var showsReveal = true
+    let close: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
             if !summary.labels.isEmpty {
                 FlowRow(spacing: 4) {
                     ForEach(summary.labels) { LabelChip(label: $0) }
@@ -249,25 +292,7 @@ private struct LinkedSummaryCard: View {
 
             actions
         }
-        .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(nsColor: .quaternaryLabelColor).opacity(0.25), in: RoundedRectangle(cornerRadius: 8))
-    }
-
-    private var header: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Image(systemName: summary.symbolName)
-                .foregroundStyle(tint)
-                .help(summary.state.label)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(summary.title)
-                    .font(.callout.weight(.medium))
-                    .lineLimit(3)
-                Text(verbatim: "\(summary.reference.id) \u{00b7} \(summary.state.label)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
     }
 
     /// The short facts, chosen by kind: what an issue is judged by is who
@@ -325,9 +350,8 @@ private struct LinkedSummaryCard: View {
         .buttonStyle(.accessoryBar)
         .font(.caption)
     }
-
-    private var tint: Color { summary.state.tint }
 }
+
 
 extension LinkedSummary {
     /// A pull request already on screen, summarised from what is known
@@ -545,6 +569,144 @@ struct LinkChipRow: View {
         .padding(.vertical, 1)
         .background(tint.opacity(0.12), in: Capsule())
         .contentShape(Capsule())
+    }
+}
+
+/// What a pull request answers, written out down the strip beside the
+/// diff being read.
+///
+/// The strip rather than the title bar's panel, which is where this used
+/// to be and only there. A popover is a thing you open, read and put away;
+/// the ticket is what the diff is being read *against*, and wanting it
+/// beside the code for the length of a review is wanting it on the strip.
+/// The panel stays -- it is the way to this from a list row, where there
+/// is no strip.
+struct LinkedItemsSection: View {
+    let context: LinkedPanelContext
+    let links: [ItemLink]
+    var unshown: Int = 0
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(ItemLink.strongestFirst(links)) { link in
+                LinkedItemDisclosure(context: context, link: link)
+            }
+            if unshown > 0 {
+                Text("and \(unshown) more linked on GitHub")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        // One request for all of them, and only for the ones not already
+        // in hand. Asked here rather than when a fold is opened, because
+        // the fold line wants the title -- and a number read out of prose
+        // has none until somebody has looked it up.
+        .task(id: links.map(\.id).joined()) {
+            context.controller.loadLinksIfNeeded(links.map(\.reference))
+        }
+    }
+}
+
+/// One linked item: a line saying which it is, and what it says folded
+/// under that line.
+///
+/// Folded, for the reason the description beside it is: an issue body is
+/// unbounded, and a specification with six headings would push the
+/// branch, the checks and the reviewers off the strip. The fold line
+/// carries the title, so closing it does not lose which issue this is.
+struct LinkedItemDisclosure: View {
+    let context: LinkedPanelContext
+    let link: ItemLink
+
+    @StateObject private var disclosure = Disclosure()
+
+    private var summary: LinkedSummary? {
+        guard case .loaded(let found) = context.state.linkedSummaries[link.reference.id]
+        else { return nil }
+        return found
+    }
+
+    private var state: LinkedSummary.State? { LinkedState.of(link, in: context.state) }
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $disclosure.isExpanded) {
+            content
+                .padding(.top, 6)
+                .padding(.leading, 2)
+        } label: {
+            // A button rather than the bare label, for the reason the
+            // description's fold carries one: on macOS only the triangle
+            // toggles a DisclosureGroup, which leaves the title looking
+            // like a control that does nothing.
+            Button { disclosure.isExpanded.toggle() } label: { fold }
+                .buttonStyle(.plain)
+        }
+    }
+
+    private var fold: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 5) {
+            Image(systemName: symbolName)
+                // Grey while nothing is known: a number read out of a
+                // sentence is a guess until it has been looked up, and
+                // green would be an answer the app does not have.
+                .foregroundStyle(state?.tint ?? Color(nsColor: .tertiaryLabelColor))
+            Text(verbatim: link.reference.id)
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+            if let title = summary?.title ?? link.title {
+                Text(title)
+                    .font(.subheadline)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+            if link.kind == .mentions {
+                Text("mentioned")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+            Spacer(minLength: 0)
+        }
+        .contentShape(Rectangle())
+        .help(state.map { "\(link.reference.id) \u{00b7} \($0.label)" } ?? link.reference.id)
+    }
+
+    /// What it is and where it stands, once that is known; otherwise which
+    /// kind of link it is, which is all there is to go on.
+    private var symbolName: String {
+        guard let summary else { return link.kind == .closes ? "link" : "text.quote" }
+        return summary.symbolName
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch context.state.linkedSummaries[link.reference.id] {
+        case .loaded(let summary):
+            LinkedSummaryDetails(
+                state: context.state,
+                controller: context.controller,
+                summary: summary,
+                // Nothing to put away: this is a fold on a strip, not a
+                // popover, and the strip stays where it is.
+                close: {}
+            )
+        case .loading, nil:
+            HStack(spacing: 7) {
+                ProgressView().controlSize(.small)
+                Text("Loading\u{2026}").font(.caption).foregroundStyle(.secondary)
+            }
+        case .failed(let message):
+            HStack(spacing: 7) {
+                Label(message, systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(Ink.orange)
+                    .lineLimit(2)
+                Button("Try again") { context.controller.reloadLink(link.reference) }
+                    .buttonStyle(.accessoryBar)
+                    .font(.caption)
+            }
+        case .missing:
+            EmptyView()
+        }
     }
 }
 

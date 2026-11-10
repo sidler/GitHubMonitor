@@ -5,6 +5,8 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **The ticket a pull request answers is on the strip beside the diff now**,
+  folded, with its labels, its text and a way into the list one click away.
 - **Reviews given and Time to review count only the months they say they
   do** — colleagues who had not reviewed anything in years were being listed.
 
