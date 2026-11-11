@@ -3,7 +3,7 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
-## Unreleased
+## 2.9.0
 
 - **The ticket a pull request answers is on the strip beside the diff now**,
   folded, with its labels, its text and a way into the list one click away.
