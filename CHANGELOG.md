@@ -3,7 +3,7 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
-## Unreleased
+## 2.9.1
 
 - **The Mentions list shows every unread mention, not just the ones that
   landed in the newest fifty notifications** — on a busy account that was
