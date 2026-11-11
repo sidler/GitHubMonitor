@@ -47,6 +47,11 @@ public final class RefreshController {
     private var nextAccountTask = 0
     /// Passed back as If-Modified-Since so unchanged polls cost no rate limit.
     private var lastModified: String?
+    /// Which shape of the notifications question the cached `lastModified`
+    /// belongs to. Changing the reasons in settings changes what is asked
+    /// for, and a 304 against the old question would hand back the old
+    /// answer for as long as nothing else moved.
+    private var lastNotificationScope: Bool?
     /// GitHub's requested minimum interval, which overrides a shorter setting.
     private var githubPollInterval: TimeInterval?
 
@@ -426,6 +431,7 @@ public final class RefreshController {
         service = nil
         approvedByViewer = [:]
         lastModified = nil
+        lastNotificationScope = nil
 
         state.viewer = nil
         state.hasToken = false
@@ -433,6 +439,7 @@ public final class RefreshController {
         state.listIssues = [:]
         state.listUnread = [:]
         state.notifications = []
+        state.notificationsTruncation = nil
         state.previews = [:]
         state.linkedSummaries = [:]
         state.bodyLinks.clear()
@@ -655,7 +662,19 @@ public final class RefreshController {
                 state.inspectedIssueID = nil
             }
 
-            let fetch = try await service.notifications(since: lastModified)
+            // `participating=true` drops everything the reader is not part
+            // of, which on a busy account is half the stream -- but only
+            // where none of it was wanted. `NotificationQuery` decides.
+            let participating = NotificationQuery.participating(
+                for: state.settings.notificationReasons
+            )
+            if lastNotificationScope != participating {
+                lastModified = nil
+                lastNotificationScope = participating
+            }
+            let fetch = try await service.notifications(
+                since: lastModified, participating: participating
+            )
             guard !Task.isCancelled else { return }
             lastModified = fetch.lastModified
             githubPollInterval = fetch.pollInterval
@@ -664,6 +683,7 @@ public final class RefreshController {
             // point of asking conditionally.
             if let items = fetch.items {
                 state.notifications = items
+                state.notificationsTruncation = fetch.truncation
                 // Drop previews for threads that are gone, so the cache does
                 // not grow for the life of the process.
                 let live = Set(items.map(\.id))

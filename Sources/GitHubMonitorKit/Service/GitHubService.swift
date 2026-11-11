@@ -17,6 +17,9 @@ public struct NotificationFetch: Sendable {
     /// What is left of the REST allowance, which this request reports on
     /// every call including a 304.
     public let budget: RateBudget?
+    /// Set where GitHub still had pages when the walk hit its cap, so a
+    /// list that is short for a reason can say the reason.
+    public var truncation: String?
 }
 
 /// Coordinates the API calls the app makes.
@@ -122,24 +125,36 @@ public struct GitHubService: Sendable {
     /// resulting 304 does not count against the rate limit, which matters at a
     /// one-minute poll interval. The response also carries `X-Poll-Interval`,
     /// the floor GitHub wants respected.
-    public func notifications(since lastModified: String?) async throws -> NotificationFetch {
-        var components = URLComponents(string: "https://api.github.com/notifications")!
-        components.queryItems = [
-            URLQueryItem(name: "all", value: "false"),
-            URLQueryItem(name: "per_page", value: "50"),
-        ]
-
+    /// Every unread thread, not merely the newest page of them.
+    ///
+    /// The stream is in time order and carries every reason mixed
+    /// together, so the mentions somebody is watching for are scattered
+    /// the length of it -- see `NotificationQuery`, which has the
+    /// measurements. One page of it answers "what happened in the last few
+    /// hours" and was being read as "what is waiting for me".
+    ///
+    /// An unchanged first page ends it. GitHub answers 304 when nothing in
+    /// the stream has moved, and nothing having moved means the pages
+    /// behind it have not moved either -- so the ordinary poll still costs
+    /// one request, and the walk is paid for only when there is something
+    /// new to walk.
+    public func notifications(
+        since lastModified: String?,
+        participating: Bool = false
+    ) async throws -> NotificationFetch {
         var headers: [String: String] = [:]
         if let lastModified {
             headers["If-Modified-Since"] = lastModified
         }
 
-        let (data, response) = try await client.get(components.url!, headers: headers)
+        let (data, response) = try await client.get(
+            NotificationQuery.first(participating: participating), headers: headers
+        )
         let pollInterval = (response.value(forHTTPHeaderField: "X-Poll-Interval"))
             .flatMap(TimeInterval.init)
         // The REST allowance is its own, and this is the request that spends
         // most of it -- it runs on every refresh, conditional or not.
-        let budget = GitHubClient.budget(from: response)
+        var budget = GitHubClient.budget(from: response)
 
         guard response.statusCode != 304 else {
             return NotificationFetch(
@@ -150,11 +165,33 @@ public struct GitHubService: Sendable {
             )
         }
 
+        var items = try NotificationParser.notifications(from: data)
+        var next = NotificationQuery.next(from: response.value(forHTTPHeaderField: "Link"))
+        var pages = 1
+        var truncation: String?
+
+        while let url = next {
+            guard pages < NotificationQuery.pageCap else {
+                truncation = NotificationQuery.truncationNote(pages: pages)
+                break
+            }
+            // No `If-Modified-Since` past the first page: it is the first
+            // page that says whether anything moved, and a 304 on a later
+            // one would be a hole in the middle of the list rather than a
+            // saving.
+            let (page, answer) = try await client.get(url)
+            pages += 1
+            budget = GitHubClient.budget(from: answer) ?? budget
+            items += try NotificationParser.notifications(from: page)
+            next = NotificationQuery.next(from: answer.value(forHTTPHeaderField: "Link"))
+        }
+
         return NotificationFetch(
-            items: try NotificationParser.notifications(from: data),
+            items: items,
             lastModified: response.value(forHTTPHeaderField: "Last-Modified") ?? lastModified,
             pollInterval: pollInterval,
-            budget: budget
+            budget: budget,
+            truncation: truncation
         )
     }
 

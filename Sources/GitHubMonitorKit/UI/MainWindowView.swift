@@ -386,6 +386,23 @@ struct ContentColumn: View {
             .padding(.vertical, rowPadding)
         }
         .onExitCommand { controller.closeInspector() }
+        // A list cut short says so. The walk down the notification stream
+        // is capped, and a cap reached without a word is a list that looks
+        // complete and is not.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if let note = state.notificationsTruncation {
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Image(systemName: "exclamationmark.triangle")
+                    Text(note)
+                    Spacer(minLength: 0)
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+                .background(.bar)
+            }
+        }
         .overlay {
             if items.isEmpty {
                 ContentUnavailableView(

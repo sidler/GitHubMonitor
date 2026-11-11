@@ -199,6 +199,9 @@ public final class AppState {
     /// Kept for the run: a summary is opened to answer a question, and
     /// asking GitHub again every time the same panel is opened would spend
     /// the budget on an answer that has not changed.
+    /// Set where the notification walk stopped at its cap, so a short
+    /// list says it is short rather than looking complete.
+    public var notificationsTruncation: String?
     public var linkedSummaries: [String: LinkedSummaryState] = [:]
     /// Numbers read out of descriptions, so a body is parsed once rather
     /// than on every pass a view makes over it.
