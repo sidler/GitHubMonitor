@@ -43,7 +43,7 @@ struct PullRequestDetailView: View {
             }
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: PaneLayout.betweenSections) {
                     switch detail {
                     case .loading, nil:
                         HStack(spacing: 8) {
@@ -272,7 +272,7 @@ struct PullRequestDetailView: View {
     @ViewBuilder
     private func branches(_ detail: PullRequestDetail) -> some View {
         if !detail.headBranch.isEmpty {
-            Section {
+            paneSection {
                 VStack(alignment: .leading, spacing: 5) {
                     // The branch it lands in, said first and said loudly.
                     //
@@ -343,7 +343,7 @@ struct PullRequestDetailView: View {
     }
 
     private func changes(_ detail: PullRequestDetail) -> some View {
-        Section {
+        paneSection {
             // Wrapping rather than a row: five numbers and their captions
             // do not fit the inspector's two hundred and sixty-six
             // points, and an HStack answers that by hyphenating the
@@ -410,7 +410,7 @@ struct PullRequestDetailView: View {
     @ViewBuilder
     private func description(_ detail: PullRequestDetail) -> some View {
         if detail.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            Section {
+            paneSection {
                 Text("This pull request was opened with a title only.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
@@ -436,7 +436,7 @@ struct PullRequestDetailView: View {
         if let linked {
             let links = linked.state.links(of: item)
             if !links.isEmpty {
-                Section {
+                paneSection {
                     LinkedItemsSection(
                         context: linked,
                         links: links,
@@ -455,7 +455,7 @@ struct PullRequestDetailView: View {
     private var changedFiles: some View {
         switch files {
         case .loaded(let files) where !files.isEmpty:
-            Section {
+            paneSection {
                 VStack(alignment: .leading, spacing: 2) {
                     ForEach(files) { file in
                         fileRow(file)
@@ -485,7 +485,7 @@ struct PullRequestDetailView: View {
                 }
             }
         case .loading:
-            Section {
+            paneSection {
                 HStack(spacing: 6) {
                     ProgressView().controlSize(.small)
                     Text("Loading the diff\u{2026}").foregroundStyle(.secondary)
@@ -495,7 +495,7 @@ struct PullRequestDetailView: View {
                 sectionTitle("Files")
             }
         case .failed(let message):
-            Section {
+            paneSection {
                 Label(message, systemImage: "exclamationmark.triangle")
                     .font(.caption)
                     .foregroundStyle(Ink.orange)
@@ -558,7 +558,7 @@ struct PullRequestDetailView: View {
 
     @ViewBuilder
     private func checks(_ detail: PullRequestDetail) -> some View {
-        Section {
+        paneSection {
             if detail.checks.isEmpty {
                 Text("No checks ran on this pull request.")
                     .font(.callout)
@@ -604,7 +604,7 @@ struct PullRequestDetailView: View {
 
     @ViewBuilder
     private func reviewers(_ detail: PullRequestDetail) -> some View {
-        Section {
+        paneSection {
             if detail.reviewers.isEmpty {
                 Text("Nobody has been asked to review yet.")
                     .font(.callout)
@@ -653,6 +653,25 @@ struct PullRequestDetailView: View {
         }
     }
 
+    /// A heading and what it is about, as one group.
+    ///
+    /// A plain `Section` inside a `VStack` is not a group: its header and
+    /// its content are flattened into the stack, so the gap under a
+    /// heading came out the same as the gap between one section and the
+    /// next -- sixteen points either way. That is a pane of headings
+    /// floating between things rather than belonging to them. Here the
+    /// heading sits five points above its own content and the stack's
+    /// sixteen fall only where one section ends and another begins.
+    private func paneSection<Content: View, Header: View>(
+        @ViewBuilder _ content: () -> Content,
+        @ViewBuilder header: () -> Header
+    ) -> some View {
+        VStack(alignment: .leading, spacing: PaneLayout.headingGap) {
+            header()
+            content()
+        }
+    }
+
     private func sectionTitle(_ title: String, trailing: String? = nil) -> some View {
         sectionTitle(title) {
             if let trailing {
@@ -673,7 +692,6 @@ struct PullRequestDetailView: View {
             Spacer()
             trailing()
         }
-        .padding(.bottom, 4)
     }
 
     // The colours for a check and for a review live beside the legend
@@ -706,7 +724,7 @@ struct DescriptionSection: View {
     var body: some View {
         DisclosureGroup(isExpanded: $disclosure.isExpanded) {
             MarkdownText(source: source)
-                .padding(.top, 8)
+                .padding(.top, PaneLayout.headingGap)
         } label: {
             // A button rather than the bare label: on macOS only the
             // triangle toggles a DisclosureGroup, which leaves the word
@@ -841,7 +859,7 @@ struct CommitsSection: View {
 
     var body: some View {
         DisclosureGroup(isExpanded: $disclosure.isExpanded) {
-            content.padding(.top, 6)
+            content.padding(.top, PaneLayout.headingGap)
         } label: {
             // A button rather than the bare label, for the same reason
             // the description has one: on macOS only the triangle

@@ -20,7 +20,7 @@ struct IssueDetailView: View {
             Divider()
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: PaneLayout.betweenSections) {
                     switch detail {
                     case .loading, nil:
                         HStack(spacing: 8) {

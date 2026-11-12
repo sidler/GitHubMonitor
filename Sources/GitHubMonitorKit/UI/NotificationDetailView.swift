@@ -23,7 +23,7 @@ struct NotificationDetailView: View {
             Divider()
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: PaneLayout.betweenSections) {
                     conversation
                     facts
                 }
@@ -216,7 +216,7 @@ struct NotificationDetailView: View {
         trailing: String? = nil,
         @ViewBuilder content: () -> some View
     ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: PaneLayout.headingGap) {
             HStack {
                 Text(title)
                     .font(.subheadline.weight(.semibold))

@@ -119,7 +119,7 @@ struct WorkloadDetailView: View {
     @ViewBuilder
     private func section(_ title: String, items: [PullRequestItem]) -> some View {
         if !items.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: PaneLayout.headingGap) {
                 HStack(spacing: 6) {
                     Text(title)
                         .font(.subheadline.weight(.semibold))

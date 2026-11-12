@@ -26,7 +26,7 @@ struct SubIssueSection: View {
 
     var body: some View {
         if let progress = detail.progress {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: PaneLayout.headingGap) {
                 heading(progress)
                 bar(progress)
                 rows

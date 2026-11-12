@@ -19,7 +19,7 @@ struct ConversationView: View {
 
     var body: some View {
         if !comments.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: PaneLayout.headingGap) {
                 HStack {
                     Text(total == 1 ? "1 comment" : "\(total) comments")
                         .font(.subheadline.weight(.semibold))
