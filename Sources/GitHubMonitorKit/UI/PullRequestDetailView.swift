@@ -52,11 +52,9 @@ struct PullRequestDetailView: View {
                         }
                         .font(.callout)
                     case .loaded(let detail):
-                        // First, in the strip: what a pull request is
-                        // *for* is read before what it changes, and in
-                        // the strip there is no header above this to say
-                        // it. The pane has it under the title already.
-                        if surround == .inspector { linkedItems }
+                        // First: what a pull request is *for* is read
+                        // before what it changes.
+                        linkedItems
                         branches(detail)
                         changes(detail)
                         description(detail)
@@ -154,18 +152,6 @@ struct PullRequestDetailView: View {
             }
             .font(.caption)
             .foregroundStyle(.secondary)
-
-            // Directly under who opened it: what a pull request is for is
-            // read before what it changes. Drawn only when there is one, so
-            // the head of the pane does not grow for the many that have
-            // none.
-            if let linked {
-                LinkChipRow(
-                    context: linked,
-                    links: linked.state.links(of: item),
-                    unshown: linked.state.unshownLinks(of: item)
-                )
-            }
 
             // Only the pane carries these, never the row: a pull request
             // row already says more than an issue row does, and the
@@ -288,22 +274,51 @@ struct PullRequestDetailView: View {
         if !detail.headBranch.isEmpty {
             Section {
                 VStack(alignment: .leading, spacing: 5) {
+                    // The branch it lands in, said first and said loudly.
+                    //
+                    // It used to be the quiet half of "head -> base", in
+                    // secondary grey at the end of a line that truncated
+                    // from the middle -- which is the wrong way round for
+                    // reviewing. Which branch somebody worked on is their
+                    // business; which branch this is about to become part
+                    // of is the question that decides how hard to look,
+                    // and on a repository with a release branch and a
+                    // main branch it is the whole question.
+                    if !detail.baseBranch.isEmpty {
+                        HStack(spacing: 5) {
+                            branchSymbol("arrow.down.to.line")
+                                .foregroundStyle(Ink.purple)
+                            Text("into")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(detail.baseBranch)
+                                .font(.callout.weight(.semibold))
+                                .monospaced()
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .textSelection(.enabled)
+                                .help(detail.baseBranch)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 1)
+                                .background(
+                                    Ink.purple.opacity(0.12), in: Capsule()
+                                )
+                            Spacer(minLength: 0)
+                        }
+                    }
+
                     HStack(spacing: 5) {
                         branchSymbol("arrow.triangle.branch")
+                            .foregroundStyle(.secondary)
+                        Text("from")
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                         Text(detail.headBranch)
                             .lineLimit(1)
                             .truncationMode(.middle)
                             .textSelection(.enabled)
                             .help(detail.headBranch)
-                        if !detail.baseBranch.isEmpty {
-                            Image(systemName: "arrow.right")
-                                .font(.caption2)
-                                .foregroundStyle(.tertiary)
-                            Text(detail.baseBranch)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
+                            .foregroundStyle(.secondary)
                     }
                     .font(.callout)
 
@@ -411,9 +426,11 @@ struct PullRequestDetailView: View {
     /// The issues this pull request answers, each with what it says
     /// folded under it.
     ///
-    /// The strip only. Beside the list the same links are chips under the
-    /// title, and a second way of reading the same thing in the same pane
-    /// would be a second thing to learn.
+    /// Both the strip beside a diff and the pane beside the list, drawn
+    /// the same way in each. The pane used to carry a row of chips under
+    /// the title that opened a popover instead -- two ways of reading the
+    /// same thing, and the one with less in it was the one on the side
+    /// where there is more room.
     @ViewBuilder
     private var linkedItems: some View {
         if let linked {
@@ -614,8 +631,25 @@ struct PullRequestDetailView: View {
                     }
                 }
             }
+
+            // Under the list, where the name it is about has just
+            // appeared.
+            if let writing {
+                ReviewRequestUndoBar(editing: writing, pullRequestID: item.id)
+                    .padding(.top, 7)
+            }
         } header: {
-            sectionTitle("Reviewers")
+            sectionTitle("Reviewers") {
+                // Only where the pane may write at all, and only for a
+                // pull request still open: GitHub refuses a review
+                // request on one that is closed or merged, and a control
+                // that always fails is worse than none.
+                if let writing, item.state == .open {
+                    ReviewerPicker(
+                        editing: writing, item: item, asked: detail.reviewers
+                    )
+                }
+            }
         }
     }
 

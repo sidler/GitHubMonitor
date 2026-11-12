@@ -191,6 +191,101 @@ public final class RefreshController {
         }
     }
 
+    // MARK: - Reviewers
+
+    /// Who may be asked to review this repository, once per filter.
+    public func loadReviewers(for repository: String, matching query: String = "") {
+        let listing = ReviewerListing(repository: repository, query: query)
+        guard state.repositoryReviewers[listing] == nil, let service else { return }
+
+        state.repositoryReviewers[listing] = .loading
+        accountTask { [weak self] in
+            do {
+                let catalogue = try await service.reviewerCandidates(listing)
+                guard let self, !Task.isCancelled else { return }
+                state.repositoryReviewers[listing] = .loaded(catalogue)
+            } catch {
+                guard let self, !Task.isCancelled else { return }
+                state.repositoryReviewers[listing] = .failed(error.localizedDescription)
+            }
+        }
+    }
+
+    /// Asks somebody for a review, and offers the way back.
+    ///
+    /// Sent straight away rather than behind a confirmation. A review
+    /// request is not an approval -- nothing is said in anybody's name
+    /// and no code moves -- but it does put work in front of a colleague,
+    /// which a label never does. So instead of a question before, there
+    /// is a way back after: the pane keeps the request for a few seconds
+    /// and offers to withdraw it.
+    public func requestReview(from candidate: ReviewerCandidate, on item: PullRequestItem) {
+        guard let service else { return }
+
+        state.reviewRequestUndo = ReviewRequestUndo(
+            pullRequestID: item.id,
+            repository: item.repository,
+            number: item.number,
+            login: candidate.login
+        )
+
+        accountTask { [weak self] in
+            do {
+                try await service.requestReview(from: candidate.id, on: item.id)
+                guard let self, !Task.isCancelled else { return }
+                // The pane lists the reviewers from the detail, so the
+                // name only appears once the detail has been read again.
+                reloadDetail(for: item.id)
+                await expireUndo(for: item.id, login: candidate.login)
+            } catch {
+                guard let self, !Task.isCancelled else { return }
+                state.reviewRequestUndo?.failure = error.localizedDescription
+            }
+        }
+    }
+
+    /// Takes the last request back.
+    public func undoReviewRequest() {
+        guard let undo = state.reviewRequestUndo, !undo.isWorking, let service else { return }
+        state.reviewRequestUndo?.isWorking = true
+
+        accountTask { [weak self] in
+            do {
+                try await service.withdrawReviewRequest(
+                    from: undo.login, repository: undo.repository, number: undo.number
+                )
+                guard let self, !Task.isCancelled else { return }
+                state.reviewRequestUndo = nil
+                reloadDetail(for: undo.pullRequestID)
+            } catch {
+                guard let self, !Task.isCancelled else { return }
+                state.reviewRequestUndo?.isWorking = false
+                state.reviewRequestUndo?.failure = error.localizedDescription
+            }
+        }
+    }
+
+    public func dismissReviewRequestUndo() {
+        state.reviewRequestUndo = nil
+    }
+
+    /// Puts the offer away once its window has passed, unless something
+    /// else has happened since.
+    private func expireUndo(for pullRequestID: String, login: String) async {
+        try? await Task.sleep(for: .seconds(ReviewerQuery.undoWindow))
+        guard !Task.isCancelled else { return }
+        guard
+            let undo = state.reviewRequestUndo,
+            undo.pullRequestID == pullRequestID,
+            undo.login == login,
+            // A failure stays on screen: it is news, not an offer, and it
+            // is put away by hand.
+            undo.failure == nil,
+            !undo.isWorking
+        else { return }
+        state.reviewRequestUndo = nil
+    }
+
     // MARK: - Commits
 
     /// Reads a pull request's commits, once.

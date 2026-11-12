@@ -3,6 +3,16 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
+## Unreleased
+
+- **Ask somebody else to review, from either sidebar** — a filtered list of
+  the repository's people, and a few seconds to take it back afterwards.
+- **The branch a pull request lands in is the line you read first**, in
+  plain monospace rather than grey text at the end of the branch it came
+  from.
+- **The issues a pull request answers are in the list's sidebar too**, folded
+  the same way as beside the diff, instead of a row of chips behind a popover.
+
 ## 2.9.1
 
 - **The Mentions list shows every unread mention, not just the ones that

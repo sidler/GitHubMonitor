@@ -202,6 +202,10 @@ public final class AppState {
     /// Set where the notification walk stopped at its cap, so a short
     /// list says it is short rather than looking complete.
     public var notificationsTruncation: String?
+    /// Who may be asked to review, per repository and filter.
+    public var repositoryReviewers: [ReviewerListing: ReviewerCatalogueState] = [:]
+    /// The review request just made, while there is still a way back.
+    public var reviewRequestUndo: ReviewRequestUndo?
     public var linkedSummaries: [String: LinkedSummaryState] = [:]
     /// Numbers read out of descriptions, so a body is parsed once rather
     /// than on every pass a view makes over it.

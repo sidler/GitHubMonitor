@@ -485,6 +485,43 @@ public struct GitHubService: Sendable {
     /// One at a time, which is how it is pressed. Sending the whole set
     /// instead would undo anything somebody else changed while this pane
     /// was open, and a label is not worth a lost-update problem.
+    /// Who may be asked to review this repository's pull requests.
+    public func reviewerCandidates(
+        _ listing: ReviewerListing
+    ) async throws -> ReviewerQuery.Catalogue {
+        guard let variables = ReviewerQuery.variables(for: listing) else {
+            throw GitHubError.decoding("not a repository this app can read")
+        }
+        let payload = try await client.graphQL(ReviewerQuery.document, variables: variables)
+        return try ReviewerQuery.catalogue(from: payload)
+    }
+
+    /// Asks somebody for a review, leaving everybody already asked in
+    /// place.
+    public func requestReview(from userID: String, on pullRequestID: String) async throws {
+        _ = try await client.graphQL(
+            ReviewerQuery.requestDocument,
+            variables: ["id": pullRequestID, "users": [userID]]
+        )
+    }
+
+    /// Takes one review request back, by login, and nobody else's.
+    public func withdrawReviewRequest(
+        from login: String, repository: String, number: Int
+    ) async throws {
+        guard let url = ReviewerQuery.withdrawalURL(repository: repository, number: number)
+        else {
+            throw GitHubError.decoding("not a repository this app can read")
+        }
+        let response = try await client.delete(url, body: ["reviewers": [login]])
+        guard (200..<300).contains(response.statusCode) else {
+            throw GitHubError.http(
+                status: response.statusCode,
+                message: "the review request could not be taken back"
+            )
+        }
+    }
+
     public func setLabel(_ labelID: String, on itemID: String, to wanted: Bool) async throws {
         _ = try await client.graphQL(
             wanted ? LabelQuery.addDocument : LabelQuery.removeDocument,

@@ -188,6 +188,19 @@ public struct GitHubClient: Sendable {
         return next
     }
 
+    /// A DELETE that carries a body, which is how GitHub's REST API takes
+    /// "remove exactly these" -- withdrawing one review request without
+    /// touching anybody else's.
+    public func delete(
+        _ url: URL, body: [String: Any]
+    ) async throws -> HTTPURLResponse {
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        return try await perform(request).1
+    }
+
     public func patch(_ url: URL) async throws -> HTTPURLResponse {
         var request = URLRequest(url: url)
         request.httpMethod = "PATCH"
