@@ -301,6 +301,7 @@ struct ContentColumn: View {
                 sort: list.sort,
                 aging: (state.settings.agingDays, state.settings.overdueDays),
                 inspect: { controller.inspect(item) },
+                review: { controller.openReviews(for: [item.id]) },
                 linked: LinkedPanelContext(state: state, controller: controller),
                 labelFiltering: state.labelFiltering,
                 isInspected: state.inspectedPullRequestID == item.id
@@ -479,6 +480,16 @@ struct ContentColumn: View {
         } ?? "Open this list on GitHub"
     }
 
+    /// What the review button promises, which is a count or an
+    /// explanation of why it is grey.
+    private func reviewHelp(_ count: Int) -> String {
+        switch count {
+        case 0: "Select a pull request to review it"
+        case 1: "Open this pull request for review"
+        case let many: "Open \(many) pull requests for review, one tab each"
+        }
+    }
+
     private var statusBar: some View {
         HStack(spacing: 12) {
             // The same switches as the sidebar: a count for a section that
@@ -520,10 +531,27 @@ struct ContentColumn: View {
             Text(state.statusMessage)
                 .foregroundStyle(state.health.isFailure ? Ink.red : Color(nsColor: .secondaryLabelColor))
 
-            // The same list, in the browser, for the things this app
-            // deliberately does not do: editing the query by hand, bulk
-            // actions, or showing somebody else what you are looking at.
-            if let address = state.shownOnGitHub {
+            // On a list of pull requests this opens what is selected,
+            // here rather than in a browser: the visible twin of
+            // Shift-Command-R, for anybody who has not found the menu.
+            // Elsewhere -- issues, mentions -- there is no review to
+            // open, and the button goes back to being the way out to
+            // GitHub.
+            if state.selectedList?.content == .pullRequests {
+                let wanted = state.orderedMarkedPullRequestIDs
+                Button {
+                    controller.openReviews(for: wanted)
+                } label: {
+                    Image(systemName: "rectangle.split.2x1")
+                }
+                .buttonStyle(.accessoryBar)
+                .disabled(wanted.isEmpty)
+                .help(reviewHelp(wanted.count))
+            } else if let address = state.shownOnGitHub {
+                // The same list, in the browser, for the things this app
+                // deliberately does not do: editing the query by hand,
+                // bulk actions, or showing somebody else what you are
+                // looking at.
                 Button {
                     NSWorkspace.shared.open(address)
                 } label: {

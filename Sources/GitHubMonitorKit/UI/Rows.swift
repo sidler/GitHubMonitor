@@ -12,6 +12,9 @@ struct PullRequestRow: View {
     var compact: Bool = false
     /// Nil in the popover, where there is no detail pane to open.
     var inspect: (() -> Void)?
+    /// Opens the review window for this one. Nil in the popover, which
+    /// has no window to put one beside.
+    var review: (() -> Void)?
     /// Nil in the menu bar panel: there is no room, and a panel over a
     /// panel is not something to offer.
     var linked: LinkedPanelContext?
@@ -245,12 +248,20 @@ struct PullRequestRow: View {
             }
             .help("Show details")
 
-            Button {
-                NSWorkspace.shared.open(item.url)
-            } label: {
-                Image(systemName: "arrow.up.forward.square")
+            // The review, in this app, rather than the pull request in a
+            // browser. Reading a diff is what this is for, and the row
+            // had no way into it that did not go through the detail pane
+            // first. GitHub is still a right-click away, which is where
+            // the things this app deliberately does not do belong.
+            //
+            // The same symbol the pane's own Review button wears: one
+            // function, one sign, or neither is recognised.
+            if let review {
+                Button(action: review) {
+                    Image(systemName: "rectangle.split.2x1")
+                }
+                .help("Open this for review")
             }
-            .help("Open on GitHub")
         }
         .buttonStyle(.accessoryBar)
         .foregroundStyle(isInspected ? Color.accentColor : Color(nsColor: .secondaryLabelColor))
