@@ -5,6 +5,9 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **Select several pull requests and open a review for each** — Command-click
+  or Shift-click in the list, then Shift-⌘R or the right-click menu. Each
+  opens as a tab of the first, up to twelve at a time.
 - **Ask somebody else to review, from either sidebar** — a filtered list of
   the repository's people, and a few seconds to take it back afterwards.
 - **The branch a pull request lands in is the line you read first**, in

@@ -265,6 +265,46 @@ public final class AppState {
     public var inspectedNotificationID: String?
     /// The pull request shown in the detail pane, if it is open.
     public var inspectedPullRequestID: String?
+    /// Every pull request row the list has selected.
+    ///
+    /// Separate from the one the pane is about, which is the question a
+    /// pane can answer: it describes one pull request, and a pane cannot
+    /// describe five. Selecting several is for doing something to all of
+    /// them -- opening each for review in its own tab -- while the pane
+    /// keeps showing whichever one it was already about.
+    public var markedPullRequestIDs: Set<String> = [] {
+        didSet {
+            // One row selected is the ordinary case, and the pane follows
+            // it. Several, or none, leave the pane where it was: putting
+            // it away is the close button's job and the Escape key's, not
+            // a side effect of holding Command and clicking a second row.
+            if markedPullRequestIDs.count == 1 {
+                inspectedPullRequestID = markedPullRequestIDs.first
+            }
+        }
+    }
+
+    /// The selected pull requests, in the order on screen.
+    ///
+    /// The order is what decides which review window the rest become tabs
+    /// of, so it has to be the list's and not a set's accidental one.
+    /// Falls back to the raw set where no list is on screen, which is
+    /// better than refusing to open anything.
+    public var orderedMarkedPullRequestIDs: [String] {
+        guard let list = selectedList, list.content == .pullRequests else {
+            return Array(markedPullRequestIDs)
+        }
+        return markedPullRequests(in: list).map(\.id)
+    }
+
+    /// The selected pull requests, in the order the list has them.
+    ///
+    /// The order matters: the reviews open in it, and the first of them
+    /// is the window the rest become tabs of. A set has no order, so this
+    /// takes the list's.
+    public func markedPullRequests(in list: SavedList) -> [PullRequestItem] {
+        pullRequests(in: list).filter { markedPullRequestIDs.contains($0.id) }
+    }
     /// The issue shown in the detail pane, if it is open.
     public var inspectedIssueID: String?
     /// Issue bodies and threads, fetched per issue when its pane is opened.
@@ -1423,10 +1463,12 @@ extension AppState {
         sidebarSelection = .list(id: found.listID, repository: nil)
         switch found.kind {
         case .pullRequests:
+            markedPullRequestIDs = [found.itemID]
             inspectedPullRequestID = found.itemID
             inspectedIssueID = nil
         case .issues:
             inspectedIssueID = found.itemID
+            markedPullRequestIDs = []
             inspectedPullRequestID = nil
         }
         return true

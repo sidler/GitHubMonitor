@@ -26,6 +26,9 @@ public final class RefreshController {
     /// before the keychain had been read therefore stuck on "No GitHub
     /// token configured" until the repository was changed or the button
     /// pressed by hand.
+    /// The file fetches in flight, so two asks for one pull request wait
+    /// on one request.
+    private var fileFetches: [String: Task<[ChangedFile]?, Never>] = [:]
     private var reviewerStatsRunning = false
     /// Which read the flag above belongs to, so a read that was cancelled
     /// half a minute ago cannot clear the flag of the one that replaced it.
@@ -561,6 +564,7 @@ public final class RefreshController {
         state.repositoryLabels = [:]
         state.repositoryMentions = [:]
         state.pullRequestCommits = [:]
+        state.markedPullRequestIDs = []
         state.inspectedPullRequestID = nil
         state.inspectedIssueID = nil
         state.inspectedNotificationID = nil
@@ -744,6 +748,9 @@ public final class RefreshController {
             state.reviewThreads = state.reviewThreads.filter {
                 livePullRequests.contains($0.key)
             }
+            // Rows that have gone are no longer selected, or a refresh
+            // would leave a review to open for something that is not there.
+            state.markedPullRequestIDs.formIntersection(livePullRequests)
             if let inspected = state.inspectedPullRequestID, !livePullRequests.contains(inspected) {
                 state.inspectedPullRequestID = nil
             }
@@ -1344,6 +1351,10 @@ public final class RefreshController {
     /// Opens the detail pane for a pull request, fetching its detail the
     /// first time.
     public func inspect(_ item: PullRequestItem) {
+        // The list's selection too, so the highlight follows the pane
+        // when the move came from the menu, the arrow keys or "Show in
+        // list" rather than from a click.
+        state.markedPullRequestIDs = [item.id]
         state.inspectedPullRequestID = item.id
         loadDetailIfNeeded(for: item.id)
     }
@@ -1422,6 +1433,7 @@ public final class RefreshController {
 
     /// Closes whichever detail the pane is showing.
     public func closeInspector() {
+        state.markedPullRequestIDs = []
         state.inspectedPullRequestID = nil
         state.inspectedIssueID = nil
         state.inspectedNotificationID = nil
@@ -1532,28 +1544,96 @@ public final class RefreshController {
     /// an hourly budget of its own, and it is the slower of the two -- the
     /// rest of the pane should not wait behind a diff.
     public func loadFilesIfNeeded(for id: String) {
-        guard state.changedFiles[id] == nil else { return }
-        guard let service, let item = state.pullRequest(withID: id) else { return }
+        _ = files(for: id)
+    }
+
+    /// The same fetch, as something that can be waited on.
+    ///
+    /// Opening several reviews at once has to know when each one's files
+    /// have arrived, and the fire-and-forget version only wrote them into
+    /// the state. One task per pull request is kept so that a second ask
+    /// while the first is still in flight waits for it rather than
+    /// fetching the same list again -- which is what a row already being
+    /// read and then selected for review would otherwise do.
+    @discardableResult
+    func files(for id: String) -> Task<[ChangedFile]?, Never>? {
+        if case .loaded(let ready) = state.changedFiles[id] {
+            return Task { ready }
+        }
+        if let running = fileFetches[id] { return running }
+        guard let service, let item = state.pullRequest(withID: id) else { return nil }
 
         rememberCommit(of: item)
         state.changedFiles[id] = .loading
         loadViewedFilesIfNeeded(for: id)
-        accountTask { [weak self] in
+
+        let task = Task { [weak self] () -> [ChangedFile]? in
+            defer { self?.fileFetches[id] = nil }
             do {
                 let files = try await service.changedFiles(
                     repository: item.repository, number: item.number
                 )
-                guard let self, !Task.isCancelled else { return }
+                guard let self, !Task.isCancelled else { return nil }
                 state.changedFiles[id] = .loaded(files)
+                return files
             } catch let error as GitHubError {
-                guard let self, !Task.isCancelled else { return }
+                guard let self, !Task.isCancelled else { return nil }
                 Log.api.error("files failed: \(error.localizedDescription, privacy: .public)")
                 state.changedFiles[id] = .failed(error.localizedDescription)
+                return nil
             } catch {
-                guard let self, !Task.isCancelled else { return }
+                guard let self, !Task.isCancelled else { return nil }
                 state.changedFiles[id] = .failed(error.localizedDescription)
+                return nil
             }
         }
+        fileFetches[id] = task
+        return task
+    }
+
+    // MARK: - Opening reviews
+
+    /// How many reviews one command will open.
+    ///
+    /// Each is a detail, a file list and a set of review threads --
+    /// three requests, two of them against the hourly REST allowance --
+    /// and a window of its own. Twelve tabs is already more than anybody
+    /// reads in a sitting; a stray Command-A over a list of four hundred
+    /// should not spend the hour's budget and fill the screen.
+    public static let maximumReviewsAtOnce = 12
+
+    /// Opens a review for each of these, one tab apiece.
+    ///
+    /// In order and one after another rather than all at once. The order
+    /// is the list's, so the first row selected is the window the rest
+    /// become tabs of; one at a time because twelve file lists fetched
+    /// in parallel is a burst against an hourly allowance, and because
+    /// the tabs then appear as they are ready instead of all at the end.
+    public func openReviews(for ids: [String]) {
+        let wanted = Array(ids.prefix(Self.maximumReviewsAtOnce))
+        guard !wanted.isEmpty else { return }
+
+        accountTask { [weak self] in
+            for id in wanted {
+                guard let self, !Task.isCancelled else { return }
+                await openReview(for: id)
+            }
+        }
+    }
+
+    private func openReview(for id: String) async {
+        guard let item = state.pullRequest(withID: id) else { return }
+        loadDetailIfNeeded(for: id)
+        loadReviewThreadsIfNeeded(for: id)
+
+        guard let files = await files(for: id)?.value, let first = files.first else { return }
+        guard !Task.isCancelled else { return }
+        state.openDiff(
+            OpenedDiff(
+                pullRequestID: id, path: first.path, files: files,
+                url: item.url, commit: item.headCommit
+            )
+        )
     }
 
     // MARK: - Viewed files

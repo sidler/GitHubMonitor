@@ -100,7 +100,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                         .pullRequestID(of: NSApp.keyWindow) != nil
                 else { return false }
                 return !(NSApp.keyWindow?.firstResponder is NSTextView)
-            }
+            },
+            reviewSelection: { [state] in
+                refresh.openReviews(for: state.orderedMarkedPullRequestIDs)
+            },
+            selectedForReview: { [state] in state.orderedMarkedPullRequestIDs.count }
         )
 
         // Sample data is opt-in now that real requests work, so the UI can

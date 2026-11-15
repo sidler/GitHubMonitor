@@ -293,6 +293,7 @@ struct ContentColumn: View {
             grouping: list.grouping,
             repository: \.repository,
             selection: $state.inspectedPullRequestID,
+            marks: $state.markedPullRequestIDs,
             unshown: state.unshown(in: list)
         ) { item in
             PullRequestRow(
@@ -305,6 +306,7 @@ struct ContentColumn: View {
                 isInspected: state.inspectedPullRequestID == item.id
             )
             .padding(.vertical, rowPadding)
+            .contextMenu { reviewMenu(for: item) }
         }
         // Escape puts the detail pane away, as it does everywhere else.
         .onExitCommand { controller.closeInspector() }
@@ -416,6 +418,28 @@ struct ContentColumn: View {
                 )
             }
         }
+    }
+
+
+    /// What a right-click on a pull request row offers.
+    ///
+    /// Acting on the selection when the row is part of it, and on the row
+    /// alone when it is not -- which is what every list on this system
+    /// does. A right-click on an unselected row is a question about that
+    /// row, not about whatever happened to be selected before.
+    @ViewBuilder
+    private func reviewMenu(for item: PullRequestItem) -> some View {
+        let wanted = state.markedPullRequestIDs.contains(item.id)
+            ? state.orderedMarkedPullRequestIDs
+            : [item.id]
+
+        Button(
+            wanted.count > 1 ? "Review \(wanted.count) Pull Requests" : "Review"
+        ) {
+            controller.openReviews(for: wanted)
+        }
+        Divider()
+        Button("Open on GitHub") { NSWorkspace.shared.open(item.url) }
     }
 
     // MARK: - Status bar
@@ -628,6 +652,11 @@ private struct GroupedList<Item: Identifiable, Row: View>: View {
     /// the list gets the arrow keys for free -- that is what moves the detail
     /// pane from the keyboard.
     var selection: Binding<Item.ID?>?
+    /// Every selected row, where the list allows more than one. Bound, it
+    /// is what the `List` itself is selecting on, and `selection` becomes
+    /// the pane's anchor rather than the list's state -- kept in step by
+    /// whoever owns them, not here.
+    var marks: Binding<Set<Item.ID>>?
     /// How many the search found beyond what was fetched. A list says so at
     /// its end rather than pretending the rest is not there.
     var unshown: Int = 0
@@ -650,11 +679,22 @@ private struct GroupedList<Item: Identifiable, Row: View>: View {
             // show for it. No anchor, so a row already in view stays where
             // it is and a click does not jerk the list.
             ScrollViewReader { proxy in
-                List(selection: selection) { content }
-                    .onChange(of: selection.wrappedValue) { _, id in
-                        guard let id else { return }
-                        proxy.scrollTo(id)
+                Group {
+                    // Where several rows may be selected the `List` is
+                    // bound to the set, which is what gives Command-click
+                    // and Shift-click for nothing. The arrows still work:
+                    // they replace the set with one row, and the pane
+                    // follows that.
+                    if let marks {
+                        List(selection: marks) { content }
+                    } else {
+                        List(selection: selection) { content }
                     }
+                }
+                .onChange(of: selection.wrappedValue) { _, id in
+                    guard let id else { return }
+                    proxy.scrollTo(id)
+                }
             }
         } else {
             List { content }
@@ -680,7 +720,15 @@ private struct GroupedList<Item: Identifiable, Row: View>: View {
         row(item)
             .tag(item.id)
             .foregroundStyle(Color(nsColor: .labelColor))
-            .listRowBackground(background(selected: selection?.wrappedValue == item.id))
+            .listRowBackground(background(selected: isSelected(item)))
+    }
+
+    /// Drawn selected if the list says so. With several rows selectable
+    /// that is the set and not the pane's anchor -- otherwise four rows
+    /// chosen with Command would have shown one highlight between them.
+    private func isSelected(_ item: Item) -> Bool {
+        if let marks { return marks.wrappedValue.contains(item.id) }
+        return selection?.wrappedValue == item.id
     }
 
     private func background(selected: Bool) -> some View {

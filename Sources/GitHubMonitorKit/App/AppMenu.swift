@@ -26,12 +26,16 @@ enum AppMenu {
         diffPaging: @escaping () -> DiffPaging,
         setDiffPaging: @escaping (DiffPaging) -> Void,
         stepDiffFile: @escaping (Int) -> Void,
-        canStepDiffFile: @escaping () -> Bool
+        canStepDiffFile: @escaping () -> Bool,
+        reviewSelection: @escaping () -> Void,
+        selectedForReview: @escaping () -> Int
     ) -> NSMenu {
         let main = NSMenu()
 
         main.addItem(applicationMenu(appName: appName, openSettings: openSettings))
-        main.addItem(fileMenu())
+        main.addItem(
+            fileMenu(reviewSelection: reviewSelection, selectedForReview: selectedForReview)
+        )
         main.addItem(editMenu())
         main.addItem(viewMenu(
             refresh: refresh,
@@ -126,9 +130,30 @@ enum AppMenu {
         return item
     }
 
-    private static func fileMenu() -> NSMenuItem {
+    private static func fileMenu(
+        reviewSelection: @escaping () -> Void,
+        selectedForReview: @escaping () -> Int
+    ) -> NSMenuItem {
         let item = NSMenuItem()
         let menu = NSMenu(title: "File")
+
+        // One tab per selected row. Named for how many there are, because
+        // a command that opens twelve windows should say twelve before it
+        // is pressed and not afterwards.
+        let review = ActionItem(
+            title: "Review Selected", keyEquivalent: "r", action: reviewSelection
+        )
+        review.keyEquivalentModifierMask = [.command, .shift]
+        review.name = {
+            switch selectedForReview() {
+            case 0, 1: "Review Selected Pull Request"
+            case let many: "Review \(many) Selected Pull Requests"
+            }
+        }
+        review.canRun = { selectedForReview() > 0 }
+        menu.addItem(review)
+        menu.addItem(.separator())
+
         menu.addItem(
             withTitle: "Close",
             action: #selector(NSWindow.performClose(_:)),
@@ -337,6 +362,11 @@ private final class ActionItem: NSMenuItem, NSMenuItemValidation {
     /// written.
     var canRun: (() -> Bool)?
 
+    /// What it should be called this time, where that depends on what is
+    /// selected. "Review 3 Pull Requests" says how many will open before
+    /// anything does, which is the one moment that is worth knowing.
+    var name: (() -> String)?
+
     init(title: String, keyEquivalent: String, action: @escaping () -> Void) {
         handler = action
         super.init(title: title, action: #selector(run), keyEquivalent: keyEquivalent)
@@ -352,6 +382,7 @@ private final class ActionItem: NSMenuItem, NSMenuItemValidation {
     /// one moment the answer is certain to be current.
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         if let isOn { item.state = isOn() ? .on : .off }
+        if let name { item.title = name() }
         return canRun?() ?? true
     }
 

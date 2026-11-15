@@ -24,7 +24,8 @@ struct AppMenuTests {
             showsDiffInspector: { false }, toggleDiffInspector: {},
             diffLayout: { .unified }, setDiffLayout: { _ in },
             diffPaging: { .scroll }, setDiffPaging: { _ in },
-            stepDiffFile: { _ in }, canStepDiffFile: { true }
+            stepDiffFile: { _ in }, canStepDiffFile: { true },
+            reviewSelection: {}, selectedForReview: { 0 }
         )
     }
 
@@ -75,6 +76,65 @@ struct AppMenuTests {
     }
 }
 
+/// The command that opens a review per selected row.
+@MainActor
+@Suite("Reviewing what the list has selected")
+struct ReviewSelectionMenuTests {
+    private func fileMenu(selected: Int) -> [NSMenuItem] {
+        _ = NSApplication.shared
+        let main = AppMenu.build(
+            appName: "GitHub Monitor",
+            openSettings: {}, refresh: {}, moveDetail: { _ in }, closeDetail: {},
+            changeDiffFontSize: { _ in }, resetDiffFontSize: {},
+            showsDiffLineNumbers: { true }, toggleDiffLineNumbers: {},
+            showsDiffInspector: { false }, toggleDiffInspector: {},
+            diffLayout: { .unified }, setDiffLayout: { _ in },
+            diffPaging: { .scroll }, setDiffPaging: { _ in },
+            stepDiffFile: { _ in }, canStepDiffFile: { true },
+            reviewSelection: {}, selectedForReview: { selected }
+        )
+        return main.items.first { $0.submenu?.title == "File" }?.submenu?.items ?? []
+    }
+
+    /// The title and whether it may be used are both decided when AppKit
+    /// asks, in the moment before the menu is drawn -- not when it was
+    /// built. So the answer is taken from the asking.
+    private func review(selected: Int) -> (item: NSMenuItem, usable: Bool)? {
+        guard
+            let item = fileMenu(selected: selected).first(where: {
+                $0.title.contains("Review")
+            }),
+            let validating = item as? NSMenuItemValidation
+        else { return nil }
+        return (item, validating.validateMenuItem(item))
+    }
+
+    @Test("With nothing selected it is there but cannot be used")
+    func nothingSelected() {
+        let found = review(selected: 0)
+
+        #expect(found != nil)
+        #expect(found?.usable == false)
+    }
+
+    /// The count is in the name because a command that opens twelve
+    /// windows should say twelve before it is pressed.
+    @Test("It says how many it will open")
+    func named() {
+        #expect(review(selected: 1)?.item.title == "Review Selected Pull Request")
+        #expect(review(selected: 4)?.item.title == "Review 4 Selected Pull Requests")
+        #expect(review(selected: 1)?.usable == true)
+    }
+
+    @Test("It carries a shortcut that is not the refresh one")
+    func shortcut() {
+        let item = review(selected: 2)?.item
+
+        #expect(item?.keyEquivalent == "r")
+        #expect(item?.keyEquivalentModifierMask == [.command, .shift])
+    }
+}
+
 /// Stepping through a diff's files from the keyboard.
 @Suite("Option-arrow steps through the files of a diff")
 @MainActor
@@ -89,7 +149,8 @@ struct DiffStepMenuTests {
             showsDiffInspector: { false }, toggleDiffInspector: {},
             diffLayout: { .unified }, setDiffLayout: { _ in },
             diffPaging: { .scroll }, setDiffPaging: { _ in },
-            stepDiffFile: { _ in }, canStepDiffFile: canStep
+            stepDiffFile: { _ in }, canStepDiffFile: canStep,
+            reviewSelection: {}, selectedForReview: { 0 }
         )
         // The View menu is the one that carries them.
         return main.items.first { $0.submenu?.title == "View" }?.submenu?.items ?? []
