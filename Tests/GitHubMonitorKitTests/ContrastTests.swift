@@ -73,15 +73,18 @@ struct ContrastTests {
     /// Every colour a row or a diff is painted in.
     private func inks() -> [(String, Color)] {
         var result: [(String, Color)] = [
-            ("rowDetail", .rowDetail),
-            ("waiting.aging", WaitingAge.aging.tint),
-            ("waiting.overdue", WaitingAge.overdue.tint),
             ("merge.conflicting", MergeStatus.conflicting.tint),
             ("merge.mergeable", MergeStatus.mergeable.tint),
             // The line a folded conversation is named by, which sits on
             // the bands as readily as the code does.
             ("thread.folded", Ink.cyan),
         ]
+        // The ages that say something. `.fresh` says nothing and wears
+        // no colour of its own, which is what lets a selected row turn
+        // it white.
+        for age in [WaitingAge.aging, .overdue] {
+            if let tint = age.tint { result.append(("waiting.\(age)", tint)) }
+        }
         for decision in ReviewDecision.allCases {
             result.append(("review.\(decision)", decision.tint))
         }
@@ -111,12 +114,12 @@ struct ContrastTests {
         let page = components(Color(nsColor: .textBackgroundColor), appearance)
         return [
             ("the page", page),
-            (
-                "a selected row",
-                components(
-                    Color(nsColor: .unemphasizedSelectedContentBackgroundColor), appearance
-                )
-            ),
+            // A selected row is not among these any more. The list
+            // paints its own selection now, and on it every colour a row
+            // carries measured between 1.2 and 1.4 to one -- so the
+            // colours stand down there and the row is drawn in the
+            // hierarchical style, which the system resolves against
+            // whatever it has painted. `RowTintTests` holds that rule.
             ("an added line", components(Color.green.opacity(0.14), appearance, over: page)),
             ("a removed line", components(Color.red.opacity(0.14), appearance, over: page)),
         ]

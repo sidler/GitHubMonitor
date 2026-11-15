@@ -420,6 +420,8 @@ struct LinkBadge: View {
     let unshown: Int
 
     @StateObject private var panel = ViewFlag()
+    /// Set by the list on the row it has selected; see `rowTint`.
+    @Environment(\.rowIsSelected) private var isRowSelected
 
     var body: some View {
         if let first = links.first {
@@ -439,9 +441,14 @@ struct LinkBadge: View {
                 // that is over. Scanning a list of issues, the question
                 // behind the number is whether the answer has landed --
                 // and the number alone does not say.
+                // Hierarchical where nothing is known yet, so a
+                // selected row turns it white along with the rest of the
+                // line rather than leaving a grey number on the fill.
                 .foregroundStyle(
-                    LinkedState.of(first, in: context.state)?.tint
-                        ?? Color(nsColor: .secondaryLabelColor)
+                    rowTint(
+                        LinkedState.of(first, in: context.state)?.tint,
+                        selected: isRowSelected
+                    )
                 )
                 .contentShape(Rectangle())
             }

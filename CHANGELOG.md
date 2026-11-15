@@ -5,6 +5,10 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **A selected row looks like a selected row anywhere else on the Mac** —
+  the system's own highlight, with neighbouring rows merging into one block.
+  The selected row goes white throughout; its colours would read at 1.3 to
+  one on the fill, and the rows around it keep theirs.
 - **Scrolling a large diff no longer stutters.** The patch text arrived as
   an `NSString`, and the cache that makes scrolling cheap is keyed by it —
   so every frame paid a message send per character. One pass of those
@@ -19,7 +23,8 @@ What changed in each released version. The app shows this file itself, under
 - **The buttons on a row and under the list open the review here**, where
   they used to open the pull request on GitHub. GitHub is a right-click
   away on any row; on a list of pull requests, opening the whole list there
-  has gone.
+  has gone. The "show details" button went with them — selecting a row
+  already opens the pane.
 - **Ask somebody else to review, from either sidebar** — a filtered list of
   the repository's people, and a few seconds to take it back afterwards.
 - **The branch a pull request lands in is the line you read first**, in

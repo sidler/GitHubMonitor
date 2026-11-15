@@ -20,7 +20,10 @@ struct IssueRow: View {
     /// Whether pressing a label narrows the list to it. Nil in the popover
     /// and the menu bar, where there is no list to narrow.
     var labelFiltering: LabelFiltering?
-    var isInspected: Bool = false
+    /// Set by the list on the row it has selected; the colours stand
+    /// down there. See `rowTint`.
+    @Environment(\.rowIsSelected) private var isRowSelected
+    @Environment(\.controlActiveState) private var controlActive
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
@@ -61,14 +64,19 @@ struct IssueRow: View {
                         .layoutPriority(0)
                 }
                 .font(.caption)
-                .foregroundStyle(Color.rowDetail)
+                // Hierarchical, so the list can turn it white on a
+                // selected row.
+                .foregroundStyle(.secondary)
                 .lineLimit(1)
             }
 
             Spacer(minLength: 4)
 
-            if let inspect {
-                actions(inspect: inspect)
+            // Only in the window. The popover has nowhere to send
+            // somebody back to, and a row there opens GitHub when it is
+            // tapped.
+            if inspect != nil {
+                actions()
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -197,10 +205,10 @@ struct IssueRow: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
         }
-        // A concrete colour either way, like everything else on this line:
-        // inside a selected row SwiftUI resolves `.secondary` against the
-        // selection and the badge comes out white.
-        .foregroundStyle(tint ?? Color.rowDetail)
+        // Coloured only where the colour means something. Without one
+        // it inherits the row's quiet style, which the list turns white
+        // on a selected row.
+        .foregroundStyle(rowTint(tint, selected: isRowSelected))
         .help(help)
     }
 
@@ -212,22 +220,55 @@ struct IssueRow: View {
         return date == .updated ? relative : "\(date.rowPrefix) \(relative)"
     }
 
-    private func actions(inspect: @escaping () -> Void) -> some View {
-        HStack(spacing: 2) {
-            Button(action: inspect) {
-                Image(systemName: isInspected ? "sidebar.right" : "info.circle")
-            }
-            .help("Show details")
+    /// What the two symbols at the end of a row are drawn in.
+    ///
+    /// Explicit rather than hierarchical, which is the one place in a row
+    /// that has to be. `.accessoryBar` resolves a hierarchical style
+    /// against its own control context and not against what the list has
+    /// painted, so `.secondary` came out the ordinary dark grey and the
+    /// symbols sat navy on the accent fill, all but invisible.
+    ///
+    /// So the selected row names the colour AppKit uses for text on a
+    /// selection, which is white while the window has the keyboard and
+    /// the ordinary label colour when it does not -- the same distinction
+    /// the fill itself makes.
+    private var actionStyle: AnyShapeStyle {
+        if isRowSelected {
+            return AnyShapeStyle(
+                Color(
+                    // Only the key window draws the accent fill; in any
+                    // other state the selection is the quiet grey, where
+                    // white would be as unreadable as navy is on blue.
+                    nsColor: controlActive == .key
+                        ? .alternateSelectedControlTextColor
+                        : .selectedControlTextColor
+                )
+            )
+        }
+        return AnyShapeStyle(.secondary)
+    }
 
+    /// The way out to GitHub, which is all that is left at the end of a
+    /// row.
+    ///
+    /// A "Show details" button used to come first. Selecting the row
+    /// already opens the pane -- that is what selecting a row in this
+    /// window means -- so it asked for a click to do what the click had
+    /// just done.
+    private func actions() -> some View {
+        HStack(spacing: 2) {
             Button {
                 NSWorkspace.shared.open(item.url)
             } label: {
                 Image(systemName: "arrow.up.forward.square")
+                    // On the label rather than outside the button:
+                    // `.accessoryBar` paints its own, so a colour set
+                    // around it never reached the symbol.
+                    .foregroundStyle(actionStyle)
             }
             .help("Open on GitHub")
         }
         .buttonStyle(.accessoryBar)
-        .foregroundStyle(isInspected ? Color.accentColor : Color(nsColor: .secondaryLabelColor))
         .padding(.top, 1)
     }
 }

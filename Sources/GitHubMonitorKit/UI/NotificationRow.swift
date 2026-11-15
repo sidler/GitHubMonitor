@@ -76,7 +76,7 @@ struct NotificationRow: View {
                     Text(RelativeTime.string(for: item.updatedAt))
                 }
                 .font(.caption)
-                .foregroundStyle(Color.rowDetail)
+                .foregroundStyle(.secondary)
             }
 
             Spacer(minLength: 4)

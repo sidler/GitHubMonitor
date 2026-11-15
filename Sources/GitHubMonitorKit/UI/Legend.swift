@@ -33,9 +33,14 @@ extension ChecksStatus {
 extension WaitingAge {
     /// Orange, then red: the two steps the checks and the review decision
     /// already use, so a colour keeps meaning roughly what it did.
-    var tint: Color {
+    ///
+    /// Nil while there is nothing to say, rather than a grey of its own.
+    /// The row's quiet text is whatever the list is drawing it in, and on
+    /// a selected row that is white; a grey named here would hold on to
+    /// itself and come out dark on the selection.
+    var tint: Color? {
         switch self {
-        case .fresh: Color.rowDetail
+        case .fresh: nil
         case .aging: Ink.orange
         case .overdue: Ink.red
         }
@@ -108,25 +113,6 @@ extension LegendSymbol {
         case .draft, .comments, .milestone: Color(nsColor: .secondaryLabelColor)
         }
     }
-}
-
-extension Color {
-    /// The second line of a row: repository, number, author, dates.
-    ///
-    /// Darker than the system's secondary label in light mode, where that
-    /// grey on a white list is light enough to be hard work at this size.
-    /// Lighter than it in dark mode, where the system grey falls to 3.3 to
-    /// one against the grey of a selected row -- the one place a row is
-    /// not drawn on the page's own colour.
-    ///
-    /// A concrete colour rather than `.secondary`, like everything else a
-    /// row draws: inside a selected row SwiftUI resolves hierarchical
-    /// styles to white.
-    static let rowDetail = Color(nsColor: NSColor(name: nil) { appearance in
-        appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-            ? NSColor(srgbRed: 0.788, green: 0.788, blue: 0.788, alpha: 1)
-            : NSColor.labelColor.withAlphaComponent(0.68)
-    })
 }
 
 /// The strip along the bottom of a column: the content's status bar, and

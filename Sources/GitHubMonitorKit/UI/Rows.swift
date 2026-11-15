@@ -21,7 +21,10 @@ struct PullRequestRow: View {
     /// Whether pressing a label narrows the list to it. Nil in the popover
     /// and the menu bar, where there is no list to narrow.
     var labelFiltering: LabelFiltering?
-    var isInspected: Bool = false
+    /// Set by the list on the row it has selected. The colours stand
+    /// down there, because none of them can be read on the accent fill.
+    @Environment(\.rowIsSelected) private var isRowSelected
+    @Environment(\.controlActiveState) private var controlActive
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
@@ -64,7 +67,10 @@ struct PullRequestRow: View {
                     }
                 }
                 .font(.caption)
-                .foregroundStyle(Color.rowDetail)
+                // Hierarchical, not a grey of its own: the list draws
+                // the selected row's contents white, and a named colour
+                // would stay dark on the selection.
+                .foregroundStyle(.secondary)
                 // Truncate instead of wrapping: in a narrow column a wrapping
                 // meta line turns into a stack of fragments like "arte-
                 // meon/" that reads far worse than an ellipsis.
@@ -73,8 +79,8 @@ struct PullRequestRow: View {
 
             Spacer(minLength: 4)
 
-            if let inspect {
-                actions(inspect: inspect)
+            if let review {
+                actions(review: review)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -84,6 +90,14 @@ struct PullRequestRow: View {
         // the click the list needs to change that selection -- which would
         // take the keyboard's place in the list away with it.
         .modifier(OpenOnTap(url: item.url, enabled: inspect == nil))
+    }
+
+    /// The date, coloured only while the wait has something to say.
+    ///
+    /// Otherwise it inherits the row's own quiet style, which is what
+    /// turns white when the row is selected.
+    private var timestampStyle: AnyShapeStyle {
+        rowTint(age?.tint, selected: isRowSelected)
     }
 
     /// Which pull request this is and where it stands: the part that is
@@ -99,7 +113,7 @@ struct PullRequestRow: View {
             // so the date answers two questions at once: when
             // something last moved, and whether it is on you.
             Text(timestamp)
-                .foregroundStyle(age?.tint ?? Color.rowDetail)
+                .foregroundStyle(timestampStyle)
                 .help(waitingHelp)
 
             // A step larger than the caption text around them: at
@@ -108,13 +122,13 @@ struct PullRequestRow: View {
             Label(item.reviewDecision.label, systemImage: item.reviewDecision.symbolName)
                 .labelStyle(.iconOnly)
                 .font(.body)
-                .foregroundStyle(item.reviewDecision.tint)
+                .foregroundStyle(rowTint(item.reviewDecision.tint, selected: isRowSelected))
                 .help(item.reviewDecision.label)
 
             Label(item.checks.label, systemImage: item.checks.symbolName)
                 .labelStyle(.iconOnly)
                 .font(.body)
-                .foregroundStyle(item.checks.tint)
+                .foregroundStyle(rowTint(item.checks.tint, selected: isRowSelected))
                 .help(item.checks.label)
 
             // Only the conflict. Beside the checks, because it
@@ -129,7 +143,7 @@ struct PullRequestRow: View {
                 Label(item.mergeStatus.label, systemImage: item.mergeStatus.symbolName)
                     .labelStyle(.iconOnly)
                     .font(.body)
-                    .foregroundStyle(item.mergeStatus.tint)
+                    .foregroundStyle(rowTint(item.mergeStatus.tint, selected: isRowSelected))
                     .help(item.mergeStatus.label)
             }
 
@@ -153,7 +167,7 @@ struct PullRequestRow: View {
                         Text(verbatim: "\(entry.count)")
                             .monospacedDigit()
                     }
-                    .foregroundStyle(entry.kind.tint)
+                    .foregroundStyle(rowTint(entry.kind.tint, selected: isRowSelected))
                     .help(entry.kind.sentence(count: entry.count))
                 }
             }
@@ -241,13 +255,43 @@ struct PullRequestRow: View {
         return date == .updated ? relative : "\(date.rowPrefix) \(relative)"
     }
 
-    private func actions(inspect: @escaping () -> Void) -> some View {
-        HStack(spacing: 2) {
-            Button(action: inspect) {
-                Image(systemName: isInspected ? "sidebar.right" : "info.circle")
-            }
-            .help("Show details")
+    /// What the two symbols at the end of a row are drawn in.
+    ///
+    /// Explicit rather than hierarchical, which is the one place in a row
+    /// that has to be. `.accessoryBar` resolves a hierarchical style
+    /// against its own control context and not against what the list has
+    /// painted, so `.secondary` came out the ordinary dark grey and the
+    /// symbols sat navy on the accent fill, all but invisible.
+    ///
+    /// So the selected row names the colour AppKit uses for text on a
+    /// selection, which is white while the window has the keyboard and
+    /// the ordinary label colour when it does not -- the same distinction
+    /// the fill itself makes.
+    private var actionStyle: AnyShapeStyle {
+        if isRowSelected {
+            return AnyShapeStyle(
+                Color(
+                    // Only the key window draws the accent fill; in any
+                    // other state the selection is the quiet grey, where
+                    // white would be as unreadable as navy is on blue.
+                    nsColor: controlActive == .key
+                        ? .alternateSelectedControlTextColor
+                        : .selectedControlTextColor
+                )
+            )
+        }
+        return AnyShapeStyle(.secondary)
+    }
 
+    /// What is left at the end of a row once it is selected: the way
+    /// into the diff.
+    ///
+    /// There used to be a "Show details" button in front of it. Selecting
+    /// the row already opens the pane -- that is what selecting a row in
+    /// this window means -- so the button asked for a click to do what
+    /// the click had just done.
+    private func actions(review: @escaping () -> Void) -> some View {
+        HStack(spacing: 2) {
             // The review, in this app, rather than the pull request in a
             // browser. Reading a diff is what this is for, and the row
             // had no way into it that did not go through the detail pane
@@ -256,15 +300,17 @@ struct PullRequestRow: View {
             //
             // The same symbol the pane's own Review button wears: one
             // function, one sign, or neither is recognised.
-            if let review {
-                Button(action: review) {
-                    Image(systemName: "rectangle.split.2x1")
-                }
-                .help("Open this for review")
+            Button(action: review) {
+                Image(systemName: "rectangle.split.2x1")
+                    // On the label rather than outside the button:
+                    // `.accessoryBar` paints its own, and a colour set
+                    // around it never reached the symbol -- which is how
+                    // it came out navy on the accent fill.
+                    .foregroundStyle(actionStyle)
             }
+            .help("Open this for review")
         }
         .buttonStyle(.accessoryBar)
-        .foregroundStyle(isInspected ? Color.accentColor : Color(nsColor: .secondaryLabelColor))
         .padding(.top, 1)
     }
 }

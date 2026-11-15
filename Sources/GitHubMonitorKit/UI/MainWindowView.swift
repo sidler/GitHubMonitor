@@ -319,8 +319,7 @@ struct ContentColumn: View {
                 inspect: { controller.inspect(item) },
                 review: { controller.openReviews(for: [item.id]) },
                 linked: LinkedPanelContext(state: state, controller: controller),
-                labelFiltering: state.labelFiltering,
-                isInspected: state.inspectedPullRequestID == item.id
+                labelFiltering: state.labelFiltering
             )
             .padding(.vertical, rowPadding)
             .contextMenu { reviewMenu(for: item) }
@@ -360,8 +359,7 @@ struct ContentColumn: View {
                 sort: list.sort,
                 inspect: { controller.inspect(item) },
                 linked: LinkedPanelContext(state: state, controller: controller),
-                labelFiltering: state.labelFiltering,
-                isInspected: state.inspectedIssueID == item.id
+                labelFiltering: state.labelFiltering
             )
             .padding(.vertical, rowPadding)
         }
@@ -745,26 +743,21 @@ private struct GroupedList<Item: Identifiable, Row: View>: View {
         }
     }
 
-    /// A row, with the selection drawn quietly.
+    /// A row, left to the list to highlight.
     ///
-    /// The list's own highlight is the emphasised accent fill, which at the
-    /// height of these rows is a slab of blue across the window. It is
-    /// painted over rather than turned off, since a `List` offers no way to
-    /// ask for the unemphasised look:
-    ///
-    /// - an opaque layer under *every* row hides the accent fill. Only
-    ///   under the selected one is not enough: a click paints the row
-    ///   before the binding it is about to set comes back, so the row
-    ///   flashed blue under the pointer,
-    /// - an inset rounded rectangle in AppKit's own unemphasised selection
-    ///   grey marks the row without reaching the window's edges,
-    /// - and the text is pinned to the label colours, because inside a
-    ///   selected row SwiftUI resolves every hierarchical style to white.
+    /// It used to be painted by hand: an opaque layer under every row to
+    /// hide the accent fill, an inset rounded rectangle in AppKit's
+    /// unemphasised grey on top of the selected one, and the text pinned
+    /// to the label colours so a selected row did not turn it white. That
+    /// is being tried the other way round -- the system's own emphasised
+    /// selection, with whatever it does to what is inside a row.
     private func listRow(_ item: Item) -> some View {
         row(item)
             .tag(item.id)
-            .foregroundStyle(Color(nsColor: .labelColor))
-            .listRowBackground(background(selected: isSelected(item)))
+            // The row cannot ask the list whether it is the selected
+            // one, and it has to know: on the accent fill every colour
+            // it carries deliberately is around 1.3 to one.
+            .environment(\.rowIsSelected, isSelected(item))
     }
 
     /// Drawn selected if the list says so. With several rows selectable
@@ -773,18 +766,6 @@ private struct GroupedList<Item: Identifiable, Row: View>: View {
     private func isSelected(_ item: Item) -> Bool {
         if let marks { return marks.wrappedValue.contains(item.id) }
         return selection?.wrappedValue == item.id
-    }
-
-    private func background(selected: Bool) -> some View {
-        ZStack {
-            Color(nsColor: .textBackgroundColor)
-            if selected {
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(Color(nsColor: .unemphasizedSelectedContentBackgroundColor))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 1)
-            }
-        }
     }
 
     @ViewBuilder
