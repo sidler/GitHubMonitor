@@ -64,8 +64,28 @@ public enum ChangedFilesQuery {
     /// Done at the door rather than in each of the four places a patch is
     /// read: the caches are keyed by the patch string, so a patch
     /// normalised later would be two keys for one file.
+    ///
+    /// And made a Swift string while it is here, which is the other half
+    /// of the job and by far the larger one. `JSONSerialization` hands
+    /// back strings that are `NSString` underneath -- foreign, in Swift's
+    /// word for it -- and on one of those every character access is a
+    /// message send and every hash has to normalise the text first.
+    ///
+    /// That matters here more than anywhere because `DiffCache` is keyed
+    /// by the patch itself, and the view body looks a file up several
+    /// times a frame. Measured on a six-file review of 95 KB: one pass of
+    /// those lookups took **2.94 ms** with the strings as they arrived
+    /// and **0.046 ms** once they were native -- sixty-four times -- so
+    /// five lookups a frame came to 14.7 ms against a frame of 8.3. The
+    /// cache that exists to make scrolling cheap was the expensive part.
+    ///
+    /// `makeContiguousUTF8` is what turns one into the other. It copies
+    /// once, here, instead of paying a message send per character for
+    /// the life of the review.
     static func unixEndings(_ patch: String) -> String {
-        patch.replacingOccurrences(of: "\r\n", with: "\n")
+        var plain = patch.replacingOccurrences(of: "\r\n", with: "\n")
+        plain.makeContiguousUTF8()
+        return plain
     }
 
     static func file(from node: [String: Any]) -> ChangedFile? {

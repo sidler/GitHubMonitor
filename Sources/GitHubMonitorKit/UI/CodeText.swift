@@ -150,8 +150,28 @@ final class PaintedCode {
         let tint: Color
     }
 
-    /// Enough for several screenfuls either side of the one being read.
-    private let limit = 2048
+    /// How many lines are held before the generation rolls.
+    ///
+    /// Memory, not a feeling: a painted line measured at **2.6 KB** --
+    /// `AttributedString` keeps its runs, which for a seventy-character
+    /// line of code is some forty bytes a character. The two generations
+    /// mean the cache holds between this many lines and twice it, so
+    /// four thousand is a footprint oscillating between eleven and
+    /// twenty-one megabytes.
+    ///
+    /// Two thousand was too few for what the app now does. One file of a
+    /// large review does not fit in it -- the note on `lines` in the
+    /// patch view says so -- and since this is one cache for every tab,
+    /// a second review open beside the first rolled the generation and
+    /// the lines scrolled past were painted again at five and a half
+    /// milliseconds a screenful, against a frame of eight.
+    ///
+    /// Four thousand holds two reviews the size of the largest measured
+    /// here (1631 lines of patch across 55 files) with room over. It is
+    /// not raised further because the next doubling buys a third review
+    /// and costs another twenty megabytes; `PaintedCodeTests` holds the
+    /// per-line figure this is reasoned from.
+    let limit = 4096
     private var fresh: [Key: AttributedString] = [:]
     private var stale: [Key: AttributedString] = [:]
 

@@ -1604,30 +1604,50 @@ public final class RefreshController {
 
     /// Opens a review for each of these, one tab apiece.
     ///
-    /// In order and one after another rather than all at once. The order
-    /// is the list's, so the first row selected is the window the rest
-    /// become tabs of; one at a time because twelve file lists fetched
-    /// in parallel is a burst against an hourly allowance, and because
-    /// the tabs then appear as they are ready instead of all at the end.
+    /// Every file list is asked for at once and the tabs are opened in
+    /// the list's order as each answer arrives. The waiting is all
+    /// network -- one `pulls/N/files` measured at 0.47 seconds -- so
+    /// fetching them one after another spent that once per tab: six
+    /// seconds for twelve of them, which is what opening several
+    /// reviews felt like. Asked together it is one wait for all of them.
+    ///
+    /// Started together, awaited in order. The order is the list's, and
+    /// it decides which window the rest become tabs of; opening them as
+    /// they happened to come back would have made that the luck of the
+    /// network.
+    ///
+    /// Twelve concurrent reads are nothing to GitHub -- they are twelve
+    /// requests of an hourly five thousand, and the secondary limit is
+    /// about sustained bursts rather than a dozen at once.
     public func openReviews(for ids: [String]) {
         let wanted = Array(ids.prefix(Self.maximumReviewsAtOnce))
         guard !wanted.isEmpty else { return }
 
+        // Asked for before anything is awaited, which is what overlaps
+        // them. The detail and the conversations go out now too: they
+        // are wanted by the time the window is up, and nothing waits on
+        // them.
+        for id in wanted {
+            loadDetailIfNeeded(for: id)
+            loadReviewThreadsIfNeeded(for: id)
+        }
+        let fetches = wanted.map { (id: $0, files: files(for: $0)) }
+
         accountTask { [weak self] in
-            for id in wanted {
+            for fetch in fetches {
                 guard let self, !Task.isCancelled else { return }
-                await openReview(for: id)
+                await openReview(for: fetch.id, files: await fetch.files?.value)
             }
         }
     }
 
-    private func openReview(for id: String) async {
-        guard let item = state.pullRequest(withID: id) else { return }
-        loadDetailIfNeeded(for: id)
-        loadReviewThreadsIfNeeded(for: id)
-
-        guard let files = await files(for: id)?.value, let first = files.first else { return }
-        guard !Task.isCancelled else { return }
+    private func openReview(for id: String, files: [ChangedFile]?) async {
+        guard
+            let item = state.pullRequest(withID: id),
+            let first = files?.first,
+            let files,
+            !Task.isCancelled
+        else { return }
         state.openDiff(
             OpenedDiff(
                 pullRequestID: id, path: first.path, files: files,

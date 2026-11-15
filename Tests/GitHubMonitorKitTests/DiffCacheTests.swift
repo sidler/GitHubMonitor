@@ -174,15 +174,20 @@ struct PaintedCodeTests {
     }
 
     /// Two generations, so nothing is held for more than two turns.
+    ///
+    /// Against the limit rather than a number written out here: the
+    /// limit is a memory decision and has moved once already, and a
+    /// bound that does not move with it stops saying anything the day
+    /// it does.
     @Test("What is held is bounded")
     func bounded() {
         PaintedCode.shared.forget()
-        for index in 0..<5_000 {
+        for index in 0..<(3 * PaintedCode.shared.limit) {
             _ = PaintedCode.shared.text(
                 for: CodeText(source: "let x\(index) = \(index)", language: .typescript)
             )
         }
-        #expect(PaintedCode.shared.count <= 4_096)
+        #expect(PaintedCode.shared.count <= 2 * PaintedCode.shared.limit)
         PaintedCode.shared.forget()
         #expect(PaintedCode.shared.count == 0)
     }

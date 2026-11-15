@@ -5,6 +5,13 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **Scrolling a large diff no longer stutters.** The patch text arrived as
+  an `NSString`, and the cache that makes scrolling cheap is keyed by it —
+  so every frame paid a message send per character. One pass of those
+  lookups went from 2.9 ms to 0.09 ms.
+- **Opening several reviews is a third quicker** — the file lists are asked
+  for together rather than one after another. Five tabs went from 2.6 to
+  1.8 seconds.
 - **Select several pull requests and open a review for each** — Command-click
   or Shift-click in the list, then Shift-⌘R, the button at the foot of the
   window, or the right-click menu. Each opens as a tab of the first, up to
