@@ -650,28 +650,45 @@ struct LinkedItemDisclosure: View {
         }
     }
 
+    /// Two lines: which issue this is, and then what it is called.
+    ///
+    /// One line could not hold both. "owner/repository#37100" is most of
+    /// a strip four hundred points wide before the title has started, so
+    /// the two fought over what was left -- the reference wrapped in the
+    /// middle of the repository name and the title was squeezed to a few
+    /// characters beside the wreckage. Neither was readable, and which
+    /// issue it was is the thing a reader is looking for.
     private var fold: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 5) {
-            Image(systemName: symbolName)
-                // Grey while nothing is known: a number read out of a
-                // sentence is a guess until it has been looked up, and
-                // green would be an answer the app does not have.
-                .foregroundStyle(state?.tint ?? Color(nsColor: .tertiaryLabelColor))
-            Text(verbatim: link.reference.id)
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 1) {
+            HStack(alignment: .firstTextBaseline, spacing: 5) {
+                Image(systemName: symbolName)
+                    // Grey while nothing is known: a number read out of a
+                    // sentence is a guess until it has been looked up, and
+                    // green would be an answer the app does not have.
+                    .foregroundStyle(state?.tint ?? Color(nsColor: .tertiaryLabelColor))
+                Text(verbatim: link.reference.id)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    // One line, cut at the front: the number is what
+                    // distinguishes one of these from the next, and the
+                    // owner is the same for all of them.
+                    .lineLimit(1)
+                    .truncationMode(.head)
+                if link.kind == .mentions {
+                    Text("mentioned")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+                Spacer(minLength: 0)
+            }
+
             if let title = summary?.title ?? link.title {
                 Text(title)
                     .font(.subheadline)
-                    .lineLimit(1)
+                    .lineLimit(2)
                     .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            if link.kind == .mentions {
-                Text("mentioned")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
-            Spacer(minLength: 0)
         }
         .contentShape(Rectangle())
         .help(state.map { "\(link.reference.id) \u{00b7} \($0.label)" } ?? link.reference.id)
