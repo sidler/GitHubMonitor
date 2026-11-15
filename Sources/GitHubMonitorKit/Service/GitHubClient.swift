@@ -129,10 +129,12 @@ public struct GitHubClient: Sendable {
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        let (data, _) = try await perform(request)
+        let (data, response) = try await perform(request)
 
         guard let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
-            throw GitHubError.decoding("response was not a JSON object")
+            throw GitHubError.decoding(
+                Self.notJSON(data, status: response.statusCode)
+            )
         }
 
         let failures = GraphQLAnswer.failures(from: root)
@@ -377,6 +379,29 @@ public struct GitHubClient: Sendable {
     ///
     /// Trimmed because a gateway error can answer with a whole HTML page,
     /// and the part naming what failed is at the top of it.
+    /// What to say when GitHub answered successfully with something that
+    /// is not JSON.
+    ///
+    /// "response was not a JSON object" was true and told nobody
+    /// anything. It cannot be a bad status -- `attempt` has already
+    /// thrown for those -- so this is GitHub saying 200 and then handing
+    /// back a body that is empty, truncated or an HTML page. Which of
+    /// those it is decides what to do about it, and the answer is in the
+    /// bytes that were thrown away with the message.
+    ///
+    /// An excerpt rather than the body: it is going into a status line
+    /// somebody reads at a glance, and the first words of an HTML page
+    /// are enough to recognise one.
+    static func notJSON(_ data: Data, status: Int) -> String {
+        guard !data.isEmpty else {
+            return "GitHub answered \(status) with an empty body"
+        }
+        guard let excerpt = excerpt(of: data, limit: 120) else {
+            return "GitHub answered \(status) with \(data.count) bytes that are not JSON"
+        }
+        return "GitHub answered \(status) with \(data.count) bytes that are not JSON: \(excerpt)"
+    }
+
     static func excerpt(of data: Data, limit: Int = 400) -> String? {
         guard let text = String(data: data, encoding: .utf8) else {
             return data.isEmpty ? nil : "\(data.count) bytes, not text"
