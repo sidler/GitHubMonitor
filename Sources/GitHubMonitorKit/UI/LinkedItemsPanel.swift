@@ -635,18 +635,33 @@ struct LinkedItemDisclosure: View {
 
     private var state: LinkedSummary.State? { LinkedState.of(link, in: context.state) }
 
+    /// How far in everything under the first line sits: the triangle's
+    /// own width and the gap after it.
+    private static let indent: CGFloat = 16
+
+    /// Built by hand rather than with `DisclosureGroup`.
+    ///
+    /// That control centres its triangle against the whole label, which
+    /// over a label of two lines puts it in the gap between them --
+    /// pointing at neither -- and it indents nothing but the fold's
+    /// contents, so the title under the reference ran back to the
+    /// margin. Here the triangle sits on the first line's baseline,
+    /// where it belongs, and the title and the fold line up under the
+    /// reference rather than under the triangle.
     var body: some View {
-        DisclosureGroup(isExpanded: $disclosure.isExpanded) {
-            content
-                .padding(.top, 6)
-                .padding(.leading, 2)
-        } label: {
-            // A button rather than the bare label, for the reason the
-            // description's fold carries one: on macOS only the triangle
-            // toggles a DisclosureGroup, which leaves the title looking
-            // like a control that does nothing.
+        VStack(alignment: .leading, spacing: 0) {
+            // The whole line toggles, not only the triangle: on macOS
+            // the bare triangle is the only part of a `DisclosureGroup`
+            // that does, which leaves the title looking like a control
+            // that does nothing.
             Button { disclosure.isExpanded.toggle() } label: { fold }
                 .buttonStyle(.plain)
+
+            if disclosure.isExpanded {
+                content
+                    .padding(.top, 6)
+                    .padding(.leading, Self.indent)
+            }
         }
     }
 
@@ -659,35 +674,48 @@ struct LinkedItemDisclosure: View {
     /// characters beside the wreckage. Neither was readable, and which
     /// issue it was is the thing a reader is looking for.
     private var fold: some View {
-        VStack(alignment: .leading, spacing: 1) {
-            HStack(alignment: .firstTextBaseline, spacing: 5) {
-                Image(systemName: symbolName)
-                    // Grey while nothing is known: a number read out of a
-                    // sentence is a guess until it has been looked up, and
-                    // green would be an answer the app does not have.
-                    .foregroundStyle(state?.tint ?? Color(nsColor: .tertiaryLabelColor))
-                Text(verbatim: link.reference.id)
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-                    // One line, cut at the front: the number is what
-                    // distinguishes one of these from the next, and the
-                    // owner is the same for all of them.
-                    .lineLimit(1)
-                    .truncationMode(.head)
-                if link.kind == .mentions {
-                    Text("mentioned")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-                Spacer(minLength: 0)
-            }
+        HStack(alignment: .firstTextBaseline, spacing: 0) {
+            // On the first line's baseline, and the width everything
+            // under it is indented by.
+            Image(systemName: "chevron.right")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .rotationEffect(.degrees(disclosure.isExpanded ? 90 : 0))
+                .frame(width: Self.indent, alignment: .leading)
 
-            if let title = summary?.title ?? link.title {
-                Text(title)
-                    .font(.subheadline)
-                    .lineLimit(2)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Image(systemName: symbolName)
+                        // Grey while nothing is known: a number read out
+                        // of a sentence is a guess until it has been
+                        // looked up, and green would be an answer the app
+                        // does not have.
+                        .foregroundStyle(
+                            state?.tint ?? Color(nsColor: .tertiaryLabelColor)
+                        )
+                    Text(verbatim: link.reference.id)
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        // One line, cut at the front: the number is what
+                        // tells one of these from the next, and the owner
+                        // is the same for all of them.
+                        .lineLimit(1)
+                        .truncationMode(.head)
+                    if link.kind == .mentions {
+                        Text("mentioned")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                    Spacer(minLength: 0)
+                }
+
+                if let title = summary?.title ?? link.title {
+                    Text(title)
+                        .font(.subheadline)
+                        .lineLimit(2)
+                        .truncationMode(.tail)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
         }
         .contentShape(Rectangle())
