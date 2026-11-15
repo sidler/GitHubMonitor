@@ -3,7 +3,7 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
-## Unreleased
+## 2.10.0
 
 - **A selected row looks like a selected row anywhere else on the Mac** —
   the system's own highlight, with neighbouring rows merging into one block.
