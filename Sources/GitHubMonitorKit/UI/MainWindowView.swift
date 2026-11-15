@@ -20,18 +20,7 @@ struct SidebarColumn: View {
                     switch entry {
                     case .list(let list):
                         Section(list.title) {
-                            Label(
-                                "All",
-                                systemImage: state.listFailures[list.id] == nil
-                                    ? list.symbol
-                                    : "exclamationmark.triangle"
-                            )
-                            // Marked here as well as on the list itself:
-                            // this is where somebody looks to find out
-                            // which of their lists is the one complaining.
-                            .foregroundStyle(
-                                state.listFailures[list.id] == nil ? Color(nsColor: .labelColor) : Ink.orange
-                            )
+                            allRow(for: list)
                             .badge(state.count(of: list))
                             .tag(SidebarSelection.list(id: list.id, repository: nil))
 
@@ -96,6 +85,33 @@ struct SidebarColumn: View {
 
     private func shown(_ key: String) -> Bool {
         state.settings.listVisibility.isShown(key, in: .window)
+    }
+
+    /// The row that stands for a whole list, rather than one of its
+    /// repositories.
+    ///
+    /// Coloured only when the list is complaining. It used to be pinned
+    /// to `labelColor` the rest of the time, which is a concrete colour
+    /// and therefore survives being selected -- so the one row somebody
+    /// had clicked stayed near-black on the blue, with its symbol robbed
+    /// of the accent the rows under it kept. The same trap the review
+    /// and link colours carry warnings about, taken from the other end:
+    /// there a hierarchical style was resolved to white where it should
+    /// not have been, here a concrete one refused to be.
+    ///
+    /// Saying nothing is what lets the sidebar do what it does to every
+    /// other row.
+    @ViewBuilder
+    private func allRow(for list: SavedList) -> some View {
+        if state.listFailures[list.id] == nil {
+            Label("All", systemImage: list.symbol)
+        } else {
+            // Marked here as well as on the list itself: this is where
+            // somebody looks to find out which of their lists is the one
+            // complaining.
+            Label("All", systemImage: "exclamationmark.triangle")
+                .foregroundStyle(Ink.orange)
+        }
     }
 
     private func repositoryRows(_ repositories: [SidebarRepository]) -> [SidebarRepository] {
