@@ -2,6 +2,11 @@ import SwiftUI
 
 /// A notification with an optional, lazily fetched comment preview.
 struct NotificationRow: View {
+    /// Whether the list has this row selected, which on the accent fill
+    /// is the difference between a line being read and a line being a
+    /// shade of the fill it sits on.
+    @Environment(\.rowIsSelected) private var isRowSelected
+
     let item: NotificationItem
     let preview: PreviewState?
     let isExpanded: Bool
@@ -34,7 +39,11 @@ struct NotificationRow: View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: item.symbolName)
                 .font(compact ? .body : .title3)
-                .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+                // Hierarchical rather than the label colour it names: the
+                // system resolves this one against whatever it has painted
+                // under the row, and the accent fill is something it has
+                // painted.
+                .foregroundStyle(.secondary)
                 .frame(width: compact ? 22 : 26)
                 .padding(.top, 1)
                 .help(item.subjectType)
@@ -56,12 +65,17 @@ struct NotificationRow: View {
                         if said.isAboutYou {
                             Image(systemName: "at")
                                 .font(.caption2.weight(.semibold))
-                                .foregroundStyle(Ink.blue)
+                                .foregroundStyle(rowTint(Ink.blue, selected: isRowSelected))
                         }
                         Text(said.line)
                             .font(.caption)
                             .lineLimit(compact ? 1 : 2)
-                            .foregroundStyle(Color(nsColor: .labelColor))
+                            // The remark is the thing the row is read for,
+                            // so it keeps the full weight of the text
+                            // colour -- and on the selection that means
+                            // whatever the fill makes readable, not the
+                            // near-black it would otherwise be.
+                            .foregroundStyle(.primary)
                     }
                 }
 

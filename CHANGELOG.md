@@ -5,6 +5,9 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **A selected mention is readable** — its symbol and the comment under the
+  title kept a near-black of their own on the blue fill.
+
 - **After an update the app says so** — *What's New* names the new version
   and carries a badge, and the panel has a line to press. Both go as soon
   as the changelog has been opened. Until now nothing ever pointed at it.

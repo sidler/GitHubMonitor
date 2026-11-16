@@ -154,9 +154,20 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // first row of whichever list is on screen.
         if let wanted = devOption("GHM_INSPECT") {
             Task { [weak self] in
-                for _ in 0..<40 {
+                for _ in 0..<240 {
                     guard let self else { return }
-                    if let list = state.selectedList {
+                    // Mentions are not a saved list -- they come from the
+                    // notifications API -- but they are a list with rows
+                    // that can be inspected, and a row that grows as its
+                    // comment arrives is the one case worth being able to
+                    // reach without a hand on the mouse.
+                    if case .mentions = state.sidebarSelection {
+                        let rows = state.selectedNotifications
+                        if let first = rows.first(where: { $0.id == wanted }) ?? rows.first {
+                            refresh.inspect(first)
+                            return
+                        }
+                    } else if let list = state.selectedList {
                         switch list.content {
                         case .pullRequests:
                             let rows = state.pullRequests(in: list)
