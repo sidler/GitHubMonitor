@@ -18,6 +18,11 @@ struct PopoverView: View {
 
             Divider()
 
+            if let version = state.settings.unseenChangelogVersion {
+                changelogRow(version)
+                Divider()
+            }
+
             if state.health == .unconfigured {
                 unconfiguredNotice
             } else {
@@ -48,6 +53,30 @@ struct PopoverView: View {
         .frame(width: 380)
         // No background of its own: a popover is a panel the system draws
         // the material for, and a fill here would cover it.
+    }
+
+    /// What arrived with the last update, for the one person who did not
+    /// install it on purpose a minute ago.
+    ///
+    /// At the top rather than beside the Quit button: it is here to be
+    /// noticed on the next glance at the menu bar, and it is gone for good
+    /// once it has been.
+    private func changelogRow(_ version: String) -> some View {
+        Button {
+            ChangelogWindow.show(settings: state.settings)
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "sparkles")
+                Text("New in \(version)")
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.secondary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.accessoryBar)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .help("What changed in this version")
     }
 
     // MARK: - Sections

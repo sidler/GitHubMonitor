@@ -18,7 +18,8 @@ struct AppMenuTests {
         _ = NSApplication.shared
         return AppMenu.build(
             appName: "GitHub Monitor",
-            openSettings: {}, refresh: {}, moveDetail: { _ in }, closeDetail: {},
+            openSettings: {}, showChangelog: {}, unseenChangelog: { nil },
+            refresh: {}, moveDetail: { _ in }, closeDetail: {},
             changeDiffFontSize: { _ in }, resetDiffFontSize: {},
             showsDiffLineNumbers: { true }, toggleDiffLineNumbers: {},
             showsDiffInspector: { false }, toggleDiffInspector: {},
@@ -84,7 +85,8 @@ struct ReviewSelectionMenuTests {
         _ = NSApplication.shared
         let main = AppMenu.build(
             appName: "GitHub Monitor",
-            openSettings: {}, refresh: {}, moveDetail: { _ in }, closeDetail: {},
+            openSettings: {}, showChangelog: {}, unseenChangelog: { nil },
+            refresh: {}, moveDetail: { _ in }, closeDetail: {},
             changeDiffFontSize: { _ in }, resetDiffFontSize: {},
             showsDiffLineNumbers: { true }, toggleDiffLineNumbers: {},
             showsDiffInspector: { false }, toggleDiffInspector: {},
@@ -143,7 +145,8 @@ struct DiffStepMenuTests {
         _ = NSApplication.shared
         let main = AppMenu.build(
             appName: "GitHub Monitor",
-            openSettings: {}, refresh: {}, moveDetail: { _ in }, closeDetail: {},
+            openSettings: {}, showChangelog: {}, unseenChangelog: { nil },
+            refresh: {}, moveDetail: { _ in }, closeDetail: {},
             changeDiffFontSize: { _ in }, resetDiffFontSize: {},
             showsDiffLineNumbers: { true }, toggleDiffLineNumbers: {},
             showsDiffInspector: { false }, toggleDiffInspector: {},
@@ -184,5 +187,82 @@ struct DiffStepMenuTests {
         let usable = try #require(self.item("Next File", canStep: { true }))
         let other = try #require(usable as? NSMenuItemValidation)
         #expect(other.validateMenuItem(usable))
+    }
+}
+
+/// How the app says an update brought something to read.
+///
+/// The menu item is the one place the changelog has ever lived, so it is
+/// the place that says there is something new in it: the system's own
+/// badge, and a title naming the version. Both are asked for in the
+/// moment before the menu is drawn, so pressing it clears them without
+/// anything having to rebuild the menu.
+@MainActor
+@Suite("Saying that the changelog has something new")
+struct ChangelogMenuTests {
+    private func whatsNew(unseen: @escaping () -> String?) -> NSMenuItem? {
+        _ = NSApplication.shared
+        let main = AppMenu.build(
+            appName: "GitHub Monitor",
+            openSettings: {}, showChangelog: {}, unseenChangelog: unseen,
+            refresh: {}, moveDetail: { _ in }, closeDetail: {},
+            changeDiffFontSize: { _ in }, resetDiffFontSize: {},
+            showsDiffLineNumbers: { true }, toggleDiffLineNumbers: {},
+            showsDiffInspector: { false }, toggleDiffInspector: {},
+            diffLayout: { .unified }, setDiffLayout: { _ in },
+            diffPaging: { .scroll }, setDiffPaging: { _ in },
+            stepDiffFile: { _ in }, canStepDiffFile: { true },
+            reviewSelection: {}, selectedForReview: { 0 }
+        )
+        return (main.items.first?.submenu?.items ?? [])
+            .first { $0.title.hasPrefix("What's New") }
+    }
+
+    /// What AppKit does in the moment before it draws the item.
+    private func validate(_ item: NSMenuItem) {
+        _ = (item.target as? NSMenuItemValidation)?.validateMenuItem(item)
+    }
+
+    @Test("After an update it names the version and wears a badge")
+    func marked() throws {
+        let item = try #require(whatsNew(unseen: { "2.10.0" }))
+        validate(item)
+
+        #expect(item.title == "What's New in 2.10.0\u{2026}")
+        #expect(item.badge?.stringValue == "New")
+    }
+
+    @Test("With nothing new it is the plain item it has always been")
+    func plain() throws {
+        let item = try #require(whatsNew(unseen: { nil }))
+        validate(item)
+
+        #expect(item.title == "What's New\u{2026}")
+        #expect(item.badge == nil)
+    }
+
+    /// The badge has to come off as well as go on. The same item is asked
+    /// again every time the menu opens, and one that only ever learned to
+    /// put a badge on would wear it for the life of the process -- which
+    /// is the whole of a login session for an app that lives up there.
+    @Test("Reading it takes the badge off again")
+    func cleared() throws {
+        let read = Box()
+        let item = try #require(whatsNew(unseen: { read.isRead ? nil : "2.10.0" }))
+
+        validate(item)
+        #expect(item.badge?.stringValue == "New")
+
+        read.isRead = true
+        validate(item)
+        #expect(item.badge == nil)
+        #expect(item.title == "What's New\u{2026}")
+    }
+
+    /// A reference the closure above can see change, which a captured
+    /// `var` of a value type cannot.
+    @MainActor
+    private final class Box {
+        var isRead = false
     }
 }

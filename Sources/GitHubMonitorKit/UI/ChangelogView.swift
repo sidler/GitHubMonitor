@@ -34,6 +34,28 @@ public enum Changelog {
         return text
     }
 
+    /// The version this build's changelog is headed by, read once.
+    ///
+    /// The file does not change under a running app, and this is asked
+    /// every time the menu opens and every time the panel is drawn.
+    public static let shipped: String? = newestVersion(in: text())
+
+    /// The version worth pointing at, given what has already been read.
+    ///
+    /// Different, not newer: comparing version numbers as text puts 2.9.1
+    /// above 2.10.0, and comparing them properly would be a parser written
+    /// to make a dot on a menu item slightly more correct. Anything that
+    /// changes the shipped version is worth a look.
+    ///
+    /// Nothing to announce when either side is missing. A fresh install
+    /// records what it shipped with at first launch, so an absent `seen`
+    /// means this is that launch -- the changelog is new to the machine,
+    /// not newer than what was read on it.
+    public static func unseen(shipped: String?, seen: String?) -> String? {
+        guard let shipped, let seen, shipped != seen else { return nil }
+        return shipped
+    }
+
     /// The newest released version, for a window title that says which
     /// version is being read about.
     ///

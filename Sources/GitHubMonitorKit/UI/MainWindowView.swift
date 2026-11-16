@@ -575,6 +575,17 @@ struct ContentColumn: View {
                 .help(openHelp)
             }
 
+            // Only after an update, and only until it has been read.
+            if let version = state.settings.unseenChangelogVersion {
+                Button {
+                    ChangelogWindow.show(settings: state.settings)
+                } label: {
+                    Label("New in \(version)", systemImage: "sparkles")
+                }
+                .buttonStyle(.accessoryBar)
+                .help("What changed in this version")
+            }
+
             // The lists, whatever page this is: this button belongs to
             // the line beside it, which reports on the lists and nothing
             // else. What is on screen has its own reload where it is.

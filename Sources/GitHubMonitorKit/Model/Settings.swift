@@ -342,6 +342,20 @@ public final class Settings {
         didSet { store.set(launchAtLogin, forKey: Key.launchAtLogin) }
     }
 
+    /// The newest version whose changelog has been read here.
+    ///
+    /// Stored rather than inferred from the bundle's own version: what
+    /// matters is what this reader has seen, and an update installed while
+    /// the app was not running still has to announce itself afterwards.
+    public var seenChangelogVersion: String? {
+        didSet { store.set(seenChangelogVersion, forKey: Key.seenChangelogVersion) }
+    }
+
+    /// The version to point at, or nothing.
+    public var unseenChangelogVersion: String? {
+        Changelog.unseen(shipped: Changelog.shipped, seen: seenChangelogVersion)
+    }
+
     /// What the mentions are called and which icon they wear.
     ///
     /// They are not a saved list -- they come from the notifications API
@@ -449,6 +463,7 @@ public final class Settings {
         trendsIncludeBots = store.object(forKey: Key.trendsIncludeBots) as? Bool ?? false
         commenterScope =
             (store.string(forKey: Key.commenterScope).flatMap(CommenterScope.init(rawValue:))) ?? .mine
+        seenChangelogVersion = store.string(forKey: Key.seenChangelogVersion)
 
         // Drafts used to be one switch for the whole app and are a property
         // of a list now. Hand the old value to the lists that can hold
@@ -566,5 +581,6 @@ public final class Settings {
         static let trendResolution = "trendResolution"
         static let trendsIncludeBots = "trendsIncludeBots"
         static let commenterScope = "commenterScope"
+        static let seenChangelogVersion = "seenChangelogVersion"
     }
 }

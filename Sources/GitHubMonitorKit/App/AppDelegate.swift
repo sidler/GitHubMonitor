@@ -43,6 +43,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     public func applicationDidFinishLaunching(_ notification: Notification) {
         UserDefaults.standard.register(defaults: ["NSInitialToolTipDelay": Self.toolTipDelay])
 
+        // A fresh install has nothing to announce: the changelog is new to
+        // the machine, not newer than anything read on it. Record what it
+        // shipped with so that the next update is the first thing marked.
+        if state.settings.seenChangelogVersion == nil {
+            state.settings.seenChangelogVersion = Changelog.shipped
+        }
+
         let refresh = RefreshController(state: state)
         refreshController = refresh
 
@@ -59,6 +66,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.mainMenu = AppMenu.build(
             appName: "GitHub Monitor",
             openSettings: { windowController.show(selecting: .settings) },
+            showChangelog: { [state] in ChangelogWindow.show(settings: state.settings) },
+            unseenChangelog: { [state] in state.settings.unseenChangelogVersion },
             refresh: { Task { await refresh.refreshShown() } },
             moveDetail: { refresh.moveInspection(by: $0) },
             closeDetail: { refresh.closeInspector() },

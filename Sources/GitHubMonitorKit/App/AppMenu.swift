@@ -12,6 +12,8 @@ enum AppMenu {
     static func build(
         appName: String,
         openSettings: @escaping () -> Void,
+        showChangelog: @escaping () -> Void,
+        unseenChangelog: @escaping () -> String?,
         refresh: @escaping () -> Void,
         moveDetail: @escaping (Int) -> Void,
         closeDetail: @escaping () -> Void,
@@ -32,7 +34,12 @@ enum AppMenu {
     ) -> NSMenu {
         let main = NSMenu()
 
-        main.addItem(applicationMenu(appName: appName, openSettings: openSettings))
+        main.addItem(applicationMenu(
+            appName: appName,
+            openSettings: openSettings,
+            showChangelog: showChangelog,
+            unseenChangelog: unseenChangelog
+        ))
         main.addItem(
             fileMenu(reviewSelection: reviewSelection, selectedForReview: selectedForReview)
         )
@@ -63,7 +70,9 @@ enum AppMenu {
 
     private static func applicationMenu(
         appName: String,
-        openSettings: @escaping () -> Void
+        openSettings: @escaping () -> Void,
+        showChangelog: @escaping () -> Void,
+        unseenChangelog: @escaping () -> String?
     ) -> NSMenuItem {
         let item = NSMenuItem()
         let menu = NSMenu(title: appName)
@@ -71,9 +80,15 @@ enum AppMenu {
         menu.addItem(ActionItem(title: "About \(appName)", keyEquivalent: "") {
             NSApp.orderFrontStandardAboutPanel(options: AboutPanel.options())
         })
-        menu.addItem(ActionItem(title: "What's New\u{2026}", keyEquivalent: "") {
-            ChangelogWindow.show()
-        })
+        // After an update the item says which version it would show and
+        // carries the system's badge, so the one place the changelog lives
+        // is also the place that says there is something new in it.
+        let whatsNew = ActionItem(title: "What's New\u{2026}", keyEquivalent: "", action: showChangelog)
+        whatsNew.name = {
+            unseenChangelog().map { "What's New in \($0)\u{2026}" } ?? "What's New\u{2026}"
+        }
+        whatsNew.mark = { unseenChangelog() == nil ? nil : "New" }
+        menu.addItem(whatsNew)
         menu.addItem(.separator())
 
         // The native home for Cmd+, replacing the event monitor.
@@ -367,6 +382,11 @@ private final class ActionItem: NSMenuItem, NSMenuItemValidation {
     /// anything does, which is the one moment that is worth knowing.
     var name: (() -> String)?
 
+    /// What the system's own badge on the right of the item should say,
+    /// or nothing for no badge. Asked with the others, for the same
+    /// reason: it goes as soon as the item has been used.
+    var mark: (() -> String?)?
+
     init(title: String, keyEquivalent: String, action: @escaping () -> Void) {
         handler = action
         super.init(title: title, action: #selector(run), keyEquivalent: keyEquivalent)
@@ -383,6 +403,7 @@ private final class ActionItem: NSMenuItem, NSMenuItemValidation {
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         if let isOn { item.state = isOn() ? .on : .off }
         if let name { item.title = name() }
+        if let mark { item.badge = mark().map { NSMenuItemBadge(string: $0) } }
         return canRun?() ?? true
     }
 
@@ -473,7 +494,12 @@ enum AboutPanel {
 enum ChangelogWindow {
     private static var window: NSWindow?
 
-    static func show() {
+    /// Opening it is what counts as having read it: the dot on the menu
+    /// item and the row in the panel go at the same moment, whichever of
+    /// them was pressed.
+    static func show(settings: Settings) {
+        settings.seenChangelogVersion = Changelog.shipped
+
         if let window {
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)

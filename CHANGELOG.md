@@ -3,6 +3,12 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
+## Unreleased
+
+- **After an update the app says so** — *What's New* names the new version
+  and carries a badge, and the panel has a line to press. Both go as soon
+  as the changelog has been opened. Until now nothing ever pointed at it.
+
 ## 2.10.0
 
 - **A selected row looks like a selected row anywhere else on the Mac** —

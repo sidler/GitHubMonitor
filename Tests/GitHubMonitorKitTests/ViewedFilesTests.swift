@@ -256,3 +256,57 @@ struct DiffNavigationTests {
         )
     }
 }
+
+/// When the app has something to point at, and when it has not.
+///
+/// The rule is about what *this reader* has seen, not about what the
+/// bundle holds: an update installed while the app was not running --
+/// which is every update, since `brew upgrade` replaces the bundle under
+/// it -- still has to announce itself the next time it starts.
+@MainActor
+@Suite("Whether the changelog has something unread in it")
+struct ChangelogMarkTests {
+    @Test("A version other than the one last read is worth pointing at")
+    func afterAnUpdate() {
+        #expect(Changelog.unseen(shipped: "2.10.0", seen: "2.9.1") == "2.10.0")
+    }
+
+    @Test("Having read it is the end of it")
+    func read() {
+        #expect(Changelog.unseen(shipped: "2.10.0", seen: "2.10.0") == nil)
+    }
+
+    /// The first launch on a machine. Nothing is announced; the version is
+    /// recorded instead, so that the *next* update is the first one marked.
+    @Test("A fresh install announces nothing")
+    func fresh() {
+        #expect(Changelog.unseen(shipped: "2.10.0", seen: nil) == nil)
+    }
+
+    /// A build that forgot to copy the file. The window already says so
+    /// plainly when it is opened; nothing should push anybody towards it.
+    @Test("A build without a changelog has nothing to say")
+    func noChangelog() {
+        #expect(Changelog.unseen(shipped: nil, seen: "2.9.1") == nil)
+        #expect(Changelog.unseen(shipped: nil, seen: nil) == nil)
+    }
+
+    /// Different rather than newer, deliberately: as text "2.9.1" sorts
+    /// above "2.10.0", and a version parser written to decide whether a
+    /// menu item wears a dot would be the wrong trade. Going back to an
+    /// older build is worth a look at its changelog too.
+    @Test("Going back a version is also something to point at")
+    func downgrade() {
+        #expect(Changelog.unseen(shipped: "2.9.1", seen: "2.10.0") == "2.9.1")
+    }
+
+    @Test("What has been read survives a restart")
+    func remembered() {
+        let store = TestDefaults.make()
+        let settings = Settings(store: store)
+        #expect(settings.seenChangelogVersion == nil)
+
+        settings.seenChangelogVersion = "2.10.0"
+        #expect(Settings(store: store).seenChangelogVersion == "2.10.0")
+    }
+}
