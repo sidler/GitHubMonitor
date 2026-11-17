@@ -91,6 +91,9 @@ struct AccountSettingsView: View {
                 ForEach(TokenScopes.required, id: \.scope) { entry in
                     Text("• \(entry.scope) — \(entry.purpose)")
                 }
+                ForEach(TokenScopes.optional, id: \.scope) { entry in
+                    Text("• \(entry.scope) — optional, to \(entry.purpose)")
+                }
             }
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -99,7 +102,8 @@ struct AccountSettingsView: View {
 
     /// Pre-selects the scopes so the GitHub page opens ready to submit.
     static let tokenCreationURL = URL(
-        string: "https://github.com/settings/tokens/new?description=GitHub%20Monitor&scopes=repo,notifications"
+        string: "https://github.com/settings/tokens/new?description=GitHub%20Monitor"
+            + "&scopes=repo,notifications,read:project,read:org"
     )!
 
     private func verify() async {

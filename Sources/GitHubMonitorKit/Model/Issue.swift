@@ -252,7 +252,10 @@ public struct IssueDetail: Hashable, Sendable {
             labels: labels,
             subIssues: subIssues,
             progress: progress,
-            parent: parent
+            parent: parent,
+            state: state,
+            assignees: assignees,
+            projects: projects
         )
     }
     /// The newest comments, oldest of those first, so the thread reads
@@ -274,6 +277,14 @@ public struct IssueDetail: Hashable, Sendable {
     /// own, and "what is this part of" is the question that otherwise
     /// sends you to the browser.
     public let parent: RelatedIssue?
+    /// Where it stands. The lists it arrives in are mostly `is:open`, but
+    /// not all of them, and an issue read from a link or a sub-issue row
+    /// may be any state at all.
+    public let state: LinkedSummary.State
+    /// Who it is on, empty where nobody has been named.
+    public let assignees: [String]
+    /// The boards it sits on, where the token may read them.
+    public let projects: [LinkedProject]
 
     public init(
         body: String,
@@ -282,7 +293,10 @@ public struct IssueDetail: Hashable, Sendable {
         labels: [IssueLabel] = [],
         subIssues: [RelatedIssue] = [],
         progress: SubIssueProgress? = nil,
-        parent: RelatedIssue? = nil
+        parent: RelatedIssue? = nil,
+        state: LinkedSummary.State = .open,
+        assignees: [String] = [],
+        projects: [LinkedProject] = []
     ) {
         self.body = body
         self.labels = labels
@@ -291,6 +305,9 @@ public struct IssueDetail: Hashable, Sendable {
         self.subIssues = subIssues
         self.progress = progress
         self.parent = parent
+        self.state = state
+        self.assignees = assignees
+        self.projects = projects
     }
 
     /// How many children GitHub counted beyond the ones listed, so a long

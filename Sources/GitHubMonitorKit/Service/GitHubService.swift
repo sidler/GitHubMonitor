@@ -292,9 +292,12 @@ public struct GitHubService: Sendable {
     /// back, exactly as a search does, so asking for eight links one at a
     /// time would cost eight times what asking together does.
     public func linkedItems(
-        _ references: [ItemReference]
+        _ references: [ItemReference], projects: Bool = false, columns: Bool = false
     ) async throws -> (summaries: [ItemReference: LinkedSummaryState], budget: RateBudget?) {
-        guard let document = LinkedItemQuery.document(for: references) else { return ([:], nil) }
+        guard let document = LinkedItemQuery.document(
+            for: references, projects: projects, columns: columns
+        )
+        else { return ([:], nil) }
         let payload = try await client.graphQL(document)
         return (
             LinkedItemQuery.summaries(from: payload, asked: references),
@@ -927,9 +930,11 @@ public struct GitHubService: Sendable {
 
     /// The text and the end of the thread behind one issue, fetched when its
     /// row is opened rather than for the whole list.
-    public func issueDetail(id: String) async throws -> IssueDetail {
+    public func issueDetail(
+        id: String, projects: Bool = false, columns: Bool = false
+    ) async throws -> IssueDetail {
         let payload = try await client.graphQL(
-            IssueQuery.detailDocument,
+            IssueQuery.detailDocument(projects: projects, columns: columns),
             variables: ["id": id]
         )
         return try IssueQuery.detail(from: payload)

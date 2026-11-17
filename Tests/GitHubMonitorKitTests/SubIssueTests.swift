@@ -219,3 +219,118 @@ struct SubIssueTests {
         #expect(made(.notPlanned).isClosed)
     }
 }
+
+/// What the pane about an issue says about the issue.
+///
+/// The three facts somebody opens a ticket for -- where it stands, who is
+/// on it, which board it is on -- were in the fold a pull request draws
+/// for a ticket it links to, and in no form at all in the pane about the
+/// ticket itself. Same facts, same view; these are about the detail query
+/// learning to ask for them.
+@Suite("An issue's own state, assignee and board")
+struct IssueDetailFactsTests {
+    private func detail(_ node: [String: Any]) throws -> IssueDetail {
+        try IssueQuery.detail(from: ["node": node])
+    }
+
+    @Test("Where it stands comes across, including closed as not planned")
+    func state() throws {
+        #expect(try detail(["body": ""]).state == .open)
+        #expect(try detail(["body": "", "state": "CLOSED"]).state == .closed)
+        #expect(
+            try detail(["body": "", "state": "CLOSED", "stateReason": "NOT_PLANNED"]).state
+                == .notPlanned
+        )
+    }
+
+    @Test("Everyone on it comes across, and nobody is an empty list")
+    func assignees() throws {
+        let node: [String: Any] = [
+            "body": "",
+            "assignees": ["nodes": [["login": "avery"], ["login": "mrick808"]]],
+        ]
+        #expect(try detail(node).assignees == ["avery", "mrick808"])
+        #expect(try detail(["body": ""]).assignees.isEmpty)
+    }
+
+    @Test("The board and its column come across")
+    func boards() throws {
+        let node: [String: Any] = [
+            "body": "",
+            "projectItems": [
+                "nodes": [["project": ["title": "SCRUM Board"], "status": ["name": "Code Review"]]],
+            ],
+        ]
+        #expect(try detail(node).projects.first?.label == "SCRUM Board \u{00b7} Code Review")
+    }
+
+    /// The same two-tier rule the linked lookup follows, and for the same
+    /// reason: GitHub refuses the whole query over a field the token
+    /// cannot see, which would cost this pane its text and its thread.
+    @Test("Boards and columns are asked for only where the token may read them")
+    func scopes() {
+        let none = IssueQuery.detailDocument(projects: false, columns: false)
+        #expect(!none.contains("projectItems"))
+        #expect(!none.contains("fieldValueByName"))
+
+        let boards = IssueQuery.detailDocument(projects: true, columns: false)
+        #expect(boards.contains("projectItems"))
+        #expect(!boards.contains("fieldValueByName"))
+
+        let both = IssueQuery.detailDocument(projects: true, columns: true)
+        #expect(both.contains("fieldValueByName"))
+    }
+
+    /// Asked for unconditionally, because neither costs a scope the app
+    /// does not already require.
+    @Test("The state and the assignees are always asked for")
+    func alwaysAsked() {
+        let document = IssueQuery.detailDocument(projects: false, columns: false)
+        #expect(document.contains("stateReason"))
+        #expect(document.contains("assignees(first:"))
+    }
+}
+
+/// The sample carries these facts, so the panes that draw them can be
+/// looked at without a token and without a request.
+///
+/// Three shapes between the two sample issues, which is what the drawing
+/// has to cope with: one assignee and a board with a column, two
+/// assignees and a board without one, and an issue that is closed rather
+/// than open.
+@MainActor
+@Suite("The sample has a state, an assignee and a board")
+struct SampleTicketFactsTests {
+    @Test("The epic is open, on somebody, and in a column")
+    func epic() {
+        let detail = SampleData.epicDetail()
+
+        #expect(detail.state == .open)
+        #expect(detail.assignees == ["noor"])
+        #expect(detail.projects.first?.label == "Platform Board \u{00b7} In Progress")
+    }
+
+    /// A board with no Status field, two people on it, and over.
+    @Test("The child is closed, on two people, and on a board without a column")
+    func child() {
+        let detail = SampleData.childDetail()
+
+        #expect(detail.state == .closed)
+        #expect(detail.assignees == ["arun", "mira"])
+        #expect(detail.projects.first?.label == "Roadmap")
+    }
+
+    /// And the fold a pull request draws for a ticket it links to, which
+    /// is the other pane the same view serves.
+    @Test("A linked issue carries them too")
+    func linked() throws {
+        let summaries = SampleData.linkedSummaries()
+        guard case .loaded(let summary) = try #require(summaries.values.first(where: {
+            if case .loaded(let found) = $0 { return found.kind == .issue }
+            return false
+        })) else { return }
+
+        #expect(!summary.assignees.isEmpty)
+        #expect(summary.projects.first?.status == "Code Review")
+    }
+}

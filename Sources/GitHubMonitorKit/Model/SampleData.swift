@@ -291,7 +291,9 @@ public enum SampleData {
                 child(622, "A tab for the requests, with what came back", .open),
                 child(623, "Remember which tab was last open", .open),
             ],
-            progress: SubIssueProgress(total: 11, completed: 6)
+            progress: SubIssueProgress(total: 11, completed: 6),
+            assignees: ["noor"],
+            projects: [LinkedProject(title: "Platform Board", status: "In Progress")]
         )
     }
 
@@ -314,7 +316,10 @@ public enum SampleData {
                 url: url(Repository.platform, 604),
                 state: .open,
                 type: IssueType(name: "Epic", color: .purple)
-            )
+            ),
+            state: .closed,
+            assignees: ["arun", "mira"],
+            projects: [LinkedProject(title: "Roadmap")]
         )
     }
 
@@ -983,6 +988,10 @@ public enum SampleData {
                     title: "Session table migration order is ambiguous",
                     author: "mira",
                     authorAvatarURL: avatar(1),
+                    assignees: ["mira"],
+                    projects: [
+                        LinkedProject(title: "Platform Board", status: "Code Review"),
+                    ],
                     url: url(Repository.server, 318),
                     createdAt: ago(days: 9),
                     updatedAt: ago(hours: 1.5),

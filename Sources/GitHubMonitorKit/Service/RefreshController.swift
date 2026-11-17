@@ -1817,13 +1817,23 @@ public final class RefreshController {
             linksInFlight.insert(reference.id)
         }
 
+        // Read once, here: ProjectsV2 sits behind a scope of its own and
+        // its columns behind a second one, and asking for either with a
+        // token that lacks it has GitHub refuse the whole query rather
+        // than leave the field out.
+        let scopes = state.viewer?.scopes
+        let projects = scopes?.has(LinkedItemQuery.projectScope) ?? false
+        let columns = scopes?.has(LinkedItemQuery.columnScope) ?? false
+
         accountTask { [weak self] in
             // One request per batch, in turn rather than at once: each is
             // charged, and the budget reading that comes back with the last
             // one should be the last word.
             for batch in LinkedItemQuery.batches(wanted) {
                 do {
-                    let fetched = try await service.linkedItems(batch)
+                    let fetched = try await service.linkedItems(
+                        batch, projects: projects, columns: columns
+                    )
                     guard let self, !Task.isCancelled else { return }
                     for reference in batch {
                         // Absent from an answer that did ask for it is the
@@ -2279,9 +2289,18 @@ public final class RefreshController {
         }
 
         state.issueDetails[id] = .loading
+        // Read before the task, where self is still here: a board is
+        // behind a scope of its own and its columns behind a second, and
+        // asking for either without it has GitHub refuse the whole query.
+        let scopes = state.viewer?.scopes
+        let projects = scopes?.has(LinkedItemQuery.projectScope) ?? false
+        let columns = scopes?.has(LinkedItemQuery.columnScope) ?? false
+
         accountTask { [weak self] in
             do {
-                let detail = try await service.issueDetail(id: id)
+                let detail = try await service.issueDetail(
+                    id: id, projects: projects, columns: columns
+                )
                 guard let self, !Task.isCancelled else { return }
                 state.issueDetails[id] = .loaded(detail)
             } catch let error as GitHubError {

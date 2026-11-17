@@ -49,6 +49,14 @@ public struct TokenScopes: Equatable, Sendable {
         ("notifications", "read notifications and mark them read"),
     ]
 
+    /// Worth having, and not worth refusing a token over. Without it the
+    /// app simply does not ask GitHub about boards; with it a linked
+    /// ticket says which board it is on and which column of it.
+    public static let optional: [(scope: String, purpose: String)] = [
+        ("read:project", "name the boards a linked issue or pull request sits on"),
+        ("read:org", "and name the column it is in on those boards"),
+    ]
+
     /// Scopes that imply others. GitHub lists only the broadest scope granted,
     /// so `admin:org` alone must satisfy a `read:org` requirement.
     private static let implications: [String: Set<String>] = [
@@ -58,6 +66,7 @@ public struct TokenScopes: Equatable, Sendable {
         "admin:repo_hook": ["write:repo_hook", "read:repo_hook"],
         "write:repo_hook": ["read:repo_hook"],
         "user": ["read:user", "user:email", "user:follow"],
+        "project": ["read:project"],
     ]
 
     /// Everything the token grants, including what the granted scopes imply.

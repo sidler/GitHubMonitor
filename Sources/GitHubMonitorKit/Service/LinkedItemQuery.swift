@@ -13,7 +13,47 @@ public enum LinkedItemQuery {
     /// list rather than an answer.
     public static let maximumLookups = 12
 
-    public static func document(for references: [ItemReference]) -> String? {
+    /// Asked for only where the token can see boards.
+    ///
+    /// ProjectsV2 sits behind its own scope, and a classic token granted
+    /// `repo` alone is not granted it. Asking anyway does not merely
+    /// leave the field empty: GitHub refuses the whole query, so the
+    /// panel would stop showing linked tickets at all for anybody who
+    /// has not minted a new token.
+    public static let projectScope = "read:project"
+
+    /// And the column within it needs one more.
+    ///
+    /// A board's columns are a field of the project, and on an
+    /// organisation's board reading what that field is called is reading
+    /// something about the organisation. GitHub answers a token without
+    /// it by refusing the whole query -- naming the `name` field, not
+    /// `projectItems` -- so the column is asked for separately from the
+    /// board it belongs to.
+    public static let columnScope = "read:org"
+
+    static func projectFields(columns: Bool) -> String {
+        let status = columns ? """
+
+            # The column, which is the thing a board is read for. Named
+            # rather than taken by position: a board's fields can be in
+            # any order, and every board has this one.
+            status: fieldValueByName(name: "Status") {
+              ... on ProjectV2ItemFieldSingleSelectValue { name }
+            }
+        """ : ""
+        return """
+            projectItems(first: 5, includeArchived: false) {
+              nodes {
+                project { title }\(status)
+              }
+            }
+        """
+    }
+
+    public static func document(
+        for references: [ItemReference], projects: Bool = false, columns: Bool = false
+    ) -> String? {
         let wanted = asked(references)
         guard !wanted.isEmpty else { return nil }
 
@@ -47,7 +87,7 @@ public enum LinkedItemQuery {
           rateLimit { limit remaining resetAt cost }
         \(repositories.joined(separator: "\n"))
         }
-        \(summaryFragment)
+        \(summaryFragment(projects: projects, columns: columns))
         """
     }
 
@@ -80,7 +120,9 @@ public enum LinkedItemQuery {
         "n\(reference.number)"
     }
 
-    static let summaryFragment = """
+    static func summaryFragment(projects: Bool, columns: Bool) -> String {
+        let boards = projects ? projectFields(columns: columns) : ""
+        return """
     fragment Summary on IssueOrPullRequest {
       ... on Issue {
         __typename
@@ -95,6 +137,8 @@ public enum LinkedItemQuery {
         body
         repository { nameWithOwner }
         author { login avatarUrl }
+        assignees(first: 5) { nodes { login } }
+    \(boards)
         comments { totalCount }
         labels(first: \(IssueQuery.labelLimit)) { nodes { id name color } }
       }
@@ -110,6 +154,8 @@ public enum LinkedItemQuery {
         body
         repository { nameWithOwner }
         author { login avatarUrl }
+        assignees(first: 5) { nodes { login } }
+    \(boards)
         comments { totalCount }
         additions
         deletions
@@ -121,6 +167,7 @@ public enum LinkedItemQuery {
       }
     }
     """
+    }
 
     /// What came back, keyed by reference.
     ///
@@ -178,6 +225,8 @@ public enum LinkedItemQuery {
             title: title,
             author: author?["login"] as? String ?? "ghost",
             authorAvatarURL: (author?["avatarUrl"] as? String).flatMap(URL.init(string:)),
+            assignees: logins(in: node["assignees"]),
+            projects: boards(in: node["projectItems"]),
             url: url,
             createdAt: GitHubDate.date(from: node["createdAt"] as? String),
             updatedAt: GitHubDate.date(from: node["updatedAt"] as? String),
@@ -192,6 +241,26 @@ public enum LinkedItemQuery {
             additions: node["additions"] as? Int,
             deletions: node["deletions"] as? Int
         )
+    }
+
+    /// The boards out of a `projectItems` connection. An item with no
+    /// title is one the token may not read, which is nothing to draw.
+    static func boards(in connection: Any?) -> [LinkedProject] {
+        ((connection as? [String: Any])?["nodes"] as? [[String: Any]] ?? [])
+            .compactMap { item in
+                guard let title = (item["project"] as? [String: Any])?["title"] as? String
+                else { return nil }
+                return LinkedProject(
+                    title: title,
+                    status: (item["status"] as? [String: Any])?["name"] as? String
+                )
+            }
+    }
+
+    /// The logins out of a `{ nodes { login } }` connection.
+    static func logins(in connection: Any?) -> [String] {
+        ((connection as? [String: Any])?["nodes"] as? [[String: Any]] ?? [])
+            .compactMap { $0["login"] as? String }
     }
 
     static func state(from node: [String: Any], isPullRequest: Bool) -> LinkedSummary.State {

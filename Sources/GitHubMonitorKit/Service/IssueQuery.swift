@@ -78,11 +78,21 @@ public enum IssueQuery {
     /// many it is not showing.
     public static let subIssueLimit = 50
 
-    public static let detailDocument = """
+    /// Boards are asked for only where the token may read them, and their
+    /// columns only where it may read the organisation too. Both are left
+    /// out otherwise: GitHub refuses the whole query over a field a token
+    /// cannot see, so asking anyway would cost the pane its text.
+    public static func detailDocument(projects: Bool, columns: Bool) -> String {
+        """
     query($id: ID!) {
       node(id: $id) {
         ... on Issue {
           body
+          state
+          # Closed as done and closed as not planned are different answers.
+          stateReason
+          assignees(first: 5) { nodes { login } }
+      \(projects ? LinkedItemQuery.projectFields(columns: columns) : "")
           labels(first: \(detailLabelLimit)) { nodes { id name color } }
           # The issues filed under this one. GitHub counts them for us,
           # which is the number the website shows and therefore the one
@@ -125,6 +135,7 @@ public enum IssueQuery {
       }
     }
     """
+    }
 
     /// How much of the thread the pane shows. The last ten: a long
     /// discussion is read on GitHub, and what was said most recently is what
@@ -146,7 +157,10 @@ public enum IssueQuery {
             labels: IssueParser.labels(from: node),
             subIssues: IssueParser.subIssues(from: node),
             progress: IssueParser.progress(from: node),
-            parent: IssueParser.related(from: node["parent"] as? [String: Any])
+            parent: IssueParser.related(from: node["parent"] as? [String: Any]),
+            state: LinkedItemQuery.state(from: node, isPullRequest: false),
+            assignees: LinkedItemQuery.logins(in: node["assignees"]),
+            projects: LinkedItemQuery.boards(in: node["projectItems"])
         )
     }
 

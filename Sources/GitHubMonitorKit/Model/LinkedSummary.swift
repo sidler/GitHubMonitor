@@ -7,6 +7,27 @@ import SwiftUI
 /// One type for both kinds. They differ in what is worth saying about them
 /// -- labels against checks, a milestone against a branch -- but the
 /// question being asked of them is the same, and so is the panel.
+/// A board an item sits on, and which column of it.
+///
+/// The column is what anybody asks a board for -- "is it in review yet"
+/// -- and it is optional because a board need not have a Status field at
+/// all. The project is named either way, since being on a board is itself
+/// an answer.
+public struct LinkedProject: Hashable, Sendable {
+    public let title: String
+    public let status: String?
+
+    public init(title: String, status: String? = nil) {
+        self.title = title
+        self.status = status
+    }
+
+    public var label: String {
+        guard let status else { return title }
+        return "\(title) \u{00b7} \(status)"
+    }
+}
+
 public struct LinkedSummary: Hashable, Sendable, Identifiable {
     public enum Kind: Hashable, Sendable {
         case issue
@@ -60,6 +81,13 @@ public struct LinkedSummary: Hashable, Sendable, Identifiable {
     public let title: String
     public let author: String
     public let authorAvatarURL: URL?
+    /// Who it is on, which for an issue is the question the panel is
+    /// usually open to answer. Empty where nobody has been named.
+    public let assignees: [String]
+    /// The boards it sits on. Empty where it is on none -- and also where
+    /// the token cannot see boards at all, which is why nothing is drawn
+    /// for the empty case.
+    public let projects: [LinkedProject]
     public let url: URL
     public let createdAt: Date
     public let updatedAt: Date
@@ -109,6 +137,8 @@ public struct LinkedSummary: Hashable, Sendable, Identifiable {
         title: String,
         author: String,
         authorAvatarURL: URL? = nil,
+        assignees: [String] = [],
+        projects: [LinkedProject] = [],
         url: URL,
         createdAt: Date,
         updatedAt: Date,
@@ -127,6 +157,8 @@ public struct LinkedSummary: Hashable, Sendable, Identifiable {
         self.title = title
         self.author = author
         self.authorAvatarURL = authorAvatarURL
+        self.assignees = assignees
+        self.projects = projects
         self.url = url
         self.createdAt = createdAt
         self.updatedAt = updatedAt
