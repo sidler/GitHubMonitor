@@ -240,7 +240,7 @@ private struct LinkedSummaryCard: View {
                 Text(summary.title)
                     .font(.callout.weight(.medium))
                     .lineLimit(3)
-                Text(verbatim: "\(summary.reference.id) \u{00b7} \(summary.state.label)")
+                Text(verbatim: summary.reference.id)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -272,6 +272,12 @@ struct LinkedSummaryDetails: View {
                 }
             }
 
+            TicketFacts(
+                state: summary.state,
+                assignees: summary.assignees,
+                projects: summary.projects
+            )
+
             facts
 
             if summary.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -298,8 +304,13 @@ struct LinkedSummaryDetails: View {
     /// The short facts, chosen by kind: what an issue is judged by is who
     /// is talking about it, what a pull request is judged by is whether it
     /// passes and how big it is.
+    ///
+    /// Wrapped rather than kept to one line: on a strip four hundred
+    /// points wide the facts are more than a line holds, and a line that
+    /// truncates drops the ones at its end -- which is where the newest
+    /// ones went.
     private var facts: some View {
-        HStack(spacing: 10) {
+        FlowRow(spacing: 10) {
             Label("by \(summary.author)", systemImage: "person")
                 .labelStyle(.titleOnly)
             Text(RelativeTime.string(for: summary.updatedAt))
@@ -316,7 +327,6 @@ struct LinkedSummaryDetails: View {
                 Text(verbatim: "+\(additions)").foregroundStyle(Ink.green).monospacedDigit()
                 Text(verbatim: "\u{2212}\(deletions)").foregroundStyle(Ink.red).monospacedDigit()
             }
-            Spacer(minLength: 0)
         }
         .font(.caption)
         .foregroundStyle(.secondary)

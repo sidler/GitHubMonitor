@@ -54,3 +54,67 @@ func rowTint(_ color: Color?, selected: Bool) -> AnyShapeStyle {
     guard let color, !selected else { return AnyShapeStyle(.secondary) }
     return AnyShapeStyle(color)
 }
+
+/// Where a ticket stands, who is on it, and which board it sits on.
+///
+/// One view for the two panes that answer the same question about an
+/// issue -- its own detail pane, and the fold a pull request shows for a
+/// ticket it is linked to. Built once so a fact added to one cannot go
+/// missing from the other, which is exactly how the detail pane came to
+/// be the only place that said none of this.
+///
+/// Larger than the line of asides under it, deliberately. These three are
+/// what somebody opens a ticket to find out, and at caption grey they
+/// read as footnotes to the title rather than as the answer.
+struct TicketFacts: View {
+    let state: LinkedSummary.State
+    let assignees: [String]
+    let projects: [LinkedProject]
+
+    var body: some View {
+        FlowRow(spacing: 6) {
+            // The state carries its own colour; the other two are drawn
+            // on the quiet fill the labels use. All three are chips, and
+            // all three the same size: as a line of small grey text the
+            // two that were added read as a footnote to the title rather
+            // than as the answer somebody opened the pane for.
+            chip(Text(state.label), fill: state.tint, ink: AnyShapeStyle(.white))
+                .help("This is \(state.label.lowercased())")
+
+            chip(
+                Label(assigned, systemImage: "person.crop.circle"),
+                ink: assignees.isEmpty ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary)
+            )
+            .help(assignees.isEmpty ? "Nobody is assigned" : "Assigned to \(assigned)")
+
+            ForEach(projects, id: \.self) { project in
+                chip(Label(project.label, systemImage: "rectangle.split.3x1"))
+                    .help("On the board \(project.label)")
+            }
+        }
+        .lineLimit(1)
+    }
+
+    private func chip(
+        _ content: some View,
+        fill: Color? = nil,
+        ink: AnyShapeStyle = AnyShapeStyle(.primary)
+    ) -> some View {
+        content
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(ink)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 2)
+            .background(
+                fill ?? Color(nsColor: .quaternaryLabelColor).opacity(0.5),
+                in: Capsule()
+            )
+    }
+
+    /// Named even when nobody is named: "nobody is on this" is the answer
+    /// somebody opens a ticket for as often as a name is, and a line that
+    /// simply leaves it out cannot tell the two apart.
+    private var assigned: String {
+        assignees.isEmpty ? "unassigned" : assignees.joined(separator: ", ")
+    }
+}

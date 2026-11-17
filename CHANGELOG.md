@@ -5,9 +5,16 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **A linked ticket names the board it sits on and the column it is in** —
+  the board with `read:project`, the column with `read:org` as well. Both
+  are offered when a token is created, and nothing is asked of GitHub that
+  the token in hand cannot answer.
+- **A ticket says where it stands, who is on it and which board it is on**
+  — three chips over the labels, in the issue's own pane as well as in the
+  fold a pull request shows for a ticket it answers. "unassigned" where
+  nobody is, since that is an answer too.
 - **A selected mention is readable** — its symbol and the comment under the
   title kept a near-black of their own on the blue fill.
-
 - **After an update the app says so** — *What's New* names the new version
   and carries a badge, and the panel has a line to press. Both go as soon
   as the changelog has been opened. Until now nothing ever pointed at it.

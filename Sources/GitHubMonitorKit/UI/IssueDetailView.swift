@@ -85,6 +85,19 @@ struct IssueDetailView: View {
             .font(.caption)
             .foregroundStyle(.secondary)
 
+            // Where it stands, who is on it and which board it is on --
+            // the same three facts, drawn the same way, as the fold a
+            // pull request shows for a ticket it is linked to. The pane
+            // about the issue itself was the one place that said none of
+            // them.
+            if case .loaded(let detail) = detail {
+                TicketFacts(
+                    state: detail.state,
+                    assignees: detail.assignees,
+                    projects: detail.projects
+                )
+            }
+
             // First of the three lines under the title: what this issue
             // is part of comes before what answers it and what it is
             // tagged with, because it is the one that changes how the rest
