@@ -416,7 +416,7 @@ public enum SampleData {
         PullRequestDetail(
             headBranch: "fix/session-handler-race",
             baseBranch: "main",
-                        additions: 195, deletions: 76, changedFiles: 6,
+            additions: 196, deletions: 78, changedFiles: 7,
             totalComments: 4,
             // The conversation tab, which the pane counted long before it
             // could show it.
@@ -438,7 +438,7 @@ public enum SampleData {
             // What the sample's review threads add up to, so the pane and
             // the diff beside it agree -- which they did not when the pane
             // counted only the conversation tab.
-            reviewConversations: 3,
+            reviewConversations: 4,
             body: description,
             mergeStatus: .conflicting,
             checks: [
@@ -688,6 +688,24 @@ public enum SampleData {
                     ]
                 )
             ),
+            // A file this pull request moved, carrying a conversation on
+            // one of its removed lines. GitHub files such a remark under
+            // the name the file had before the move, so this is the one
+            // case where a thread's path is not the path the diff draws.
+            ChangedFile(
+                path: "src/Filter/SessionIdFilter.php",
+                additions: 1, deletions: 2, change: .renamed,
+                patch: """
+                @@ -14,7 +14,6 @@ class SessionIdFilter
+                     public function matches(array $row): bool
+                     {
+                -        #[Deprecated]
+                -        return (int) $row['id'] === $this->id;
+                +        return $row['id'] === $this->id;
+                     }
+                """,
+                previousPath: "src/Session/LegacySessionFilter.php"
+            ),
             ChangedFile(
                 path: "README.md",
                 additions: 2, deletions: 0, change: .modified,
@@ -884,6 +902,28 @@ public enum SampleData {
                     + "     public function matches(array $row): bool\n"
                     + "     {\n"
                     + "-        return $row['session_id'] == $this->id;"
+            ),
+            // On a removed line of a file the pull request renamed, and
+            // so filed under the name that file no longer has. It is the
+            // one thread here whose path matches no file in the diff
+            // until the rename is followed.
+            ReviewThread(
+                id: "thread-4",
+                path: "src/Session/LegacySessionFilter.php",
+                line: 17,
+                side: .old,
+                isResolved: false,
+                isOutdated: false,
+                comments: [
+                    IssueComment(
+                        id: "comment-6",
+                        author: "mira",
+                        avatarURL: avatar(1),
+                        createdAt: Date().addingTimeInterval(-5 * 3600),
+                        body: "Why do these two go? The cast was load-bearing "
+                            + "for the legacy rows."
+                    )
+                ]
             ),
         ]
     }

@@ -655,3 +655,121 @@ struct ReviewThreadPreviewTests {
         #expect(preview.hasSuffix("\u{2026}"))
     }
 }
+
+@MainActor
+@Suite("Conversations on a file the pull request renamed")
+struct RenamedFileThreadTests {
+    private func thread(_ id: String, path: String, line: Int) -> ReviewThread {
+        ReviewThread(
+            id: id, path: path, line: line, side: .old,
+            isResolved: false, isOutdated: false,
+            comments: [IssueComment(
+                id: "c-\(id)", author: "mira", avatarURL: nil,
+                createdAt: .now, body: "why do these go?"
+            )]
+        )
+    }
+
+    private let patch = """
+    @@ -16,3 +16,1 @@ class Thing
+    -    #[Module('thing')]
+    -    #[ModuleId('_thing_id_')]
+    +    #[Module('thing')]
+    """
+
+    private func files(renamed: Bool = true) -> [ChangedFile] {
+        [ChangedFile(
+            path: "src/New/Thing.php",
+            additions: 1, deletions: 2,
+            change: renamed ? .renamed : .modified,
+            patch: patch,
+            previousPath: renamed ? "src/Old/Thing.php" : nil
+        )]
+    }
+
+    /// The defect itself: GitHub files a remark on a removed line under
+    /// the name the file had before the move, and every comparison in
+    /// the diff is against the name it has now.
+    @Test("A remark filed under the old name is drawn under the new one")
+    func followed() {
+        let threads = ReviewThreadPlacement.underCurrentNames(
+            [thread("a", path: "src/Old/Thing.php", line: 17)], in: files()
+        )
+        #expect(threads.map(\.path) == ["src/New/Thing.php"])
+        #expect(
+            ReviewThreadPlacement.placed(
+                threads, in: "src/New/Thing.php", patch: patch
+            ).map(\.id) == ["a"]
+        )
+    }
+
+    @Test("Without the rename it is drawn nowhere at all")
+    func unfollowed() {
+        let threads = [thread("a", path: "src/Old/Thing.php", line: 17)]
+        #expect(
+            ReviewThreadPlacement.placed(
+                threads, in: "src/New/Thing.php", patch: patch
+            ).isEmpty
+        )
+        #expect(
+            ReviewThreadPlacement.stranded(
+                threads, in: "src/New/Thing.php", patch: patch
+            ).isEmpty
+        )
+        #expect(ReviewThreadPlacement.openCounts(threads)["src/New/Thing.php"] == nil)
+    }
+
+    /// A pull request that deletes one file and renames another into its
+    /// place: the deleted file's remarks are its own.
+    @Test("A thread already on a path the diff draws is left where it is")
+    func standing() {
+        let files = files() + [ChangedFile(
+            path: "src/Old/Thing.php", additions: 0, deletions: 4,
+            change: .removed, patch: patch
+        )]
+        let threads = ReviewThreadPlacement.underCurrentNames(
+            [thread("a", path: "src/Old/Thing.php", line: 17)], in: files
+        )
+        #expect(threads.map(\.path) == ["src/Old/Thing.php"])
+    }
+
+    @Test("A diff that moved nothing hands back what it was given")
+    func untouched() {
+        let threads = [thread("a", path: "src/New/Thing.php", line: 17)]
+        #expect(
+            ReviewThreadPlacement.underCurrentNames(threads, in: files(renamed: false))
+                == threads
+        )
+    }
+
+    /// The header reads its numbers off the pull request and the diff
+    /// counts its own, so a sample whose two disagree shows a bug that
+    /// is only in the sample. Adding the renamed file is what made them
+    /// disagree once already.
+    @Test("The sample's header and its diff count the same review")
+    func counted() {
+        let files = SampleData.changedFiles()
+        let detail = SampleData.detail()
+        #expect(detail.changedFiles == files.count)
+        #expect(detail.additions == files.map(\.additions).reduce(0, +))
+        #expect(detail.deletions == files.map(\.deletions).reduce(0, +))
+        #expect(detail.reviewConversations == SampleData.reviewThreads().count)
+    }
+
+    /// So the whole of it can be seen in `--sample`, without a token and
+    /// without a pull request that happens to have been refactored.
+    @Test("The sample review carries one, and the diff places it")
+    func sample() throws {
+        let files = SampleData.changedFiles()
+        let moved = try #require(files.first { $0.previousPath != nil })
+        let threads = ReviewThreadPlacement.underCurrentNames(
+            SampleData.reviewThreads(), in: files
+        )
+        let patch = try #require(moved.patch)
+        #expect(
+            ReviewThreadPlacement.placed(threads, in: moved.path, patch: patch)
+                .map(\.id) == ["thread-4"]
+        )
+        #expect(ReviewThreadPlacement.openCounts(threads)[moved.path]?.total == 1)
+    }
+}

@@ -80,6 +80,15 @@ public struct ReviewThread: Identifiable, Hashable, Sendable {
         )
     }
 
+    /// The same thread, under the name the diff knows the file by.
+    public func moved(to path: String) -> ReviewThread {
+        ReviewThread(
+            id: id, path: path, line: line, side: side,
+            isResolved: isResolved, isOutdated: isOutdated, comments: comments,
+            originalLine: originalLine, hunk: hunk
+        )
+    }
+
     /// Whether the diff can show it at all.
     ///
     /// Either number will do. A thread with neither has nowhere to go and
@@ -143,6 +152,41 @@ public struct ReviewThread: Identifiable, Hashable, Sendable {
 
 /// Which threads belong where in a drawn patch.
 public enum ReviewThreadPlacement {
+    /// Every conversation, under the name the diff knows its file by.
+    ///
+    /// GitHub files a conversation under the path of the side it hangs
+    /// on. For a file this pull request renamed, a remark on a removed
+    /// line therefore comes back under the **old** path, while the file
+    /// is drawn -- and counted, and badged -- under the new one. Nothing
+    /// else in here compares anything but equal paths, so such a thread
+    /// was placed nowhere at all: not in the patch, not in the pile of
+    /// unplaceable ones above it, not in the file list's badge. The
+    /// header's count comes from the pull request itself and knows no
+    /// paths, so it went on saying three while the diff drew none.
+    ///
+    /// A thread already standing on a path the diff carries is left
+    /// alone: a pull request that deletes one file and renames another
+    /// into its place would otherwise have the first one's remarks
+    /// walked over to the second.
+    public static func underCurrentNames(
+        _ threads: [ReviewThread], in files: [ChangedFile]
+    ) -> [ReviewThread] {
+        var moved: [String: String] = [:]
+        for file in files {
+            guard let previous = file.previousPath else { continue }
+            moved[previous] = file.path
+        }
+        guard !moved.isEmpty else { return threads }
+
+        let drawn = Set(files.map(\.path))
+        return threads.map { thread in
+            guard !drawn.contains(thread.path), let now = moved[thread.path] else {
+                return thread
+            }
+            return thread.moved(to: now)
+        }
+    }
+
     /// The threads of one file, in the order they should be read.
     ///
     /// Unresolved first, because those are the ones asking for something;

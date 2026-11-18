@@ -5,6 +5,10 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **A remark on a file the pull request moved is drawn where the file is
+  now** — GitHub files a conversation on a removed line under the name
+  the file had before the move, so on a renaming review the diff showed
+  nothing while the header went on counting them.
 - **An issue's type is readable on the selected row** — "Feature" was a
   saturated purple on the accent fill, because the chip tints a wash of
   fourteen percent and the blue came straight through it.

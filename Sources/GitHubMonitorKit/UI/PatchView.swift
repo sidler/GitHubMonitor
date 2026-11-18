@@ -496,7 +496,7 @@ struct DiffOverlay: View {
                 nodes: FileTree.build(files),
                 open: open,
                 viewed: viewed?.states ?? [:],
-                comments: ReviewThreadPlacement.openCounts(threads),
+                comments: ReviewThreadPlacement.openCounts(conversations),
                 drafts: draft?.countsByPath ?? [:],
                 current: place.path,
                 choose: { place.go(to: $0) }
@@ -532,11 +532,15 @@ struct DiffOverlay: View {
 
 
     private var diffs: some View {
+        // Read once for the whole column rather than per file: renaming
+        // walks the whole thread list, and this is inside a scroll.
+        let shown = conversations
+
         // The width is measured and handed down: inside a horizontal scroll
         // view `maxWidth: .infinity` resolves to the content's own width, so
         // every band stopped at the end of its longest line and a diff of
         // short lines sat in a narrow column of colour.
-        GeometryReader { proxy in
+        return GeometryReader { proxy in
             ScrollView(.vertical) {
                 // Pinned headers: the file being read keeps its name at the
                 // top of the column, and the next file's header pushes it
@@ -548,7 +552,9 @@ struct DiffOverlay: View {
                 ) {
                     ForEach(shownFiles) { file in
                         Section {
-                            fileBody(file, width: proxy.size.width)
+                            fileBody(
+                                file, width: proxy.size.width, threads: shown
+                            )
                         } header: {
                             fileHeader(file)
                         }
@@ -646,6 +652,15 @@ struct DiffOverlay: View {
         .background(.background)
     }
 
+    /// The conversations, under the names this diff knows the files by.
+    ///
+    /// A remark on a removed line of a renamed file arrives under the
+    /// file's old name, which matches nothing here. Done once, at the
+    /// top, rather than at each of the five places a path is compared.
+    private var conversations: [ReviewThread] {
+        ReviewThreadPlacement.underCurrentNames(threads, in: files)
+    }
+
     /// Ticks a file off and, where that folded away the one being read,
     /// moves on to the top of the next. `DiffNavigation` decides where.
     private func tick(_ file: ChangedFile, _ viewed: ViewedFiles) {
@@ -659,7 +674,9 @@ struct DiffOverlay: View {
         withAnimation(.easeOut(duration: 0.2)) { place.go(to: destination) }
     }
 
-    private func fileBody(_ file: ChangedFile, width: CGFloat) -> some View {
+    private func fileBody(
+        _ file: ChangedFile, width: CGFloat, threads: [ReviewThread]
+    ) -> some View {
         let state = viewed?.state(file.path) ?? .unviewed
         return VStack(alignment: .leading, spacing: 6) {
             // A ticked file keeps its header and its place, and folds the

@@ -56,13 +56,23 @@ public struct ChangedFile: Identifiable, Hashable, Sendable {
     /// not confuse it.
     public let blob: String?
 
+    /// What the file was called before this pull request moved it, where
+    /// it moved one.
+    ///
+    /// Kept because GitHub files a conversation under the name the side it
+    /// hangs on knows: a remark on a removed line of a renamed file comes
+    /// back under the old path, and the diff is drawn under the new one.
+    /// See `ReviewThreadPlacement.underCurrentNames`.
+    public let previousPath: String?
+
     public init(
         path: String,
         additions: Int,
         deletions: Int,
         change: Change,
         patch: String?,
-        blob: String? = nil
+        blob: String? = nil,
+        previousPath: String? = nil
     ) {
         self.path = path
         self.additions = additions
@@ -70,6 +80,7 @@ public struct ChangedFile: Identifiable, Hashable, Sendable {
         self.change = change
         self.patch = patch
         self.blob = blob
+        self.previousPath = previousPath
     }
 
     /// Whether there is unchanged code around the patch worth asking for.

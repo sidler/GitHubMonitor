@@ -99,7 +99,10 @@ public enum ChangedFilesQuery {
             patch: (node["patch"] as? String).map(unixEndings),
             // Comes free with the patch, in the same answer. It is what
             // the unchanged lines around the hunks are fetched by.
-            blob: node["sha"] as? String
+            blob: node["sha"] as? String,
+            // Only for a file this pull request moved. It is the name
+            // GitHub files a conversation on the old side under.
+            previousPath: node["previous_filename"] as? String
         )
     }
 }

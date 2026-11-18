@@ -64,6 +64,25 @@ struct ChangedFilesTests {
         #expect(files.first?.change == .added)
     }
 
+    /// The name a conversation on the file's removed lines is filed
+    /// under. Without it such a remark matches no file in the diff.
+    @Test("A renamed file keeps the name it had")
+    func renamed() throws {
+        var node = file("src/New/Thing.php", additions: 1, deletions: 2, status: "renamed")
+        node["previous_filename"] = "src/Old/Thing.php"
+        let files = try ChangedFilesQuery.files(from: payload([node]))
+        #expect(files.first?.previousPath == "src/Old/Thing.php")
+        #expect(files.first?.change == .renamed)
+    }
+
+    @Test("A file that was not moved has no previous name")
+    func notRenamed() throws {
+        let files = try ChangedFilesQuery.files(
+            from: payload([file("src/Thing.php", additions: 1, deletions: 1)])
+        )
+        #expect(files.first?.previousPath == nil)
+    }
+
     @Test("Every status GitHub sends maps to something sayable")
     func statuses() {
         #expect(ChangedFile.Change(apiValue: "added") == .added)
