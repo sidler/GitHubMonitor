@@ -5,6 +5,9 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **An issue's type is readable on the selected row** — "Feature" was a
+  saturated purple on the accent fill, because the chip tints a wash of
+  fourteen percent and the blue came straight through it.
 - **A linked ticket names the board it sits on and the column it is in** —
   the board with `read:project`, the column with `read:org` as well. Both
   are offered when a token is created, and nothing is asked of GitHub that

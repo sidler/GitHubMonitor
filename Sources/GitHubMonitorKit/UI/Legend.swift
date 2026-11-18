@@ -367,6 +367,9 @@ extension IssueTypeColor {
 /// and a row can carry it beside any number of labels without the two being
 /// read as the same thing.
 struct IssueTypeChip: View {
+    @Environment(\.rowIsSelected) private var isRowSelected
+    @Environment(\.controlActiveState) private var controlActive
+
     let type: IssueType
     var compact = false
 
@@ -376,9 +379,26 @@ struct IssueTypeChip: View {
             .lineLimit(1)
             .padding(.horizontal, 5)
             .padding(.vertical, 1)
-            .foregroundStyle(type.color.tint)
-            .background(Ink.wash(type.color.system), in: Capsule())
-            .overlay(Capsule().strokeBorder(type.color.tint.opacity(0.45), lineWidth: 1))
+            .foregroundStyle(ink)
+            .background(fill, in: Capsule())
+            .overlay(Capsule().strokeBorder(ink.opacity(0.45), lineWidth: 1))
             .help("Issue type: \(type.name)")
+    }
+
+    /// On a selected row this chip gives up its own colour.
+    ///
+    /// Unlike a label, which carries a solid fill of its colour and stays
+    /// readable on anything, the type is drawn as a tint on a wash of
+    /// fourteen percent -- so the accent fill shows straight through it
+    /// and a saturated purple ends up sitting on blue. The row's own ink
+    /// instead, and a fill made from it, which is what everything else on
+    /// a selection does.
+    private var ink: Color {
+        guard isRowSelected else { return type.color.tint }
+        return selectedRowInk(keyWindow: controlActive == .key)
+    }
+
+    private var fill: Color {
+        isRowSelected ? ink.opacity(0.22) : Ink.wash(type.color.system)
     }
 }

@@ -269,16 +269,7 @@ struct PullRequestRow: View {
     /// the fill itself makes.
     private var actionStyle: AnyShapeStyle {
         if isRowSelected {
-            return AnyShapeStyle(
-                Color(
-                    // Only the key window draws the accent fill; in any
-                    // other state the selection is the quiet grey, where
-                    // white would be as unreadable as navy is on blue.
-                    nsColor: controlActive == .key
-                        ? .alternateSelectedControlTextColor
-                        : .selectedControlTextColor
-                )
-            )
+            return AnyShapeStyle(selectedRowInk(keyWindow: controlActive == .key))
         }
         return AnyShapeStyle(.secondary)
     }

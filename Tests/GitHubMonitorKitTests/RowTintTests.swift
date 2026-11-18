@@ -45,6 +45,24 @@ struct RowTintTests {
         #expect(isHierarchical(rowTint(nil, selected: true)))
     }
 
+    /// Which colour text takes on a selected row, and why it is two.
+    ///
+    /// Only the key window draws the accent fill. Any other state draws a
+    /// quiet grey, where white would be as unreadable as the navy that
+    /// started all of this was on blue -- so the two cases must not
+    /// collapse into one.
+    @Test("Text on a selection follows whether the window has the keyboard")
+    func ink() {
+        #expect(selectedRowInk(keyWindow: true) != selectedRowInk(keyWindow: false))
+        #expect(
+            selectedRowInk(keyWindow: true)
+                == Color(nsColor: .alternateSelectedControlTextColor)
+        )
+        #expect(
+            selectedRowInk(keyWindow: false) == Color(nsColor: .selectedControlTextColor)
+        )
+    }
+
     /// A wait with nothing to report wears no colour of its own, which is
     /// what the timestamp relies on to follow the row.
     @Test("A fresh wait is not a colour")

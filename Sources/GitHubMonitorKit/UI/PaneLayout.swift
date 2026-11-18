@@ -49,6 +49,17 @@ extension EnvironmentValues {
 /// Nil and "selected" both come back as the hierarchical style, which the
 /// list resolves against whatever it has painted -- white on the accent
 /// fill, the ordinary grey off it.
+/// What AppKit draws text in on top of a selected row.
+///
+/// White while the window has the keyboard, and the ordinary label colour
+/// when it does not -- the same distinction the fill itself makes, since
+/// only the key window draws the accent and any other state draws a quiet
+/// grey where white would be as unreadable as navy is on blue.
+@MainActor
+func selectedRowInk(keyWindow: Bool) -> Color {
+    Color(nsColor: keyWindow ? .alternateSelectedControlTextColor : .selectedControlTextColor)
+}
+
 @MainActor
 func rowTint(_ color: Color?, selected: Bool) -> AnyShapeStyle {
     guard let color, !selected else { return AnyShapeStyle(.secondary) }
