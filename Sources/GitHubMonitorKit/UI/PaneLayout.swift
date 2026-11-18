@@ -78,7 +78,12 @@ struct TicketFacts: View {
             // all three the same size: as a line of small grey text the
             // two that were added read as a footnote to the title rather
             // than as the answer somebody opened the pane for.
-            chip(Text(state.label), fill: state.tint, ink: AnyShapeStyle(.white))
+            chip(
+                Text(state.label),
+                fill: state.tint,
+                ink: AnyShapeStyle(.white),
+                weight: .semibold
+            )
                 .help("This is \(state.label.lowercased())")
 
             chip(
@@ -95,13 +100,17 @@ struct TicketFacts: View {
         .lineLimit(1)
     }
 
+    /// Regular by default, and bold only where the colour already says
+    /// the chip is the loud one. Without a retina screen to draw it on,
+    /// a bold face at eleven points is smeared rather than emphasised.
     private func chip(
         _ content: some View,
         fill: Color? = nil,
-        ink: AnyShapeStyle = AnyShapeStyle(.primary)
+        ink: AnyShapeStyle = AnyShapeStyle(.primary),
+        weight: Font.Weight = .regular
     ) -> some View {
         content
-            .font(.system(size: 11, weight: .semibold))
+            .font(.system(size: 11, weight: weight))
             .foregroundStyle(ink)
             .padding(.horizontal, 7)
             .padding(.vertical, 2)
