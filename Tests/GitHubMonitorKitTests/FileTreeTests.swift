@@ -91,6 +91,39 @@ struct FileTreeTests {
             return
         }
         #expect(root.files.map(\.path) == ["src/Filter/A.php", "src/Model/B.php"])
+        #expect(root.fileCount == 2)
+    }
+
+    /// Two folders that draw the same row are the same row.
+    ///
+    /// The subtree is deliberately not part of it: the rows below are
+    /// their own, and comparing it walked every file in the review --
+    /// patch text and all -- once per folder row. On a review of 259
+    /// files that was two thirds of the main thread, and paging to the
+    /// next file took a second.
+    @Test("A folder is compared by what its row draws, not by its subtree")
+    func shallowEquality() throws {
+        let one = FileTree.build([file("src/A.php"), file("src/B.php")])
+        let two = FileTree.build([file("src/A.php"), file("src/B.php")])
+        #expect(one == two)
+
+        guard case .folder(let folder) = try #require(one.first) else {
+            Issue.record("expected a folder")
+            return
+        }
+        // Same name, same count, different contents underneath.
+        let same = FileTree.Folder(
+            path: folder.path, name: folder.name,
+            children: [.file(file("src/C.php")), .file(file("src/D.php"))]
+        )
+        #expect(same == folder)
+        #expect(same.hashValue == folder.hashValue)
+
+        // One file fewer is a different row: the count is drawn.
+        let fewer = FileTree.Folder(
+            path: folder.path, name: folder.name, children: [.file(file("src/C.php"))]
+        )
+        #expect(fewer != folder)
     }
 
     /// The view opens every folder to begin with: a diff is read, not

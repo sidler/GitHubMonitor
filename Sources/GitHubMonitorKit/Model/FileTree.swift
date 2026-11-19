@@ -73,11 +73,44 @@ public enum FileTree {
         /// only one thing in it.
         public let name: String
         public let children: [Node]
+        /// How many files sit below it, however deep. Counted while the
+        /// tree is built rather than walked when it is drawn: the row
+        /// draws this number, and the walk is over every file in the
+        /// review for a folder near the root.
+        public let fileCount: Int
 
         public init(path: String, name: String, children: [Node]) {
             self.path = path
             self.name = name
             self.children = children
+            self.fileCount = children.reduce(0) { count, child in
+                switch child {
+                case .file: count + 1
+                case .folder(let folder): count + folder.fileCount
+                }
+            }
+        }
+
+        /// Equal when what its row draws is equal -- its path, its name
+        /// and how many files are under it -- rather than when its whole
+        /// subtree is.
+        ///
+        /// SwiftUI compares the rows it is handed to decide which to draw
+        /// again, and a folder near the root carries every file in the
+        /// review. Derived equality walked that subtree once per folder
+        /// row, patch text and all: on a review of 259 files it was
+        /// sixty-five per cent of the main thread, and paging to the next
+        /// file took the better part of a second. The files under it are
+        /// rows of their own and answer for themselves.
+        public static func == (lhs: Folder, rhs: Folder) -> Bool {
+            lhs.path == rhs.path && lhs.name == rhs.name
+                && lhs.fileCount == rhs.fileCount
+        }
+
+        public func hash(into hasher: inout Hasher) {
+            hasher.combine(path)
+            hasher.combine(name)
+            hasher.combine(fileCount)
         }
 
         /// Every file below this folder, however deep.

@@ -5,6 +5,9 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **Paging through a large review is quick again** — a step to the next
+  file in a review of 259 files cost about a second of processor; it now
+  costs a third of that.
 - **A remark on a file the pull request moved is drawn where the file is
   now** — GitHub files a conversation on a removed line under the name
   the file had before the move, so on a renaming review the diff showed
