@@ -5,6 +5,9 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **A double-click on a pull request opens it for review** — the same
+  thing the button at the end of the row does, by the gesture everybody
+  tries first.
 - **Paging through a large review is quick again** — a step to the next
   file in a review of 259 files cost about a second of processor; it now
   costs a third of that.

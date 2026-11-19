@@ -85,6 +85,16 @@ struct PullRequestRow: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
+        // Opening the thing you double-clicked, which here is the review.
+        // Simultaneous rather than a tap gesture of its own: the row
+        // belongs to a list whose own click changes the selection, and a
+        // gesture that consumed that click would take the detail pane and
+        // the keyboard's place in the list with it. Off where there is no
+        // window to open one in, which is the popover.
+        .simultaneousGesture(
+            TapGesture(count: 2).onEnded { review?() },
+            including: review == nil ? .subviews : .all
+        )
         // Only in the popover. In the window the row belongs to a list whose
         // selection opens the detail pane, and a tap gesture there swallows
         // the click the list needs to change that selection -- which would
