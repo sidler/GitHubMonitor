@@ -51,6 +51,35 @@ struct IssueParserTests {
         #expect(item.createdAt < item.updatedAt)
     }
 
+    /// The board a row is grouped under. One board, because a row sits
+    /// under a single heading -- the pane is where every board an issue is
+    /// on is listed.
+    @Test("The board an issue sits on is read for the heading")
+    func readsTheBoard() throws {
+        var carried = node
+        carried["projectItems"] = ["nodes": [
+            ["project": ["title": "Platform Board"]],
+            ["project": ["title": "Roadmap"]],
+        ]]
+        let item = try #require(parse(payload([carried])).first)
+        #expect(item.project == "Platform Board")
+        #expect(item.projectName == "Platform Board")
+    }
+
+    /// Two cases that look the same from here and must read the same on
+    /// screen: an issue on no board, and every issue when the token may
+    /// not read boards and the field was never asked for.
+    @Test("An issue on no board is named rather than left blank")
+    func noBoard() throws {
+        let bare = try #require(parse(payload([node])).first)
+        #expect(bare.project == nil)
+        #expect(bare.projectName == IssueItem.noProject)
+
+        var empty = node
+        empty["projectItems"] = ["nodes": []]
+        #expect(try #require(parse(payload([empty])).first).projectName == IssueItem.noProject)
+    }
+
     /// A deleted account leaves the author null rather than omitting it, and
     /// a row with no author at all would be worse than one naming a ghost.
     @Test("Missing optional fields do not lose the issue")
@@ -410,11 +439,11 @@ struct IssueTypeListTests {
         return state
     }
 
-    private func issue(id: String, type: IssueType?) -> IssueItem {
+    private func issue(id: String, type: IssueType?, project: String? = nil) -> IssueItem {
         IssueItem(
             id: id, number: 1, title: "t", repository: "a/b", author: "a",
             authorAvatarURL: nil, url: URL(string: "https://github.com")!,
-            updatedAt: .now, type: type
+            updatedAt: .now, type: type, project: project
         )
     }
 
@@ -449,6 +478,31 @@ struct IssueTypeListTests {
         // Sections are ordered by size and then by name, as every grouped
         // list in the app is; here all three hold one issue.
         #expect(state.inspectableIssues.map(\.typeName) == ["Bug", IssueItem.untyped, "Task"])
+    }
+
+    /// The same walk, grouped by board. The issues with no board are a
+    /// section like any other rather than a gap at the end: an issue
+    /// nobody has planned is exactly what a list grouped by board is read
+    /// to find.
+    @Test("The keyboard follows a list grouped by board")
+    func inspectionFollowsBoards() {
+        let state = makeState()
+        state.listIssues[list.id] = [
+            issue(id: "1", type: nil, project: "Roadmap"),
+            issue(id: "2", type: nil, project: nil),
+            issue(id: "3", type: nil, project: "Roadmap"),
+        ]
+        var updated = list
+        updated.grouping = .byProject
+        state.settings.update(updated)
+
+        // Sections by size first, as everywhere else in the app. The
+        // order inside a section is the list's own sort, which is not
+        // what this is about.
+        #expect(
+            state.inspectableIssues.map(\.projectName)
+                == ["Roadmap", "Roadmap", IssueItem.noProject])
+        #expect(Set(state.inspectableIssues.map(\.id)) == ["1", "2", "3"])
     }
 
     @Test("Ordering by type reorders the list itself")

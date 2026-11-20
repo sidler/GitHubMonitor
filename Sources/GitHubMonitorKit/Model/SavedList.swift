@@ -78,10 +78,14 @@ public enum ListContent: String, CaseIterable, Codable, Sendable {
     }
 
     /// How its rows can be split into sections.
-    public var groupings: [ListGrouping] {
+    /// - Parameter projects: Whether the token may read boards. Without
+    ///   it the list is never told which board anything is on, so the
+    ///   heading would be offered only to put every issue under "No
+    ///   project".
+    public func groupings(projects: Bool) -> [ListGrouping] {
         switch self {
         case .pullRequests: ListGrouping.forPullRequests
-        case .issues: ListGrouping.forIssues
+        case .issues: ListGrouping.forIssues.filter { $0 != .byProject || projects }
         }
     }
 }

@@ -188,7 +188,8 @@ public enum SampleData {
                         url: url(Repository.server, 482),
                         state: .open
                     ),
-                ]
+                ],
+                project: "Platform Board"
             ),
             IssueItem(
                 id: "i-611", number: 611,
@@ -207,7 +208,8 @@ public enum SampleData {
                         url: url(Repository.platform, 903),
                         state: .open
                     ),
-                ]
+                ],
+                project: "Platform Board"
             ),
             IssueItem(
                 id: "i-615", number: 615,
@@ -220,7 +222,8 @@ public enum SampleData {
                 type: IssueType(name: "Feature", color: .purple),
                 // The one epic in the sample, so a list of them can be
                 // read for who is nearly done without opening any.
-                progress: SubIssueProgress(total: 11, completed: 6)
+                progress: SubIssueProgress(total: 11, completed: 6),
+                project: "Roadmap"
             ),
             IssueItem(
                 id: "i-91", number: 91,

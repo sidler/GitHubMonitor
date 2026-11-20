@@ -5,6 +5,11 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **An issue list can be grouped by the board its issues sit on** —
+  beside *By repository* and *By type*, with the ones nobody has planned
+  under *No project*. Offered only where the token carries `read:project`,
+  since without it the list is never told which board anything is on.
+
 - **The box a review remark is written in grows with what you write** —
   it stood at four lines and scrolled inside itself, so the start of
   anything longer scrolled out of sight while you were still typing. It

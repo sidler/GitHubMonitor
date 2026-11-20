@@ -840,6 +840,8 @@ public final class AppState {
             return RepositoryGrouping.group(items, by: \.repository).flatMap(\.items)
         case .byType:
             return RepositoryGrouping.group(items, by: \.typeName).flatMap(\.items)
+        case .byProject:
+            return RepositoryGrouping.group(items, by: \.projectName).flatMap(\.items)
         }
     }
 
@@ -893,6 +895,9 @@ public final class AppState {
             return RepositoryGrouping.group(selectedNotifications, by: \.repository).flatMap(\.items)
         case .byType:
             return RepositoryGrouping.group(selectedNotifications, by: \.subjectTypeLabel).flatMap(\.items)
+        // Notifications sit on no board; the picker never offers it here.
+        case .byProject:
+            return selectedNotifications
         }
     }
 

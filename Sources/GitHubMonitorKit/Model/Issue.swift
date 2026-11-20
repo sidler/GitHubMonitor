@@ -127,6 +127,14 @@ public struct IssueItem: Identifiable, Hashable, Sendable, ListedItem {
     /// to find out which are nearly done, and opening twenty of them one
     /// at a time to learn that is the thing the list is for.
     public let progress: SubIssueProgress?
+    /// The board this issue sits on, for grouping a list by it. The first
+    /// of them where there are several: a row belongs under one heading,
+    /// and the pane lists every board an issue is on.
+    ///
+    /// Nil where it is on none, and nil for every issue where the token
+    /// may not read boards at all -- the list does not ask then, because
+    /// GitHub refuses the whole query over a field a token cannot see.
+    public let project: String?
 
     public init(
         id: String,
@@ -144,7 +152,8 @@ public struct IssueItem: Identifiable, Hashable, Sendable, ListedItem {
         type: IssueType? = nil,
         links: [ItemLink] = [],
         linkedTotal: Int? = nil,
-        progress: SubIssueProgress? = nil
+        progress: SubIssueProgress? = nil,
+        project: String? = nil
     ) {
         self.id = id
         self.number = number
@@ -162,6 +171,7 @@ public struct IssueItem: Identifiable, Hashable, Sendable, ListedItem {
         self.links = links
         self.linkedTotal = linkedTotal ?? links.count
         self.progress = progress
+        self.project = project
     }
 
     /// The heading this issue sits under when the list is grouped by type,
@@ -170,6 +180,14 @@ public struct IssueItem: Identifiable, Hashable, Sendable, ListedItem {
 
     /// What an issue with no type is called, wherever one has to be named.
     public static let untyped = "No type"
+
+    /// The heading this issue sits under when the list is grouped by board.
+    public var projectName: String { project ?? Self.noProject }
+
+    /// What an issue on no board is called. Also what every issue is
+    /// called where the token may not read boards, which is why it reads
+    /// as a statement about the issue rather than about the token.
+    public static let noProject = "No project"
 
     /// The timestamp the list is ordered on, as the pull request lists do it:
     /// one switch in the toolbar orders every list, since they answer the

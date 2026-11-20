@@ -378,6 +378,7 @@ struct ContentColumn: View {
             grouping: list.grouping,
             repository: \.repository,
             type: \.typeName,
+            project: \.projectName,
             selection: $state.inspectedIssueID,
             unshown: state.unshown(in: list)
         ) { item in
@@ -641,7 +642,10 @@ struct ToolbarControls: View {
                 if let list = state.selectedList {
                     GroupingPicker(
                         selection: binding(list, \.grouping),
-                        options: list.content.groupings
+                        options: list.content.groupings(
+                            projects: state.viewer?.scopes.has(
+                                LinkedItemQuery.projectScope) ?? false
+                        )
                     )
                     SortPicker(selection: binding(list, \.sort), options: list.content.sorts)
 
@@ -728,6 +732,9 @@ private struct GroupedList<Item: Identifiable, Row: View>: View {
     let repository: (Item) -> String
     /// Nil for lists where grouping by type is meaningless.
     var type: ((Item) -> String)?
+    /// Nil for lists that sit on no board, which is every list but the
+    /// issues.
+    var project: ((Item) -> String)?
     /// Nil for lists that are read rather than navigated. Where it is bound,
     /// the list gets the arrow keys for free -- that is what moves the detail
     /// pane from the keyboard.
@@ -747,6 +754,7 @@ private struct GroupedList<Item: Identifiable, Row: View>: View {
         case .flat: nil
         case .byRepository: repository
         case .byType: type
+        case .byProject: project
         }
     }
 

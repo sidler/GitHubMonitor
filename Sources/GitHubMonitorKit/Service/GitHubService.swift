@@ -843,9 +843,14 @@ public struct GitHubService: Sendable {
     ///   answer still comes back at the end; this is the same rows, earlier.
     ///   Main-actor bound because the only thing worth doing with a part of
     ///   an answer is putting it on screen.
+    /// - Parameter projects: Whether the token may read boards. Passed
+    ///   through to the issue rows, which carry the board they sit on
+    ///   only where it is true -- GitHub refuses a whole query over a
+    ///   field the token cannot see.
     public func lists(
         _ searches: [ListSearch],
         viewer: String? = nil,
+        projects: Bool = false,
         onPage: (@MainActor (ListResults) -> Void)? = nil
     ) async throws -> (
         results: ListResults,
@@ -890,7 +895,7 @@ public struct GitHubService: Sendable {
             // a qualifier GitHub will not take should not stop the others
             // from refreshing.
             let answer = try await client.graphQLAnswer(
-                ListQuery.document(batch, cursors: cursors)
+                ListQuery.document(batch, cursors: cursors, projects: projects)
             )
             let payload = answer.data
             failures.merge(ListParser.failures(answer.failures, searches: batch)) { held, _ in held }

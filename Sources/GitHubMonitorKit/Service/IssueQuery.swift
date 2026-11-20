@@ -13,7 +13,13 @@ public enum IssueQuery {
 
     /// The fields the list reads, as a fragment the shared document can use
     /// under each of its issue aliases.
-    public static let fragment = """
+    ///
+    /// Boards only where the token may read them. ProjectsV2 sits behind
+    /// `read:project`, and GitHub refuses a whole query over a field the
+    /// token cannot see -- asking anyway would cost every list its rows,
+    /// not just the heading they would be grouped under.
+    public static func fragment(projects: Bool) -> String {
+        """
     fragment IssueResults on SearchResultItemConnection {
       nodes {
         ... on Issue {
@@ -40,6 +46,7 @@ public enum IssueQuery {
           # The pull requests that answer it. Closed and merged ones
           # included on purpose: GitHub leaves them out by default, and the
           # merged one is usually the one being looked for.
+          \(projects ? boardField : "")
           closedByPullRequestsReferences(
             first: \(ItemLinkParser.limit), includeClosedPrs: true
           ) {
@@ -59,6 +66,16 @@ public enum IssueQuery {
         }
       }
     }
+    """
+    }
+
+    /// The one board a row is grouped under. One, because a row sits
+    /// under a single heading and the pane is where every board an issue
+    /// is on is listed.
+    private static let boardField = """
+    projectItems(first: 1, includeArchived: false) {
+            nodes { project { title } }
+          }
     """
 
     /// The detail pane's own request: the issue's text and the end of its
@@ -204,8 +221,19 @@ public enum IssueParser {
             type: type(from: node),
             links: recorded.links,
             linkedTotal: recorded.total,
-            progress: progress(from: node)
+            progress: progress(from: node),
+            project: board(from: node)
         )
+    }
+
+    /// The board a row is grouped under, where one was asked for and
+    /// the issue is on one.
+    static func board(from node: [String: Any]) -> String? {
+        let nodes = (node["projectItems"] as? [String: Any])?["nodes"] as? [[String: Any]]
+        return nodes?
+            .lazy
+            .compactMap { ($0["project"] as? [String: Any])?["title"] as? String }
+            .first { !$0.isEmpty }
     }
 
     static func type(from node: [String: Any]) -> IssueType? {

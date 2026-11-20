@@ -91,8 +91,10 @@ public enum ListQuery {
     /// One document rather than one per list: a refresh that fired a request
     /// per list would take as long as the slowest sum of them, and the menu
     /// bar would count lists from different moments.
+    /// - Parameter projects: Whether the token may read boards, which is
+    ///   what decides whether the issue rows carry the one they sit on.
     public static func document(
-        _ searches: [ListSearch], cursors: [Int: String] = [:]
+        _ searches: [ListSearch], cursors: [Int: String] = [:], projects: Bool = false
     ) -> String {
         let aliases = searches.enumerated().map { index, search in
             let after = cursors[index].map { ", after: \(PullRequestQuery.jsonString($0))" } ?? ""
@@ -116,7 +118,7 @@ public enum ListQuery {
             fragments.append(PullRequestQuery.pullRequestFragment)
         }
         if searches.contains(where: { $0.content == .issues }) {
-            fragments.append(IssueQuery.fragment)
+            fragments.append(IssueQuery.fragment(projects: projects))
         }
 
         return """

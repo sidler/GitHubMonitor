@@ -740,7 +740,11 @@ public final class RefreshController {
             // than working.
             let fillAsItArrives = state.listPullRequests.isEmpty && state.listIssues.isEmpty
 
-            let fetched = try await service.lists(wanted, viewer: viewer.login) { [state] partial in
+            let fetched = try await service.lists(
+                wanted,
+                viewer: viewer.login,
+                projects: viewer.scopes.has(LinkedItemQuery.projectScope)
+            ) { [state] partial in
                 guard fillAsItArrives, !Task.isCancelled else { return }
                 // The rows only. Totals, unread and the budget are what
                 // the finished answer says, and a part of an answer has

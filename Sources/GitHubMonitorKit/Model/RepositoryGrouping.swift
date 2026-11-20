@@ -7,12 +7,17 @@ public enum ListGrouping: String, CaseIterable, Codable, Sendable {
     /// Notifications by subject, issues by their own type. A list of pull
     /// requests is all one kind by definition.
     case byType
+    /// The board an issue sits on. Issues only: a board is a thing work
+    /// is planned on, and a pull request is on one only through the issue
+    /// it answers.
+    case byProject
 
     public var label: String {
         switch self {
         case .flat: "All"
         case .byRepository: "By repository"
         case .byType: "By type"
+        case .byProject: "By project"
         }
     }
 
@@ -20,7 +25,7 @@ public enum ListGrouping: String, CaseIterable, Codable, Sendable {
     public static let forNotifications: [ListGrouping] = [.flat, .byRepository, .byType]
     /// Issues carry a type of their own -- Bug, Task, Feature, Epic -- so
     /// they can be split by it as notifications are by their subject.
-    public static let forIssues: [ListGrouping] = [.flat, .byRepository, .byType]
+    public static let forIssues: [ListGrouping] = [.flat, .byRepository, .byType, .byProject]
 }
 
 /// One group's worth of items, keyed by whatever it was grouped on.

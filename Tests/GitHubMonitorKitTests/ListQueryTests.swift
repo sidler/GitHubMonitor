@@ -113,6 +113,19 @@ struct ListQueryTests {
         #expect(!issuesOnly.contains("fragment Results"))
     }
 
+    /// GitHub refuses a whole query over a field the token cannot see, so
+    /// asking for boards without `read:project` would cost every list its
+    /// rows rather than just the heading they would be grouped under.
+    @Test("Boards are asked for only where the token may read them")
+    func boardsFollowTheScope() {
+        let issues = [ListSearch(listID: "b", content: .issues, query: "q")]
+        #expect(ListQuery.document(issues, projects: true).contains("projectItems"))
+        #expect(!ListQuery.document(issues, projects: false).contains("projectItems"))
+        // The default is the safe one: a caller that says nothing does
+        // not ask for a field it may not be allowed to read.
+        #expect(!ListQuery.document(issues).contains("projectItems"))
+    }
+
     @Test("Queries are escaped rather than pasted in")
     func escaping() {
         let document = ListQuery.document([
@@ -145,8 +158,21 @@ struct SavedListTests {
     func optionsFollowContent() {
         #expect(!ListContent.pullRequests.sorts.contains(.type))
         #expect(ListContent.issues.sorts.contains(.type))
-        #expect(!ListContent.pullRequests.groupings.contains(.byType))
-        #expect(ListContent.issues.groupings.contains(.byType))
+        #expect(!ListContent.pullRequests.groupings(projects: true).contains(.byType))
+        #expect(ListContent.issues.groupings(projects: true).contains(.byType))
+    }
+
+    /// Grouping by board is offered only where the token may read one.
+    /// Without the scope the list is never told which board anything is
+    /// on, so the heading would exist to put every issue under "No
+    /// project" -- which reads as an answer about the issues and is one
+    /// about the token.
+    @Test("Grouping by board is offered only where boards can be read")
+    func boardsNeedTheScope() {
+        #expect(ListContent.issues.groupings(projects: true).contains(.byProject))
+        #expect(!ListContent.issues.groupings(projects: false).contains(.byProject))
+        // A pull request is on a board only through the issue it answers.
+        #expect(!ListContent.pullRequests.groupings(projects: true).contains(.byProject))
     }
 
     /// The seeds are what the app used to hard-code; the ids are fixed so
