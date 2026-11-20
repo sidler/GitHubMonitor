@@ -60,3 +60,54 @@ struct CommentBoxTests {
         #expect(view.selectedRange() == NSRange(location: 2, length: 0))
     }
 }
+
+/// The box grows with what is written in it rather than scrolling inside
+/// a fixed height, which is what hid the first lines of anything longer
+/// than two.
+@Suite("Comment box height")
+@MainActor
+struct CommentBoxHeightTests {
+    private func height(_ text: String, width: CGFloat = 400) -> CGFloat {
+        CommentTextView.height(of: text, width: width, fontSize: 13)
+    }
+
+    @Test("More lines want more room")
+    func growsWithLines() {
+        #expect(height("one\ntwo\nthree") > height("one"))
+    }
+
+    @Test("A narrower box wraps the same prose taller")
+    func growsWhenNarrower() {
+        let long = String(repeating: "a word ", count: 40)
+        #expect(height(long, width: 200) > height(long, width: 600))
+    }
+
+    @Test("An empty box still has a line to write on")
+    func emptyHasALine() {
+        #expect(height("") > 0)
+    }
+
+    /// The one assumption in the measurement: that a layout of our own
+    /// pads a line the way the text view does. Wrong, and every box
+    /// would be a line out.
+    @Test("The measurement agrees with the box that draws it")
+    func agreesWithTheRealBox() {
+        for text in ["one", "one\ntwo\nthree", String(repeating: "a word ", count: 40)] {
+            let view = NSTextView(frame: NSRect(x: 0, y: 0, width: 400, height: 1000))
+            view.isRichText = false
+            view.textContainerInset = CommentTextView.inset
+            view.font = NSFont.systemFont(ofSize: 13)
+            view.isVerticallyResizable = true
+            view.textContainer?.widthTracksTextView = true
+            view.string = text
+            guard let layout = view.layoutManager, let container = view.textContainer else {
+                Issue.record("no layout")
+                return
+            }
+            layout.ensureLayout(for: container)
+            let drawn =
+                ceil(layout.usedRect(for: container).height) + 2 * CommentTextView.inset.height
+            #expect(abs(drawn - height(text)) < 1)
+        }
+    }
+}

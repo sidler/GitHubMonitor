@@ -3,6 +3,14 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
+## Unreleased
+
+- **The box a review remark is written in grows with what you write** —
+  it stood at four lines and scrolled inside itself, so the start of
+  anything longer scrolled out of sight while you were still typing. It
+  now takes the height its text needs, and only goes back to scrolling
+  once it would push the Add button off the diff.
+
 ## 2.11.0
 
 - **Settings → Account says what each token scope buys and which ones

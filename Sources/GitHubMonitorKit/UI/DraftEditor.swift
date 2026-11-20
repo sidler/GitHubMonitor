@@ -372,7 +372,8 @@ struct DraftEditorView: View {
                 }
             }
         )
-        .frame(minHeight: 60)
+        // No height here: the box measures its own prose and grows with
+        // it, up to the point where it starts scrolling again.
         // A field, and it has to look like one. Drawn on the
         // conversation's own grey with a hairline round it, the box was
         // all but invisible -- you could not see where to start typing

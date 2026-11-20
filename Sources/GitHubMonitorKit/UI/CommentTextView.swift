@@ -68,7 +68,7 @@ struct CommentTextView: NSViewRepresentable {
         view.isAutomaticQuoteSubstitutionEnabled = false
         view.isAutomaticDashSubstitutionEnabled = false
         view.isAutomaticTextReplacementEnabled = false
-        view.textContainerInset = NSSize(width: 3, height: 4)
+        view.textContainerInset = Self.inset
         view.font = NSFont.systemFont(ofSize: fontSize)
         view.string = text
         view.isVerticallyResizable = true
@@ -102,6 +102,50 @@ struct CommentTextView: NSViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    /// The padding round the prose, as the view is set up with it.
+    static let inset = NSSize(width: 3, height: 4)
+    /// An empty box still has to look like somewhere to write.
+    static let least: CGFloat = 60
+    /// Where growing stops and scrolling starts again. The Add and
+    /// Cancel buttons sit under the box: a pasted log that grew without
+    /// limit would push them off the bottom of the diff.
+    static let most: CGFloat = 320
+
+    /// How tall the box wants to be for what has been written in it.
+    func sizeThatFits(
+        _ proposal: ProposedViewSize, nsView scroll: NSScrollView, context: Context
+    ) -> CGSize? {
+        guard let width = proposal.width, width > 0 else { return nil }
+        let wanted = Self.height(of: text, width: width, fontSize: fontSize)
+        return CGSize(width: width, height: min(max(wanted, Self.least), Self.most))
+    }
+
+    /// How tall this prose lays out at this width.
+    ///
+    /// Measured on a layout of its own rather than on the live view: the
+    /// width being asked about is the one SwiftUI is proposing, which the
+    /// text view has not been given yet, so asking the view would answer
+    /// about the width it still has.
+    static func height(of text: String, width: CGFloat, fontSize: Double) -> CGFloat {
+        let container = NSTextContainer(
+            size: CGSize(
+                width: max(1, width - 2 * inset.width), height: .greatestFiniteMagnitude))
+        // What NSTextView leaves either side of a line; without it the
+        // measured width is wider than the real one and a line too few
+        // comes back.
+        container.lineFragmentPadding = 5
+        let layout = NSLayoutManager()
+        layout.addTextContainer(container)
+        // A space for an empty box: an empty storage lays out to nothing,
+        // and the first line's height is what a caret needs.
+        let storage = NSTextStorage(
+            string: text.isEmpty ? " " : text,
+            attributes: [.font: NSFont.systemFont(ofSize: fontSize)])
+        storage.addLayoutManager(layout)
+        layout.ensureLayout(for: container)
+        return ceil(layout.usedRect(for: container).height) + 2 * inset.height
+    }
 
     /// Hands the view what has been written, and says whether it took
     /// it.
