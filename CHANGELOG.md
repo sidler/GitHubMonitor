@@ -3,7 +3,7 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
-## Unreleased
+## 2.11.0
 
 - **Settings → Account says what each token scope buys and which ones
   your token carries** — ticked, missing, or merely optional. It used to
@@ -26,16 +26,6 @@ What changed in each released version. The app shows this file itself, under
 - **A double-click on a pull request opens it for review** — the same
   thing the button at the end of the row does, by the gesture everybody
   tries first.
-- **Paging through a large review is quick again** — a step to the next
-  file in a review of 259 files cost about a second of processor; it now
-  costs a third of that.
-- **A remark on a file the pull request moved is drawn where the file is
-  now** — GitHub files a conversation on a removed line under the name
-  the file had before the move, so on a renaming review the diff showed
-  nothing while the header went on counting them.
-- **An issue's type is readable on the selected row** — "Feature" was a
-  saturated purple on the accent fill, because the chip tints a wash of
-  fourteen percent and the blue came straight through it.
 - **A linked ticket names the board it sits on and the column it is in** —
   the board with `read:project`, the column with `read:org` as well. Both
   are offered when a token is created, and nothing is asked of GitHub that
@@ -44,11 +34,6 @@ What changed in each released version. The app shows this file itself, under
   — three chips over the labels, in the issue's own pane as well as in the
   fold a pull request shows for a ticket it answers. "unassigned" where
   nobody is, since that is an answer too.
-- **A selected mention is readable** — its symbol and the comment under the
-  title kept a near-black of their own on the blue fill.
-- **After an update the app says so** — *What's New* names the new version
-  and carries a badge, and the panel has a line to press. Both go as soon
-  as the changelog has been opened. Until now nothing ever pointed at it.
 
 ## 2.10.0
 
