@@ -14,6 +14,17 @@ struct IssueDetailView: View {
     /// leaves the labels as something to read.
     var labelling: PaneWriting?
 
+    /// Offered only where the token may write boards. `read:project` is
+    /// enough to name one and not to change it, and a menu that GitHub
+    /// would refuse is worse than no menu: the chip would move and spring
+    /// back with the reason buried in the Requests tab.
+    private var boardWriting: BoardWriting? {
+        guard let labelling,
+            labelling.state.viewer?.scopes.has(ProjectQuery.scope) == true
+        else { return nil }
+        return BoardWriting(controller: labelling.controller, issueID: item.id)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
@@ -94,7 +105,8 @@ struct IssueDetailView: View {
                 TicketFacts(
                     state: detail.state,
                     assignees: detail.assignees,
-                    projects: detail.projects
+                    projects: detail.projects,
+                    board: boardWriting
                 )
             }
 

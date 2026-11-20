@@ -81,8 +81,20 @@ struct TicketFacts: View {
     let state: LinkedSummary.State
     let assignees: [String]
     let projects: [LinkedProject]
+    /// How to move it to another column, and which issue it is. Nil
+    /// leaves the board chips a reader, which is what the linked-ticket
+    /// fold in a pull request's pane is.
+    var board: BoardWriting?
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            facts
+            if !projects.isEmpty { boards }
+        }
+    }
+
+    /// Where it stands and who is on it: two chips, one line.
+    private var facts: some View {
         FlowRow(spacing: 6) {
             // The state carries its own colour; the other two are drawn
             // on the quiet fill the labels use. All three are chips, and
@@ -103,12 +115,117 @@ struct TicketFacts: View {
             )
             .help(assignees.isEmpty ? "Nobody is assigned" : "Assigned to \(assigned)")
 
-            ForEach(projects, id: \.self) { project in
-                chip(Label(project.label, systemImage: "rectangle.split.3x1"))
-                    .help("On the board \(project.label)")
-            }
         }
         .lineLimit(1)
+    }
+
+    /// The boards, one per line, with the columns lined up under each
+    /// other.
+    ///
+    /// They used to be chips on the line above. A ticket sits on two
+    /// boards often enough that the line wrapped anyway -- so they each
+    /// had a line already, just not one that lined up: every capsule is
+    /// as wide as its own name, which put "In Progress" and "Backlog" at
+    /// two different places down the pane. A grid costs the same height
+    /// and answers "which column is it in on each" by looking down one
+    /// column rather than reading both rows.
+    private var boards: some View {
+        Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 3) {
+            ForEach(projects, id: \.self) { project in
+                GridRow {
+                    // The weighted grey, not `.secondary`: that one is
+                    // tuned for a line somebody may skip, and a board's
+                    // name sat lighter than the badge beside it -- which
+                    // put the emphasis on the quiet half of the row. Dark
+                    // enough to read, still quieter than the column.
+                    Label(project.title, systemImage: "rectangle.split.3x1")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Ink.gray)
+                        .lineLimit(1)
+                        .help("On the board \(project.title)")
+
+                    column(project)
+                }
+            }
+        }
+    }
+
+    /// The column, as a badge, and a way to move it where there is one.
+    ///
+    /// A menu rather than a picker sheet, for the same reason the labels
+    /// use one: a column is set by mistake in one click and unset by the
+    /// same click again, so ceremony in front of it would cost more than
+    /// it saves. Nobody is notified either way.
+    @ViewBuilder
+    private func column(_ project: LinkedProject) -> some View {
+        let face = badge(project)
+
+        if let board, project.isSettable {
+            Menu {
+                ForEach(project.statuses) { status in
+                    Button {
+                        board.controller.setProjectStatus(
+                            status, on: board.issueID, in: project
+                        )
+                    } label: {
+                        // A tick on the column it is in, so the menu says
+                        // where it stands as well as where it could go.
+                        // By id: a board that has been moved shows its new
+                        // column before GitHub has answered, and the tick
+                        // has to move with it.
+                        if status.id == project.statusOptionID {
+                            Label(status.name, systemImage: "checkmark")
+                        } else {
+                            Text(status.name)
+                        }
+                    }
+                }
+            } label: {
+                face
+            }
+            // `.button` with a plain button under it, not
+            // `.borderlessButton`: that style is an NSPopUpButton
+            // underneath and draws its label as text, so the badge's
+            // wash was dropped and so, before it, was everything after
+            // the first word.
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .pointerStyle(.link)
+            .help("Move it to another column of \(project.title)")
+            .accessibilityLabel("Column on \(project.title)")
+        } else {
+            face
+        }
+    }
+
+    /// The column itself: its name on a wash of the colour the board
+    /// paints it in.
+    ///
+    /// A badge rather than coloured text, which is what the issue type
+    /// beside it already is -- and the wash is what makes a column read
+    /// as a state rather than as a second half of the board's name. The
+    /// wash comes from the system hue and the name from the weighted
+    /// one: a badge drawn in one colour at two strengths is a badge
+    /// nobody can read.
+    ///
+    /// "No column" is said rather than left blank. A board a ticket was
+    /// added to and never sorted is the common case, and an empty gap
+    /// there reads as something that failed to load.
+    private func badge(_ project: LinkedProject) -> some View {
+        let colour = project.statusColor
+        return Text(project.status ?? "No column")
+            .font(.system(size: 11))
+            .foregroundStyle(colour?.tint ?? Color(nsColor: .secondaryLabelColor))
+            .lineLimit(1)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 2)
+            .background(
+                colour.map { Ink.wash($0.system) }
+                    ?? Color(nsColor: .quaternaryLabelColor).opacity(0.5),
+                in: Capsule()
+            )
     }
 
     /// Regular by default, and bold only where the colour already says
@@ -137,4 +254,16 @@ struct TicketFacts: View {
     private var assigned: String {
         assignees.isEmpty ? "unassigned" : assignees.joined(separator: ", ")
     }
+}
+
+
+/// What a board chip needs to change the column it names: who to ask,
+/// and which issue it is about.
+///
+/// Its own type rather than `PaneWriting`: this write is gated on a scope
+/// of its own, and a pane that may set labels may well not be allowed to
+/// move anything on a board.
+struct BoardWriting {
+    let controller: RefreshController
+    let issueID: String
 }

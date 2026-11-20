@@ -318,6 +318,10 @@ struct SampleTicketFactsTests {
         #expect(detail.state == .closed)
         #expect(detail.assignees == ["arun", "mira"])
         #expect(detail.projects.first?.label == "Roadmap")
+        // And a second board beside it, which is the case the chips wrap
+        // for: a ticket sits on the team's board and on the roadmap.
+        #expect(detail.projects.count == 2)
+        #expect(detail.projects.last?.label == "Platform Board \u{00b7} Code Review")
     }
 
     /// And the fold a pull request draws for a ticket it links to, which

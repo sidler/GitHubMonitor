@@ -258,6 +258,23 @@ public struct IssueDetail: Hashable, Sendable {
             projects: projects
         )
     }
+
+    /// The same detail with the boards in different columns, for showing
+    /// a move before GitHub has confirmed it.
+    public func withProjects(_ projects: [LinkedProject]) -> IssueDetail {
+        IssueDetail(
+            body: body,
+            comments: comments,
+            totalComments: totalComments,
+            labels: labels,
+            subIssues: subIssues,
+            progress: progress,
+            parent: parent,
+            state: state,
+            assignees: assignees,
+            projects: projects
+        )
+    }
     /// The newest comments, oldest of those first, so the thread reads
     /// downwards the way it does on GitHub.
     public let comments: [IssueComment]

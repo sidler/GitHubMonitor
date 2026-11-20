@@ -532,6 +532,19 @@ public struct GitHubService: Sendable {
         )
     }
 
+    /// Moves a board item to another column.
+    ///
+    /// Four ids and no names: GitHub's project mutations take nothing
+    /// else, which is why the boards are read with their ids attached.
+    public func setProjectStatus(
+        option: String, field: String, item: String, project: String
+    ) async throws {
+        _ = try await client.graphQL(
+            ProjectQuery.document,
+            variables: ["project": project, "item": item, "field": field, "option": option]
+        )
+    }
+
     /// The files one pull request touches, with their patches.
     ///
     /// Paged: asking for one page of a hundred and stopping meant a pull

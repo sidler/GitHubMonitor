@@ -293,7 +293,33 @@ public enum SampleData {
             ],
             progress: SubIssueProgress(total: 11, completed: 6),
             assignees: ["noor"],
-            projects: [LinkedProject(title: "Platform Board", status: "In Progress")]
+            projects: [board(status: "In Progress")]
+        )
+    }
+
+    /// A board with the ids a column change needs, so the sample can be
+    /// moved about like the real thing.
+    /// The columns a sample board has, in GitHub's own colours.
+    static let columns = [
+        ProjectStatus(id: "opt_todo", name: "Todo", color: .gray),
+        ProjectStatus(id: "opt_progress", name: "In Progress", color: .yellow),
+        ProjectStatus(id: "opt_review", name: "Code Review", color: .purple),
+        ProjectStatus(id: "opt_done", name: "Done", color: .green),
+    ]
+
+    static func board(
+        title: String = "Platform Board",
+        status: String? = "In Progress",
+        item: String = "PVTI_sample_platform"
+    ) -> LinkedProject {
+        LinkedProject(
+            title: title,
+            status: status,
+            projectID: "PVT_sample",
+            itemID: item,
+            statusFieldID: "PVTSSF_sample_status",
+            statusOptionID: columns.first { $0.name == status }?.id,
+            statuses: columns
         )
     }
 
@@ -319,7 +345,14 @@ public enum SampleData {
             ),
             state: .closed,
             assignees: ["arun", "mira"],
-            projects: [LinkedProject(title: "Roadmap")]
+            // Two of them, which is the case the chips have to survive: a
+            // ticket sits on the team's board and on the roadmap at once.
+            // The roadmap keeps its missing column, which is the other
+            // case worth having in the sample.
+            projects: [
+                board(title: "Roadmap", status: nil, item: "PVTI_sample_roadmap"),
+                board(status: "Code Review", item: "PVTI_sample_611"),
+            ]
         )
     }
 
@@ -1030,7 +1063,7 @@ public enum SampleData {
                     authorAvatarURL: avatar(1),
                     assignees: ["mira"],
                     projects: [
-                        LinkedProject(title: "Platform Board", status: "Code Review"),
+                        board(status: "Code Review", item: "PVTI_sample_318"),
                     ],
                     url: url(Repository.server, 318),
                     createdAt: ago(days: 9),

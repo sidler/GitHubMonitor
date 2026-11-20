@@ -981,7 +981,7 @@ public final class AppState {
     public func loadSampleData() {
         isSample = true
         hasToken = true
-        viewer = Viewer(login: SampleData.viewer, avatarURL: SampleData.avatar(5), scopes: TokenScopes(granted: ["repo", "notifications", "read:org"]))
+        viewer = Viewer(login: SampleData.viewer, avatarURL: SampleData.avatar(5), scopes: TokenScopes(granted: ["repo", "notifications", "read:org", "project"]))
         // A plausible charge, so the sentence in settings has something to
         // say without a token.
         lastRefreshCost = 13

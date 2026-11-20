@@ -5,6 +5,20 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **Settings → Account says what each token scope buys and which ones
+  your token carries** — ticked, missing, or merely optional. It used to
+  be a line of scope names that never said what any of them was for, and
+  only while you were signed out did it explain them at all.
+- **The boards a ticket sits on get a line each, with their columns
+  lined up under one another** — and the column is a badge in the colour
+  the board paints it, so "which column is it in on each" is answered by
+  looking down one column instead of reading both rows. A board nobody
+  has sorted it on says so rather than leaving a gap.
+- **An issue's board column can be changed from its pane** — press the
+  board chip and pick a column, the way a label is set. **It needs a new
+  token:** reading a board is `read:project`, moving something on one is
+  the whole `project` scope, so the chip stays a plain chip until you
+  mint one. The link in Settings → Account now asks for it.
 - **A filter box over the lists and over a review's file tree** —
   Command-F, then part of a title to narrow the pull requests or issues
   in front of you, or part of a path to find a file in a review of two

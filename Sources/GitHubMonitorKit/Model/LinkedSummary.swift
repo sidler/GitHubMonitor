@@ -16,17 +16,108 @@ import SwiftUI
 public struct LinkedProject: Hashable, Sendable {
     public let title: String
     public let status: String?
+    /// The three ids a column change needs. GitHub's mutation takes ids
+    /// and will not take names, the way the label ones do.
+    ///
+    /// All nil where the token may read boards but not write them, which
+    /// is what `read:project` alone grants -- so the chip knows to stay a
+    /// chip rather than offering a menu that would be refused.
+    public let projectID: String?
+    public let itemID: String?
+    public let statusFieldID: String?
+    /// Which column it is in, by id rather than by name: it is what ticks
+    /// the menu and what the chip takes its colour from.
+    public let statusOptionID: String?
+    /// The columns the board has, for the menu to list.
+    ///
+    /// Asked of the project rather than read off the item's own value: an
+    /// issue sitting on a board with no column yet has no value to read
+    /// them from, and that is exactly the issue somebody wants to move.
+    public let statuses: [ProjectStatus]
 
-    public init(title: String, status: String? = nil) {
+    public init(
+        title: String,
+        status: String? = nil,
+        projectID: String? = nil,
+        itemID: String? = nil,
+        statusFieldID: String? = nil,
+        statusOptionID: String? = nil,
+        statuses: [ProjectStatus] = []
+    ) {
         self.title = title
         self.status = status
+        self.projectID = projectID
+        self.itemID = itemID
+        self.statusFieldID = statusFieldID
+        self.statusOptionID = statusOptionID
+        self.statuses = statuses
+    }
+
+    /// The colour the board itself paints this column in, nil where there
+    /// is no column to paint.
+    ///
+    /// By id, then by name, then grey: a board read without its options
+    /// has a column name and no palette to look it up in, and grey is the
+    /// honest answer rather than a wrong hue.
+    public var statusColor: IssueTypeColor? {
+        guard status != nil else { return nil }
+        let option = statuses.first { $0.id == statusOptionID }
+            ?? statuses.first { $0.name == status }
+        return option?.color ?? .gray
     }
 
     public var label: String {
         guard let status else { return title }
         return "\(title) \u{00b7} \(status)"
     }
+
+    /// Whether the column can be changed from here at all.
+    public var isSettable: Bool {
+        projectID != nil && itemID != nil && statusFieldID != nil && !statuses.isEmpty
+    }
+
+    /// The same boards with one of them in another column, for showing a
+    /// move before GitHub has agreed to it.
+    ///
+    /// Matched on the item rather than the title: an issue sits on a
+    /// board once, but two boards can read alike, and moving an issue on
+    /// one of them must not move the chip beside it.
+    public static func after(
+        _ boards: [LinkedProject], moving item: String, to status: ProjectStatus
+    ) -> [LinkedProject] {
+        boards.map { $0.itemID == item ? $0.moved(to: status) : $0 }
+    }
+
+    /// The same board in a different column.
+    ///
+    /// The whole column, not its name: the chip takes its colour and the
+    /// menu its tick from the id, and a move that carried only the name
+    /// would leave both showing the column it came from.
+    public func moved(to status: ProjectStatus) -> LinkedProject {
+        LinkedProject(
+            title: title, status: status.name, projectID: projectID, itemID: itemID,
+            statusFieldID: statusFieldID, statusOptionID: status.id, statuses: statuses
+        )
+    }
 }
+
+/// One column of a board, by the id the mutation takes.
+public struct ProjectStatus: Hashable, Sendable, Identifiable {
+    public let id: String
+    public let name: String
+    /// GitHub paints a board column from the same eight it paints an
+    /// issue type from, under the same names -- so this is that type
+    /// rather than a second copy of it.
+    public let color: IssueTypeColor
+
+    public init(id: String, name: String, color: IssueTypeColor = .gray) {
+        self.id = id
+        self.name = name
+        self.color = color
+    }
+}
+
+
 
 public struct LinkedSummary: Hashable, Sendable, Identifiable {
     public enum Kind: Hashable, Sendable {

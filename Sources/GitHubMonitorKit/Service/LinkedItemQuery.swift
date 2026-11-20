@@ -39,13 +39,24 @@ public enum LinkedItemQuery {
             # rather than taken by position: a board's fields can be in
             # any order, and every board has this one.
             status: fieldValueByName(name: "Status") {
-              ... on ProjectV2ItemFieldSingleSelectValue { name }
+              ... on ProjectV2ItemFieldSingleSelectValue { name optionId }
             }
+        """ : ""
+        // The field itself, for the ids a move needs and the columns to
+        // offer. Asked of the project, not of the item's value: an issue
+        // that has no column yet has no value to read them off, and that
+        // is the one somebody most wants to move.
+        let field = columns ? """
+
+                  field(name: "Status") {
+                    ... on ProjectV2SingleSelectField { id options { id name color } }
+                  }
         """ : ""
         return """
             projectItems(first: 5, includeArchived: false) {
               nodes {
-                project { title }\(status)
+                id
+                project { id title\(field) }\(status)
               }
             }
         """
@@ -248,11 +259,24 @@ public enum LinkedItemQuery {
     static func boards(in connection: Any?) -> [LinkedProject] {
         ((connection as? [String: Any])?["nodes"] as? [[String: Any]] ?? [])
             .compactMap { item in
-                guard let title = (item["project"] as? [String: Any])?["title"] as? String
-                else { return nil }
+                let project = item["project"] as? [String: Any]
+                guard let title = project?["title"] as? String else { return nil }
+                let field = project?["field"] as? [String: Any]
                 return LinkedProject(
                     title: title,
-                    status: (item["status"] as? [String: Any])?["name"] as? String
+                    status: (item["status"] as? [String: Any])?["name"] as? String,
+                    projectID: project?["id"] as? String,
+                    itemID: item["id"] as? String,
+                    statusFieldID: field?["id"] as? String,
+                    statusOptionID: (item["status"] as? [String: Any])?["optionId"] as? String,
+                    statuses: (field?["options"] as? [[String: Any]] ?? []).compactMap {
+                        guard let id = $0["id"] as? String, let name = $0["name"] as? String
+                        else { return nil }
+                        return ProjectStatus(
+                            id: id, name: name,
+                            color: IssueTypeColor(apiValue: $0["color"] as? String)
+                        )
+                    }
                 )
             }
     }

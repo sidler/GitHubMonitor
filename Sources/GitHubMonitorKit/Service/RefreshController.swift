@@ -409,6 +409,43 @@ public final class RefreshController {
         }
     }
 
+    /// Moves an issue to another column of a board it sits on.
+    ///
+    /// Shown before GitHub has agreed, and put back if it does not --
+    /// the labels' bargain, for the same reason: nobody is notified, and
+    /// the way back is the same menu again.
+    ///
+    /// Only the detail is written. Boards are shown in the pane and in
+    /// the linked-ticket fold, never on a row, so there is no list copy
+    /// to keep in step.
+    public func setProjectStatus(
+        _ status: ProjectStatus, on issueID: String, in project: LinkedProject
+    ) {
+        guard let service, let projectID = project.projectID,
+            let itemID = project.itemID, let fieldID = project.statusFieldID
+        else { return }
+
+        guard case .loaded(let detail) = state.issueDetails[issueID] else { return }
+        let before = detail.projects
+        apply(LinkedProject.after(before, moving: itemID, to: status), to: issueID)
+
+        accountTask { [weak self] in
+            do {
+                try await service.setProjectStatus(
+                    option: status.id, field: fieldID, item: itemID, project: projectID
+                )
+            } catch {
+                guard let self, !Task.isCancelled else { return }
+                apply(before, to: issueID)
+            }
+        }
+    }
+
+    private func apply(_ projects: [LinkedProject], to issueID: String) {
+        guard case .loaded(let detail) = state.issueDetails[issueID] else { return }
+        state.issueDetails[issueID] = .loaded(detail.withProjects(projects))
+    }
+
     /// What the item carries now, read the way the pane reads it.
     ///
     /// The pane shows the detail's labels and falls back to the list's
