@@ -5,6 +5,10 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **A filter box over the lists and over a review's file tree** —
+  Command-F, then part of a title to narrow the pull requests or issues
+  in front of you, or part of a path to find a file in a review of two
+  hundred.
 - **A double-click on a pull request opens it for review** — the same
   thing the button at the end of the row does, by the gesture everybody
   tries first.

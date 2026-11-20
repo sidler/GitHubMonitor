@@ -368,6 +368,7 @@ public final class AppState {
             if sidebarSelection != oldValue {
                 legendFilter = nil
                 labelFilter = nil
+                titleFilter = ""
             }
         }
     }
@@ -389,6 +390,13 @@ public final class AppState {
     /// name, though: two repositories give the same label different ids,
     /// and a list spanning both should narrow to all of it.
     public var labelFilter: IssueLabel?
+    /// What was typed into the box over the list, which narrows it to
+    /// the titles carrying it.
+    ///
+    /// Beside the other two narrowings, and forgotten with them when the
+    /// sidebar moves on: it is a question asked of the list in front of
+    /// you, not a setting.
+    public var titleFilter = ""
     public var selectedSettingsTab: SettingsTab = .account
     /// The dashboard's own fetch, separate from the refresh cycle: it covers
     /// a whole repository and is only wanted while that view is open.
@@ -632,12 +640,14 @@ public final class AppState {
     /// list could not go.
     public func legendBase(in list: SavedList) -> [PullRequestItem] {
         let items = selectedPullRequests(in: list)
+            .filter { TextFilter.keeps($0.title, matching: titleFilter) }
         guard let labelFilter else { return items }
         return items.filter { Self.carries(labelFilter, in: $0.labels) }
     }
 
     public func issueLegendBase(in list: SavedList) -> [IssueItem] {
         let items = selectedIssues(in: list)
+            .filter { TextFilter.keeps($0.title, matching: titleFilter) }
         guard let labelFilter else { return items }
         return items.filter { Self.carries(labelFilter, in: $0.labels) }
     }

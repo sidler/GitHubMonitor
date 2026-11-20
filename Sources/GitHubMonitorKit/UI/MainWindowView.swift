@@ -300,10 +300,36 @@ struct ContentColumn: View {
         }
     }
 
+    /// The box over a list, for finding a title in it.
+    ///
+    /// Over the rows rather than in the toolbar: the toolbar is shared by
+    /// every selection in the sidebar, and a search field standing there
+    /// in front of the settings would be a field over nothing.
+    /// Narrow and at the trailing edge, not a band across the window:
+    /// full width it read as the first thing on the list rather than a
+    /// way of narrowing one, which over fifty rows is the wrong order.
+    private var filterBar: some View {
+        HStack(spacing: 0) {
+            Spacer(minLength: 0)
+            FilterField(prompt: "Filter by title", text: $state.titleFilter)
+                .frame(width: 220)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+    }
+
+    /// Why a list has nothing in it, which is not always the same reason
+    /// -- and the filter is the one reason somebody can undo on the spot.
+    private func emptyReason(_ otherwise: String) -> String {
+        TextFilter.query(state.titleFilter) == nil
+            ? otherwise : "No title here matches what you typed."
+    }
+
     private func pullRequestList(_ list: SavedList) -> some View {
         let items = state.shownPullRequests(in: list)
         return VStack(spacing: 0) {
         failureBanner(list)
+        filterBar
         GroupedList(
             items: items,
             grouping: list.grouping,
@@ -331,11 +357,11 @@ struct ContentColumn: View {
                 ContentUnavailableView(
                     "Nothing in “\(list.title)”",
                     systemImage: list.symbol,
-                    description: Text(
+                    description: Text(emptyReason(
                         state.selectedDraftCount > 0 && !list.includeDrafts
                             ? "Only drafts match; switch them on above to see them."
                             : "No pull request matches this list's search."
-                    )
+                    ))
                 )
             }
         }
@@ -346,6 +372,7 @@ struct ContentColumn: View {
         let items = state.shownIssues(in: list)
         return VStack(spacing: 0) {
         failureBanner(list)
+        filterBar
         GroupedList(
             items: items,
             grouping: list.grouping,
@@ -369,11 +396,11 @@ struct ContentColumn: View {
                 ContentUnavailableView(
                     "Nothing in “\(list.title)”",
                     systemImage: list.symbol,
-                    description: Text(
+                    description: Text(emptyReason(
                         state.hiddenIssueCount > 0
                             ? "Every issue here is of a type switched off above."
                             : "No issue matches this list's search."
-                    )
+                    ))
                 )
             }
         }

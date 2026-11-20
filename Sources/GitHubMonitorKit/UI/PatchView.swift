@@ -97,6 +97,8 @@ struct DiffOverlay: View {
     /// for an instruction and used to pull the file being read back to the
     /// top. The diff could be scrolled from file to file and barely at all
     /// within one, which with short files looked almost like scrolling.
+    /// What was typed into the box over the file tree.
+    @StateObject private var narrowing = TypedText()
     @StateObject private var place = DiffPlace()
     @StateObject private var asked = AskedEvent()
 
@@ -491,9 +493,14 @@ struct DiffOverlay: View {
         // chosen -- which is also why clicking a file in the tree never
         // moved the diff. The mark and the click are drawn and handled
         // here instead, where they can be seen to work.
+        VStack(spacing: 0) {
+        FilterField(prompt: "Filter files", text: $narrowing.text)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+
         List {
             FileTreeRows(
-                nodes: FileTree.build(files),
+                nodes: FileTree.build(treeFiles),
                 open: open,
                 viewed: viewed?.states ?? [:],
                 comments: ReviewThreadPlacement.openCounts(conversations),
@@ -510,7 +517,19 @@ struct DiffOverlay: View {
         // -- and it does not offer to give them back.
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        }
         .frame(width: sidebar.width)
+    }
+
+    /// The files the tree draws.
+    ///
+    /// Matched against the whole path rather than the name, so typing a
+    /// directory keeps everything under it -- which on a review of two
+    /// hundred files is the question actually being asked. The diff
+    /// column beside it stays whole: the tree is how you get to a file,
+    /// not what you are reading.
+    private var treeFiles: [ChangedFile] {
+        files.filter { TextFilter.keeps($0.path, matching: narrowing.text) }
     }
 
     /// The divider between the file list and the diff, which can be moved.
