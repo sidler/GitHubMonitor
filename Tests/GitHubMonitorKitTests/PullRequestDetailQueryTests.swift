@@ -62,6 +62,31 @@ struct PullRequestDetailQueryTests {
         #expect(detail.olderComments == 1)
     }
 
+    /// The case that reads like a fault and is not. A pull request whose
+    /// remarks were all made in the conversation tab names them in the
+    /// pane and has nothing to draw in the diff, because not one of them
+    /// hangs on a line. Were the two ever counted together, the number
+    /// over "comments" would read as remarks on the diff that had gone
+    /// missing.
+    @Test("Comments in the conversation are not remarks on the diff")
+    func conversationIsNotTheDiff() throws {
+        let detail = try PullRequestDetailQuery.detail(from: payload(conversation: [
+            [
+                "id": "C_1", "createdAt": "2026-10-19T09:00:00Z",
+                "body": "The images are missing.",
+                "author": ["login": "arun", "avatarUrl": "https://a/arun"],
+            ],
+            [
+                "id": "C_2", "createdAt": "2026-10-19T09:30:00Z",
+                "body": "I add those by hand.",
+                "author": ["login": "mira", "avatarUrl": "https://a/mira"],
+            ],
+        ]))
+
+        #expect(detail.comments.count == 2)
+        #expect(detail.reviewConversations == 0)
+    }
+
     @Test("A pull request nobody has written under has nothing to show")
     func noConversation() throws {
         let detail = try PullRequestDetailQuery.detail(from: payload())
