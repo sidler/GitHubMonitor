@@ -135,8 +135,30 @@ struct ApprovalTests {
     func mutationShape() {
         #expect(ApprovalQuery.submitDocument.contains("commitOID: $commit"))
         #expect(ApprovalQuery.submitDocument.contains("event: $event"))
-        // Nothing else: no body, no comments, no threads.
-        #expect(!ApprovalQuery.submitDocument.contains("body: "))
+    }
+
+    /// What the review says about the whole pull request travels with
+    /// it. Through a variable and never pasted into the document: a
+    /// review summary is prose somebody typed, and prose pasted into a
+    /// query is a query somebody else can write.
+    @Test("The review's own words are sent as a variable")
+    func carriesABody() {
+        #expect(ApprovalQuery.submitDocument.contains("$body: String"))
+        #expect(ApprovalQuery.submitDocument.contains("body: $body"))
+        // The long way round submits a review that already exists, so
+        // the words go on at the end rather than at the beginning.
+        #expect(ApprovalQuery.submitPendingDocument.contains("body: $body"))
+        #expect(!ApprovalQuery.pendingDocument.contains("body: $body"))
+    }
+
+    /// A remark for the conversation tab is not a review: it goes to a
+    /// mutation of its own, notifies as a comment, and says nothing
+    /// about the code.
+    @Test("A conversation remark is its own mutation")
+    func conversationIsNotAReview() {
+        #expect(ApprovalQuery.commentDocument.contains("addComment"))
+        #expect(ApprovalQuery.commentDocument.contains("subjectId: $id"))
+        #expect(!ApprovalQuery.commentDocument.contains("PullRequestReviewEvent"))
     }
 }
 
@@ -444,5 +466,72 @@ struct ApprovalStateTests {
         #expect(!state.isConfirming("2"))
         #expect(!ApprovalState.idle.isConfirming("1"))
         #expect(!ApprovalState.sending(pullRequestID: "1").isConfirming("1"))
+    }
+}
+
+/// Showing a change before GitHub has agreed must change only the one
+/// thing. Both of these used to build the detail again from its fields,
+/// which meant each carried only what somebody had remembered to name --
+/// and a field added later was never one of them.
+@Suite("What the pane keeps while GitHub is being asked")
+struct OptimisticDetailTests {
+    private func detail() -> PullRequestDetail {
+        PullRequestDetail(
+            headBranch: "fix/x",
+            baseBranch: "main",
+            additions: 12,
+            deletions: 3,
+            changedFiles: 2,
+            totalComments: 4,
+            comments: [
+                IssueComment(
+                    id: "C_1", author: "arun", avatarURL: nil,
+                    createdAt: .distantPast, body: "Is the lock held?"
+                )
+            ],
+            reviewConversations: 2,
+            body: "Adds the export button.",
+            mergeStatus: .mergeable,
+            checks: [CheckRun(name: "unit tests", status: .success)],
+            reviewers: [
+                ReviewerStatus(name: "mira", avatarURL: nil, state: .pending, isTeam: false)
+            ],
+            summaries: [
+                ReviewSummary(
+                    author: "dara", avatarURL: nil, state: .changesRequested,
+                    submittedAt: nil, body: "Registry first."
+                )
+            ],
+            labels: [IssueLabel(id: "LA_1", name: "bug", color: "d73a4a")],
+            commitCount: 5
+        )
+    }
+
+    @Test("Approving leaves the rest of the pane as it was")
+    func approvingKeepsTheRest() {
+        let after = detail().countingApproval(by: "mira", avatarURL: nil)
+
+        #expect(after.reviewers.first(where: { $0.name == "mira" })?.state == .approved)
+        // Everything the pane draws beside the reviewers.
+        #expect(after.labels.map(\.name) == ["bug"])
+        #expect(after.commitCount == 5)
+        #expect(after.summaries.map(\.author) == ["dara"])
+        #expect(after.comments.count == 1)
+        #expect(after.checks.count == 1)
+        #expect(after.body == "Adds the export button.")
+        #expect(after.reviewConversations == 2)
+        #expect(after.changedFiles == 2)
+    }
+
+    @Test("Changing the labels leaves the rest of the pane as it was")
+    func labellingKeepsTheRest() {
+        let after = detail().withLabels([IssueLabel(id: "LA_2", name: "chore", color: "ededed")])
+
+        #expect(after.labels.map(\.name) == ["chore"])
+        #expect(after.reviewers.map(\.name) == ["mira"])
+        #expect(after.commitCount == 5)
+        #expect(after.summaries.map(\.author) == ["dara"])
+        #expect(after.comments.count == 1)
+        #expect(after.checks.count == 1)
     }
 }

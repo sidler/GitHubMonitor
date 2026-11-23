@@ -486,3 +486,167 @@ struct ResolveThreadTests {
         #expect(!settled.settled(false).isResolved)
     }
 }
+
+/// The two things a review says about the whole pull request rather than
+/// about a line of it: its own summary, and a remark for the
+/// conversation tab. Both are held until the review is sent, like every
+/// other box in a diff.
+@Suite("What a review says about the whole")
+struct WholeReviewDraftTests {
+    private func draft(
+        comments: [DraftComment] = [], body: String = "", conversation: String = ""
+    ) -> ReviewDraft {
+        ReviewDraft(
+            pullRequestID: "pr-1", commit: "abc",
+            comments: comments, body: body, conversation: conversation
+        )
+    }
+
+    /// A review that is only a sentence about the whole is still a
+    /// review. Counting it empty would have thrown it away the moment it
+    /// was typed.
+    @Test("A draft holding only a sentence is not empty")
+    func notEmpty() {
+        #expect(draft().isEmpty)
+        #expect(!draft(body: "Looks right to me.").isEmpty)
+        #expect(!draft(conversation: "Rebased on main.").isEmpty)
+        // Whitespace is not writing.
+        #expect(draft(body: "  \n ").isEmpty)
+    }
+
+    /// GitHub takes an absent body rather than an empty one: sending ""
+    /// posts a review whose summary is a blank line.
+    @Test("Nothing written is nothing sent")
+    func nothingSent() {
+        #expect(draft().writtenBody == nil)
+        #expect(draft(body: "   ").writtenBody == nil)
+        #expect(draft(body: "  Fine.  ").writtenBody == "Fine.")
+        #expect(draft(conversation: " Rebased. ").writtenConversation == "Rebased.")
+    }
+
+    /// Somebody part way through a review when the app learned these two
+    /// texts must not lose it. Bumping the schema would have been one
+    /// line and would have thrown every such draft away.
+    @Test("A draft written before these texts existed still reads")
+    func oldDraftsSurvive() throws {
+        let older = """
+        {
+          "schema": 1,
+          "pullRequestID": "pr-1",
+          "commit": "abc",
+          "comments": [
+            {
+              "id": "7B1E5E6C-2C34-4C1C-9A2B-1D4C9F0A0001",
+              "path": "a/b.swift",
+              "line": 12,
+              "side": "new",
+              "body": "Half written.",
+              "writtenAt": 780000000
+            }
+          ]
+        }
+        """
+        let read = try JSONDecoder().decode(ReviewDraft.self, from: Data(older.utf8))
+
+        #expect(read.comments.count == 1)
+        #expect(read.body.isEmpty)
+        #expect(read.conversation.isEmpty)
+        #expect(!read.isEmpty)
+    }
+
+    /// The entry at the end of the tree is a file only so that the tree,
+    /// the pager and the arrow keys reach it. Its path has to be one no
+    /// repository can hold, or a real file would land on that page.
+    @Test("The conversation's path is one no file can have")
+    func conversationPath() {
+        #expect(ChangedFile.conversation.isConversation)
+        #expect(ChangedFile.conversationPath.contains("\u{0}"))
+        let real = ChangedFile(
+            path: "src/Filter/UserFilter.php", additions: 1, deletions: 0,
+            change: .modified, patch: nil
+        )
+        #expect(!real.isConversation)
+    }
+}
+
+/// Writing the two whole-review texts, which needs no account: they are
+/// kept with the draft until one of the three review buttons sends them.
+@MainActor
+@Suite("Keeping what a review says about the whole")
+struct WholeReviewWritingTests {
+    /// A store of its own, in a directory of its own. The default one
+    /// is the real folder this app keeps half-written reviews in: a test
+    /// pointed at it reads whatever is in there and leaves its own
+    /// behind.
+    private func made() -> (AppState, RefreshController, PullRequestItem) {
+        let directory = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("GitHubMonitorTests/\(UUID().uuidString)", isDirectory: true)
+        let state = AppState(settings: Settings(store: TestDefaults.make()))
+        let item = PullRequestItem(
+            id: "pr-1", number: 1, title: "t", repository: "octo/server", author: "a",
+            authorAvatarURL: nil, url: URL(string: "https://github.com")!, isDraft: false,
+            updatedAt: .now, reviewDecision: .none, checks: .none, headCommit: "abc"
+        )
+        return (
+            state,
+            RefreshController(state: state, draftStore: DraftStore(directory: directory)),
+            item
+        )
+    }
+
+    /// A review that is only a sentence about the whole still needs
+    /// somewhere to live until it goes, so writing one makes a draft.
+    @Test("A sentence about the whole makes a draft of its own")
+    func makesADraft() {
+        let (state, controller, item) = made()
+        #expect(state.reviewDrafts[item.id] == nil)
+
+        controller.setReviewBody("The locking reads right.", on: item)
+
+        #expect(state.reviewDrafts[item.id]?.body == "The locking reads right.")
+        // Bound to the commit it was written against, like the remarks.
+        #expect(state.reviewDrafts[item.id]?.commit == "abc")
+    }
+
+    /// The two are separate: GitHub notifies for one as a review and for
+    /// the other as a comment, and writing one must not touch the other.
+    @Test("The review's words and the conversation's are kept apart")
+    func keptApart() {
+        let (state, controller, item) = made()
+
+        controller.setReviewBody("Verdict.", on: item)
+        controller.setConversationNote("Aside.", on: item)
+
+        #expect(state.reviewDrafts[item.id]?.body == "Verdict.")
+        #expect(state.reviewDrafts[item.id]?.conversation == "Aside.")
+    }
+
+    /// Rubbing out the last of it leaves no draft. A draft holding two
+    /// empty strings would keep the window asking whether to discard an
+    /// unsent review nobody wrote.
+    @Test("Rubbing out the last words leaves no draft behind")
+    func emptiedAway() {
+        let (state, controller, item) = made()
+
+        controller.setReviewBody("Something.", on: item)
+        controller.setReviewBody("", on: item)
+
+        #expect(state.reviewDrafts[item.id] == nil)
+    }
+
+    /// A draft with remarks in it survives its summary being rubbed out:
+    /// the remarks are the review, and they were written first.
+    @Test("Remarks outlive the summary being rubbed out")
+    func remarksSurvive() {
+        let (state, controller, item) = made()
+        controller.addRemark(
+            to: item, path: "a/b.swift", line: 2, side: .new, body: "Here."
+        )
+
+        controller.setReviewBody("A word.", on: item)
+        controller.setReviewBody("  ", on: item)
+
+        #expect(state.reviewDrafts[item.id]?.comments.count == 1)
+        #expect(state.reviewDrafts[item.id]?.writtenBody == nil)
+    }
+}

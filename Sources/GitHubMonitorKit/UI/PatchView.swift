@@ -52,6 +52,13 @@ struct DiffOverlay: View {
     /// How to change that from the header. Nil leaves the control off,
     /// like `setLayout`.
     var setPaging: ((DiffPaging) -> Void)?
+    /// What was said about the pull request rather than about a line of
+    /// it, for the last entry in the tree. Nil leaves that entry off --
+    /// a diff opened without a pull request behind it has no
+    /// conversation to show.
+    var conversation: ConversationContent?
+    /// How to write the two texts on that page. Nil leaves it a reader.
+    var wholeReview: WholeReviewWriting?
     /// The review being written for this pull request, if any.
     var draft: ReviewDraft?
     /// How to write into it. Nil leaves the diff a reader.
@@ -125,8 +132,8 @@ struct DiffOverlay: View {
             guard note.userInfo?["pullRequest"] as? String == pullRequestID else { return }
             let step = note.userInfo?["step"] as? Int ?? 1
             let next = step > 0
-                ? DiffPager.file(after: place.path, in: files)
-                : DiffPager.file(before: place.path, in: files)
+                ? DiffPager.file(after: place.path, in: listedFiles)
+                : DiffPager.file(before: place.path, in: listedFiles)
             // Useful in both ways of reading: paging draws the next file,
             // scrolling jumps to it.
             if let next { go(to: next) }
@@ -198,14 +205,31 @@ struct DiffOverlay: View {
         .background(Ink.orange.opacity(0.1))
     }
 
+    /// What the tree, the pager and the arrow keys walk: the
+    /// conversation, and then the files.
+    ///
+    /// First rather than last. What has already been said about a pull
+    /// request is what somebody wants before they start reading it, not
+    /// after -- a question already asked and answered is the one thing
+    /// that changes how the diff below it reads.
+    ///
+    /// The conversation is a `ChangedFile` so that all three reach it
+    /// without learning a second kind of thing. The counts on the bar
+    /// stay on `files`: seven files is seven files, whatever else there
+    /// is to read beside them.
+    private var listedFiles: [ChangedFile] {
+        guard conversation != nil else { return files }
+        return [.conversation] + files
+    }
+
     /// Which files the column draws: all of them, or the one being read.
     ///
     /// Paging is not scrolling with extra steps -- the others are not
     /// built at all, which is most of what makes a diff of forty-three
     /// files bearable.
     private var shownFiles: [ChangedFile] {
-        guard paging == .oneFile else { return files }
-        return DiffPager.shown(place.path, in: files).map { [$0] } ?? []
+        guard paging == .oneFile else { return listedFiles }
+        return DiffPager.shown(place.path, in: listedFiles).map { [$0] } ?? []
     }
 
     /// Whether the tick count is on the bar. The divider after it has
@@ -236,7 +260,8 @@ struct DiffOverlay: View {
             // Beside the counts, because it belongs to what is being
             // read rather than to the controls for leaving -- and because
             // the other end of the bar is three review buttons deep.
-            if paging == .oneFile, let place = DiffPager.place(of: place.path, in: files) {
+            if paging == .oneFile,
+                let place = DiffPager.place(of: place.path, in: listedFiles) {
                 // Only where there is something to its left. Until a
                 // file has been ticked off there is no count in front of
                 // it, and a divider dividing the pager from the edge of
@@ -351,8 +376,8 @@ struct DiffOverlay: View {
     /// what somebody had already read would be a number nobody could use.
     @ViewBuilder
     private func pager(_ at: (at: Int, of: Int)) -> some View {
-        let back = DiffPager.file(before: place.path, in: files)
-        let on = DiffPager.file(after: place.path, in: files)
+        let back = DiffPager.file(before: place.path, in: listedFiles)
+        let on = DiffPager.file(after: place.path, in: listedFiles)
 
         HStack(spacing: 6) {
             Button {
@@ -505,6 +530,9 @@ struct DiffOverlay: View {
                 viewed: viewed?.states ?? [:],
                 comments: ReviewThreadPlacement.openCounts(conversations),
                 drafts: draft?.countsByPath ?? [:],
+                // The same content the page lists, so the badge and
+                // the page cannot disagree about how much is there.
+                conversationCount: conversation.map { withThreads($0).count } ?? 0,
                 current: place.path,
                 choose: { place.go(to: $0) }
             )
@@ -529,7 +557,11 @@ struct DiffOverlay: View {
     /// column beside it stays whole: the tree is how you get to a file,
     /// not what you are reading.
     private var treeFiles: [ChangedFile] {
-        files.filter { TextFilter.keeps($0.path, matching: narrowing.text) }
+        listedFiles.filter {
+            // The conversation answers to its own name rather than to
+            // the path nobody can type.
+            TextFilter.keeps($0.isConversation ? "Conversation" : $0.path, matching: narrowing.text)
+        }
     }
 
     /// The divider between the file list and the diff, which can be moved.
@@ -607,7 +639,41 @@ struct DiffOverlay: View {
     /// Opaque, and that is not decoration: a pinned header over a scroll
     /// view shows whatever is passing underneath it unless it brings its
     /// own background.
+    @ViewBuilder
     private func fileHeader(_ file: ChangedFile) -> some View {
+        if file.isConversation {
+            conversationHeader
+        } else {
+            changedFileHeader(file)
+        }
+    }
+
+    /// The conversation's own header. No tick, no change symbol, no link
+    /// to a file's diff on GitHub: none of the three is about anything
+    /// here, and a checkbox beside it would offer to mark a conversation
+    /// as read, which is not a thing this app knows how to remember.
+    private var conversationHeader: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: "bubble.left.and.bubble.right")
+                    .foregroundStyle(.secondary)
+                Text("Conversation")
+                    .font(.callout.weight(.medium))
+                Text("about the pull request, not its lines")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+
+            Divider()
+        }
+        .background(.background)
+    }
+
+    private func changedFileHeader(_ file: ChangedFile) -> some View {
         let state = viewed?.state(file.path) ?? .unviewed
         return VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
@@ -703,6 +769,15 @@ struct DiffOverlay: View {
     /// review of 259 files, a step cost 0.94 seconds of processor before
     /// and 0.35 after; the glide was half the wait for a file that is
     /// meant to appear at once.
+    /// The conversation page's own content, with this diff's remarks in
+    /// it. Added here rather than by whoever built the overlay: the
+    /// threads arrive separately and are placed against these files.
+    private func withThreads(_ content: ConversationContent) -> ConversationContent {
+        var whole = content
+        whole.threads = conversations
+        return whole
+    }
+
     private func go(to path: String) {
         guard paging == .scroll else {
             place.go(to: path)
@@ -711,7 +786,27 @@ struct DiffOverlay: View {
         withAnimation(.easeOut(duration: 0.15)) { place.go(to: path) }
     }
 
+    @ViewBuilder
     private func fileBody(
+        _ file: ChangedFile, width: CGFloat, threads: [ReviewThread]
+    ) -> some View {
+        if file.isConversation {
+            ConversationPage(
+                // The conversations under the names this diff knows the
+                // files by, the same ones the files themselves draw --
+                // a remark on a removed line of a renamed file arrives
+                // under the old name and would match no row here.
+                content: withThreads(conversation ?? ConversationContent()),
+                jump: { thread in go(to: thread.path) },
+                draft: draft,
+                writing: wholeReview
+            )
+        } else {
+            changedFileBody(file, width: width, threads: threads)
+        }
+    }
+
+    private func changedFileBody(
         _ file: ChangedFile, width: CGFloat, threads: [ReviewThread]
     ) -> some View {
         let state = viewed?.state(file.path) ?? .unviewed
@@ -1393,6 +1488,10 @@ struct FileTreeRows: View {
     /// apart from the count above it: one is what the review is waiting
     /// on, the other is what you have not sent yet.
     var drafts: [String: Int] = [:]
+    /// How much has been said about the pull request rather than about
+    /// a line of it, for the entry at the end. Nought draws no badge,
+    /// which is what an untouched conversation deserves.
+    var conversationCount: Int = 0
     /// The file the diff is showing, which this list marks.
     var current: String?
     /// What to do when one is picked.
@@ -1445,18 +1544,23 @@ struct FileTreeRows: View {
         return HStack(alignment: .firstTextBaseline, spacing: 6) {
             Spacer()
                 .frame(width: indent(depth) + Self.twistWidth)
+            if file.isConversation {
+                Image(systemName: "bubble.left.and.bubble.right")
+                    .foregroundStyle(.secondary)
+            }
             // Only where it says something. Nearly every file in a review
             // is modified, so a pencil beside all of them is a column of
             // one repeated symbol -- and in a list this narrow that column
             // costs as much as two levels of indentation.
-            if file.change != .modified {
+            if file.change != .modified, !file.isConversation {
                 Image(systemName: file.change.symbolName)
                     .foregroundStyle(.secondary)
                     .help(file.change.label)
             }
             // The name only: the folders above it carry the rest, which is
             // the whole point of the tree.
-            Text((file.path as NSString).lastPathComponent)
+            Text(file.isConversation
+                ? "Conversation" : (file.path as NSString).lastPathComponent)
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .foregroundStyle(state == .viewed ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
@@ -1467,6 +1571,14 @@ struct FileTreeRows: View {
                     .help(state.label)
             }
             Spacer(minLength: 4)
+            if file.isConversation, conversationCount > 0 {
+                HStack(spacing: 2) {
+                    Image(systemName: "bubble.left.fill")
+                    Text(verbatim: "\(conversationCount)").monospacedDigit()
+                }
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            }
             if let mine = drafts[file.path], mine > 0 {
                 draftBadge(mine)
             }
@@ -1494,7 +1606,9 @@ struct FileTreeRows: View {
         )
         .contentShape(Rectangle())
         .pointerStyle(.link)
-        .help(file.path)
+        .help(file.isConversation
+            ? "What was said about the pull request rather than about a line of it"
+            : file.path)
     }
 
     /// How much is open, for a file or for a whole folder.

@@ -60,6 +60,12 @@ public enum PullRequestDetailQuery {
           latestReviews(first: 25) {
             nodes {
               state
+              # Free: these nodes are already being fetched. The body is
+              # what somebody wrote about the whole pull request when
+              # they sent their review -- it hangs on no line, so without
+              # this it is said in the app and read nowhere.
+              body
+              submittedAt
               author { login avatarUrl }
             }
           }
@@ -95,6 +101,7 @@ public enum PullRequestDetailQuery {
             mergeStatus: PullRequestParser.mergeStatus(node["mergeable"] as? String),
             checks: checks(from: node),
             reviewers: reviewers(from: node),
+            summaries: summaries(from: node),
             labels: IssueParser.labels(from: node),
             commitCount: (node["commits"] as? [String: Any])?["totalCount"] as? Int ?? 0
         )
@@ -175,6 +182,38 @@ public enum PullRequestDetailQuery {
     }
 
     // MARK: - Reviewers
+
+    /// What reviewers wrote about the whole pull request, oldest first.
+    ///
+    /// Only the ones who wrote something: a review sent with no words is
+    /// a verdict, and the reviewer list beside it already says what the
+    /// verdict was.
+    static func summaries(from node: [String: Any]) -> [ReviewSummary] {
+        guard
+            let reviews = node["latestReviews"] as? [String: Any],
+            let nodes = reviews["nodes"] as? [[String: Any]]
+        else { return [] }
+
+        return nodes
+            .compactMap { review -> ReviewSummary? in
+                let author = review["author"] as? [String: Any]
+                guard
+                    let login = author?["login"] as? String,
+                    let body = review["body"] as? String,
+                    !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                else { return nil }
+                return ReviewSummary(
+                    author: login,
+                    avatarURL: (author?["avatarUrl"] as? String).flatMap(URL.init(string:)),
+                    state: ReviewState(apiValue: review["state"] as? String),
+                    submittedAt: (review["submittedAt"] as? String).flatMap {
+                        GitHubDate.date(from: $0)
+                    },
+                    body: body
+                )
+            }
+            .sorted { ($0.submittedAt ?? .distantPast) < ($1.submittedAt ?? .distantPast) }
+    }
 
     static func reviewers(from node: [String: Any]) -> [ReviewerStatus] {
         var result: [ReviewerStatus] = []

@@ -1978,6 +1978,37 @@ public final class RefreshController {
         keep(draft)
     }
 
+    /// What this review says about the whole pull request, and what it
+    /// says in the conversation tab.
+    ///
+    /// Kept rather than sent, like every other box in a diff: one press
+    /// sends what somebody wrote while reading. A draft is made for them
+    /// if there is none, so a review that is only a sentence about the
+    /// whole still has somewhere to live until it goes.
+    public func setReviewBody(_ text: String, on item: PullRequestItem) {
+        change(item) { $0.body = text }
+    }
+
+    public func setConversationNote(_ text: String, on item: PullRequestItem) {
+        change(item) { $0.conversation = text }
+    }
+
+    /// A draft with one field changed, kept or thrown away.
+    ///
+    /// Thrown away when nothing is left in it: a draft holding two empty
+    /// strings would keep the window asking whether to discard an unsent
+    /// review that nobody wrote.
+    private func change(_ item: PullRequestItem, _ edit: (inout ReviewDraft) -> Void) {
+        var draft = state.reviewDrafts[item.id]
+            ?? ReviewDraft(pullRequestID: item.id, commit: item.headCommit)
+        edit(&draft)
+        if draft.isEmpty {
+            discardDraft(for: item.id)
+        } else {
+            keep(draft)
+        }
+    }
+
     public func changeRemark(_ id: UUID, in pullRequestID: String, to body: String) {
         guard var draft = state.reviewDrafts[pullRequestID] else { return }
         draft.change(id, to: body)
@@ -2048,6 +2079,18 @@ public final class RefreshController {
         guard let index = threads.firstIndex(where: { $0.id == threadID }) else { return }
         threads[index] = threads[index].settled(resolved)
         state.reviewThreads[pullRequestID] = threads
+    }
+
+    /// Strikes the conversation remark from the draft, the moment it is
+    /// GitHub's, so nothing can send it twice.
+    private func clearConversationNote(for pullRequestID: String) {
+        guard var draft = state.reviewDrafts[pullRequestID] else { return }
+        draft.conversation = ""
+        if draft.isEmpty {
+            discardDraft(for: pullRequestID)
+        } else {
+            keep(draft)
+        }
     }
 
     /// Throws the whole thing away, on purpose and at somebody's word.
@@ -2228,17 +2271,33 @@ public final class RefreshController {
         let event = askedEvent
         state.approval = .sending(pullRequestID: item.id)
         do {
+            // Before the review, not after it. Whichever goes second can
+            // fail with the first already sent, and a second press would
+            // then send that first thing again -- a duplicate review, or
+            // a duplicate comment. Put the comment first and that press
+            // is safe: nothing has gone yet when it fails. Once it has
+            // gone it is struck from the draft, so a review that fails
+            // after it can be tried again without saying it twice.
+            if let note = draft?.writtenConversation {
+                try await service.comment(on: item.id, body: note)
+                clearConversationNote(for: item.id)
+            }
             if draft?.needsPendingReview == true {
                 try await service.submitReview(
                     pullRequestID: item.id,
                     commit: commit,
                     event: event,
                     openings: draft?.openings ?? [],
-                    replies: draft?.replies ?? []
+                    replies: draft?.replies ?? [],
+                    body: draft?.writtenBody
                 )
             } else {
                 try await service.submitReview(
-                    pullRequestID: item.id, commit: commit, event: event, remarks: remarks
+                    pullRequestID: item.id,
+                    commit: commit,
+                    event: event,
+                    remarks: remarks,
+                    body: draft?.writtenBody
                 )
             }
             state.approval = .idle

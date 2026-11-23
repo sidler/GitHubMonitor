@@ -10,6 +10,21 @@ What changed in each released version. The app shows this file itself, under
   the one state a reviewer row could be in that was wrong until somebody
   opened a browser: the pull request waits on a person who is no longer
   waiting on it.
+- **The diff opens with the conversation** — a first entry in the file
+  tree holding what was said about the pull request rather than about a
+  line of it: the conversation tab, and the summary each reviewer wrote
+  when they sent their review. The latter was said in the app and read
+  nowhere.
+- **The conversation page indexes every remark on the diff** — each one
+  under its file and line, open ones first, written out in full rather
+  than previewed; settled ones are folded away and the chevron takes the
+  diff to the file. A review of forty files used to hide its four
+  conversations in four places, findable only by opening each and
+  looking.
+- **Two boxes there for what a review says about the whole** — one for the
+  review's own summary, which GitHub has always taken and this app never
+  sent, and one for a remark in the conversation. Both kept until you
+  press Comment, Request changes or Approve.
 
 - **An issue list can be grouped by the board its issues sit on** —
   beside *By repository* and *By type*, with the ones nobody has planned

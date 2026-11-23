@@ -773,3 +773,65 @@ struct RenamedFileThreadTests {
         #expect(ReviewThreadPlacement.openCounts(threads)[moved.path]?.total == 1)
     }
 }
+
+/// The index of every conversation on the diff, which is what makes the
+/// conversation page a way into a review of forty files rather than a
+/// page about two of them.
+@Suite("An index of the conversations")
+struct ConversationIndexTests {
+    private func thread(
+        _ id: String, path: String, line: Int?, resolved: Bool = false
+    ) -> ReviewThread {
+        ReviewThread(
+            id: id, path: path, line: line, side: .new,
+            isResolved: resolved, isOutdated: false,
+            comments: [
+                IssueComment(
+                    id: id + "-c", author: "arun", avatarURL: nil,
+                    createdAt: .distantPast, body: "Worth a lookup by id?"
+                )
+            ]
+        )
+    }
+
+    /// Files in the order the conversations arrive, which is the order
+    /// the diff puts them in -- not alphabetical, which would send a
+    /// reader back and forth through the review.
+    @Test("Conversations are grouped by file, in the diff's order")
+    func grouped() {
+        let groups = ConversationIndex.files(of: [
+            thread("1", path: "src/B.php", line: 4),
+            thread("2", path: "src/A.php", line: 9),
+            thread("3", path: "src/B.php", line: 20),
+        ])
+
+        #expect(groups.map(\.path) == ["src/B.php", "src/A.php"])
+        #expect(groups.first?.threads.map(\.id) == ["1", "3"])
+    }
+
+    /// A settled conversation is a question that has been answered; an
+    /// open one is the reason the list is being read.
+    @Test("Open conversations come before settled ones")
+    func openFirst() {
+        let sorted = ConversationIndex.sorted([
+            thread("settled-early", path: "a", line: 2, resolved: true),
+            thread("open-late", path: "a", line: 40),
+            thread("open-early", path: "a", line: 8),
+        ])
+
+        #expect(sorted.map(\.id) == ["open-early", "open-late", "settled-early"])
+    }
+
+    /// A thread GitHub no longer places has no line to sort on. It goes
+    /// last of its kind rather than first, where a nil read as nought
+    /// would have put it.
+    @Test("A conversation with no line left sorts to the end")
+    func unplaced() {
+        let sorted = ConversationIndex.sorted([
+            thread("adrift", path: "a", line: nil),
+            thread("placed", path: "a", line: 12),
+        ])
+
+        #expect(sorted.map(\.id) == ["placed", "adrift"])
+    }
+}

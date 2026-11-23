@@ -88,13 +88,18 @@ public enum ApprovalQuery {
       $id: ID!,
       $commit: GitObjectID!,
       $event: PullRequestReviewEvent!,
-      $threads: [DraftPullRequestReviewThread!]
+      $threads: [DraftPullRequestReviewThread!],
+      $body: String
     ) {
       addPullRequestReview(input: {
         pullRequestId: $id,
         commitOID: $commit,
         event: $event,
-        threads: $threads
+        threads: $threads,
+        # What the review says about the whole pull request. Null where
+        # nothing was written -- GitHub takes an absent body, and an
+        # empty string would post a review whose summary is a blank line.
+        body: $body
       }) {
         pullRequestReview { state }
       }
@@ -150,12 +155,27 @@ public enum ApprovalQuery {
     """
 
     public static let submitPendingDocument = """
-    mutation($review: ID!, $event: PullRequestReviewEvent!) {
+    mutation($review: ID!, $event: PullRequestReviewEvent!, $body: String) {
       submitPullRequestReview(input: {
         pullRequestReviewId: $review,
-        event: $event
+        event: $event,
+        body: $body
       }) {
         pullRequestReview { state }
+      }
+    }
+    """
+
+    /// A remark for the conversation tab, which is not a review.
+    ///
+    /// Separate from the review on purpose: GitHub keeps the two apart,
+    /// one notifies as a review and the other as a comment, and a
+    /// sentence meant for everybody reading the pull request does not
+    /// belong inside a verdict on its code.
+    public static let commentDocument = """
+    mutation($id: ID!, $body: String!) {
+      addComment(input: { subjectId: $id, body: $body }) {
+        commentEdge { node { id } }
       }
     }
     """

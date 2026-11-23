@@ -61,6 +61,37 @@ public enum ReviewState: String, Hashable, Sendable, CaseIterable {
     }
 }
 
+/// What somebody wrote when they sent a review: the whole-review
+/// remark, as against one hung on a line of the diff.
+///
+/// It has nowhere to be in a diff, because it was never about a line --
+/// which is why it belongs on the page that collects what was said about
+/// the pull request rather than about its code.
+public struct ReviewSummary: Identifiable, Hashable, Sendable {
+    /// One review per author is what GitHub hands back here, so the
+    /// author names it.
+    public var id: String { author }
+    public let author: String
+    public let avatarURL: URL?
+    public let state: ReviewState
+    public let submittedAt: Date?
+    public let body: String
+
+    public init(
+        author: String,
+        avatarURL: URL?,
+        state: ReviewState,
+        submittedAt: Date?,
+        body: String
+    ) {
+        self.author = author
+        self.avatarURL = avatarURL
+        self.state = state
+        self.submittedAt = submittedAt
+        self.body = body
+    }
+}
+
 public struct ReviewerStatus: Identifiable, Hashable, Sendable {
     public var id: String { (isTeam ? "team:" : "user:") + name }
     public let name: String
@@ -145,30 +176,28 @@ public struct PullRequestDetail: Hashable, Sendable {
     /// issues it closes -- and the labels would be the line that broke
     /// it. Asking for them here also keeps them out of the refresh: this
     /// query is made when somebody opens one, not sixty times an hour.
-    public let labels: [IssueLabel]
+    public var labels: [IssueLabel]
 
     /// The same detail with a different set of labels, for showing a
     /// change before GitHub has confirmed it.
+    ///
+    /// A copy with one field set, not a detail built again from
+    /// fourteen. Built again, it carried only the fields somebody
+    /// remembered to name -- and twice now a field added later was not
+    /// one of them, so a label change silently emptied the pane of
+    /// something else while GitHub was being asked.
     public func withLabels(_ labels: [IssueLabel]) -> PullRequestDetail {
-        PullRequestDetail(
-            headBranch: headBranch,
-            baseBranch: baseBranch,
-            additions: additions,
-            deletions: deletions,
-            changedFiles: changedFiles,
-            totalComments: totalComments,
-            comments: comments,
-            reviewConversations: reviewConversations,
-            body: body,
-            mergeStatus: mergeStatus,
-            checks: checks,
-            reviewers: reviewers,
-            labels: labels,
-            commitCount: commitCount
-        )
+        var changed = self
+        changed.labels = labels
+        return changed
     }
     public let checks: [CheckRun]
-    public let reviewers: [ReviewerStatus]
+    public var reviewers: [ReviewerStatus]
+    /// What reviewers wrote when they sent their reviews, where they
+    /// wrote anything. The latest review from each person, which is what
+    /// this query reads anyway -- an earlier round's summary is not worth
+    /// a second connection.
+    public let summaries: [ReviewSummary]
     /// How many commits it stands on, which comes free with this query.
     /// The commits themselves are read only when somebody asks.
     public let commitCount: Int
@@ -186,6 +215,7 @@ public struct PullRequestDetail: Hashable, Sendable {
         mergeStatus: MergeStatus = .unknown,
         checks: [CheckRun],
         reviewers: [ReviewerStatus],
+        summaries: [ReviewSummary] = [],
         labels: [IssueLabel] = [],
         commitCount: Int = 0
     ) {
@@ -203,6 +233,7 @@ public struct PullRequestDetail: Hashable, Sendable {
         self.mergeStatus = mergeStatus
         self.checks = checks
         self.reviewers = reviewers
+        self.summaries = summaries
     }
 
     /// The same detail with this person shown as having approved.
@@ -219,20 +250,9 @@ public struct PullRequestDetail: Hashable, Sendable {
         let approved = ReviewerStatus(
             name: login, avatarURL: avatarURL, state: .approved, isTeam: false
         )
-        return PullRequestDetail(
-            headBranch: headBranch,
-            baseBranch: baseBranch,
-            additions: additions,
-            deletions: deletions,
-            changedFiles: changedFiles,
-            totalComments: totalComments,
-            comments: comments,
-            reviewConversations: reviewConversations,
-            body: body,
-            mergeStatus: mergeStatus,
-            checks: checks,
-            reviewers: ReviewerStatus.ordered(others + [approved])
-        )
+        var counted = self
+        counted.reviewers = ReviewerStatus.ordered(others + [approved])
+        return counted
     }
 
     public var failingChecks: [CheckRun] { checks.filter { $0.status == .failure } }

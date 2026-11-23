@@ -333,6 +333,30 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             ),
             paging: state.settings.diffPaging,
             setPaging: { [state] in state.settings.diffPaging = $0 },
+            // What was said about the pull request rather than about a
+            // line of it. Read from the detail that is already fetched
+            // when a row is opened; nil until it arrives, which leaves
+            // the entry off the tree rather than showing an empty one.
+            conversation: {
+                guard case .loaded(let detail) =
+                    state.pullRequestDetails[opened.pullRequestID]
+                else { return nil }
+                return ConversationContent(
+                    comments: detail.comments,
+                    summaries: detail.summaries,
+                    olderComments: detail.olderComments
+                )
+            }(),
+            wholeReview: item.map { item in
+                WholeReviewWriting(
+                    setBody: { [controller] text in
+                        controller.setReviewBody(text, on: item)
+                    },
+                    setNote: { [controller] text in
+                        controller.setConversationNote(text, on: item)
+                    }
+                )
+            },
             draft: state.reviewDrafts[opened.pullRequestID],
             // Only where there is a pull request to write about. A diff
             // opened for something that has since left the lists can be

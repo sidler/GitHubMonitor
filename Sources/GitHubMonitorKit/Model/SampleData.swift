@@ -487,6 +487,20 @@ public enum SampleData {
                 // dismissed one has somewhere to be drawn.
                 ReviewerStatus(name: "dara", avatarURL: avatar(3), state: .dismissed, isTeam: false),
             ],
+            // What somebody wrote when they sent their review. It hangs
+            // on no line, so the conversation page is the only place in
+            // the app it can be read.
+            summaries: [
+                ReviewSummary(
+                    author: "dara",
+                    avatarURL: avatar(3),
+                    state: .changesRequested,
+                    submittedAt: ago(hours: 20),
+                    body: "The locking reads right now. I would still rather the "
+                        + "migration registry landed first \u{2014} see #318. Happy to "
+                        + "look again once that is in."
+                ),
+            ],
             // Ids as GitHub gives them, not names: the mutations that set
             // and clear labels will not take a name, and a sample whose
             // labels could never be taken off would be the wrong shape to
@@ -517,7 +531,12 @@ public enum SampleData {
                     side: .new,
                     body: "`isset` is true for a null id. `array_key_exists` is what this means."
                 )
-            ]
+            ],
+            // The two texts the conversation page holds, so that page
+            // opens showing what a half-written review already says
+            // about the whole rather than two empty boxes.
+            body: "Two small things on the filter; the locking itself reads right.",
+            conversation: "Rebasing this on main once #318 is in."
         )
     }
 

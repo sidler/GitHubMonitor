@@ -317,16 +317,24 @@ public struct GitHubService: Sendable {
         pullRequestID: String,
         commit: String,
         event: ApprovalQuery.Event,
-        remarks: [DraftComment]
+        remarks: [DraftComment],
+        body: String? = nil
     ) async throws {
+        var variables: [String: Any] = [
+            "id": pullRequestID,
+            "commit": commit,
+            "event": event.rawValue,
+            "threads": ApprovalQuery.threads(from: remarks),
+        ]
+        if let body { variables["body"] = body }
+        _ = try await client.graphQL(ApprovalQuery.submitDocument, variables: variables)
+    }
+
+    /// Says something in the conversation tab, which is not a review.
+    public func comment(on subjectID: String, body: String) async throws {
         _ = try await client.graphQL(
-            ApprovalQuery.submitDocument,
-            variables: [
-                "id": pullRequestID,
-                "commit": commit,
-                "event": event.rawValue,
-                "threads": ApprovalQuery.threads(from: remarks),
-            ]
+            ApprovalQuery.commentDocument,
+            variables: ["id": subjectID, "body": body]
         )
     }
 
@@ -338,7 +346,8 @@ public struct GitHubService: Sendable {
         commit: String,
         event: ApprovalQuery.Event,
         openings: [DraftComment],
-        replies: [DraftComment]
+        replies: [DraftComment],
+        body: String? = nil
     ) async throws {
         let started = try await client.graphQL(
             ApprovalQuery.pendingDocument,
@@ -358,10 +367,9 @@ public struct GitHubService: Sendable {
             )
         }
 
-        _ = try await client.graphQL(
-            ApprovalQuery.submitPendingDocument,
-            variables: ["review": review, "event": event.rawValue]
-        )
+        var finish: [String: Any] = ["review": review, "event": event.rawValue]
+        if let body { finish["body"] = body }
+        _ = try await client.graphQL(ApprovalQuery.submitPendingDocument, variables: finish)
     }
 
     /// Settles a conversation on a diff, or unsettles it.

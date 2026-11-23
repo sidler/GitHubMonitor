@@ -41,6 +41,25 @@ public struct ChangedFile: Identifiable, Hashable, Sendable {
         }
     }
 
+    /// The one entry in the tree that is not a file: what was said
+    /// about the pull request rather than about a line of it.
+    ///
+    /// A `ChangedFile` so that the tree, the pager and the arrow keys
+    /// reach it without learning a second kind of thing -- the diff
+    /// column is the only place that has to tell it apart, and it does
+    /// so by this one path.
+    ///
+    /// The path begins with a character no file name may contain, so
+    /// nothing a repository holds can collide with it.
+    public static let conversationPath = "\u{0}conversation"
+
+    public static let conversation = ChangedFile(
+        path: conversationPath, additions: 0, deletions: 0, change: .other,
+        patch: nil, blob: nil
+    )
+
+    public var isConversation: Bool { path == Self.conversationPath }
+
     public var id: String { path }
     public let path: String
     public let additions: Int

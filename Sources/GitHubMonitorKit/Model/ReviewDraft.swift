@@ -64,20 +64,73 @@ public struct ReviewDraft: Hashable, Sendable, Codable {
     /// What the diff was when the first remark was written.
     public let commit: String?
     public var comments: [DraftComment]
+    /// What this review says about the whole pull request, which GitHub
+    /// calls the review's body and shows above the remarks.
+    ///
+    /// Not bound to a line, so it survives a push the way the remarks
+    /// cannot -- but it travels with them, because it is the same act.
+    public var body: String
+    /// A remark for the conversation tab rather than for the review: the
+    /// same pot the pane reads its comments from.
+    ///
+    /// Held here rather than posted as it is written, so that one press
+    /// sends everything somebody wrote while reading. It goes out beside
+    /// the review and not inside it -- GitHub keeps the two apart, and
+    /// so does this.
+    public var conversation: String
 
     public init(
         schema: Int = ReviewDraft.currentSchema,
         pullRequestID: String,
         commit: String?,
-        comments: [DraftComment] = []
+        comments: [DraftComment] = [],
+        body: String = "",
+        conversation: String = ""
     ) {
         self.schema = schema
         self.pullRequestID = pullRequestID
         self.commit = commit
         self.comments = comments
+        self.body = body
+        self.conversation = conversation
     }
 
-    public var isEmpty: Bool { comments.isEmpty }
+    /// Read by hand so that a draft written before these two texts
+    /// existed still reads. Bumping the schema instead would have been
+    /// one line and would have thrown away every review somebody was
+    /// part way through writing.
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        schema = try values.decode(Int.self, forKey: .schema)
+        pullRequestID = try values.decode(String.self, forKey: .pullRequestID)
+        commit = try values.decodeIfPresent(String.self, forKey: .commit)
+        comments = try values.decodeIfPresent([DraftComment].self, forKey: .comments) ?? []
+        body = try values.decodeIfPresent(String.self, forKey: .body) ?? ""
+        conversation = try values.decodeIfPresent(String.self, forKey: .conversation) ?? ""
+    }
+
+    /// Nothing written anywhere. A review that is only a sentence about
+    /// the whole is still a review, so the two texts count.
+    public var isEmpty: Bool {
+        comments.isEmpty && Self.written(body).isEmpty && Self.written(conversation).isEmpty
+    }
+
+    static func written(_ text: String) -> String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// The review's own words, or nil where there are none -- GitHub
+    /// takes no body rather than an empty one.
+    public var writtenBody: String? {
+        let written = Self.written(body)
+        return written.isEmpty ? nil : written
+    }
+
+    /// The conversation remark, or nil where there is none.
+    public var writtenConversation: String? {
+        let written = Self.written(conversation)
+        return written.isEmpty ? nil : written
+    }
 
     /// The remarks on one file, in the order they run down it.
     public func comments(in path: String) -> [DraftComment] {
