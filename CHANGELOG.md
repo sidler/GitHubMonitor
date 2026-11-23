@@ -3,7 +3,7 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
-## 2.12.0
+## 2.12.1
 
 - **The conversation is the first file in a review's tree** — what was
   said about the pull request as a whole, the summary each reviewer
