@@ -3,7 +3,7 @@
 What changed in each released version. The app shows this file itself, under
 *GitHub Monitor → What's New*.
 
-## Unreleased
+## 2.12.0
 
 - **The lines filled in behind a patch line up with the patch** — in the
   side-by-side diff they kept a gutter of their own, narrower and
