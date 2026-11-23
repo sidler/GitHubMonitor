@@ -1130,18 +1130,18 @@ struct PatchLines: View {
         // drawn after them would sit between two lines that follow one
         // another, claiming something is missing between them.
         if expansion.remainderIsAbove(gap) { expander(gap) }
-        ForEach(shown, id: \.lowerBound) { range in
-            ForEach(Array((text?.lines(from: range.lowerBound, through: range.upperBound) ?? [])
-                .enumerated()), id: \.offset) { offset, source in
-                contextRow(
-                    source,
-                    number: DiffLineNumber(
-                        old: range.lowerBound + offset + gap.oldOffset,
-                        new: range.lowerBound + offset
-                    ),
-                    digits: digits
-                )
-            }
+        // Named by the file's own line numbers. See the note in the
+        // side-by-side patch: nested lists numbered from nought in every
+        // stretch tell a lazy stack that two rows are the same row.
+        ForEach(ContextLine.list(shown, from: text), id: \.number) { line in
+            contextRow(
+                line.source,
+                number: DiffLineNumber(
+                    old: line.number + gap.oldOffset,
+                    new: line.number
+                ),
+                digits: digits
+            )
         }
         if !expansion.remainderIsAbove(gap) { expander(gap) }
     }

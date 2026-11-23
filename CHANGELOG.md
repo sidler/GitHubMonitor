@@ -5,6 +5,13 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **Showing the whole file no longer puts stretches of it in the wrong
+  place** — with every gap opened at once, a stretch of line 36 could be
+  drawn under the heading for line 1 while line 36's own place stayed
+  blank. The filled-in lines were named by their position within a
+  stretch rather than by their number in the file, so two of them
+  answered to the same name.
+
 - **A dismissed review can be asked for again from the pane** — a ↻
   beside the reviewer whose review GitHub set aside. Until now that was
   the one state a reviewer row could be in that was wrong until somebody

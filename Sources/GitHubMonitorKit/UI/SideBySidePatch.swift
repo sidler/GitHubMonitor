@@ -386,19 +386,21 @@ struct SideBySidePatch: View {
         // Above the lines where what is left is above them, or the row
         // sits between two lines that follow one another.
         if expansion.remainderIsAbove(gap) { expander(gap, width: width) }
-        ForEach(shown, id: \.lowerBound) { range in
-            ForEach(Array((text?.lines(from: range.lowerBound, through: range.upperBound) ?? [])
-                .enumerated()), id: \.offset) { offset, source in
-                let new = range.lowerBound + offset
-                // The same text on both sides, because that is what an
-                // unchanged line is. One blob fills two columns.
-                HStack(alignment: .top, spacing: 0) {
-                    contextCell(source, number: new + gap.oldOffset, width: width)
-                    Divider().frame(width: Self.dividerWidth)
-                    contextCell(source, number: new, width: width)
-                }
-                .fixedSize(horizontal: false, vertical: true)
+        // One list named by the file's own line numbers, not a list of
+        // ranges each holding a list numbered from nought. Nested, the
+        // inner names repeated -- nought, one, two -- in every stretch of
+        // every gap, and a lazy stack that is told two rows are the same
+        // row draws one of them where the other belongs. That is how a
+        // stretch of line 36 came to stand under the heading for line 1.
+        ForEach(ContextLine.list(shown, from: text), id: \.number) { line in
+            // The same text on both sides, because that is what an
+            // unchanged line is. One blob fills two columns.
+            HStack(alignment: .top, spacing: 0) {
+                contextCell(line.source, number: line.number + gap.oldOffset, width: width)
+                Divider().frame(width: Self.dividerWidth)
+                contextCell(line.source, number: line.number, width: width)
             }
+            .fixedSize(horizontal: false, vertical: true)
         }
         if !expansion.remainderIsAbove(gap) { expander(gap, width: width) }
     }
