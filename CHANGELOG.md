@@ -5,55 +5,19 @@ What changed in each released version. The app shows this file itself, under
 
 ## 2.12.0
 
-- **The lines filled in behind a patch line up with the patch** — in the
-  side-by-side diff they kept a gutter of their own, narrower and
-  right-aligned, and no column for the + or − a changed line carries, so
-  code revealed between two hunks started at a different place from the
-  code above it. The gutter is also wide enough now for a whole file's
-  last line, which reaches further than the patch does.
-
-- **Showing the whole file no longer puts stretches of it in the wrong
-  place** — with every gap opened at once, a stretch of line 36 could be
-  drawn under the heading for line 1 while line 36's own place stayed
-  blank. The filled-in lines were named by their position within a
-  stretch rather than by their number in the file, so two of them
-  answered to the same name.
-
-- **A dismissed review can be asked for again from the pane** — a ↻
-  beside the reviewer whose review GitHub set aside. Until now that was
-  the one state a reviewer row could be in that was wrong until somebody
-  opened a browser: the pull request waits on a person who is no longer
-  waiting on it.
-- **The diff opens with the conversation** — a first entry in the file
-  tree holding what was said about the pull request rather than about a
-  line of it: the conversation tab, and the summary each reviewer wrote
-  when they sent their review. The latter was said in the app and read
-  nowhere.
-- **The conversation page indexes every remark on the diff** — each one
-  under its file and line, open ones first, written out in full rather
-  than previewed; settled ones are folded away and the chevron takes the
-  diff to the file. A review of forty files used to hide its four
-  conversations in four places, findable only by opening each and
-  looking.
-- **The review buttons count what you have written, not only what hangs
-  on a line** — a review whose whole content is a sentence about the
-  pull request now has a Comment button to send it, and Request changes
-  sends it rather than opening a browser.
-- **Two boxes there for what a review says about the whole** — one for the
-  review's own summary, which GitHub has always taken and this app never
-  sent, and one for a remark in the conversation. Both kept until you
-  press Comment, Request changes or Approve.
-
-- **An issue list can be grouped by the board its issues sit on** —
-  beside *By repository* and *By type*, with the ones nobody has planned
-  under *No project*. Offered only where the token carries `read:project`,
-  since without it the list is never told which board anything is on.
-
-- **The box a review remark is written in grows with what you write** —
-  it stood at four lines and scrolled inside itself, so the start of
-  anything longer scrolled out of sight while you were still typing. It
-  now takes the height its text needs, and only goes back to scrolling
-  once it would push the Add button off the diff.
+- **The diff opens with the conversation** — a first file in the tree for
+  what was said about the pull request rather than about a line of it,
+  with the summary each reviewer wrote and two boxes to add your own.
+- **Every remark on the diff, in one list** — under its file and line,
+  open ones first, with a chevron that takes the diff there.
+- **A review that is only a sentence can be sent** — the buttons count
+  what you have written, not only what hangs on a line.
+- **A dismissed review can be asked for again** — a ↻ beside the reviewer
+  whose review GitHub set aside.
+- **An issue list can be grouped by board** — beside *By repository* and
+  *By type*. Needs `read:project`.
+- **The box a remark is written in grows with the remark** — it used to
+  stand at four lines and scroll inside itself.
 
 ## 2.11.0
 
