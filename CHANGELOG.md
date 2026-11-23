@@ -5,6 +5,13 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **The lines filled in behind a patch line up with the patch** — in the
+  side-by-side diff they kept a gutter of their own, narrower and
+  right-aligned, and no column for the + or − a changed line carries, so
+  code revealed between two hunks started at a different place from the
+  code above it. The gutter is also wide enough now for a whole file's
+  last line, which reaches further than the patch does.
+
 - **Showing the whole file no longer puts stretches of it in the wrong
   place** — with every gap opened at once, a stretch of line 36 could be
   drawn under the heading for line 1 while line 36's own place stayed

@@ -315,10 +315,16 @@ struct SideBySidePatch: View {
     /// edge down the column.
     private var gutterDigits: Int {
         guard showsLineNumbers else { return 0 }
-        return max(String(DiffCache.shared.rows(of: patch).reduce(0) { widest, row in
+        let inPatch = DiffCache.shared.rows(of: patch).reduce(0) { widest, row in
             guard case .pair(let left, let right) = row else { return widest }
             return max(widest, left?.number ?? 0, right?.number ?? 0)
-        }).count, 1)
+        }
+        // The lines filled in behind the patch reach further than the
+        // patch does: a file of a thousand lines whose patch touches
+        // only the top still numbers its last line in four digits, and
+        // a gutter measured on the patch alone would be a digit short
+        // of it.
+        return max(String(max(inPatch, content?.lines?.count ?? 0)).count, 1)
     }
 
     private var gutterWidth: CGFloat {
@@ -434,18 +440,29 @@ struct SideBySidePatch: View {
         _ source: String, number: Int, width: CGFloat
     ) -> some View {
         HStack(alignment: .top, spacing: 0) {
+            // The patch rows' own gutter, to the point. It used to be a
+            // width of its own -- a different one, trailing-aligned --
+            // so the code of a filled-in line started at a different
+            // place from the code of the line above it.
             if showsLineNumbers {
-                Text(verbatim: "\(number)")
-                    .font(.system(size: fontSize).monospaced())
+                Text(verbatim: PatchLines.pad(number, to: gutterDigits))
+                    .font(font)
                     .foregroundStyle(.tertiary)
-                    .frame(width: Self.gutterPadding + 14, alignment: .trailing)
-                    .padding(.trailing, 6)
+                    .padding(.leading, 12)
+                    .frame(width: gutterWidth, alignment: .topLeading)
             }
+            // The column a patch row keeps for its + or -, left empty:
+            // an unchanged line has no marker, and without the column
+            // its code would stand one character to the left of the
+            // changed lines it sits between.
+            Text(verbatim: " ")
+                .font(font)
+                .frame(width: markerWidth, alignment: .leading)
             CodeText(
                 source: source,
                 language: language,
                 insideComment: false,
-                font: .system(size: fontSize).monospaced(),
+                font: font,
                 emphasis: [],
                 emphasisTint: .clear
             )

@@ -1062,9 +1062,13 @@ struct PatchLines: View {
     /// Set once for the whole file, so the code keeps one left edge rather
     /// than stepping right where the numbers reach three digits.
     private var gutterDigits: Int {
-        showsLineNumbers
-            ? DiffLineNumbers.width(of: DiffCache.shared.numbers(of: patch))
-            : 0
+        guard showsLineNumbers else { return 0 }
+        // Wide enough for the lines filled in behind the patch too. See
+        // the note in the side-by-side patch.
+        return max(
+            DiffLineNumbers.width(of: DiffCache.shared.numbers(of: patch)),
+            String(content?.lines?.count ?? 0).count
+        )
     }
 
     var body: some View {
