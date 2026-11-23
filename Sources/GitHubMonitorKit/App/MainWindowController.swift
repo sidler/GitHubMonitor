@@ -255,7 +255,12 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
                 for: opened.pullRequestID,
                 title: item.map { "#\($0.number) \($0.title)" } ?? "Review",
                 subtitle: item.map { "\($0.repository) · \($0.author)" } ?? "",
-                unsent: state.reviewDrafts[opened.pullRequestID]?.comments.count ?? 0,
+                // The mark on the tab is about anything unsent, the
+                // same as the buttons: a window holding a summary
+                // nobody has sent is as unfinished as one holding a
+                // remark.
+                unsent: state.reviewDrafts[opened.pullRequestID]
+                    .map { $0.isEmpty ? 0 : max(1, $0.comments.count) } ?? 0,
                 // Everything the scroll will ask for, worked out off the
                 // main thread while the first file is being read.
                 priming: DiffCache.shared.prime(
@@ -495,6 +500,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             isConfirming: state.approval.isConfirming(item.id),
             failure: state.approval.message(for: item.id),
             remarks: state.reviewDrafts[item.id]?.comments.count ?? 0,
+            hasUnsent: !(state.reviewDrafts[item.id]?.isEmpty ?? true),
             ask: { [controller] event in await controller.askToApprove(item, event: event) },
             cancel: { [controller] in controller.cancelApproval() },
             approve: { [controller] in await controller.approve(item) }

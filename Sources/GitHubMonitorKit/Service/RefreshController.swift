@@ -2282,6 +2282,17 @@ public final class RefreshController {
                 try await service.comment(on: item.id, body: note)
                 clearConversationNote(for: item.id)
             }
+            // A verdict is worth sending with no words behind it;
+            // "Comment" with no words is the empty envelope GitHub
+            // refuses. So where the only thing written was a remark for
+            // the conversation -- which has just gone -- there is no
+            // review left to send and the press is already done.
+            if event == .comment, remarks.isEmpty, draft?.writtenBody == nil {
+                state.approval = .idle
+                discardDraft(for: item.id)
+                accountTask { [weak self] in await self?.refreshApproved(item) }
+                return true
+            }
             if draft?.needsPendingReview == true {
                 try await service.submitReview(
                     pullRequestID: item.id,

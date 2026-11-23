@@ -650,3 +650,43 @@ struct WholeReviewWritingTests {
         #expect(state.reviewDrafts[item.id]?.writtenBody == nil)
     }
 }
+
+/// What the three review buttons go by. Until the two whole-review
+/// texts existed, "anything to send" and "remarks on lines" were the
+/// same question, and the buttons asked the second one.
+@Suite("Whether there is anything to send")
+struct UnsentReviewTests {
+    private func draft(
+        comments: [DraftComment] = [], body: String = "", conversation: String = ""
+    ) -> ReviewDraft {
+        ReviewDraft(
+            pullRequestID: "pr-1", commit: "abc",
+            comments: comments, body: body, conversation: conversation
+        )
+    }
+
+    private var remark: DraftComment {
+        DraftComment(path: "a/b.swift", line: 3, side: .new, body: "Here.")
+    }
+
+    /// A review whose whole content is a sentence about the pull request
+    /// is one somebody wrote and has every right to send. The Comment
+    /// button is drawn on this, so counting only the remarks left it
+    /// undrawn and the sentence unsendable.
+    @Test("A sentence about the whole counts as something to send")
+    func sentenceCounts() {
+        #expect(draft().isEmpty)
+        #expect(!draft(body: "Reads right to me.").isEmpty)
+        #expect(!draft(conversation: "Rebasing on main.").isEmpty)
+        #expect(!draft(comments: [remark]).isEmpty)
+    }
+
+    /// The approve button's count stays about lines. "Approve with 1
+    /// remark" is a warning that something hangs on the diff, and a
+    /// summary does not hang anywhere.
+    @Test("The count of remarks stays about lines")
+    func countStaysAboutLines() {
+        #expect(draft(body: "A sentence.").comments.isEmpty)
+        #expect(draft(comments: [remark], body: "A sentence.").comments.count == 1)
+    }
+}

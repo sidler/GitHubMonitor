@@ -443,16 +443,21 @@ struct DiffOverlay: View {
             }
 
             // Only where there is something to say. A review that
-            // neither approves nor objects and carries no remarks is an
-            // empty envelope, and GitHub refuses it.
-            if review.remarks > 0 {
+            // neither approves nor objects and carries nothing written
+            // is an empty envelope, and GitHub refuses it.
+            //
+            // Anything written, not only remarks on lines: a review
+            // whose whole content is a sentence about the pull request
+            // is one somebody wrote and has every right to send, and
+            // until now the button that sends it was not drawn.
+            if review.hasUnsent {
                 Button("Comment") { press(review, .comment) }
                     .disabled(review.isBusy)
-                    .help("Send the remarks without a verdict")
+                    .help("Send what you have written, without a verdict")
             }
 
-            Button(review.remarks > 0 ? "Request changes" : "Request changes\u{2026}") {
-                if review.remarks > 0 {
+            Button(review.hasUnsent ? "Request changes" : "Request changes\u{2026}") {
+                if review.hasUnsent {
                     press(review, .requestChanges)
                 } else {
                     // Nothing written here to send, so this is still the
@@ -462,8 +467,8 @@ struct DiffOverlay: View {
             }
             .disabled(review.isBusy)
             .help(
-                review.remarks > 0
-                    ? "Send the remarks and ask for changes"
+                review.hasUnsent
+                    ? "Send what you have written and ask for changes"
                     : "Opens the pull request on GitHub, where a review can be written against the lines"
             )
 
@@ -1700,7 +1705,20 @@ struct ReviewActions {
     /// Why the last attempt wrote nothing, if there was one.
     let failure: String?
     /// How many remarks are waiting to go with it.
+    ///
+    /// Remarks on lines, which is what the approve button counts: a
+    /// reviewer who has forgotten they wrote three should find that out
+    /// before pressing, not after.
     let remarks: Int
+    /// Whether anything at all is waiting to go -- those remarks, what
+    /// the review says about the whole, or a remark for the
+    /// conversation.
+    ///
+    /// Apart from the count because the two answer different questions.
+    /// A review that is only a sentence about the whole has nought
+    /// remarks and is still a review worth sending, and the buttons go
+    /// by this.
+    var hasUnsent: Bool = false
     /// Looks at the head commit and, if it still matches, raises the
     /// question. Writes nothing either way.
     let ask: (ApprovalQuery.Event) async -> Void

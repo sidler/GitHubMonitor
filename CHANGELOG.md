@@ -21,6 +21,10 @@ What changed in each released version. The app shows this file itself, under
   diff to the file. A review of forty files used to hide its four
   conversations in four places, findable only by opening each and
   looking.
+- **The review buttons count what you have written, not only what hangs
+  on a line** — a review whose whole content is a sentence about the
+  pull request now has a Comment button to send it, and Request changes
+  sends it rather than opening a browser.
 - **Two boxes there for what a review says about the whole** — one for the
   review's own summary, which GitHub has always taken and this app never
   sent, and one for a remark in the conversation. Both kept until you
