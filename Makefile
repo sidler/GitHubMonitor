@@ -8,9 +8,15 @@ BIN        := .build/$(CONFIG)/GitHubMonitor
 
 # Regenerate the app icon from the SVG. Only needed when the artwork changes;
 # the .icns is checked in.
+# The iconset goes under .build rather than /tmp: it is scaffolding for
+# the .icns and nothing else, so `make clean` should take it, and a
+# fixed name in a directory everybody can write to is not a place to put
+# a build step's working files.
 icon:
-	@swift Scripts/make-icon.swift Resources/AppIcon.svg /tmp/AppIcon.iconset
-	@iconutil -c icns /tmp/AppIcon.iconset -o Resources/AppIcon.icns
+	@rm -rf .build/AppIcon.iconset
+	@swift Scripts/make-icon.swift Resources/AppIcon.svg .build/AppIcon.iconset
+	@iconutil -c icns .build/AppIcon.iconset -o Resources/AppIcon.icns
+	@rm -rf .build/AppIcon.iconset
 	@echo "regenerated Resources/AppIcon.icns"
 
 all: bundle
@@ -93,7 +99,12 @@ release-notarize:
 	@/usr/bin/ditto -c -k --keepParent "$(RELEASE_APP)" "$(ZIP)"
 	@xcrun notarytool submit "$(ZIP)" --keychain-profile "$(NOTARY_PROFILE)" --wait
 	@xcrun stapler staple "$(RELEASE_APP)"
-	@rm -f "$(ZIP)"
+# Zipped again, because stapling changed the bundle -- and every
+# version's zip cleared out, not only this one's. Each is published on
+# the release it belongs to, so the copies left here are scaffolding
+# that only grows: twenty-five of them, seventy-five megabytes, by the
+# time anybody looked.
+	@rm -f .build/release-app/GitHubMonitor-*.zip
 	@/usr/bin/ditto -c -k --keepParent "$(RELEASE_APP)" "$(ZIP)"
 
 # What another Mac will conclude, asked here rather than found out by the
