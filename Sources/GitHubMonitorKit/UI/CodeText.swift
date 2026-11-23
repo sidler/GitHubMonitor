@@ -152,12 +152,13 @@ final class PaintedCode {
 
     /// How many lines are held before the generation rolls.
     ///
-    /// Memory, not a feeling: a painted line measured at **2.6 KB** --
+    /// Memory, not a feeling: a painted line measured at **4.4 KB** --
     /// `AttributedString` keeps its runs, which for a seventy-character
-    /// line of code is some forty bytes a character. The two generations
+    /// line of code is some sixty bytes a character. The two generations
     /// mean the cache holds between this many lines and twice it, so
-    /// four thousand is a footprint oscillating between eleven and
-    /// twenty-one megabytes.
+    /// four thousand is a footprint oscillating between eighteen and
+    /// thirty-four megabytes. It was 2.6 KB and eleven to twenty-one
+    /// when the figure was last taken; `PaintedCodeTests` measures it.
     ///
     /// Two thousand was too few for what the app now does. One file of a
     /// large review does not fit in it -- the note on `lines` in the

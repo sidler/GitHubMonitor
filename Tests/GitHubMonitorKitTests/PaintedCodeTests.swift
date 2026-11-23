@@ -84,17 +84,15 @@ struct PaintedCodeBudgetTests {
     /// the limit and twice it, at the figure above, this is the ceiling
     /// the choice was made against.
     ///
-    /// 2600 is the figure the choice was made against, not the figure
-    /// measured today. At the 4.4 KB the test above now reads, the same
-    /// arithmetic comes to 34 MB and this ceiling is 7 per cent behind
-    /// it -- the limit wants either four hundred lines off it or a
-    /// ceiling that admits the extra two megabytes. Left as it stands
-    /// until that is decided, because moving either number is the
-    /// decision and not the reporting of it.
+    /// Thirty-six megabytes rather than the thirty-two it was, and 4.4 KB
+    /// a line rather than 2.6. A painted line grew dearer than it was
+    /// when the limit was chosen, which left the choice between four
+    /// hundred fewer lines and two more megabytes. The lines are what
+    /// the cache is for, so the ceiling moved.
     @Test("What it holds at worst stays within the budget it was chosen for")
     func budget() {
-        let worstCase = 2 * PaintedCode.shared.limit * 2600
+        let worstCase = 2 * PaintedCode.shared.limit * 4400
 
-        #expect(worstCase < 32 * 1024 * 1024, "worst case is \(worstCase / 1024 / 1024) MB")
+        #expect(worstCase < 36 * 1024 * 1024, "worst case is \(worstCase / 1024 / 1024) MB")
     }
 }
