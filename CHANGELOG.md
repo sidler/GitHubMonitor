@@ -5,19 +5,16 @@ What changed in each released version. The app shows this file itself, under
 
 ## 2.12.0
 
-- **The diff opens with the conversation** — a first file in the tree for
-  what was said about the pull request rather than about a line of it,
-  with the summary each reviewer wrote and two boxes to add your own.
-- **Every remark on the diff, in one list** — under its file and line,
-  open ones first, with a chevron that takes the diff there.
-- **A review that is only a sentence can be sent** — the buttons count
-  what you have written, not only what hangs on a line.
+- **The conversation is the first file in a review's tree** — what was
+  said about the pull request as a whole, the summary each reviewer
+  wrote, and two boxes to add your own.
+- **The conversation page lists every remark on the diff** — under its
+  file and line, open ones first, with a chevron that opens that place
+  in the diff.
 - **A dismissed review can be asked for again** — a ↻ beside the reviewer
   whose review GitHub set aside.
 - **An issue list can be grouped by board** — beside *By repository* and
   *By type*. Needs `read:project`.
-- **The box a remark is written in grows with the remark** — it used to
-  stand at four lines and scroll inside itself.
 
 ## 2.11.0
 

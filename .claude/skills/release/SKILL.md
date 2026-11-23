@@ -22,12 +22,39 @@ download, or a cask pointing at a file that is not there.
 
 ## Before starting
 
-Ask the user for the version number if they did not say one, and ask
-whether the entries under *Unreleased* are what they want to ship. Do not
+### Agree the changelog first, every time
+
+Before versioning anything, print the *Unreleased* section as it stands
+and settle it with the user. Not "are these the entries" in passing —
+show them the text, say which ones you would cut and which you would
+shorten, and wait for their word. A release carries the changelog into
+three places at once (the bundle, the project page's readers, the
+release notes), and only the first is cheap to correct afterwards: the
+app ships `CHANGELOG.md` inside its bundle, so once the zip is
+notarised, the text in that build's *What's New* is final.
+
+What the file is for, and what it is not:
+
+- **One line per entry**, the benefit first, in bold. The mechanism, the
+  reasoning and the measurements belong in the commit message.
+- **No low-level fixes.** A correction to how something inside an
+  existing feature is positioned, named or ordered is not an entry —
+  nobody noticed it was wrong until it was right.
+- **Short enough to skim**, because the window it is read in is skimmed.
+  If an entry needs a second sentence to make sense, the first sentence
+  is wrong.
+
+The release notes on GitHub carry the same entries. Write them from the
+agreed changelog section, not from the commit log, and do not let them
+grow back into prose.
+
+### The version, and the three things that cannot be arranged from here
+
+Ask the user for the version number if they did not say one. Do not
 pick a version yourself — the difference between 1.1.1 and 1.2.0 is a
 judgement about the work, not about the diff.
 
-Three things must already be true, and none can be arranged from here:
+Three things must already be true:
 
 1. A **Developer ID Application** certificate in the keychain
    (`security find-identity -v -p codesigning | grep "Developer ID"`).
@@ -132,9 +159,11 @@ gh release create v<version> \
   --notes-file <notes>
 ```
 
-Write the notes from the changelog section, not from the commit log, and
-end them with the install block and one line saying the build is signed,
-notarised and stapled. Look at the previous release for the shape
+Write the notes from the changelog section agreed at the start, not from
+the commit log, and end them with the install block and one line saying
+the build is signed, notarised and stapled. The same entries, the same
+length -- a release note that explains a mechanism the changelog left
+out is a changelog nobody agreed to. Look at the previous release for the shape
 (`gh release view v1.1.0 --repo sidler/GitHubMonitor --json body`).
 
 ### 7. Update the cask
