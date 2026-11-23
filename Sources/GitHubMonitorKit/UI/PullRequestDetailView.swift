@@ -622,6 +622,7 @@ struct PullRequestDetailView: View {
                             }
                             Text(reviewer.name).lineLimit(1)
                             Spacer(minLength: 4)
+                            askAgain(reviewer)
                             Image(systemName: reviewer.state.symbolName)
                                 .font(.body)
                                 .foregroundStyle(tint(for: reviewer.state))
@@ -650,6 +651,31 @@ struct PullRequestDetailView: View {
                     )
                 }
             }
+        }
+    }
+
+    /// The way back from a dismissed review.
+    ///
+    /// A dismissed review is the one state a reviewer row can be in that
+    /// is wrong until somebody acts: GitHub set the review aside and
+    /// nobody was asked to replace it, so the pull request waits on a
+    /// person who is no longer waiting on it. Approved and changes
+    /// requested are answers; they need no button.
+    ///
+    /// Teams are left out. The endpoint behind this takes logins, and a
+    /// team is not one.
+    @ViewBuilder
+    private func askAgain(_ reviewer: ReviewerStatus) -> some View {
+        if let writing, item.state == .open, reviewer.state == .dismissed, !reviewer.isTeam {
+            Button {
+                writing.controller.requestReviewAgain(from: reviewer, on: item)
+            } label: {
+                Image(systemName: "arrow.clockwise")
+            }
+            .buttonStyle(.accessoryBar)
+            .pointerStyle(.link)
+            .help("Ask \(reviewer.name) to review again")
+            .accessibilityLabel("Ask \(reviewer.name) to review again")
         }
     }
 

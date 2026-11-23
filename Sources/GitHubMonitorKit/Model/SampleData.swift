@@ -483,6 +483,9 @@ public enum SampleData {
             ],
             reviewers: [
                 ReviewerStatus(name: "arun", avatarURL: avatar(2), state: .pending, isTeam: false),
+                // One review GitHub set aside, so the way back from a
+                // dismissed one has somewhere to be drawn.
+                ReviewerStatus(name: "dara", avatarURL: avatar(3), state: .dismissed, isTeam: false),
             ],
             // Ids as GitHub gives them, not names: the mutations that set
             // and clear labels will not take a name, and a sample whose

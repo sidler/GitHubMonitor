@@ -203,6 +203,18 @@ public struct GitHubClient: Sendable {
         return try await perform(request).1
     }
 
+    /// A POST carrying a body, for the REST endpoints that take logins
+    /// where GraphQL would want node ids.
+    public func post(
+        _ url: URL, body: [String: Any]
+    ) async throws -> HTTPURLResponse {
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        return try await perform(request).1
+    }
+
     public func patch(_ url: URL) async throws -> HTTPURLResponse {
         var request = URLRequest(url: url)
         request.httpMethod = "PATCH"

@@ -247,6 +247,41 @@ public final class RefreshController {
         }
     }
 
+    /// Asks a reviewer whose review was dismissed to look again.
+    ///
+    /// The same act as asking somebody new -- work in front of a
+    /// colleague -- so it keeps the same way back rather than a question
+    /// in front. By login, because that is what a reviewer row holds.
+    ///
+    /// Only where the review was dismissed. A dismissed review is one
+    /// GitHub has set aside and nobody has replaced: the pull request is
+    /// waiting on a person who has no longer been asked, which is the
+    /// one state where a row is wrong until somebody acts.
+    public func requestReviewAgain(from reviewer: ReviewerStatus, on item: PullRequestItem) {
+        guard let service, reviewer.state == .dismissed, !reviewer.isTeam else { return }
+
+        state.reviewRequestUndo = ReviewRequestUndo(
+            pullRequestID: item.id,
+            repository: item.repository,
+            number: item.number,
+            login: reviewer.name
+        )
+
+        accountTask { [weak self] in
+            do {
+                try await service.requestReview(
+                    from: reviewer.name, repository: item.repository, number: item.number
+                )
+                guard let self, !Task.isCancelled else { return }
+                reloadDetail(for: item.id)
+                await expireUndo(for: item.id, login: reviewer.name)
+            } catch {
+                guard let self, !Task.isCancelled else { return }
+                state.reviewRequestUndo?.failure = error.localizedDescription
+            }
+        }
+    }
+
     /// Takes the last request back.
     public func undoReviewRequest() {
         guard let undo = state.reviewRequestUndo, !undo.isWorking, let service else { return }

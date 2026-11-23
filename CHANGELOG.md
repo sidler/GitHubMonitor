@@ -5,6 +5,12 @@ What changed in each released version. The app shows this file itself, under
 
 ## Unreleased
 
+- **A dismissed review can be asked for again from the pane** — a ↻
+  beside the reviewer whose review GitHub set aside. Until now that was
+  the one state a reviewer row could be in that was wrong until somebody
+  opened a browser: the pull request waits on a person who is no longer
+  waiting on it.
+
 - **An issue list can be grouped by the board its issues sit on** —
   beside *By repository* and *By type*, with the ones nobody has planned
   under *No project*. Offered only where the token carries `read:project`,

@@ -37,13 +37,13 @@ struct ReviewerPickerTests {
     /// request, only the same whole-list replacement.
     @Test("Taking a request back names a pull request and a repository")
     func withdrawal() {
-        let url = ReviewerQuery.withdrawalURL(repository: "octo/server", number: 482)
+        let url = ReviewerQuery.requestedReviewersURL(repository: "octo/server", number: 482)
 
         #expect(
             url?.absoluteString
                 == "https://api.github.com/repos/octo/server/pulls/482/requested_reviewers"
         )
-        #expect(ReviewerQuery.withdrawalURL(repository: "nonsense", number: 1) == nil)
+        #expect(ReviewerQuery.requestedReviewersURL(repository: "nonsense", number: 1) == nil)
     }
 
     /// Long enough to catch a wrong name, short enough not to read as a
@@ -188,6 +188,65 @@ struct ReviewerPickerTests {
     func missingRepository() {
         #expect(throws: GitHubError.self) {
             _ = try ReviewerQuery.catalogue(from: [:])
+        }
+    }
+}
+
+/// Asking somebody again, which is the one thing a dismissed review
+/// leaves undone: GitHub set the review aside and nobody was asked to
+/// replace it, so the pull request waits on a person who is no longer
+/// waiting on it.
+@Suite("Asking for a review again")
+struct ReviewAgainTests {
+    private func service(_ stub: StubGitHub.Stub) -> GitHubService {
+        GitHubService(token: "token", session: stub.session)
+    }
+
+    /// What was sent. A request that has been through URLSession carries
+    /// its body on a stream rather than in `httpBody`, which reads as an
+    /// empty request if taken at face value.
+    private static func body(of request: URLRequest) -> Data? {
+        if let body = request.httpBody { return body }
+        guard let stream = request.httpBodyStream else { return nil }
+        stream.open()
+        defer { stream.close() }
+        var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 1024)
+        while stream.hasBytesAvailable {
+            let read = stream.read(&buffer, maxLength: buffer.count)
+            guard read > 0 else { break }
+            data.append(buffer, count: read)
+        }
+        return data
+    }
+
+    /// The same endpoint the withdrawal uses, the other way round. By
+    /// login, because the reviewers the pane lists came back as names.
+    @Test("It posts the one login to the requested reviewers")
+    func posts() async throws {
+        let stub = StubGitHub.answering([201])
+        try await service(stub).requestReview(from: "dara", repository: "octo/server", number: 482)
+
+        let sent = try #require(stub.sent.last)
+        #expect(sent.httpMethod == "POST")
+        #expect(
+            sent.url?.absoluteString
+                == "https://api.github.com/repos/octo/server/pulls/482/requested_reviewers"
+        )
+        let read = try JSONSerialization.jsonObject(with: try #require(Self.body(of: sent)))
+        #expect((read as? [String: Any])?["reviewers"] as? [String] == ["dara"])
+    }
+
+    /// A refusal is news. GitHub turns down a request on a closed pull
+    /// request and one aimed at the author, and a button that quietly
+    /// did nothing would leave somebody waiting for a review nobody was
+    /// asked for.
+    @Test("A refusal is raised rather than swallowed")
+    func refusalIsRaised() async throws {
+        let stub = StubGitHub.answering([422])
+        await #expect(throws: GitHubError.self) {
+            try await service(stub)
+                .requestReview(from: "dara", repository: "octo/server", number: 482)
         }
     }
 }

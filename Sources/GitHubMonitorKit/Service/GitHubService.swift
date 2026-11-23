@@ -508,11 +508,34 @@ public struct GitHubService: Sendable {
         )
     }
 
+    /// Asks somebody again, by login.
+    ///
+    /// By login rather than by node id because that is what the pane
+    /// has: the reviewers it lists came back as names, and reading their
+    /// ids would mean asking for a field on every review of every pull
+    /// request to serve a button that appears on one row of one pane.
+    public func requestReview(
+        from login: String, repository: String, number: Int
+    ) async throws {
+        guard let url = ReviewerQuery.requestedReviewersURL(
+            repository: repository, number: number)
+        else {
+            throw GitHubError.decoding("not a repository this app can read")
+        }
+        let response = try await client.post(url, body: ["reviewers": [login]])
+        guard (200..<300).contains(response.statusCode) else {
+            throw GitHubError.http(
+                status: response.statusCode,
+                message: "the review could not be asked for again"
+            )
+        }
+    }
+
     /// Takes one review request back, by login, and nobody else's.
     public func withdrawReviewRequest(
         from login: String, repository: String, number: Int
     ) async throws {
-        guard let url = ReviewerQuery.withdrawalURL(repository: repository, number: number)
+        guard let url = ReviewerQuery.requestedReviewersURL(repository: repository, number: number)
         else {
             throw GitHubError.decoding("not a repository this app can read")
         }

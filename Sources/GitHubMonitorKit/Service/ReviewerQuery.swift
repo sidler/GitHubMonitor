@@ -141,15 +141,17 @@ public enum ReviewerQuery {
     }
     """
 
-    /// Taking it back, by name and nobody else's.
+    /// The endpoint that asks by name, and takes it back by name.
     ///
-    /// REST rather than GraphQL, which has no mutation for withdrawing
-    /// one request: there, taking somebody off means calling
-    /// `requestReviews` again with `union: false` and the whole list of
-    /// everyone who should remain -- which needs node ids the pane does
-    /// not have, and stamps on anyone added meanwhile. This endpoint
-    /// takes logins and removes exactly those.
-    public static func withdrawalURL(repository: String, number: Int) -> URL? {
+    /// REST rather than GraphQL for both. GraphQL has no mutation for
+    /// withdrawing one request -- there, taking somebody off means
+    /// calling `requestReviews` again with `union: false` and the whole
+    /// list of everyone who should remain, which needs node ids the pane
+    /// does not have and stamps on anyone added meanwhile. And asking
+    /// again wants the same thing: the reviewers the pane lists are
+    /// logins, not ids. This endpoint takes logins, adds exactly those
+    /// on a POST and removes exactly those on a DELETE.
+    public static func requestedReviewersURL(repository: String, number: Int) -> URL? {
         guard let parts = ChangedFilesQuery.repository(repository) else { return nil }
         return URL(
             string: "https://api.github.com/repos/\(parts.owner)/\(parts.name)"
