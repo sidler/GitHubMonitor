@@ -501,6 +501,7 @@ public final class MainWindowController: NSObject, NSWindowDelegate, NSToolbarDe
             failure: state.approval.message(for: item.id),
             remarks: state.reviewDrafts[item.id]?.comments.count ?? 0,
             hasUnsent: !(state.reviewDrafts[item.id]?.isEmpty ?? true),
+            hasReviewWords: state.reviewDrafts[item.id]?.hasReviewWords ?? false,
             ask: { [controller] event in await controller.askToApprove(item, event: event) },
             cancel: { [controller] in controller.cancelApproval() },
             approve: { [controller] in await controller.approve(item) }

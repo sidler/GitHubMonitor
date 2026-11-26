@@ -97,6 +97,34 @@ struct ReviewDraftTests {
         draft.add(comment(line: 11))
         #expect(draft.summary == "2 remarks")
     }
+
+    /// The one question the Request changes button asks.
+    ///
+    /// A remark for the conversation goes out as a comment beside the
+    /// review, never within it -- so a draft holding only that leaves
+    /// the review with no words, and GitHub refuses a change request
+    /// that has none. A button that went by "something is written"
+    /// posted the remark and then failed on the review behind it, with
+    /// nothing left to try again.
+    @Test("A conversation remark alone is not something a review can carry")
+    func reviewWords() {
+        var draft = ReviewDraft(pullRequestID: "PR_1", commit: "abc")
+        #expect(draft.hasReviewWords == false)
+
+        draft.conversation = "a word for everybody reading"
+        #expect(draft.isEmpty == false)
+        #expect(draft.hasReviewWords == false)
+
+        draft.body = "   "
+        #expect(draft.hasReviewWords == false, "blank is not a body")
+
+        draft.body = "and one about the whole"
+        #expect(draft.hasReviewWords)
+
+        var onLines = ReviewDraft(pullRequestID: "PR_2", commit: "abc")
+        onLines.add(comment())
+        #expect(onLines.hasReviewWords)
+    }
 }
 
 @Suite("Keeping a half-written review between sittings")

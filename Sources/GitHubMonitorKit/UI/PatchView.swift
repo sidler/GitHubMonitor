@@ -456,8 +456,8 @@ struct DiffOverlay: View {
                     .help("Send what you have written, without a verdict")
             }
 
-            Button(review.hasUnsent ? "Request changes" : "Request changes\u{2026}") {
-                if review.hasUnsent {
+            Button(review.hasReviewWords ? "Request changes" : "Request changes\u{2026}") {
+                if review.hasReviewWords {
                     press(review, .requestChanges)
                 } else {
                     // Nothing written here to send, so this is still the
@@ -467,7 +467,7 @@ struct DiffOverlay: View {
             }
             .disabled(review.isBusy)
             .help(
-                review.hasUnsent
+                review.hasReviewWords
                     ? "Send what you have written and ask for changes"
                     : "Opens the pull request on GitHub, where a review can be written against the lines"
             )
@@ -1723,6 +1723,13 @@ struct ReviewActions {
     /// remarks and is still a review worth sending, and the buttons go
     /// by this.
     var hasUnsent: Bool = false
+    /// Whether anything waiting can travel inside a review.
+    ///
+    /// Asking for changes needs words of its own: GitHub refuses a
+    /// change request carrying neither a body nor a remark on a line.
+    /// So where the only thing written is for the conversation, that
+    /// button stays the errand to the browser it has always been.
+    var hasReviewWords: Bool = false
     /// Looks at the head commit and, if it still matches, raises the
     /// question. Writes nothing either way.
     let ask: (ApprovalQuery.Event) async -> Void

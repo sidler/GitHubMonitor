@@ -126,6 +126,16 @@ public struct ReviewDraft: Hashable, Sendable, Codable {
         return written.isEmpty ? nil : written
     }
 
+    /// Whether anything here can travel inside a review.
+    ///
+    /// Narrower than "something is written", and the difference is the
+    /// conversation remark: that one goes out as a comment beside the
+    /// review, never within it. A draft holding only that has nothing
+    /// for a review to say -- and GitHub refuses a change request with
+    /// no words, so a button that offered to send one would post the
+    /// remark and then fail on the review behind it.
+    public var hasReviewWords: Bool { !comments.isEmpty || writtenBody != nil }
+
     /// The conversation remark, or nil where there is none.
     public var writtenConversation: String? {
         let written = Self.written(conversation)

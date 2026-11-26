@@ -378,6 +378,13 @@ private struct IndexedThread: View {
         .padding(.vertical, 5)
         .padding(.horizontal, 6)
         .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 5))
+        // The fold was set from the resolved state this row was built
+        // with, and settling one elsewhere does not rebuild the row.
+        // Without this the page keeps a settled conversation open while
+        // saying it folds them away.
+        .onChange(of: thread.isResolved) { _, resolved in
+            withAnimation(.easeOut(duration: 0.15)) { fold.settled(resolved: resolved) }
+        }
     }
 
     /// The line it hangs on and what it is about, pressable to fold.
