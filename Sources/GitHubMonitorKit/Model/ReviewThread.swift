@@ -148,6 +148,23 @@ public struct ReviewThread: Identifiable, Hashable, Sendable {
         guard let first = comments.first else { return "" }
         return CommentDigest.firstLine(of: first.body, limit: 120)
     }
+
+    /// The first picture in the opening remark, for the folded line to
+    /// show beside that one line.
+    ///
+    /// `preview` steps over pictures on purpose -- an address is not a
+    /// sentence -- which left a remark whose whole point was a screenshot
+    /// looking like a remark about nothing until somebody opened it. A
+    /// badge stays stepped over: `preview` already spells it out in
+    /// words, and drawing it as well would say the same thing twice.
+    public var previewPicture: (url: URL, alt: String)? {
+        guard let first = comments.first else { return nil }
+        for case .image(let url, let alt) in MarkdownDocument.blocks(from: first.body)
+        where url.host() != "img.shields.io" {
+            return (url, alt)
+        }
+        return nil
+    }
 }
 
 /// Which threads belong where in a drawn patch.

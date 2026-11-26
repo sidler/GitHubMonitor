@@ -373,7 +373,15 @@ private struct IndexedThread: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             header
-            if fold.isExpanded { remarks }
+            if fold.isExpanded {
+                remarks
+            } else if let picture = thread.previewPicture {
+                // Folded, a remark whose point is a screenshot had
+                // nothing to show: the one line beside it steps over
+                // pictures, so the row read as a remark about nothing.
+                BodyImageView(url: picture.url, alt: picture.alt, tallest: 60)
+                    .padding(.leading, 78)
+            }
         }
         .padding(.vertical, 5)
         .padding(.horizontal, 6)

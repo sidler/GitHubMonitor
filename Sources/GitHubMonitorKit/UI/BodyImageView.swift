@@ -88,14 +88,14 @@ private final class BodyImageLoader: ObservableObject {
 struct BodyImageView: View {
     let url: URL
     let alt: String
+    /// Tall enough to tell what a screenshot is of, short enough that two
+    /// of them do not push the text out of the pane. The real thing is a
+    /// click away either way. Smaller where the picture stands in a list
+    /// rather than in the body it was written into.
+    var tallest: CGFloat = 220
 
     @StateObject private var loader = BodyImageLoader()
     @StateObject private var full = ViewFlag()
-
-    /// Tall enough to tell what a screenshot is of, short enough that two
-    /// of them do not push the text out of the pane. The real thing is a
-    /// click away either way.
-    private static let tallest: CGFloat = 220
 
     var body: some View {
         Group {
@@ -111,7 +111,7 @@ struct BodyImageView: View {
                         // pushing the text it belongs to off the screen.
                         .frame(
                             maxWidth: image.size.width,
-                            maxHeight: min(image.size.height, Self.tallest),
+                            maxHeight: min(image.size.height, tallest),
                             alignment: .leading
                         )
                         .clipShape(RoundedRectangle(cornerRadius: 4))
@@ -132,7 +132,7 @@ struct BodyImageView: View {
                 // open as a column of spinning wheels.
                 RoundedRectangle(cornerRadius: 4)
                     .fill(.quaternary.opacity(0.4))
-                    .frame(height: 60)
+                    .frame(height: min(60, tallest))
             }
         }
         .task(id: url) { await loader.load(url) }

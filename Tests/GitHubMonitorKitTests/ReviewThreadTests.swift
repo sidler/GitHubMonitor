@@ -637,6 +637,23 @@ struct ReviewThreadPreviewTests {
         )
     }
 
+    /// The one-line preview steps over pictures, so a remark whose whole
+    /// point was a screenshot read as a remark about nothing.
+    @Test("A picture in the opening remark is offered beside the line")
+    func picture() {
+        let shot = thread(["Looks wrong here:\n\n![shot](https://example.com/a.png)"])
+        #expect(shot.previewPicture?.url.absoluteString == "https://example.com/a.png")
+        #expect(shot.preview == "Looks wrong here:")
+
+        // A badge is a picture of a word, and the line beside it already
+        // says that word.
+        let badge = thread([
+            ConventionalComment.badge(label: "issue", decoration: "blocking")
+                + "The lock is not held for the whole write.",
+        ])
+        #expect(badge.previewPicture?.url == nil)
+    }
+
     @Test("A conversation with nothing in it previews nothing")
     func empty() {
         let bare = ReviewThread(
