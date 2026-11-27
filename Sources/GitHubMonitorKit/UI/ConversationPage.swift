@@ -226,6 +226,12 @@ struct ConversationPage: View {
                 write: writing.setBody,
                 mentioning: mentioning
             )
+            // The list of names floats out of the box it belongs to, and
+            // a stack draws its children in the order they are written
+            // -- so the box below this one, and the line below that,
+            // were painted over the names. Counted down, so each box
+            // covers whatever comes after it.
+            .zIndex(2)
 
             WholeReviewBox(
                 title: "Say it on its own",
@@ -235,6 +241,7 @@ struct ConversationPage: View {
                 write: writing.setNote,
                 mentioning: mentioning
             )
+            .zIndex(1)
 
             Text("Both are kept here until you press Comment, Request changes or Approve.")
                 .font(.caption2)
