@@ -15,6 +15,11 @@ public enum CommentDigest {
     /// however many the author used.
     public static func firstLine(of body: String, limit: Int = 160) -> String {
         var inComment = false
+        // A conventional head on a line of its own, held back rather than
+        // returned. Spelled out it is a label with no subject -- the same
+        // four words on every remark in the file -- so the sentence it
+        // was written above goes behind it.
+        var badge: String?
 
         for raw in body.components(separatedBy: "\n") {
             var line = raw.trimmingCharacters(in: .whitespaces)
@@ -36,9 +41,16 @@ public enum CommentDigest {
             }
 
             let stripped = strip(line)
-            if !stripped.isEmpty { return shorten(stripped, to: limit) }
+            guard !stripped.isEmpty else { continue }
+            if badge == nil, ConventionalComment.isBareHead(line) {
+                badge = stripped
+                continue
+            }
+            if let badge { return shorten("\(badge): \(stripped)", to: limit) }
+            return shorten(stripped, to: limit)
         }
-        return ""
+        // A remark that was the label and nothing else still says that.
+        return badge.map { shorten($0, to: limit) } ?? ""
     }
 
     /// Takes the markers off the front of a line and the emphasis out of

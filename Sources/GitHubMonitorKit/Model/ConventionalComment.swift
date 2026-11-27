@@ -206,6 +206,18 @@ public enum ConventionalComment {
         return rest.isEmpty ? "\(head.label)\(mark)" : "\(head.label)\(mark): \(rest)"
     }
 
+    /// Whether a line is a head and nothing else.
+    ///
+    /// Which is the shape the badge arrives in: the extension most people
+    /// run writes it on a line of its own and the sentence below it. Read
+    /// as a one-line summary that is a label with no subject, the same
+    /// four words on every remark in the file.
+    public static func isBareHead(_ line: String) -> Bool {
+        guard let head = head(of: line) else { return false }
+        return line.dropFirst(utf16: head.length)
+            .trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
     /// A head that is already on a body.
     public struct Head: Hashable, Sendable {
         public let label: String

@@ -639,6 +639,26 @@ struct ReviewThreadPreviewTests {
 
     /// The one-line preview steps over pictures, so a remark whose whole
     /// point was a screenshot read as a remark about nothing.
+    /// Which is how the browser extension writes one, and how most of
+    /// the remarks in a review actually arrive: the badge on its own
+    /// line, the sentence below it. The line stopped at the badge, so
+    /// every conventional remark in a file read the same.
+    @Test("A badge on its own line keeps the sentence under it")
+    func badgeAboveTheWords() {
+        let body = ConventionalComment.badge(label: "thought", decoration: "non-blocking")
+            + "\n\nHier ist jetzt wieder eine andere Schreibweise."
+        #expect(
+            thread([body]).preview
+                == "thought (non-blocking): Hier ist jetzt wieder eine andere Schreibweise."
+        )
+    }
+
+    @Test("A remark that is only a badge still says the word")
+    func badgeAlone() {
+        let body = ConventionalComment.badge(label: "praise")
+        #expect(thread([body]).preview == "praise")
+    }
+
     @Test("A picture in the opening remark is offered beside the line")
     func picture() {
         let shot = thread(["Looks wrong here:\n\n![shot](https://example.com/a.png)"])
