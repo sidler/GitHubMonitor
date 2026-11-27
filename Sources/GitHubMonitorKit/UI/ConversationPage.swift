@@ -53,6 +53,9 @@ struct ConversationPage: View {
     /// Nil where the diff is a reader: a pull request that has left the
     /// lists can be read and not written to.
     let writing: WholeReviewWriting?
+    /// Who can be named with an `@` in the two boxes below. The same
+    /// names the diff's own boxes offer.
+    var mentioning: Mentioning?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -220,7 +223,8 @@ struct ConversationPage: View {
                     + "conversation under Approved or Changes requested, and notifies as "
                     + "a review.",
                 text: draft?.body ?? "",
-                write: writing.setBody
+                write: writing.setBody,
+                mentioning: mentioning
             )
 
             WholeReviewBox(
@@ -228,7 +232,8 @@ struct ConversationPage: View {
                 prompt: "Goes out beside the review, not inside it. On GitHub it appears "
                     + "in the conversation as a plain comment, with no verdict on it.",
                 text: draft?.conversation ?? "",
-                write: writing.setNote
+                write: writing.setNote,
+                mentioning: mentioning
             )
 
             Text("Both are kept here until you press Comment, Request changes or Approve.")
@@ -249,6 +254,7 @@ private struct WholeReviewBox: View {
     let prompt: String
     let text: String
     let write: (String) -> Void
+    let mentioning: Mentioning?
 
     @StateObject private var typed = TypedText()
     @StateObject private var caret = CaretState()
@@ -286,13 +292,7 @@ private struct WholeReviewBox: View {
                 .background(paper)
                 .overlay(edge)
             } else {
-                CommentTextView(
-                    text: $typed.text,
-                    caret: caret,
-                    fontSize: NSFont.preferredFont(forTextStyle: .callout).pointSize
-                )
-                .background(paper)
-                .overlay(edge)
+                MentioningBox(text: $typed.text, caret: caret, mentioning: mentioning)
             }
         }
         // Filled once, from what was written before this page was opened.

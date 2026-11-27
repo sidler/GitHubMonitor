@@ -804,7 +804,8 @@ struct DiffOverlay: View {
                 content: withThreads(conversation ?? ConversationContent()),
                 jump: { thread in go(to: thread.path) },
                 draft: draft,
-                writing: wholeReview
+                writing: wholeReview,
+                mentioning: writing?.mentioning
             )
         } else {
             changedFileBody(file, width: width, threads: threads)

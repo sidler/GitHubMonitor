@@ -246,27 +246,6 @@ struct DraftEditorView: View {
     let boxes: DraftBoxes
 
     @StateObject private var caret = CaretState()
-    @StateObject private var pick = MentionPick()
-
-    /// The half-typed name in front of the caret, if that is what is in
-    /// front of the caret.
-    private var query: String? {
-        MentionTyping.query(
-            in: box.text,
-            before: MentionTyping.index(ofUTF16: caret.offset, in: box.text)
-        )
-    }
-
-    /// Whom to offer. Nobody while the list has been dismissed for this
-    /// very query -- escape should put it away and leave it away until
-    /// what was typed changes.
-    private var people: [MentionableUser] {
-        guard
-            let query, query != pick.dismissed,
-            let mentioning = writing.mentioning
-        else { return [] }
-        return mentioning.candidates(query)
-    }
 
     private var canSave: Bool {
         !box.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -316,15 +295,6 @@ struct DraftEditorView: View {
         }
         .background(.quaternary.opacity(0.25))
         .padding(.vertical, 1)
-        .onChange(of: query) {
-            // A different question: the highlight goes back to the top,
-            // and whatever was dismissed was dismissed about something
-            // else.
-            pick.index = 0
-            pick.dismissed = nil
-            guard let query else { return }
-            writing.mentioning?.ask(query)
-        }
     }
 
     /// What will be sent, read the way it will be read.
@@ -354,19 +324,84 @@ struct DraftEditorView: View {
 
     /// The box itself, with the list of names floating over it.
     private var editor: some View {
-        CommentTextView(
+        MentioningBox(
             text: $box.text,
             caret: caret,
-            fontSize: NSFont.preferredFont(forTextStyle: .callout).pointSize,
+            mentioning: writing.mentioning,
             focusesOnAppear: true,
+            // One key, two meanings, innermost first: a list on screen is
+            // what escape is about, and once it is gone the box is.
+            onCancel: { boxes.shut(box.place) }
+        )
+    }
+
+    private var label: String {
+        if box.editing != nil { return "Save" }
+        return thread == nil ? "Add" : "Reply"
+    }
+
+    private func save() {
+        guard canSave else { return }
+        if let editing = box.editing {
+            writing.change(editing, box.text)
+        } else if let thread {
+            writing.reply(thread, box.text)
+        } else {
+            writing.add(path, line, side, box.text)
+        }
+        boxes.shut(box.place)
+    }
+}
+
+/// A box to write a remark in, with the names on offer floating under
+/// the caret.
+///
+/// Here rather than inside the diff's editor, which is where it grew up:
+/// an `@` means the same thing in every box the app has, and the two on
+/// the conversation page were plain fields only because the completion
+/// had nowhere to be shared from. A name is hardest to remember exactly
+/// where the remark is about the whole pull request rather than about a
+/// line of it.
+struct MentioningBox: View {
+    @Binding var text: String
+    @ObservedObject var caret: CaretState
+    /// Nil leaves it a plain box, which is what every box was.
+    let mentioning: Mentioning?
+    var focusesOnAppear = false
+    /// What escape does once there is no list left to put away.
+    var onCancel: () -> Void = {}
+
+    @StateObject private var pick = MentionPick()
+
+    /// The half-typed name in front of the caret, if that is what is in
+    /// front of the caret.
+    private var query: String? {
+        MentionTyping.query(
+            in: text,
+            before: MentionTyping.index(ofUTF16: caret.offset, in: text)
+        )
+    }
+
+    /// Whom to offer. Nobody while the list has been dismissed for this
+    /// very query -- escape should put it away and leave it away until
+    /// what was typed changes.
+    private var people: [MentionableUser] {
+        guard let query, query != pick.dismissed, let mentioning else { return [] }
+        return mentioning.candidates(query)
+    }
+
+    var body: some View {
+        CommentTextView(
+            text: $text,
+            caret: caret,
+            fontSize: NSFont.preferredFont(forTextStyle: .callout).pointSize,
+            focusesOnAppear: focusesOnAppear,
             isCompleting: { !people.isEmpty },
             onMove: { pick.move($0, count: people.count) },
             onCommit: { take() },
-            // One key, two meanings, innermost first: a list on screen is
-            // what escape is about, and once it is gone the box is.
             onCancel: {
                 if people.isEmpty {
-                    boxes.shut(box.place)
+                    onCancel()
                 } else {
                     pick.dismissed = query
                 }
@@ -392,6 +427,15 @@ struct DraftEditorView: View {
         // used to push the whole diff about as names were typed.
         .overlay(alignment: .topLeading) { completion }
         .zIndex(1)
+        .onChange(of: query) {
+            // A different question: the highlight goes back to the top,
+            // and whatever was dismissed was dismissed about something
+            // else.
+            pick.index = 0
+            pick.dismissed = nil
+            guard let query else { return }
+            mentioning?.ask(query)
+        }
     }
 
     /// The names on offer, floating under the caret.
@@ -427,32 +471,15 @@ struct DraftEditorView: View {
 
     private func take(_ person: MentionableUser) {
         let written = MentionTyping.completing(
-            box.text,
+            text,
             with: person.login,
-            before: MentionTyping.index(ofUTF16: caret.offset, in: box.text)
+            before: MentionTyping.index(ofUTF16: caret.offset, in: text)
         )
-        box.text = written.text
+        text = written.text
         // The caret belongs behind the name that was just written, not
         // wherever the new string happens to end.
         caret.wanted = NSRange(location: written.caret, length: 0)
         pick.index = 0
-    }
-
-    private var label: String {
-        if box.editing != nil { return "Save" }
-        return thread == nil ? "Add" : "Reply"
-    }
-
-    private func save() {
-        guard canSave else { return }
-        if let editing = box.editing {
-            writing.change(editing, box.text)
-        } else if let thread {
-            writing.reply(thread, box.text)
-        } else {
-            writing.add(path, line, side, box.text)
-        }
-        boxes.shut(box.place)
     }
 }
 
